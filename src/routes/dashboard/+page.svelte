@@ -11,6 +11,11 @@
       return;
     }
 
+    if (!authStore.isEmailVerified) {
+      goto('/verify-email');
+      return;
+    }
+
     if (authStore.isCoach && !authStore.isValidatedCoach) {
       goto('/pending-validation');
       return;

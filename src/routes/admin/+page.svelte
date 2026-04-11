@@ -122,6 +122,11 @@
                   <div class="space-y-1" style="font-family: monospace; font-size: 13px; color: #666;">
                     <p>
                       <span class="font-medium">Email:</span> {coach.email}
+                      {#if coach.email_verified}
+                        <span style="color: #4A7C4A; font-weight: 600;">(Verified)</span>
+                      {:else}
+                        <span style="color: #B85450; font-weight: 600;">(Not Verified)</span>
+                      {/if}
                     </p>
                     <p>
                       <span class="font-medium">ID:</span> {coach.id}

@@ -7,6 +7,7 @@ class AuthStore {
   isAdmin = $derived(this.user?.is_admin ?? false);
   isCoach = $derived(this.user?.is_coach ?? false);
   isValidatedCoach = $derived(this.user?.is_coach && this.user?.coach_validated);
+  isEmailVerified = $derived(this.user?.email_verified ?? false);
 
   async login(email: string, password: string): Promise<void> {
     const response = await apiClient.login({ email, password });

@@ -28,6 +28,7 @@ export interface User {
   is_coach: boolean;
   coach_validated: boolean;
   is_admin: boolean;
+  email_verified: boolean;
 }
 
 export interface CoachResponse {
@@ -37,7 +38,12 @@ export interface CoachResponse {
   lastname: string;
   is_coach: boolean;
   coach_validated: boolean;
+  email_verified: boolean;
   created_at: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
 }
 
 class ApiClient {
@@ -126,6 +132,17 @@ class ApiClient {
 
   async getCurrentUser(): Promise<User> {
     return this.request<User>('/api/user');
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/auth/verify?token=${token}`);
+  }
+
+  async resendVerification(email: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   }
 }
 

@@ -16,8 +16,12 @@
     try {
       await authStore.login(email, password);
       authStore.saveUser();
-      if (authStore.isAdmin) {
+      if (!authStore.isEmailVerified) {
+        goto('/verify-email');
+      } else if (authStore.isAdmin) {
         goto('/admin');
+      } else if (authStore.isCoach && !authStore.isValidatedCoach) {
+        goto('/pending-validation');
       } else {
         goto('/dashboard');
       }
@@ -34,7 +38,7 @@
     try {
       await authStore.register(email, password, firstname, lastname, true);
       authStore.saveUser();
-      goto('/pending-validation');
+      goto('/verify-email');
     } catch (e) {
       error = e instanceof Error ? e.message : 'Registration failed';
     } finally {
@@ -184,7 +188,7 @@
 
             <div class="mb-6 p-3 border border-yellow-600 bg-yellow-50">
               <p class="text-yellow-700" style="font-family: monospace; font-size: 12px; font-weight: 500;">
-                All new accounts require admin validation before access.
+                You will need to verify your email address and then wait for admin validation before access.
               </p>
             </div>
 

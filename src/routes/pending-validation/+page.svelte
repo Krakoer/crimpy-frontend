@@ -11,6 +11,11 @@
       return;
     }
 
+    if (!authStore.user?.email_verified) {
+      goto('/verify-email');
+      return;
+    }
+
     if (!authStore.isCoach) {
       goto('/dashboard');
       return;
@@ -48,11 +53,11 @@
           Thank you for registering as a coach, {authStore.user?.firstname}!
         </p>
         <p>
-          Your account is currently pending admin validation. You will receive access to the coach portal once an administrator has reviewed and approved your account.
+          Your email address has been verified. Your account is currently pending admin validation. You will receive access to the coach portal once an administrator has reviewed and approved your account.
         </p>
         <div class="p-4 border border-gray-300 bg-gray-50">
           <p class="font-medium mb-2" style="font-size: 12px; color: #666;">ACCOUNT DETAILS</p>
-          <p style="font-size: 12px; color: #666;">Email: {authStore.user?.email}</p>
+          <p style="font-size: 12px; color: #666;">Email: {authStore.user?.email} {authStore.user?.email_verified ? '(Verified)' : ''}</p>
           <p style="font-size: 12px; color: #666;">Name: {authStore.user?.firstname} {authStore.user?.lastname}</p>
         </div>
         <p style="font-size: 12px; color: #999;">
