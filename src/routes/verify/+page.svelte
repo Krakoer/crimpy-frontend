@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { apiClient } from '$lib/api/client';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
 
   let verifying = $state(true);
   let success = $state(false);
@@ -22,10 +21,6 @@
       const response = await apiClient.verifyEmail(token);
       success = true;
       successMessage = response.message || 'Email verified successfully!';
-
-      setTimeout(() => {
-        goto('/');
-      }, 3000);
     } catch (e) {
       success = false;
       errorMessage = e instanceof Error ? e.message : 'Email verification failed. The token may be invalid or expired.';
@@ -70,10 +65,7 @@
             </p>
           </div>
           <p class="text-gray-600 mb-6" style="font-family: monospace; font-size: 13px;">
-            Your email has been successfully verified. You can now log in to your account.
-          </p>
-          <p class="text-gray-500" style="font-family: monospace; font-size: 12px;">
-            Redirecting to login page in 3 seconds...
+            Your email has been successfully verified. An admin will validate your account soon.
           </p>
         {:else}
           <div class="inline-flex items-center justify-center w-20 h-20 border-2 border-red-600 bg-red-50 mb-6">
