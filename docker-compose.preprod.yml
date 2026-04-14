@@ -5,20 +5,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: crimpy-frontend
+    container_name: dev-crimpy-frontend
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.crimpy-frontend.rule=Host(`crimpy.app`)
-      - traefik.http.routers.crimpy-frontend.entrypoints=websecure
-      - traefik.http.routers.crimpy-frontend.tls.certresolver=dnsResolver
+      - traefik.http.routers.dev-crimpy-frontend.rule=Host(`dev.crimpy.app`)
+      - traefik.http.routers.dev-crimpy-frontend.entrypoints=websecure
+      - traefik.http.routers.dev-crimpy-frontend.tls.certresolver=dnsResolver
+      - traefik.http.routers.dev-crimpy-frontend.middlewares=traefik-ip
+      - traefik.http.middlewares.traefik-ip.ipallowlist.sourcerange=10.14.0.0/16
     expose:
       - 3000
     environment:
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
-      - PUBLIC_API_URL=https://api.crimpy.app
+      - PUBLIC_API_URL=https://devapi.crimpy.app
     networks:
       - proxy
     healthcheck:

@@ -1,6 +1,7 @@
 import { dev } from '$app/environment';
+import { env } from '$env/dynamic/public';
 
-const API_BASE_URL = dev ? 'http://127.0.0.1:3000' : 'https://api.portfolio-online.ovh';
+const API_BASE_URL = env.PUBLIC_API_URL || (dev ? 'http://127.0.0.1:3000' : 'https://api.crimpy.app');
 
 export interface LoginRequest {
   email: string;
@@ -135,7 +136,10 @@ class ApiClient {
   }
 
   async verifyEmail(token: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/auth/verify?token=${token}`);
+    return this.request<{ message: string }>('/auth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
   }
 
   async resendVerification(email: string): Promise<{ message: string }> {
