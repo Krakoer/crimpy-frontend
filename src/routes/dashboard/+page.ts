@@ -6,15 +6,15 @@ import { browser } from '$app/environment';
 export const ssr = false;
 
 export const load: PageLoad = async () => {
-  if (!browser) {
-    return {};
-  }
+	if (!browser) {
+		return {};
+	}
 
-  const user = await authStore.verifyUser();
+	const user = await authStore.verifyUser();
 
-  if (!user) {
-    throw redirect(307, '/');
-  }
+	if (!user) {
+		throw redirect(307, '/');
+	}
 
-  return {};
+	return {};
 };

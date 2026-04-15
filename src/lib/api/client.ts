@@ -1,153 +1,151 @@
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/public';
 
-const API_BASE_URL = env.PUBLIC_API_URL || (dev ? 'http://127.0.0.1:3000' : 'https://api.crimpy.app');
+const API_BASE_URL =
+	env.PUBLIC_API_URL || (dev ? 'http://127.0.0.1:3000' : 'https://api.crimpy.app');
 
 export interface LoginRequest {
-  email: string;
-  password: string;
+	email: string;
+	password: string;
 }
 
 export interface RegisterRequest {
-  email: string;
-  password: string;
-  firstname: string;
-  lastname: string;
-  is_coach: boolean;
+	email: string;
+	password: string;
+	firstname: string;
+	lastname: string;
+	is_coach: boolean;
 }
 
 export interface AuthResponse {
-  token: string;
-  user: User;
+	token: string;
+	user: User;
 }
 
 export interface User {
-  id: string;
-  email: string;
-  firstname: string;
-  lastname: string;
-  is_coach: boolean;
-  coach_validated: boolean;
-  is_admin: boolean;
-  email_verified: boolean;
+	id: string;
+	email: string;
+	firstname: string;
+	lastname: string;
+	is_coach: boolean;
+	coach_validated: boolean;
+	is_admin: boolean;
+	email_verified: boolean;
 }
 
 export interface CoachResponse {
-  id: string;
-  email: string;
-  firstname: string;
-  lastname: string;
-  is_coach: boolean;
-  coach_validated: boolean;
-  email_verified: boolean;
-  created_at: string;
+	id: string;
+	email: string;
+	firstname: string;
+	lastname: string;
+	is_coach: boolean;
+	coach_validated: boolean;
+	email_verified: boolean;
+	created_at: string;
 }
 
 export interface ResendVerificationRequest {
-  email: string;
+	email: string;
 }
 
 class ApiClient {
-  private baseUrl: string = API_BASE_URL;
+	private baseUrl: string = API_BASE_URL;
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const token = this.getToken();
+	private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+		const url = `${this.baseUrl}${endpoint}`;
+		const token = this.getToken();
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json'
+		};
 
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+		if (token) {
+			headers['Authorization'] = `Bearer ${token}`;
+		}
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options.headers as Record<string, string>),
-      },
-    });
+		const response = await fetch(url, {
+			...options,
+			headers: {
+				...headers,
+				...(options.headers as Record<string, string>)
+			}
+		});
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
-    }
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+			throw new Error(error.error || `HTTP ${response.status}`);
+		}
 
-    return response.json();
-  }
+		return response.json();
+	}
 
-  private getToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('auth_token');
-    }
-    return null;
-  }
+	private getToken(): string | null {
+		if (typeof window !== 'undefined') {
+			return localStorage.getItem('auth_token');
+		}
+		return null;
+	}
 
-  setToken(token: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_token', token);
-    }
-  }
+	setToken(token: string): void {
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('auth_token', token);
+		}
+	}
 
-  clearToken(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-    }
-  }
+	clearToken(): void {
+		if (typeof window !== 'undefined') {
+			localStorage.removeItem('auth_token');
+			localStorage.removeItem('user');
+		}
+	}
 
-  async login(credentials: LoginRequest): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    });
-  }
+	async login(credentials: LoginRequest): Promise<AuthResponse> {
+		return this.request<AuthResponse>('/auth/login', {
+			method: 'POST',
+			body: JSON.stringify(credentials)
+		});
+	}
 
-  async register(data: RegisterRequest): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
+	async register(data: RegisterRequest): Promise<AuthResponse> {
+		return this.request<AuthResponse>('/auth/register', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
 
-  async getPendingCoaches(): Promise<CoachResponse[]> {
-    return this.request<CoachResponse[]>('/api/admin/coaches/pending');
-  }
+	async getPendingCoaches(): Promise<CoachResponse[]> {
+		return this.request<CoachResponse[]>('/api/admin/coaches/pending');
+	}
 
-  async validateCoach(id: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/api/admin/coaches/${id}/validate`, {
-      method: 'PUT',
-    });
-  }
+	async validateCoach(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/admin/coaches/${id}/validate`, {
+			method: 'PUT'
+		});
+	}
 
-  async rejectCoach(id: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/api/admin/coaches/${id}/reject`, {
-      method: 'PUT',
-    });
-  }
+	async rejectCoach(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/admin/coaches/${id}/reject`, {
+			method: 'PUT'
+		});
+	}
 
-  async getCurrentUser(): Promise<User> {
-    return this.request<User>('/api/user');
-  }
+	async getCurrentUser(): Promise<User> {
+		return this.request<User>('/api/user');
+	}
 
-  async verifyEmail(token: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>('/auth/verify', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
-    });
-  }
+	async verifyEmail(token: string): Promise<{ message: string; is_coach: boolean }> {
+		return this.request<{ message: string; is_coach: boolean }>('/auth/verify', {
+			method: 'POST',
+			body: JSON.stringify({ token })
+		});
+	}
 
-  async resendVerification(email: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>('/auth/resend-verification', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
-  }
+	async resendVerification(email: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>('/auth/resend-verification', {
+			method: 'POST',
+			body: JSON.stringify({ email })
+		});
+	}
 }
 
 export const apiClient = new ApiClient();

@@ -11,6 +11,7 @@ This document describes the initial implementation of the Crimpy coach web porta
 Location: [src/routes/+page.svelte](src/routes/+page.svelte)
 
 Features:
+
 - Login form for existing users
 - Registration form for new coaches and regular users
 - Tab-based interface switching between login and register
@@ -23,6 +24,7 @@ Features:
 Location: [src/routes/admin/+page.svelte](src/routes/admin/+page.svelte)
 
 Features:
+
 - View all pending coach registration requests
 - Approve coach accounts
 - Reject coach accounts and revert to regular user
@@ -35,6 +37,7 @@ Features:
 Location: [src/routes/dashboard/+page.svelte](src/routes/dashboard/+page.svelte)
 
 Features:
+
 - Protected route for authenticated users
 - Account status display
 - Different views for regular users vs validated coaches
@@ -45,6 +48,7 @@ Features:
 Location: [src/routes/pending-validation/+page.svelte](src/routes/pending-validation/+page.svelte)
 
 Features:
+
 - Information page for coaches awaiting validation
 - Account details display
 - Logout functionality
@@ -56,6 +60,7 @@ Features:
 Location: [src/lib/api/client.ts](src/lib/api/client.ts)
 
 Provides type-safe API communication with the backend:
+
 - Authentication endpoints (login, register)
 - Admin endpoints (list pending coaches, validate, reject)
 - JWT token management
@@ -66,6 +71,7 @@ Provides type-safe API communication with the backend:
 Location: [src/lib/stores/auth.svelte.ts](src/lib/stores/auth.svelte.ts)
 
 Svelte 5 runes-based state management:
+
 - User authentication state
 - Login and register methods
 - Logout functionality
@@ -77,12 +83,14 @@ Svelte 5 runes-based state management:
 The implementation follows the Crimpy design guidelines from the Flutter app:
 
 Colors:
+
 - Primary Orange: #C6613F
 - Black: #000000
 - White: #FFFFFF
 - Status Colors: Success (#4A7C4A), Error (#B85450), Warning (#D4A644)
 
 Typography:
+
 - Monospace font family throughout
 - Sharp borders with no rounded corners
 - Minimal, clean aesthetic
@@ -97,12 +105,14 @@ Typography:
 ## API Integration
 
 Base URLs:
+
 - Development: http://127.0.0.1:3000
 - Production: https://api.portfolio-online.ovh
 
 The API client automatically switches between development and production URLs based on the environment.
 
 Endpoints used:
+
 - POST /auth/login
 - POST /auth/register
 - GET /api/admin/coaches/pending
@@ -112,16 +122,19 @@ Endpoints used:
 ## Running the Application
 
 Development server:
+
 ```bash
 npm run dev
 ```
 
 Build for production:
+
 ```bash
 npm run build
 ```
 
 Preview production build:
+
 ```bash
 npm run preview
 ```
@@ -129,6 +142,7 @@ npm run preview
 ## Next Steps
 
 Future enhancements could include:
+
 - Complete dashboard functionality for coaches
 - Trainee management
 - Session viewing and feedback
