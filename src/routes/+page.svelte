@@ -2,6 +2,8 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
 
+	let { data } = $props();
+
 	let activeTab = $state<'login' | 'register'>('login');
 	let email = $state('');
 	let password = $state('');
@@ -23,7 +25,7 @@
 			} else if (authStore.isCoach && !authStore.isValidatedCoach) {
 				goto('/pending-validation');
 			} else {
-				goto('/dashboard');
+				goto(data.returnUrl || '/dashboard');
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Login failed';

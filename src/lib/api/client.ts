@@ -48,6 +48,38 @@ export interface ResendVerificationRequest {
 	email: string;
 }
 
+export interface EnrollmentTokenResponse {
+	token: string;
+	expires_at: string;
+	link: string;
+}
+
+export interface EnrollmentTokenInfo {
+	coach_id: string;
+	coach_firstname: string;
+	coach_lastname: string;
+	coach_email: string;
+	expires_at: string;
+}
+
+export interface EnrolledUser {
+	enrollment_id: string;
+	user_id: string;
+	user_firstname: string;
+	user_lastname: string;
+	user_email: string;
+	enrolled_at: string;
+}
+
+export interface UserEnrollment {
+	enrollment_id: string;
+	coach_id: string;
+	coach_firstname: string;
+	coach_lastname: string;
+	coach_email: string;
+	enrolled_at: string;
+}
+
 class ApiClient {
 	private baseUrl: string = API_BASE_URL;
 
@@ -144,6 +176,46 @@ class ApiClient {
 		return this.request<{ message: string }>('/auth/resend-verification', {
 			method: 'POST',
 			body: JSON.stringify({ email })
+		});
+	}
+
+	async generateEnrollmentToken(): Promise<EnrollmentTokenResponse> {
+		return this.request<EnrollmentTokenResponse>('/api/coach/enrollment-token', {
+			method: 'POST'
+		});
+	}
+
+	async getEnrollmentTokenInfo(token: string): Promise<EnrollmentTokenInfo> {
+		return this.request<EnrollmentTokenInfo>(`/api/enrollment/${token}`);
+	}
+
+	async acceptEnrollment(token: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/enrollment/${token}/accept`, {
+			method: 'POST'
+		});
+	}
+
+	async getEnrollments(): Promise<EnrolledUser[]> {
+		return this.request<EnrolledUser[]>('/api/coach/enrollments');
+	}
+
+	async getUserEnrollment(): Promise<UserEnrollment | null> {
+		try {
+			return await this.request<UserEnrollment>('/api/user/enrollment');
+		} catch {
+			return null;
+		}
+	}
+
+	async removeEnrollment(userId: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/coach/enrollments/${userId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async leaveEnrollment(): Promise<{ message: string }> {
+		return this.request<{ message: string }>('/api/user/enrollment', {
+			method: 'DELETE'
 		});
 	}
 }
