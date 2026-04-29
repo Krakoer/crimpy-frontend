@@ -63,14 +63,15 @@ export interface EnrollmentTokenInfo {
 }
 
 export interface SessionResponse {
-	id: string;
-	name: string;
-	date: string;
-	duration: number;
-	notes: string;
-	session_type: number;
-	is_assessment: boolean;
-	user_id: string;
+	ID: string;
+	UserID: string;
+	Name: string;
+	Date: string;
+	Duration: number;
+	Notes: string;
+	SessionType: number;
+	IsAssessment: boolean;
+	DeletedAt: string | null;
 }
 
 export interface EnrolledUser {

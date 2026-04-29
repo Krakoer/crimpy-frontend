@@ -35,7 +35,7 @@
 	}
 
 	function hasSessionOnDay(day: Date): boolean {
-		return sessions.some((s) => isSameDay(new Date(s.date), day));
+		return sessions.some((s) => isSameDay(new Date(s.Date), day));
 	}
 
 	function groupSessionsByDate(sessions: SessionResponse[]): { label: string; items: SessionResponse[] }[] {
@@ -44,12 +44,12 @@
 		yesterday.setDate(today.getDate() - 1);
 
 		const sorted = [...sessions].sort(
-			(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+			(a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()
 		);
 
 		const groups = new Map<string, SessionResponse[]>();
 		for (const session of sorted) {
-			const d = new Date(session.date);
+			const d = new Date(session.Date);
 			let key: string;
 			if (isSameDay(d, today)) {
 				key = 'Today';
@@ -85,7 +85,7 @@
 				apiClient.getClientSessions(data.id!)
 			]);
 			coachee = enrollments.find((e) => e.user_id === data.id!) ?? null;
-			sessions = clientSessions;
+			sessions = clientSessions.filter((s) => s.DeletedAt === null);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data.';
 		} finally {
@@ -194,14 +194,14 @@
 							{group.label}
 						</p>
 						<div class="space-y-2">
-							{#each group.items as session (session.id)}
+							{#each group.items as session (session.ID)}
 								<div class="flex items-center justify-between border border-gray-300 bg-gray-50 px-4 py-3">
 									<span class="font-medium" style="font-family: monospace; font-size: 13px;">
-										{session.name}
+										{session.Name}
 									</span>
 									<div class="flex gap-4" style="font-family: monospace; font-size: 12px; color: #666;">
-										<span>{formatTime(session.date)}</span>
-										<span>{formatDuration(session.duration)}</span>
+										<span>{formatTime(session.Date)}</span>
+										<span>{formatDuration(session.Duration)}</span>
 									</div>
 								</div>
 							{/each}
