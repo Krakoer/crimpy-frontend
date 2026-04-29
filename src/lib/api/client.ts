@@ -62,6 +62,17 @@ export interface EnrollmentTokenInfo {
 	expires_at: string;
 }
 
+export interface SessionResponse {
+	id: string;
+	name: string;
+	date: string;
+	duration: number;
+	notes: string;
+	session_type: number;
+	is_assessment: boolean;
+	user_id: string;
+}
+
 export interface EnrolledUser {
 	enrollment_id: string;
 	user_id: string;
@@ -217,6 +228,10 @@ class ApiClient {
 		return this.request<{ message: string }>('/api/user/enrollment', {
 			method: 'DELETE'
 		});
+	}
+
+	async getClientSessions(userId: string): Promise<SessionResponse[]> {
+		return this.request<SessionResponse[]>(`/api/coach/clients/${userId}/sessions`);
 	}
 }
 
