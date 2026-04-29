@@ -91,10 +91,6 @@
 		return `${s}s`;
 	}
 
-	function sessionEndDate(session: SessionResponse): string {
-		return new Date(new Date(session.Date).getTime() + session.Duration * 1000).toISOString();
-	}
-
 	onMount(async () => {
 		authStore.initialize();
 		loading = true;
@@ -120,16 +116,16 @@
 
 		(async () => {
 			const { Calendar } = await import('@fullcalendar/core');
-			const { default: timeGridPlugin } = await import('@fullcalendar/timegrid');
+			const { default: dayGridPlugin } = await import('@fullcalendar/daygrid');
 
 			if (destroyed || !calendarEl) return;
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			calendar = new Calendar(calendarEl, {
-				plugins: [timeGridPlugin],
-				initialView: 'timeGridWeek',
+				plugins: [dayGridPlugin],
+				initialView: 'dayGridWeek',
 				firstDay: 1,
-				allDaySlot: false,
+				contentHeight: 150,
 				headerToolbar: {
 					left: 'prev,next today',
 					center: 'title',
@@ -138,14 +134,18 @@
 				editable: false,
 				selectable: false,
 				eventStartEditable: false,
+				dayMaxEvents: false,
+				eventContent: (arg: any) => {
+					const color = arg.event.extendedProps.color as string;
+					const dot = document.createElement('span');
+					dot.style.cssText = `display:inline-block;width:15px;height:15px;border-radius:50%;background-color:${color};`;
+					return { domNodes: [dot] };
+				},
 				events: sessions.map((s) => ({
 					id: s.ID,
-					title: SESSION_NAMES[s.SessionType] ?? s.Name,
+					title: s.Name,
 					start: s.Date,
-					end: sessionEndDate(s),
-					backgroundColor: sessionType(s.SessionType).color,
-					borderColor: sessionType(s.SessionType).color,
-					textColor: '#ffffff'
+					extendedProps: { color: sessionType(s.SessionType).color }
 				}))
 			} as any);
 
@@ -207,7 +207,7 @@
 		{/if}
 
 		<!-- FullCalendar week view -->
-		<div class="mb-8 border-2 border-black bg-white">
+		<div class="mb-8 bg-white">
 			{#if loading}
 				<div class="flex items-center gap-3 p-6">
 					<div
@@ -233,7 +233,7 @@
 						<div>
 							<p
 								class="mb-3 font-medium"
-								style="font-family: monospace; font-size: 11px; color: #666; letter-spacing: 0.5px; text-transform: uppercase;"
+								style="font-family: monospace; font-size: 16px; color: #666; letter-spacing: 0.5px; text-transform: uppercase;"
 							>
 								{group.label}
 							</p>
@@ -283,7 +283,7 @@
 </div>
 
 <style>
-	/* Override FullCalendar styles to match the app's sharp monospace aesthetic */
+	/* FullCalendar overrides — sharp monospace aesthetic */
 	:global(.fc-crimpy) {
 		font-family: monospace;
 		font-size: 12px;
@@ -337,25 +337,39 @@
 		text-decoration: none;
 	}
 
-	:global(.fc-crimpy .fc-timegrid-slot) {
-		height: 40px;
-		border-color: #f0f0f0;
+	:global(.fc-crimpy .fc-daygrid-day) {
+		min-height: 0;
 	}
 
-	:global(.fc-crimpy .fc-timegrid-slot-label) {
-		color: #999;
-		font-size: 10px;
+	:global(.fc-crimpy .fc-daygrid-day-number) {
+		font-size: 12px;
+		color: #333;
+		text-decoration: none;
+		padding: 4px 6px;
 	}
 
-	:global(.fc-crimpy .fc-event) {
+	:global(.fc-crimpy .fc-day-today) {
+		background-color: transparent !important;
+	}
+
+	:global(.fc-crimpy .fc-day-today .fc-daygrid-day-number) {
+		background-color: #C6613F;
+		color: white;
 		border-radius: 0;
-		border-width: 0;
-		font-family: monospace;
-		font-size: 11px;
+	}
+
+	:global(.fc-crimpy .fc-daygrid-event) {
+		background: transparent;
+		border: none;
+		margin: 1px 2px;
+	}
+
+	:global(.fc-crimpy .fc-daygrid-event-dot) {
+		display: none;
 	}
 
 	:global(.fc-crimpy .fc-event-title) {
-		font-weight: 600;
+		display: none;
 	}
 
 	:global(.fc-crimpy .fc-scrollgrid) {
