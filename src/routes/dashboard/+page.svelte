@@ -6,6 +6,8 @@
 	import type { UserEnrollment } from '$lib/api/client';
 
 	let coacheesCount = $state(0);
+	let exercisesCount = $state(0);
+	let sessionsCount = $state(0);
 	let userEnrollment = $state<UserEnrollment | null>(null);
 
 	let loadingCoachees = $state(false);
@@ -35,6 +37,8 @@
 
 		if (authStore.isValidatedCoach) {
 			loadCoacheesCount();
+			loadExercisesCount();
+			loadSessionsCount();
 		} else {
 			loadUserEnrollment();
 		}
@@ -48,6 +52,16 @@
 		} finally {
 			loadingCoachees = false;
 		}
+	}
+
+	async function loadExercisesCount() {
+		const exercises = await apiClient.getExercises().catch(() => []);
+		exercisesCount = exercises.length;
+	}
+
+	async function loadSessionsCount() {
+		const sessions = await apiClient.getCoachSessions().catch(() => []);
+		sessionsCount = sessions.length;
 	}
 
 	async function loadUserEnrollment() {
@@ -126,15 +140,25 @@
 					<p style="font-family: monospace; font-size: 13px; color: #666;">Coachees</p>
 				</button>
 
-				<div class="border-2 border-black bg-white p-6">
-					<p class="mb-1 text-4xl font-black" style="font-family: monospace;">37</p>
+				<button
+					onclick={() => goto('/exercises')}
+					class="border-2 border-black bg-white p-6 text-left transition-colors hover:bg-gray-50"
+				>
+					<p class="mb-1 text-4xl font-black" style="font-family: monospace;">
+						{exercisesCount}
+					</p>
 					<p style="font-family: monospace; font-size: 13px; color: #666;">Exercises</p>
-				</div>
+				</button>
 
-				<div class="border-2 border-black bg-white p-6">
-					<p class="mb-1 text-4xl font-black" style="font-family: monospace;">5</p>
-					<p style="font-family: monospace; font-size: 13px; color: #666;">Templates</p>
-				</div>
+				<button
+					onclick={() => goto('/sessions')}
+					class="border-2 border-black bg-white p-6 text-left transition-colors hover:bg-gray-50"
+				>
+					<p class="mb-1 text-4xl font-black" style="font-family: monospace;">
+						{sessionsCount}
+					</p>
+					<p style="font-family: monospace; font-size: 13px; color: #666;">Sessions</p>
+				</button>
 			</div>
 
 		{:else}
