@@ -18,31 +18,54 @@
 		{ value: 'lbs', label: 'lbs' }
 	];
 
-	let perRep = $state(false);
+	// Detect per-rep mode from existing data (arrays longer than 1 element)
+	let perRep = $state((item.edge_sizes_mm?.length ?? 0) > 1 || (item.loads?.length ?? 0) > 1);
 
-	let uniformEdge = $state(20);
-	let uniformLoadValue = $state(0);
-	let uniformLoadUnit = $state<LoadUnit>('percent_bw');
-	let uniformHandPos = $state('HC');
+	// Seed uniform controls from item's first element (or defaults)
+	let uniformEdge = $state(item.edge_sizes_mm?.[0] ?? 20);
+	let uniformLoadValue = $state(item.loads?.[0]?.value ?? 0);
+	let uniformLoadUnit = $state<LoadUnit>(item.loads?.[0]?.unit ?? 'percent_bw');
+	let uniformHandPos = $state(item.hand_positions?.[0]?.[0] ?? 'HC');
 
-	function syncArraysToReps() {
+	// One-time initialization of scalar fields (runs synchronously, not in an effect)
+	if (item.both_hands === undefined) item.both_hands = true;
+	if (!item.reps) item.reps = 6;
+	if (!item.cycles) item.cycles = 3;
+	if (!item.hb_worktime_seconds) item.hb_worktime_seconds = 7;
+	if (!item.rest_seconds) item.rest_seconds = 3;
+	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
+	// Initialize arrays for brand-new items that have no data yet
+	if (!item.edge_sizes_mm?.length) {
+		item.edge_sizes_mm = [uniformEdge];
+		item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
+		item.hand_positions = [Array.from({ length: item.reps }, () => uniformHandPos)];
+	}
+
+	function resizeArraysToReps() {
 		const n = item.reps ?? 1;
 		if (!perRep) {
 			item.edge_sizes_mm = [uniformEdge];
 			item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
-			item.hand_positions = item.both_hands ? [[...Array(n).fill(uniformHandPos)]] : [[...Array(n).fill(uniformHandPos)], [...Array(n).fill(uniformHandPos)]];
-		} else {
-			const current_edge = item.edge_sizes_mm ?? [];
-			const current_load = item.loads ?? [];
-			item.edge_sizes_mm = Array.from({ length: n }, (_, i) => current_edge[i] ?? uniformEdge);
-			item.loads = Array.from({ length: n }, (_, i) => current_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit });
-			const hp = item.hand_positions ?? [];
 			if (item.both_hands) {
-				item.hand_positions = [Array.from({ length: n }, (_, i) => hp[0]?.[i] ?? uniformHandPos)];
+				item.hand_positions = [Array.from({ length: n }, () => uniformHandPos)];
 			} else {
 				item.hand_positions = [
-					Array.from({ length: n }, (_, i) => hp[0]?.[i] ?? uniformHandPos),
-					Array.from({ length: n }, (_, i) => hp[1]?.[i] ?? uniformHandPos)
+					Array.from({ length: n }, () => uniformHandPos),
+					Array.from({ length: n }, () => uniformHandPos)
+				];
+			}
+		} else {
+			const prev_edge = item.edge_sizes_mm ?? [];
+			const prev_load = item.loads ?? [];
+			const prev_hp = item.hand_positions ?? [];
+			item.edge_sizes_mm = Array.from({ length: n }, (_, i) => prev_edge[i] ?? uniformEdge);
+			item.loads = Array.from({ length: n }, (_, i) => prev_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit });
+			if (item.both_hands) {
+				item.hand_positions = [Array.from({ length: n }, (_, i) => prev_hp[0]?.[i] ?? uniformHandPos)];
+			} else {
+				item.hand_positions = [
+					Array.from({ length: n }, (_, i) => prev_hp[0]?.[i] ?? uniformHandPos),
+					Array.from({ length: n }, (_, i) => prev_hp[1]?.[i] ?? uniformHandPos)
 				];
 			}
 		}
@@ -50,24 +73,21 @@
 
 	function togglePerRep() {
 		perRep = !perRep;
-		syncArraysToReps();
+		resizeArraysToReps();
 	}
 
 	function onRepsChange() {
-		syncArraysToReps();
+		resizeArraysToReps();
 	}
 
-	$effect(() => {
-		if (!item.both_hands) {
-			item.both_hands = true;
-		}
-		if (!item.reps) item.reps = 6;
-		if (!item.cycles) item.cycles = 3;
-		if (!item.hb_worktime_seconds) item.hb_worktime_seconds = 7;
-		if (!item.rest_seconds) item.rest_seconds = 3;
-		if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
-		syncArraysToReps();
-	});
+	function onBothHandsToggle() {
+		item.both_hands = !item.both_hands;
+		resizeArraysToReps();
+	}
+
+	function onUniformChange() {
+		if (!perRep) resizeArraysToReps();
+	}
 </script>
 
 <div class="border border-black bg-white">
@@ -166,7 +186,7 @@
 		<div class="bg-white px-2 py-2 text-center">
 			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">BOTH HANDS</label>
 			<button
-				onclick={() => { item.both_hands = !item.both_hands; syncArraysToReps(); }}
+				onclick={onBothHandsToggle}
 				class="w-full border px-1 py-0.5 text-center transition-colors"
 				style="font-family: monospace; font-size: 12px; border-color: {item.both_hands ? '#C6613F' : '#ccc'}; color: {item.both_hands ? '#C6613F' : '#999'};"
 			>
@@ -195,7 +215,7 @@
 						type="number"
 						min="1"
 						bind:value={uniformEdge}
-						oninput={syncArraysToReps}
+						oninput={onUniformChange}
 						class="w-full border border-gray-300 px-2 py-1 text-center outline-none"
 						style="font-family: monospace; font-size: 12px;"
 					/>
@@ -207,13 +227,13 @@
 							type="number"
 							min="0"
 							bind:value={uniformLoadValue}
-							oninput={syncArraysToReps}
+							oninput={onUniformChange}
 							class="w-14 border border-gray-300 px-1 py-1 text-center outline-none"
 							style="font-family: monospace; font-size: 12px;"
 						/>
 						<select
 							bind:value={uniformLoadUnit}
-							onchange={syncArraysToReps}
+							onchange={onUniformChange}
 							class="flex-1 border border-gray-300 px-1 py-1 outline-none"
 							style="font-family: monospace; font-size: 11px;"
 						>
@@ -227,7 +247,7 @@
 					<label class="mb-0.5 block" style="font-family: monospace; font-size: 10px; color: #999;">GRIP</label>
 					<select
 						bind:value={uniformHandPos}
-						onchange={syncArraysToReps}
+						onchange={onUniformChange}
 						class="w-full border border-gray-300 px-1 py-1 outline-none"
 						style="font-family: monospace; font-size: 12px;"
 					>
