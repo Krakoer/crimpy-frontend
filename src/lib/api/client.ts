@@ -92,6 +92,24 @@ export interface UserEnrollment {
 	enrolled_at: string;
 }
 
+export interface Exercise {
+	id: string;
+	coach_id: string;
+	name: string;
+	description?: string | null;
+	comment?: string | null;
+	video_link?: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ExerciseRequest {
+	name: string;
+	description?: string;
+	comment?: string;
+	video_link?: string;
+}
+
 class ApiClient {
 	private baseUrl: string = API_BASE_URL;
 
@@ -233,6 +251,34 @@ class ApiClient {
 
 	async getClientSessions(userId: string): Promise<SessionResponse[]> {
 		return this.request<SessionResponse[]>(`/api/coach/clients/${userId}/sessions`);
+	}
+
+	async getExercises(): Promise<Exercise[]> {
+		return this.request<Exercise[]>('/api/coach/exercises');
+	}
+
+	async getExercise(id: string): Promise<Exercise> {
+		return this.request<Exercise>(`/api/coach/exercises/${id}`);
+	}
+
+	async createExercise(data: ExerciseRequest): Promise<Exercise> {
+		return this.request<Exercise>('/api/coach/exercises', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateExercise(id: string, data: ExerciseRequest): Promise<Exercise> {
+		return this.request<Exercise>(`/api/coach/exercises/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteExercise(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/coach/exercises/${id}`, {
+			method: 'DELETE'
+		});
 	}
 }
 
