@@ -110,6 +110,54 @@ export interface ExerciseRequest {
 	video_link?: string;
 }
 
+export type RepsUnit = 'count' | 'seconds';
+export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs';
+
+export interface Load {
+	value: number;
+	unit: LoadUnit;
+}
+
+export type SessionItemType = 'exercise' | 'circuit' | 'section' | 'hangboard';
+
+export interface SessionItem {
+	id?: string;
+	type: SessionItemType;
+	position?: number;
+	cycles?: number;
+	cycle_rest_seconds?: number;
+	section_title?: string;
+	exercise_id?: string;
+	reps?: number;
+	reps_unit?: RepsUnit;
+	rest_seconds?: number;
+	loads?: Load[];
+	hb_worktime_seconds?: number;
+	both_hands?: boolean;
+	edge_sizes_mm?: number[];
+	hand_positions?: string[][];
+	items?: SessionItem[];
+}
+
+export interface CoachSessionSummary {
+	id: string;
+	coach_id: string;
+	title: string;
+	description?: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface CoachSession extends CoachSessionSummary {
+	items: SessionItem[];
+}
+
+export interface CoachSessionRequest {
+	title: string;
+	description?: string;
+	items: SessionItem[];
+}
+
 class ApiClient {
 	private baseUrl: string = API_BASE_URL;
 
@@ -277,6 +325,34 @@ class ApiClient {
 
 	async deleteExercise(id: string): Promise<{ message: string }> {
 		return this.request<{ message: string }>(`/api/coach/exercises/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async getCoachSessions(): Promise<CoachSessionSummary[]> {
+		return this.request<CoachSessionSummary[]>('/api/coach/sessions');
+	}
+
+	async getCoachSession(id: string): Promise<CoachSession> {
+		return this.request<CoachSession>(`/api/coach/sessions/${id}`);
+	}
+
+	async createCoachSession(data: CoachSessionRequest): Promise<CoachSession> {
+		return this.request<CoachSession>('/api/coach/sessions', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateCoachSession(id: string, data: CoachSessionRequest): Promise<CoachSession> {
+		return this.request<CoachSession>(`/api/coach/sessions/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteCoachSession(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/coach/sessions/${id}`, {
 			method: 'DELETE'
 		});
 	}
