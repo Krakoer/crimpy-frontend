@@ -1,0 +1,354 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { apiClient } from '$lib/api/client';
+	import { goto } from '$app/navigation';
+	import type { Exercise, ExerciseRequest } from '$lib/api/client';
+
+	let exercises = $state<Exercise[]>([]);
+	let loading = $state(false);
+	let search = $state('');
+
+	type PanelMode = null | 'new' | Exercise;
+	let panel = $state<PanelMode>(null);
+
+	let form = $state<ExerciseRequest>({ name: '', description: '', comment: '', video_link: '' });
+	let saving = $state(false);
+	let saveError = $state('');
+	let confirmDelete = $state(false);
+	let deleting = $state(false);
+
+	let filtered = $derived(
+		search.trim()
+			? exercises.filter((e) => e.name.toLowerCase().includes(search.trim().toLowerCase()))
+			: exercises
+	);
+
+	onMount(() => {
+		authStore.initialize();
+
+		if (!authStore.isAuthenticated) {
+			goto('/');
+			return;
+		}
+		if (!authStore.isEmailVerified) {
+			goto('/verify-email');
+			return;
+		}
+		if (!authStore.isValidatedCoach) {
+			goto('/dashboard');
+			return;
+		}
+
+		loadExercises();
+	});
+
+	async function loadExercises() {
+		loading = true;
+		try {
+			exercises = await apiClient.getExercises();
+		} finally {
+			loading = false;
+		}
+	}
+
+	function openCreate() {
+		form = { name: '', description: '', comment: '', video_link: '' };
+		saveError = '';
+		confirmDelete = false;
+		panel = 'new';
+	}
+
+	function openEdit(exercise: Exercise) {
+		form = {
+			name: exercise.name,
+			description: exercise.description ?? '',
+			comment: exercise.comment ?? '',
+			video_link: exercise.video_link ?? ''
+		};
+		saveError = '';
+		confirmDelete = false;
+		panel = exercise;
+	}
+
+	function closePanel() {
+		panel = null;
+	}
+
+	async function handleSave() {
+		if (!form.name.trim()) return;
+		saving = true;
+		saveError = '';
+		try {
+			const data: ExerciseRequest = {
+				name: form.name.trim(),
+				description: form.description?.trim() || undefined,
+				comment: form.comment?.trim() || undefined,
+				video_link: form.video_link?.trim() || undefined
+			};
+			if (panel === 'new') {
+				await apiClient.createExercise(data);
+			} else if (panel && typeof panel === 'object') {
+				await apiClient.updateExercise(panel.id, data);
+			}
+			await loadExercises();
+			closePanel();
+		} catch (e) {
+			saveError = e instanceof Error ? e.message : 'Failed to save exercise.';
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function handleDelete() {
+		if (!panel || panel === 'new' || typeof panel !== 'object') return;
+		deleting = true;
+		try {
+			await apiClient.deleteExercise(panel.id);
+			await loadExercises();
+			closePanel();
+		} catch (e) {
+			saveError = e instanceof Error ? e.message : 'Failed to delete exercise.';
+		} finally {
+			deleting = false;
+		}
+	}
+</script>
+
+<div class="min-h-screen bg-white">
+	<div class="mx-auto max-w-6xl p-6">
+		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
+			<div>
+				<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
+					EXERCISES
+				</h1>
+				<button
+					onclick={() => goto('/dashboard')}
+					style="font-family: monospace; font-size: 12px; color: #666;"
+					class="transition-colors hover:text-black"
+				>
+					&larr; Dashboard
+				</button>
+			</div>
+			<button
+				onclick={openCreate}
+				class="border-2 border-black px-4 py-2 font-bold transition-colors hover:bg-black hover:text-white"
+				style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
+			>
+				+ NEW EXERCISE
+			</button>
+		</div>
+
+		<div class="mb-6">
+			<input
+				type="text"
+				placeholder="Search exercises..."
+				bind:value={search}
+				class="w-full border border-black px-3 py-2 outline-none focus:border-2"
+				style="font-family: monospace; font-size: 13px;"
+			/>
+		</div>
+
+		{#if loading}
+			<div class="flex items-center gap-3 py-12">
+				<div
+					class="animate-spin"
+					style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
+				></div>
+				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+			</div>
+		{:else if filtered.length === 0}
+			<div class="py-12 text-center">
+				<p style="font-family: monospace; font-size: 13px; color: #666;">
+					{search ? 'No exercises match your search.' : 'No exercises yet. Create your first one.'}
+				</p>
+			</div>
+		{:else}
+			<div class="divide-y divide-gray-200 border border-black">
+				{#each filtered as exercise (exercise.id)}
+					<div class="flex items-center justify-between p-4 hover:bg-gray-50">
+						<div class="min-w-0 flex-1">
+							<p class="font-bold" style="font-family: monospace; font-size: 14px;">
+								{exercise.name}
+							</p>
+							{#if exercise.description}
+								<p
+									class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
+									style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
+								>
+									{exercise.description}
+								</p>
+							{/if}
+						</div>
+						<button
+							onclick={() => openEdit(exercise)}
+							class="ml-4 shrink-0 border border-black px-3 py-1 transition-colors hover:bg-gray-100"
+							style="font-family: monospace; font-size: 12px;"
+						>
+							EDIT
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</div>
+</div>
+
+{#if panel !== null}
+	<div class="fixed inset-0 z-10 flex">
+		<!-- Backdrop -->
+		<button
+			class="flex-1 bg-black/20"
+			onclick={closePanel}
+			aria-label="Close panel"
+		></button>
+
+		<!-- Panel -->
+		<div class="flex w-full max-w-md flex-col border-l-2 border-black bg-white">
+			<div class="flex items-center justify-between border-b border-black px-6 py-4">
+				<h2 class="font-bold" style="font-family: monospace; font-size: 14px; letter-spacing: 0.5px;">
+					{panel === 'new' ? 'NEW EXERCISE' : 'EDIT EXERCISE'}
+				</h2>
+				<button
+					onclick={closePanel}
+					class="border border-black px-2 py-1 transition-colors hover:bg-gray-100"
+					style="font-family: monospace; font-size: 12px;"
+				>
+					X
+				</button>
+			</div>
+
+			<div class="flex-1 overflow-y-auto px-6 py-4">
+				{#if saveError}
+					<div
+						class="mb-4 border border-red-600 bg-red-50 p-3"
+						style="font-family: monospace; font-size: 12px; color: #B85450;"
+					>
+						{saveError}
+					</div>
+				{/if}
+
+				<div class="space-y-4">
+					<div>
+						<label
+							class="mb-1 block font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							NAME *
+						</label>
+						<input
+							type="text"
+							bind:value={form.name}
+							class="w-full border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 13px;"
+							placeholder="Exercise name"
+						/>
+					</div>
+
+					<div>
+						<label
+							class="mb-1 block font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							DESCRIPTION
+						</label>
+						<textarea
+							bind:value={form.description}
+							rows="3"
+							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 13px;"
+							placeholder="What this exercise is"
+						></textarea>
+					</div>
+
+					<div>
+						<label
+							class="mb-1 block font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							EXECUTION NOTES
+						</label>
+						<textarea
+							bind:value={form.comment}
+							rows="3"
+							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 13px;"
+							placeholder="How to perform it correctly"
+						></textarea>
+					</div>
+
+					<div>
+						<label
+							class="mb-1 block font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							VIDEO LINK
+						</label>
+						<input
+							type="url"
+							bind:value={form.video_link}
+							class="w-full border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 13px;"
+							placeholder="https://..."
+						/>
+					</div>
+				</div>
+			</div>
+
+			<div class="border-t border-black px-6 py-4">
+				<div class="flex gap-3">
+					<button
+						onclick={handleSave}
+						disabled={saving || !form.name.trim()}
+						class="flex-1 border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
+						style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
+					>
+						{saving ? 'SAVING...' : 'SAVE'}
+					</button>
+					<button
+						onclick={closePanel}
+						class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
+						style="font-family: monospace; font-size: 13px;"
+					>
+						CANCEL
+					</button>
+				</div>
+
+				{#if panel !== 'new' && typeof panel === 'object'}
+					<div class="mt-4 border-t border-gray-200 pt-4">
+						{#if confirmDelete}
+							<p class="mb-2" style="font-family: monospace; font-size: 12px; color: #666;">
+								Delete this exercise permanently?
+							</p>
+							<div class="flex gap-2">
+								<button
+									onclick={handleDelete}
+									disabled={deleting}
+									class="border border-red-600 px-3 py-1 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+									style="font-family: monospace; font-size: 12px;"
+								>
+									{deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+								</button>
+								<button
+									onclick={() => (confirmDelete = false)}
+									class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
+									style="font-family: monospace; font-size: 12px;"
+								>
+									CANCEL
+								</button>
+							</div>
+						{:else}
+							<button
+								onclick={() => (confirmDelete = true)}
+								class="text-red-600 transition-colors hover:underline"
+								style="font-family: monospace; font-size: 12px;"
+							>
+								Delete exercise
+							</button>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
