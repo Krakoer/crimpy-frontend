@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { SessionItem, LoadUnit } from '$lib/api/client';
+	import { getContext } from 'svelte';
+	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
 		item: SessionItem;
@@ -8,7 +10,19 @@
 		onMoveDown: (() => void) | null;
 	}
 
-	let { item, onRemove, onMoveUp, onMoveDown }: Props = $props();
+	let { item = $bindable(), onRemove, onMoveUp, onMoveDown }: Props = $props();
+
+	let collapsed = $state(false);
+
+	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
+
+	$effect(() => {
+		if (collapseSignals?.collapse) collapsed = true;
+	});
+
+	$effect(() => {
+		if (collapseSignals?.expand) collapsed = false;
+	});
 
 	const HAND_POSITIONS = ['3FD', 'HC', 'FC', 'OC'];
 	const LOAD_UNITS: { value: LoadUnit; label: string }[] = [
@@ -90,110 +104,121 @@
 	}
 </script>
 
-<div class="border border-black bg-white">
-	<div class="flex items-center gap-2 border-b border-gray-200 px-3 py-2">
-		<span
-			class="shrink-0 px-1.5 py-0.5 text-white"
-			style="font-family: monospace; font-size: 10px; font-weight: bold; background-color: #4A7C8C; letter-spacing: 0.5px;"
+<div class="group border border-black bg-white" style="border-left: 3px solid #4A7C8C; border-radius: 4px;">
+	<div class="flex items-center gap-2 px-3 py-2">
+		<button
+			onclick={() => (collapsed = !collapsed)}
+			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
+			style="font-family: monospace; font-size: 11px;"
+			aria-label="Toggle collapse"
 		>
-			HB
-		</span>
-		<span class="flex-1 font-bold" style="font-family: monospace; font-size: 13px;">HANGBOARD</span>
-		<div class="flex shrink-0 gap-1">
-			{#if onMoveUp}
-				<button
-					onclick={onMoveUp}
-					class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 11px;"
-					aria-label="Move up"
-				>
-					^
-				</button>
-			{/if}
-			{#if onMoveDown}
-				<button
-					onclick={onMoveDown}
-					class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 11px;"
-					aria-label="Move down"
-				>
-					v
-				</button>
-			{/if}
+			{collapsed ? '>' : 'V'}
+		</button>
+		<span
+			class="shrink-0 font-bold"
+			style="font-family: monospace; font-size: 10px; color: #4A7C8C; letter-spacing: 0.5px;"
+		>HANGBOARD</span>
+		<div class="flex-1"></div>
+		<div class="flex shrink-0 items-center gap-2">
+			<div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+				{#if onMoveUp}
+					<button
+						onclick={onMoveUp}
+						class="px-1 text-gray-400 transition-colors hover:text-black"
+						style="font-family: monospace; font-size: 10px;"
+						aria-label="Move up"
+					>^</button>
+				{/if}
+				{#if onMoveDown}
+					<button
+						onclick={onMoveDown}
+						class="px-1 text-gray-400 transition-colors hover:text-black"
+						style="font-family: monospace; font-size: 10px;"
+						aria-label="Move down"
+					>v</button>
+				{/if}
+			</div>
 			<button
 				onclick={onRemove}
-				class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
+				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
 				style="font-family: monospace; font-size: 11px;"
-				aria-label="Remove"
 			>
-				x
+				Delete
 			</button>
 		</div>
 	</div>
 
-	<div class="grid grid-cols-3 gap-px bg-gray-200">
-		<div class="bg-white px-2 py-2 text-center">
-			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">SETS</label>
-			<input
-				type="number"
-				min="1"
-				bind:value={item.cycles}
-				class="w-full border-0 text-center outline-none"
-				style="font-family: monospace; font-size: 13px;"
-			/>
+	{#if !collapsed}
+	<div class="border-t border-gray-100">
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">
+			<div class="flex items-center gap-1.5">
+				<span style="font-family: monospace; font-size: 10px; color: #999;">Sets</span>
+				<input
+					type="number"
+					min="1"
+					bind:value={item.cycles}
+					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+					style="font-family: monospace; font-size: 12px;"
+				/>
+			</div>
+			<span style="color: #ccc; font-size: 11px;">x</span>
+			<div class="flex items-center gap-1.5">
+				<span style="font-family: monospace; font-size: 10px; color: #999;">Reps</span>
+				<input
+					type="number"
+					min="1"
+					bind:value={item.reps}
+					oninput={onRepsChange}
+					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+					style="font-family: monospace; font-size: 12px;"
+				/>
+			</div>
+			<div class="h-3 w-px bg-gray-200"></div>
+			<div class="flex items-center gap-1.5">
+				<span style="font-family: monospace; font-size: 10px; color: #999;">Work</span>
+				<input
+					type="number"
+					min="1"
+					bind:value={item.hb_worktime_seconds}
+					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+					style="font-family: monospace; font-size: 12px;"
+				/>
+				<span style="font-family: monospace; font-size: 10px; color: #aaa;">s</span>
+			</div>
+			<div class="flex items-center gap-1.5">
+				<span style="font-family: monospace; font-size: 10px; color: #999;">Rep rest</span>
+				<input
+					type="number"
+					min="0"
+					bind:value={item.rest_seconds}
+					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+					style="font-family: monospace; font-size: 12px;"
+				/>
+				<span style="font-family: monospace; font-size: 10px; color: #aaa;">s</span>
+			</div>
+			<div class="flex items-center gap-1.5">
+				<span style="font-family: monospace; font-size: 10px; color: #999;">Set rest</span>
+				<input
+					type="number"
+					min="0"
+					bind:value={item.cycle_rest_seconds}
+					class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+					style="font-family: monospace; font-size: 12px;"
+				/>
+				<span style="font-family: monospace; font-size: 10px; color: #aaa;">s</span>
+			</div>
+			<div class="h-3 w-px bg-gray-200"></div>
+			<div class="flex items-center gap-1.5">
+				<span style="font-family: monospace; font-size: 10px; color: #999;">Both hands</span>
+				<button
+					onclick={onBothHandsToggle}
+					class="border px-2 py-0.5 transition-colors"
+					style="font-family: monospace; font-size: 11px; border-color: {item.both_hands ? '#C6613F' : '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
+				>
+					{item.both_hands ? 'yes' : 'no'}
+				</button>
+			</div>
 		</div>
-		<div class="bg-white px-2 py-2 text-center">
-			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">REPS</label>
-			<input
-				type="number"
-				min="1"
-				bind:value={item.reps}
-				oninput={onRepsChange}
-				class="w-full border-0 text-center outline-none"
-				style="font-family: monospace; font-size: 13px;"
-			/>
-		</div>
-		<div class="bg-white px-2 py-2 text-center">
-			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">SET REST (s)</label>
-			<input
-				type="number"
-				min="0"
-				bind:value={item.cycle_rest_seconds}
-				class="w-full border-0 text-center outline-none"
-				style="font-family: monospace; font-size: 13px;"
-			/>
-		</div>
-		<div class="bg-white px-2 py-2 text-center">
-			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">WORK (s)</label>
-			<input
-				type="number"
-				min="1"
-				bind:value={item.hb_worktime_seconds}
-				class="w-full border-0 text-center outline-none"
-				style="font-family: monospace; font-size: 13px;"
-			/>
-		</div>
-		<div class="bg-white px-2 py-2 text-center">
-			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">REP REST (s)</label>
-			<input
-				type="number"
-				min="0"
-				bind:value={item.rest_seconds}
-				class="w-full border-0 text-center outline-none"
-				style="font-family: monospace; font-size: 13px;"
-			/>
-		</div>
-		<div class="bg-white px-2 py-2 text-center">
-			<label class="mb-1 block" style="font-family: monospace; font-size: 10px; color: #999;">BOTH HANDS</label>
-			<button
-				onclick={onBothHandsToggle}
-				class="w-full border px-1 py-0.5 text-center transition-colors"
-				style="font-family: monospace; font-size: 12px; border-color: {item.both_hands ? '#C6613F' : '#ccc'}; color: {item.both_hands ? '#C6613F' : '#999'};"
-			>
-				{item.both_hands ? 'YES' : 'NO'}
-			</button>
-		</div>
-	</div>
 
 	<div class="border-t border-gray-200 px-3 py-2">
 		<div class="mb-2 flex items-center justify-between">
@@ -351,4 +376,6 @@
 			</div>
 		{/if}
 	</div>
+	</div>
+	{/if}
 </div>

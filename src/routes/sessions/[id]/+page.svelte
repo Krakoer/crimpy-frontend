@@ -7,7 +7,7 @@
 	import type { CoachSessionRequest, Exercise } from '$lib/api/client';
 	import ItemList from '$lib/components/session/ItemList.svelte';
 
-	let sessionId = $derived($page.params.id);
+	let sessionId = $derived($page.params.id as string);
 
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<CoachSessionRequest>({ title: '', description: '', items: [] });
@@ -16,6 +16,9 @@
 	let saveError = $state('');
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
+	let editingMeta = $state(false);
+	let editTitle = $state('');
+	let editDescription = $state('');
 
 	onMount(() => {
 		authStore.initialize();
@@ -38,6 +41,8 @@
 			apiClient.getExercises().catch(() => [])
 		]).then(([session, ex]) => {
 			draft = { title: session.title, description: session.description ?? '', items: session.items };
+			editTitle = session.title;
+			editDescription = session.description ?? '';
 			exercises = ex;
 			loading = false;
 		}).catch(() => {
@@ -45,16 +50,28 @@
 		});
 	});
 
+	function enterEditMode() {
+		editTitle = draft.title;
+		editDescription = draft.description ?? '';
+		editingMeta = true;
+	}
+
 	async function handleSave() {
-		if (!draft.title.trim()) return;
+		const title = editingMeta ? editTitle.trim() : draft.title.trim();
+		if (!title) return;
 		saving = true;
 		saveError = '';
 		try {
+			if (editingMeta) {
+				draft.title = title;
+				draft.description = editDescription.trim();
+			}
 			await apiClient.updateCoachSession(sessionId, {
 				title: draft.title.trim(),
 				description: draft.description?.trim() || undefined,
 				items: draft.items
 			});
+			editingMeta = false;
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save session.';
 		} finally {
@@ -76,27 +93,65 @@
 
 <div class="min-h-screen bg-white">
 	<div class="mx-auto max-w-3xl p-6">
-		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
-			<div>
-				<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-					EDIT SESSION
-				</h1>
+		<div class="mb-8 border-b-2 border-black pb-4">
+			<button
+				onclick={() => goto('/sessions')}
+				style="font-family: monospace; font-size: 12px; color: #666;"
+				class="mb-2 block transition-colors hover:text-black"
+			>
+				&larr; sessions
+			</button>
+			<div class="flex items-start justify-between gap-4">
+				<div class="flex-1">
+					{#if editingMeta}
+						<div class="space-y-2">
+							<input
+								type="text"
+								bind:value={editTitle}
+								class="w-full border-2 border-black px-3 py-2 text-2xl font-black outline-none focus:border-[#C6613F]"
+								style="font-family: monospace; letter-spacing: -0.5px;"
+								placeholder="Session title"
+							/>
+							<textarea
+								bind:value={editDescription}
+								rows="2"
+								class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+								style="font-family: monospace; font-size: 13px;"
+								placeholder="Optional description"
+							></textarea>
+						</div>
+					{:else}
+						<div class="flex items-baseline gap-3">
+							<h1
+								class="text-3xl font-black"
+								style="font-family: monospace; letter-spacing: -0.5px;"
+							>
+								{draft.title || 'Untitled'}
+							</h1>
+							<button
+								onclick={enterEditMode}
+								class="border border-gray-300 px-2 py-0.5 text-gray-500 transition-colors hover:border-black hover:text-black"
+								style="font-family: monospace; font-size: 11px;"
+							>
+								edit
+							</button>
+						</div>
+						{#if draft.description}
+							<p class="mt-1" style="font-family: monospace; font-size: 13px; color: #888;">
+								{draft.description}
+							</p>
+						{/if}
+					{/if}
+				</div>
 				<button
-					onclick={() => goto('/sessions')}
-					style="font-family: monospace; font-size: 12px; color: #666;"
-					class="transition-colors hover:text-black"
+					onclick={handleSave}
+					disabled={saving || loading || (editingMeta ? !editTitle.trim() : !draft.title.trim())}
+					class="shrink-0 border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
+					style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
 				>
-					&larr; Sessions
+					{saving ? 'SAVING...' : 'SAVE'}
 				</button>
 			</div>
-			<button
-				onclick={handleSave}
-				disabled={saving || loading || !draft.title.trim()}
-				class="border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
-				style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
-			>
-				{saving ? 'SAVING...' : 'SAVE SESSION'}
-			</button>
 		</div>
 
 		{#if saveError}
@@ -117,45 +172,6 @@
 				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
 			</div>
 		{:else}
-			<div class="mb-6 space-y-4">
-				<div>
-					<label
-						class="mb-1 block font-medium"
-						style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
-					>
-						TITLE *
-					</label>
-					<input
-						type="text"
-						bind:value={draft.title}
-						class="w-full border-2 border-black px-3 py-2 text-xl font-bold outline-none focus:border-[#C6613F]"
-						style="font-family: monospace;"
-						placeholder="Session title"
-					/>
-				</div>
-				<div>
-					<label
-						class="mb-1 block font-medium"
-						style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
-					>
-						DESCRIPTION
-					</label>
-					<textarea
-						bind:value={draft.description}
-						rows="2"
-						class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-						style="font-family: monospace; font-size: 13px;"
-						placeholder="Optional description"
-					></textarea>
-				</div>
-			</div>
-
-			<div class="mb-2">
-				<h2 class="font-bold" style="font-family: monospace; font-size: 12px; letter-spacing: 0.5px; color: #666;">
-					CONTENT
-				</h2>
-			</div>
-
 			<ItemList bind:items={draft.items} {exercises} />
 
 			<div class="mt-12 border-t border-gray-200 pt-6">

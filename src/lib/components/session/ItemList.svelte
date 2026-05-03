@@ -4,6 +4,8 @@
 	import HangboardItem from './HangboardItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
 	import SectionItem from './SectionItem.svelte';
+	import { setContext } from 'svelte';
+	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
 		items: SessionItem[];
@@ -19,9 +21,23 @@
 		depth = 0
 	}: Props = $props();
 
-	function addItem(type: SessionItemType) {
+	let collapseSignals = $state({ collapse: 0, expand: 0 });
+	let exerciseSearch = $state('');
+
+	if (depth === 0) {
+		setContext(COLLAPSE_KEY, collapseSignals);
+	}
+
+	let filteredExercises = $derived(
+		exerciseSearch.trim()
+			? exercises.filter((e) => e.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
+			: exercises
+	);
+
+	function addItem(type: SessionItemType, exerciseId?: string) {
 		const base: SessionItem = { type };
 		if (type === 'exercise') {
+			base.exercise_id = exerciseId;
 			base.reps = 1;
 			base.reps_unit = 'count';
 			base.rest_seconds = 0;
@@ -64,15 +80,33 @@
 		items[index] = tmp;
 	}
 
-	const TYPE_LABELS: Record<SessionItemType, string> = {
-		exercise: 'EXERCISE',
-		circuit: 'CIRCUIT',
-		section: 'SECTION',
-		hangboard: 'HANGBOARD'
-	};
+	let containerTypes = $derived(
+		allowedTypes.filter((t): t is 'circuit' | 'section' | 'hangboard' =>
+			t === 'circuit' || t === 'section' || t === 'hangboard'
+		)
+	);
 </script>
 
 <div class="space-y-2">
+	{#if depth === 0}
+		<div class="mb-4 flex gap-2">
+			<button
+				onclick={() => { collapseSignals.collapse++; }}
+				class="border border-gray-200 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+				style="font-family: monospace; font-size: 11px;"
+			>
+				Collapse all
+			</button>
+			<button
+				onclick={() => { collapseSignals.expand++; }}
+				class="border border-gray-200 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+				style="font-family: monospace; font-size: 11px;"
+			>
+				Expand all
+			</button>
+		</div>
+	{/if}
+
 	{#each items as item, i (i)}
 		{#if item.type === 'exercise'}
 			<ExerciseItem
@@ -110,15 +144,52 @@
 		{/if}
 	{/each}
 
-	<div class="flex flex-wrap gap-2 pt-1">
-		{#each allowedTypes as type}
-			<button
-				onclick={() => addItem(type)}
-				class="border border-dashed border-gray-400 px-3 py-1 text-gray-500 transition-colors hover:border-black hover:text-black"
-				style="font-family: monospace; font-size: 11px;"
-			>
-				+ {TYPE_LABELS[type]}
-			</button>
-		{/each}
+	<div class="mt-1 space-y-2 border-t border-gray-100 pt-3">
+		{#if containerTypes.length > 0}
+			<div class="flex flex-wrap gap-1.5">
+				{#each containerTypes as type}
+					<button
+						onclick={() => addItem(type)}
+						class="border border-dashed border-gray-300 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+						style="font-family: monospace; font-size: 11px;"
+					>
+						{type.charAt(0).toUpperCase() + type.slice(1)} +
+					</button>
+				{/each}
+			</div>
+		{/if}
+
+		{#if allowedTypes.includes('exercise')}
+			<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+				<input
+					type="text"
+					bind:value={exerciseSearch}
+					placeholder="Search exercises..."
+					class="border border-gray-200 px-2 py-0.5 outline-none focus:border-gray-400"
+					style="font-family: monospace; font-size: 11px; width: 160px;"
+				/>
+				{#if exercises.length === 0}
+					<button
+						onclick={() => addItem('exercise')}
+						class="border border-dashed border-gray-300 px-3 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+						style="font-family: monospace; font-size: 11px;"
+					>
+						+ exercise
+					</button>
+				{:else if filteredExercises.length > 0}
+					{#each filteredExercises as ex (ex.id)}
+						<button
+							onclick={() => addItem('exercise', ex.id)}
+							class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+							style="font-family: monospace; font-size: 11px;"
+						>
+							{ex.name} +
+						</button>
+					{/each}
+				{:else}
+					<span style="font-family: monospace; font-size: 11px; color: #bbb;">No exercises found</span>
+				{/if}
+			</div>
+		{/if}
 	</div>
 </div>

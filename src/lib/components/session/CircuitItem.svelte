@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Exercise, SessionItem } from '$lib/api/client';
 	import ItemList from './ItemList.svelte';
+	import { getContext } from 'svelte';
+	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
 		item: SessionItem;
@@ -11,84 +13,99 @@
 		depth: number;
 	}
 
-	let { item, exercises, onRemove, onMoveUp, onMoveDown, depth }: Props = $props();
+	let { item = $bindable(), exercises, onRemove, onMoveUp, onMoveDown, depth }: Props = $props();
 
 	let collapsed = $state(false);
 
 	if (!item.items) item.items = [];
+
+	let restMin = $state(Math.floor((item.cycle_rest_seconds ?? 0) / 60));
+	let restSec = $state((item.cycle_rest_seconds ?? 0) % 60);
+
+	$effect(() => {
+		item.cycle_rest_seconds = restMin * 60 + restSec;
+	});
+
+	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
+
+	$effect(() => {
+		if (collapseSignals?.collapse) collapsed = true;
+	});
+
+	$effect(() => {
+		if (collapseSignals?.expand) collapsed = false;
+	});
 </script>
 
-<div class="border border-black" style="border-left: 3px solid #C6613F;">
-	<div class="flex items-center gap-2 px-3 py-2" style="background-color: #FDF6F3;">
-		<span
-			class="shrink-0 px-1.5 py-0.5 text-white"
-			style="font-family: monospace; font-size: 10px; font-weight: bold; background-color: #C6613F; letter-spacing: 0.5px;"
+<div class="group border border-black" style="border-radius: 4px;">
+	<div class="flex items-center gap-2 px-3 py-2">
+		<button
+			onclick={() => (collapsed = !collapsed)}
+			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
+			style="font-family: monospace; font-size: 11px;"
+			aria-label="Toggle collapse"
 		>
-			CIRCUIT
-		</span>
-		<div class="flex flex-1 items-center gap-3">
-			<div class="flex items-center gap-1">
-				<label style="font-family: monospace; font-size: 10px; color: #999;">SETS</label>
-				<input
-					type="number"
-					min="1"
-					bind:value={item.cycles}
-					class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none"
-					style="font-family: monospace; font-size: 12px;"
-				/>
-			</div>
-			<div class="flex items-center gap-1">
-				<label style="font-family: monospace; font-size: 10px; color: #999;">REST (s)</label>
-				<input
-					type="number"
-					min="0"
-					bind:value={item.cycle_rest_seconds}
-					class="w-16 border border-gray-300 px-1 py-0.5 text-center outline-none"
-					style="font-family: monospace; font-size: 12px;"
-				/>
-			</div>
+			{collapsed ? '>' : 'V'}
+		</button>
+		<span class="shrink-0 font-bold" style="font-family: monospace; font-size: 13px;">Circuit</span>
+		<div class="flex flex-1 flex-wrap items-center gap-1" style="font-family: monospace; font-size: 12px;">
+			<input
+				type="number"
+				min="1"
+				bind:value={item.cycles}
+				class="w-9 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+				style="font-family: monospace; font-size: 12px;"
+			/>
+			<span style="color: #aaa;">sets with</span>
+			<input
+				type="number"
+				min="0"
+				bind:value={restMin}
+				class="w-9 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+				style="font-family: monospace; font-size: 12px;"
+			/>
+			<span style="color: #aaa;">mn</span>
+			<input
+				type="number"
+				min="0"
+				max="59"
+				bind:value={restSec}
+				class="w-9 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+				style="font-family: monospace; font-size: 12px;"
+			/>
+			<span style="color: #aaa;">s rest</span>
 		</div>
-		<div class="flex shrink-0 gap-1">
-			<button
-				onclick={() => (collapsed = !collapsed)}
-				class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:bg-gray-100"
-				style="font-family: monospace; font-size: 11px;"
-			>
-				{collapsed ? '+' : '-'}
-			</button>
-			{#if onMoveUp}
-				<button
-					onclick={onMoveUp}
-					class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 11px;"
-					aria-label="Move up"
-				>
-					^
-				</button>
-			{/if}
-			{#if onMoveDown}
-				<button
-					onclick={onMoveDown}
-					class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 11px;"
-					aria-label="Move down"
-				>
-					v
-				</button>
-			{/if}
+		<div class="flex shrink-0 items-center gap-2">
+			<div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+				{#if onMoveUp}
+					<button
+						onclick={onMoveUp}
+						class="px-1 text-gray-400 transition-colors hover:text-black"
+						style="font-family: monospace; font-size: 10px;"
+						aria-label="Move up"
+					>^</button>
+				{/if}
+				{#if onMoveDown}
+					<button
+						onclick={onMoveDown}
+						class="px-1 text-gray-400 transition-colors hover:text-black"
+						style="font-family: monospace; font-size: 10px;"
+						aria-label="Move down"
+					>v</button>
+				{/if}
+			</div>
 			<button
 				onclick={onRemove}
-				class="border border-gray-300 px-1.5 py-0.5 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
+				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
 				style="font-family: monospace; font-size: 11px;"
-				aria-label="Remove circuit"
 			>
-				x
+				Delete
 			</button>
 		</div>
 	</div>
 
 	{#if !collapsed}
-		<div class="p-3">
+		<div class="border-t border-gray-200 p-3">
 			<ItemList
 				bind:items={item.items!}
 				{exercises}
