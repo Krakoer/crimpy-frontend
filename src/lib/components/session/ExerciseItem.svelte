@@ -2,6 +2,7 @@
 	import type { Exercise, SessionItem, LoadUnit } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import SelectExerciseModal from './SelectExerciseModal.svelte';
 
 	interface Props {
 		item: SessionItem;
@@ -12,6 +13,8 @@
 	let { item = $bindable(), exercises, onRemove }: Props = $props();
 
 	let collapsed = $state(false);
+	let showEditModal = $state(false);
+	let confirmDelete = $state(false);
 
 	const LOAD_UNITS: { value: LoadUnit; label: string }[] = [
 		{ value: 'bw', label: 'BW' },
@@ -21,14 +24,18 @@
 	];
 
 	let exerciseName = $derived(
-		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'New exercise'
+		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
 	);
 
-	let durationMin = $state(Math.floor((item.reps ?? 0) / 60));
-	let durationSec = $state((item.reps ?? 0) % 60);
+	let isDuration = $state((item.duration ?? 0) !== 0);
+
+	let durationMin = $state(Math.floor((item.duration ?? 0) / 60));
+	let durationSec = $state((item.duration ?? 0) % 60);
 
 	$effect(() => {
-		item.reps = durationMin * 60 + durationSec;
+		if (isDuration) {
+			item.duration = durationMin * 60 + durationSec;
+		}
 	});
 
 	let restMin = $state(Math.floor((item.rest_seconds ?? 0) / 60));
@@ -38,17 +45,21 @@
 		item.rest_seconds = restMin * 60 + restSec;
 	});
 
-	function toggleRepsUnit() {
-		item.reps_unit = item.reps_unit === 'seconds' ? 'count' : 'seconds';
+	if (!item.loads || item.loads.length === 0) {
+		item.loads = [{ value: 100, unit: 'percent_bw' }];
 	}
 
-	function addLoad() {
-		if (!item.loads) item.loads = [];
-		item.loads.push({ value: 0, unit: 'bw' });
+	function setDurationMode() {
+		durationMin = 0;
+		durationSec = 0;
+		item.reps = 0;
+		isDuration = true;
 	}
 
-	function removeLoad(i: number) {
-		item.loads?.splice(i, 1);
+	function setRepsMode() {
+		item.duration = 0;
+		if (!item.reps || item.reps === 0) item.reps = 1;
+		isDuration = false;
 	}
 
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
@@ -62,167 +73,175 @@
 	});
 </script>
 
-<div class="border border-black bg-white" style="border-radius: 4px;">
+<div
+	class="bg-white"
+	style="border-left: 3px solid #C6613F; border-top: 1px solid #1d1d1d; border-right: 1px solid #1d1d1d; border-bottom: 1px solid #1d1d1d; box-shadow: 2px 2px 0 0 rgba(29,29,29,0.1);"
+>
 	<div class="flex items-center gap-2 px-3 py-2">
 		<button
 			onclick={() => (collapsed = !collapsed)}
 			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 15px;"
+			style="font-family: monospace; font-size: 13px;"
 			aria-label="Toggle collapse"
 		>
-			{collapsed ? '>' : 'V'}
+			{collapsed ? '>' : 'v'}
 		</button>
-		<span class="flex-1 truncate font-bold" style="font-family: monospace; font-size: 15px;">
-			{exerciseName}
-		</span>
-		<div class="flex shrink-0 items-center gap-2">
+
+		{#if confirmDelete}
+			<span class="flex-1 truncate" style="font-family: monospace; font-size: 13px; color: #B85450;">
+				Delete "{exerciseName}"?
+			</span>
 			<button
 				onclick={onRemove}
-				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
-				style="font-family: monospace; font-size: 15px;"
+				class="border border-red-300 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-50"
+				style="font-family: monospace; font-size: 12px;"
 			>
-				Delete
+				yes
 			</button>
-		</div>
+			<button
+				onclick={() => (confirmDelete = false)}
+				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
+				style="font-family: monospace; font-size: 12px;"
+			>
+				no
+			</button>
+		{:else}
+			<span class="flex-1 truncate font-bold" style="font-family: monospace; font-size: 14px;">
+				{exerciseName}
+			</span>
+			<div class="flex shrink-0 items-center gap-1">
+				<button
+					onclick={() => (showEditModal = true)}
+					class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-700"
+					style="font-family: monospace; font-size: 12px;"
+				>
+					edit
+				</button>
+				<button
+					onclick={() => (confirmDelete = true)}
+					class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-400 hover:text-red-500"
+					style="font-family: monospace; font-size: 12px;"
+				>
+					del
+				</button>
+			</div>
+		{/if}
 	</div>
 
 	{#if !collapsed}
-		<div class="space-y-3 border-t border-gray-200 px-3 py-3">
-			<select
-				bind:value={item.exercise_id}
-				class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-black"
-				style="font-family: monospace; font-size: 14px;"
-			>
-				<option value="">-- Select exercise --</option>
-				{#each exercises as ex (ex.id)}
-					<option value={ex.id}>{ex.name}</option>
-				{/each}
-			</select>
+		<div class="space-y-3 border-t border-gray-100 px-3 py-3">
+			<div class="flex border border-gray-200" style="font-family: monospace; font-size: 12px;">
+				<button
+					onclick={setRepsMode}
+					class="flex-1 border-r border-gray-200 px-3 py-1 transition-colors"
+					style:background={!isDuration ? '#C6613F' : 'transparent'}
+					style:color={!isDuration ? 'white' : '#999'}
+				>
+					Reps
+				</button>
+				<button
+					onclick={setDurationMode}
+					class="flex-1 px-3 py-1 transition-colors"
+					style:background={isDuration ? '#C6613F' : 'transparent'}
+					style:color={isDuration ? 'white' : '#999'}
+				>
+					Duration
+				</button>
+			</div>
 
-			{#if item.reps_unit === 'seconds'}
-				<div class="flex flex-wrap gap-6">
-					<div>
-						<div class="mb-1 flex items-center gap-1">
-							<span style="font-family: monospace; font-size: 14px; color: #999;">Length</span>
-							<button
-								onclick={toggleRepsUnit}
-								class="text-gray-400 transition-colors hover:text-black"
-								style="font-family: monospace; font-size: 14px;"
-								title="Switch to reps"
-							>v</button>
-						</div>
+			<div class="grid grid-cols-3">
+				<div class="flex flex-col items-center">
+					<p style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">{isDuration ? 'Duration' : 'Reps'}</p>
+					{#if isDuration}
 						<div class="flex items-center gap-1">
 							<input
 								type="number"
 								min="0"
 								bind:value={durationMin}
-								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
+								class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
 								style="font-family: monospace; font-size: 15px;"
 							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">mn</span>
+							<span style="font-family: monospace; font-size: 13px; color: #999;">mn</span>
 							<input
 								type="number"
 								min="0"
 								max="59"
 								bind:value={durationSec}
-								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
+								class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
 								style="font-family: monospace; font-size: 15px;"
 							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">s</span>
+							<span style="font-family: monospace; font-size: 13px; color: #999;">s</span>
 						</div>
-					</div>
-					<div>
-						<p class="mb-1" style="font-family: monospace; font-size: 14px; color: #999;">Rest</p>
-						<div class="flex items-center gap-1">
-							<input
-								type="number"
-								min="0"
-								bind:value={restMin}
-								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 15px;"
-							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">mn</span>
-							<input
-								type="number"
-								min="0"
-								max="59"
-								bind:value={restSec}
-								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 15px;"
-							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">s</span>
-						</div>
-					</div>
-				</div>
-			{:else}
-				<div class="flex flex-wrap gap-6">
-					<div>
-						<div class="mb-1 flex items-center gap-1">
-							<span style="font-family: monospace; font-size: 14px; color: #999;">Reps</span>
-							<button
-								onclick={toggleRepsUnit}
-								class="text-gray-400 transition-colors hover:text-black"
-								style="font-family: monospace; font-size: 14px;"
-								title="Switch to duration"
-							>v</button>
-						</div>
+					{:else}
 						<input
 							type="number"
 							min="1"
 							bind:value={item.reps}
-							class="w-16 border border-gray-300 px-2 py-0.5 text-center outline-none focus:border-black"
+							class="w-16 border border-gray-200 px-2 py-0.5 text-center outline-none focus:border-black"
 							style="font-family: monospace; font-size: 15px;"
 						/>
-					</div>
-					<div>
-						<div class="mb-1 flex items-center justify-between gap-4">
-							<span style="font-family: monospace; font-size: 14px; color: #999;">Load</span>
-							<button
-								onclick={addLoad}
-								class="text-gray-400 transition-colors hover:text-black"
-								style="font-family: monospace; font-size: 14px;"
-							>+ add</button>
-						</div>
-						{#if item.loads && item.loads.length > 0}
-							{#each item.loads as load, i (i)}
-								<div class="mb-1 flex items-center gap-1">
-									<input
-										type="number"
-										min="0"
-										step="0.5"
-										bind:value={load.value}
-										class="w-14 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-										style="font-family: monospace; font-size: 14px;"
-									/>
-									<select
-										bind:value={load.unit}
-										class="border border-gray-300 px-1 py-0.5 outline-none focus:border-black"
-										style="font-family: monospace; font-size: 14px;"
-									>
-										{#each LOAD_UNITS as u}
-											<option value={u.value}>{u.label}</option>
-										{/each}
-									</select>
-									<button
-										onclick={() => removeLoad(i)}
-										class="text-gray-400 transition-colors hover:text-red-600"
-										style="font-family: monospace; font-size: 15px;"
-										aria-label="Remove load"
-									>x</button>
-								</div>
-							{/each}
-						{:else}
-							<button
-								onclick={addLoad}
-								class="border border-dashed border-gray-300 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+					{/if}
+				</div>
+
+				{#if item.loads && item.loads.length > 0}
+					<div class="flex flex-col items-center">
+						<p style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">Load</p>
+						<div class="flex items-center gap-1">
+							<input
+								type="number"
+								min="0"
+								step="0.5"
+								bind:value={item.loads[0].value}
+								class="w-16 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
 								style="font-family: monospace; font-size: 15px;"
+							/>
+							<select
+								bind:value={item.loads[0].unit}
+								class="border border-gray-200 px-1 py-0.5 outline-none focus:border-black"
+								style="font-family: monospace; font-size: 13px;"
 							>
-								+ add load
-							</button>
-						{/if}
+								{#each LOAD_UNITS as u}
+									<option value={u.value}>{u.label}</option>
+								{/each}
+							</select>
+						</div>
+					</div>
+				{/if}
+
+				<div class="flex flex-col items-center">
+					<p style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">Rest</p>
+					<div class="flex items-center gap-1">
+						<input
+							type="number"
+							min="0"
+							bind:value={restMin}
+							class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+							style="font-family: monospace; font-size: 15px;"
+						/>
+						<span style="font-family: monospace; font-size: 13px; color: #999;">mn</span>
+						<input
+							type="number"
+							min="0"
+							max="59"
+							bind:value={restSec}
+							class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
+							style="font-family: monospace; font-size: 15px;"
+						/>
+						<span style="font-family: monospace; font-size: 13px; color: #999;">s</span>
 					</div>
 				</div>
-			{/if}
+			</div>
 		</div>
 	{/if}
 </div>
+
+{#if showEditModal}
+	<SelectExerciseModal
+		{exercises}
+		onSelect={(exercise) => {
+			item.exercise_id = exercise.id;
+			showEditModal = false;
+		}}
+		onClose={() => { showEditModal = false; }}
+	/>
+{/if}
