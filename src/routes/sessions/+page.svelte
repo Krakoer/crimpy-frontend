@@ -4,6 +4,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { CoachSessionSummary } from '$lib/api/client';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	let sessions = $state<CoachSessionSummary[]>([]);
 	let loading = $state(false);
@@ -46,6 +47,7 @@
 			await apiClient.deleteCoachSession(id);
 			sessions = sessions.filter((s) => s.id !== id);
 			confirmDeleteId = null;
+			snackbar.show('Session deleted');
 		} catch (e) {
 			deleteError = e instanceof Error ? e.message : 'Failed to delete session.';
 		} finally {

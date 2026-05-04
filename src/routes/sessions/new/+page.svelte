@@ -4,6 +4,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/session/ItemList.svelte';
 	import CreateExerciseModal from '$lib/components/session/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/session/SidePanelDraggable.svelte';
@@ -228,6 +229,7 @@
 				description: draft.description?.trim() || undefined,
 				items: draft.items
 			});
+			snackbar.show('Session created');
 			goto(`/sessions/${session.id}`);
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save session.';

@@ -5,6 +5,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/session/ItemList.svelte';
 	import CreateExerciseModal from '$lib/components/session/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/session/SidePanelDraggable.svelte';
@@ -283,6 +284,7 @@
 				items: stripClientIds(draft.items)
 			});
 			editingMeta = false;
+			snackbar.show('Session saved');
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save session.';
 		} finally {
@@ -294,6 +296,7 @@
 		deleting = true;
 		try {
 			await apiClient.deleteCoachSession(sessionId);
+			snackbar.show('Session deleted');
 			goto('/sessions');
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to delete session.';

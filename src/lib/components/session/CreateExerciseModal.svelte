@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { apiClient } from '$lib/api/client';
 	import type { Exercise } from '$lib/api/client';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	interface Props {
 		onCreated: (exercise: Exercise) => void;
@@ -27,6 +28,7 @@
 				comment: comment.trim() || undefined,
 				video_link: videoLink.trim() || undefined
 			});
+			snackbar.show('Exercise created');
 			onCreated(exercise);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to create exercise.';

@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import Snackbar from '$lib/components/Snackbar.svelte';
 
 	let { children } = $props();
 
@@ -13,3 +14,4 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 {@render children()}
+<Snackbar />
