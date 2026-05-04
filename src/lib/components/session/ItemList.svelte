@@ -4,6 +4,8 @@
 	import HangboardItem from './HangboardItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
 	import SectionItem from './SectionItem.svelte';
+	import SortableWrapper from './SortableWrapper.svelte';
+	import EmptyDropZone from './EmptyDropZone.svelte';
 	import { setContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -12,13 +14,15 @@
 		exercises: Exercise[];
 		allowedTypes?: SessionItemType[];
 		depth?: number;
+		containerId?: string;
 	}
 
 	let {
 		items = $bindable(),
 		exercises,
 		allowedTypes = ['exercise', 'circuit', 'section', 'hangboard'],
-		depth = 0
+		depth = 0,
+		containerId = 'root'
 	}: Props = $props();
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
@@ -35,7 +39,7 @@
 	);
 
 	function addItem(type: SessionItemType, exerciseId?: string) {
-		const base: SessionItem = { type };
+		const base: SessionItem = { type, _id: crypto.randomUUID() };
 		if (type === 'exercise') {
 			base.exercise_id = exerciseId;
 			base.reps = 1;
@@ -66,20 +70,6 @@
 		items.splice(index, 1);
 	}
 
-	function moveUp(index: number) {
-		if (index === 0) return;
-		const tmp = items[index - 1];
-		items[index - 1] = items[index];
-		items[index] = tmp;
-	}
-
-	function moveDown(index: number) {
-		if (index >= items.length - 1) return;
-		const tmp = items[index + 1];
-		items[index + 1] = items[index];
-		items[index] = tmp;
-	}
-
 	let containerTypes = $derived(
 		allowedTypes.filter((t): t is 'circuit' | 'section' | 'hangboard' =>
 			t === 'circuit' || t === 'section' || t === 'hangboard'
@@ -93,56 +83,47 @@
 			<button
 				onclick={() => { collapseSignals.collapse++; }}
 				class="border border-gray-200 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-				style="font-family: monospace; font-size: 11px;"
+				style="font-family: monospace; font-size: 15px;"
 			>
 				Collapse all
 			</button>
 			<button
 				onclick={() => { collapseSignals.expand++; }}
 				class="border border-gray-200 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-				style="font-family: monospace; font-size: 11px;"
+				style="font-family: monospace; font-size: 15px;"
 			>
 				Expand all
 			</button>
 		</div>
 	{/if}
 
-	{#each items as item, i (i)}
-		{#if item.type === 'exercise'}
-			<ExerciseItem
-				bind:item={items[i]}
-				{exercises}
-				onRemove={() => removeItem(i)}
-				onMoveUp={i > 0 ? () => moveUp(i) : null}
-				onMoveDown={i < items.length - 1 ? () => moveDown(i) : null}
-			/>
-		{:else if item.type === 'hangboard'}
-			<HangboardItem
-				bind:item={items[i]}
-				onRemove={() => removeItem(i)}
-				onMoveUp={i > 0 ? () => moveUp(i) : null}
-				onMoveDown={i < items.length - 1 ? () => moveDown(i) : null}
-			/>
-		{:else if item.type === 'circuit'}
-			<CircuitItem
-				bind:item={items[i]}
-				{exercises}
-				onRemove={() => removeItem(i)}
-				onMoveUp={i > 0 ? () => moveUp(i) : null}
-				onMoveDown={i < items.length - 1 ? () => moveDown(i) : null}
-				{depth}
-			/>
-		{:else if item.type === 'section'}
-			<SectionItem
-				bind:item={items[i]}
-				{exercises}
-				onRemove={() => removeItem(i)}
-				onMoveUp={i > 0 ? () => moveUp(i) : null}
-				onMoveDown={i < items.length - 1 ? () => moveDown(i) : null}
-				{depth}
-			/>
-		{/if}
+	{#each items as item, i (item._id)}
+		<SortableWrapper id={item._id!} group={containerId} index={i}>
+			{#if item.type === 'exercise'}
+				<ExerciseItem bind:item={items[i]} {exercises} onRemove={() => removeItem(i)} />
+			{:else if item.type === 'hangboard'}
+				<HangboardItem bind:item={items[i]} onRemove={() => removeItem(i)} />
+			{:else if item.type === 'circuit'}
+				<CircuitItem
+					bind:item={items[i]}
+					{exercises}
+					onRemove={() => removeItem(i)}
+					{depth}
+				/>
+			{:else if item.type === 'section'}
+				<SectionItem
+					bind:item={items[i]}
+					{exercises}
+					onRemove={() => removeItem(i)}
+					{depth}
+				/>
+			{/if}
+		</SortableWrapper>
 	{/each}
+
+	{#if items.length === 0 && depth > 0}
+		<EmptyDropZone {containerId} />
+	{/if}
 
 	<div class="mt-1 space-y-2 border-t border-gray-100 pt-3">
 		{#if containerTypes.length > 0}
@@ -151,7 +132,7 @@
 					<button
 						onclick={() => addItem(type)}
 						class="border border-dashed border-gray-300 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-						style="font-family: monospace; font-size: 11px;"
+						style="font-family: monospace; font-size: 15px;"
 					>
 						{type.charAt(0).toUpperCase() + type.slice(1)} +
 					</button>
@@ -166,13 +147,13 @@
 					bind:value={exerciseSearch}
 					placeholder="Search exercises..."
 					class="border border-gray-200 px-2 py-0.5 outline-none focus:border-gray-400"
-					style="font-family: monospace; font-size: 11px; width: 160px;"
+					style="font-family: monospace; font-size: 15px; width: 160px;"
 				/>
 				{#if exercises.length === 0}
 					<button
 						onclick={() => addItem('exercise')}
 						class="border border-dashed border-gray-300 px-3 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-						style="font-family: monospace; font-size: 11px;"
+						style="font-family: monospace; font-size: 15px;"
 					>
 						+ exercise
 					</button>
@@ -181,13 +162,13 @@
 						<button
 							onclick={() => addItem('exercise', ex.id)}
 							class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-							style="font-family: monospace; font-size: 11px;"
+							style="font-family: monospace; font-size: 15px;"
 						>
 							{ex.name} +
 						</button>
 					{/each}
 				{:else}
-					<span style="font-family: monospace; font-size: 11px; color: #bbb;">No exercises found</span>
+					<span style="font-family: monospace; font-size: 15px; color: #bbb;">No exercises found</span>
 				{/if}
 			</div>
 		{/if}

@@ -122,6 +122,7 @@ export type SessionItemType = 'exercise' | 'circuit' | 'section' | 'hangboard';
 
 export interface SessionItem {
 	id?: string;
+	_id?: string;
 	type: SessionItemType;
 	position?: number;
 	cycles?: number;

@@ -7,11 +7,9 @@
 		item: SessionItem;
 		exercises: Exercise[];
 		onRemove: () => void;
-		onMoveUp: (() => void) | null;
-		onMoveDown: (() => void) | null;
 	}
 
-	let { item = $bindable(), exercises, onRemove, onMoveUp, onMoveDown }: Props = $props();
+	let { item = $bindable(), exercises, onRemove }: Props = $props();
 
 	let collapsed = $state(false);
 
@@ -64,42 +62,24 @@
 	});
 </script>
 
-<div class="group border border-black bg-white" style="border-radius: 4px;">
+<div class="border border-black bg-white" style="border-radius: 4px;">
 	<div class="flex items-center gap-2 px-3 py-2">
 		<button
 			onclick={() => (collapsed = !collapsed)}
 			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 11px;"
+			style="font-family: monospace; font-size: 15px;"
 			aria-label="Toggle collapse"
 		>
 			{collapsed ? '>' : 'V'}
 		</button>
-		<span class="flex-1 truncate font-bold" style="font-family: monospace; font-size: 13px;">
+		<span class="flex-1 truncate font-bold" style="font-family: monospace; font-size: 15px;">
 			{exerciseName}
 		</span>
 		<div class="flex shrink-0 items-center gap-2">
-			<div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-				{#if onMoveUp}
-					<button
-						onclick={onMoveUp}
-						class="px-1 text-gray-400 transition-colors hover:text-black"
-						style="font-family: monospace; font-size: 10px;"
-						aria-label="Move up"
-					>^</button>
-				{/if}
-				{#if onMoveDown}
-					<button
-						onclick={onMoveDown}
-						class="px-1 text-gray-400 transition-colors hover:text-black"
-						style="font-family: monospace; font-size: 10px;"
-						aria-label="Move down"
-					>v</button>
-				{/if}
-			</div>
 			<button
 				onclick={onRemove}
 				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
-				style="font-family: monospace; font-size: 11px;"
+				style="font-family: monospace; font-size: 15px;"
 			>
 				Delete
 			</button>
@@ -111,7 +91,7 @@
 			<select
 				bind:value={item.exercise_id}
 				class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-black"
-				style="font-family: monospace; font-size: 12px;"
+				style="font-family: monospace; font-size: 14px;"
 			>
 				<option value="">-- Select exercise --</option>
 				{#each exercises as ex (ex.id)}
@@ -123,11 +103,11 @@
 				<div class="flex flex-wrap gap-6">
 					<div>
 						<div class="mb-1 flex items-center gap-1">
-							<span style="font-family: monospace; font-size: 10px; color: #999;">Length</span>
+							<span style="font-family: monospace; font-size: 14px; color: #999;">Length</span>
 							<button
 								onclick={toggleRepsUnit}
 								class="text-gray-400 transition-colors hover:text-black"
-								style="font-family: monospace; font-size: 10px;"
+								style="font-family: monospace; font-size: 14px;"
 								title="Switch to reps"
 							>v</button>
 						</div>
@@ -137,40 +117,40 @@
 								min="0"
 								bind:value={durationMin}
 								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 13px;"
+								style="font-family: monospace; font-size: 15px;"
 							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 12px;">mn</span>
+							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">mn</span>
 							<input
 								type="number"
 								min="0"
 								max="59"
 								bind:value={durationSec}
 								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 13px;"
+								style="font-family: monospace; font-size: 15px;"
 							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 12px;">s</span>
+							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">s</span>
 						</div>
 					</div>
 					<div>
-						<p class="mb-1" style="font-family: monospace; font-size: 10px; color: #999;">Rest</p>
+						<p class="mb-1" style="font-family: monospace; font-size: 14px; color: #999;">Rest</p>
 						<div class="flex items-center gap-1">
 							<input
 								type="number"
 								min="0"
 								bind:value={restMin}
 								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 13px;"
+								style="font-family: monospace; font-size: 15px;"
 							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 12px;">mn</span>
+							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">mn</span>
 							<input
 								type="number"
 								min="0"
 								max="59"
 								bind:value={restSec}
 								class="w-12 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 13px;"
+								style="font-family: monospace; font-size: 15px;"
 							/>
-							<span class="text-gray-500" style="font-family: monospace; font-size: 12px;">s</span>
+							<span class="text-gray-500" style="font-family: monospace; font-size: 14px;">s</span>
 						</div>
 					</div>
 				</div>
@@ -178,11 +158,11 @@
 				<div class="flex flex-wrap gap-6">
 					<div>
 						<div class="mb-1 flex items-center gap-1">
-							<span style="font-family: monospace; font-size: 10px; color: #999;">Reps</span>
+							<span style="font-family: monospace; font-size: 14px; color: #999;">Reps</span>
 							<button
 								onclick={toggleRepsUnit}
 								class="text-gray-400 transition-colors hover:text-black"
-								style="font-family: monospace; font-size: 10px;"
+								style="font-family: monospace; font-size: 14px;"
 								title="Switch to duration"
 							>v</button>
 						</div>
@@ -191,16 +171,16 @@
 							min="1"
 							bind:value={item.reps}
 							class="w-16 border border-gray-300 px-2 py-0.5 text-center outline-none focus:border-black"
-							style="font-family: monospace; font-size: 13px;"
+							style="font-family: monospace; font-size: 15px;"
 						/>
 					</div>
 					<div>
 						<div class="mb-1 flex items-center justify-between gap-4">
-							<span style="font-family: monospace; font-size: 10px; color: #999;">Load</span>
+							<span style="font-family: monospace; font-size: 14px; color: #999;">Load</span>
 							<button
 								onclick={addLoad}
 								class="text-gray-400 transition-colors hover:text-black"
-								style="font-family: monospace; font-size: 10px;"
+								style="font-family: monospace; font-size: 14px;"
 							>+ add</button>
 						</div>
 						{#if item.loads && item.loads.length > 0}
@@ -212,12 +192,12 @@
 										step="0.5"
 										bind:value={load.value}
 										class="w-14 border border-gray-300 px-1 py-0.5 text-center outline-none focus:border-black"
-										style="font-family: monospace; font-size: 12px;"
+										style="font-family: monospace; font-size: 14px;"
 									/>
 									<select
 										bind:value={load.unit}
 										class="border border-gray-300 px-1 py-0.5 outline-none focus:border-black"
-										style="font-family: monospace; font-size: 12px;"
+										style="font-family: monospace; font-size: 14px;"
 									>
 										{#each LOAD_UNITS as u}
 											<option value={u.value}>{u.label}</option>
@@ -226,7 +206,7 @@
 									<button
 										onclick={() => removeLoad(i)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										style="font-family: monospace; font-size: 11px;"
+										style="font-family: monospace; font-size: 15px;"
 										aria-label="Remove load"
 									>x</button>
 								</div>
@@ -235,7 +215,7 @@
 							<button
 								onclick={addLoad}
 								class="border border-dashed border-gray-300 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-								style="font-family: monospace; font-size: 11px;"
+								style="font-family: monospace; font-size: 15px;"
 							>
 								+ add load
 							</button>

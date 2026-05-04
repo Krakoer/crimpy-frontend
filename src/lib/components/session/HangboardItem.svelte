@@ -6,11 +6,9 @@
 	interface Props {
 		item: SessionItem;
 		onRemove: () => void;
-		onMoveUp: (() => void) | null;
-		onMoveDown: (() => void) | null;
 	}
 
-	let { item = $bindable(), onRemove, onMoveUp, onMoveDown }: Props = $props();
+	let { item = $bindable(), onRemove }: Props = $props();
 
 	let collapsed = $state(false);
 
@@ -104,44 +102,26 @@
 	}
 </script>
 
-<div class="group border border-black bg-white" style="border-left: 3px solid #4A7C8C; border-radius: 4px;">
+<div class="border border-black bg-white" style="border-left: 3px solid #4A7C8C; border-radius: 4px;">
 	<div class="flex items-center gap-2 px-3 py-2">
 		<button
 			onclick={() => (collapsed = !collapsed)}
 			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 11px;"
+			style="font-family: monospace; font-size: 15px;"
 			aria-label="Toggle collapse"
 		>
 			{collapsed ? '>' : 'V'}
 		</button>
 		<span
 			class="shrink-0 font-bold"
-			style="font-family: monospace; font-size: 10px; color: #4A7C8C; letter-spacing: 0.5px;"
+			style="font-family: monospace; font-size: 14px; color: #4A7C8C; letter-spacing: 0.5px;"
 		>HANGBOARD</span>
 		<div class="flex-1"></div>
 		<div class="flex shrink-0 items-center gap-2">
-			<div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-				{#if onMoveUp}
-					<button
-						onclick={onMoveUp}
-						class="px-1 text-gray-400 transition-colors hover:text-black"
-						style="font-family: monospace; font-size: 10px;"
-						aria-label="Move up"
-					>^</button>
-				{/if}
-				{#if onMoveDown}
-					<button
-						onclick={onMoveDown}
-						class="px-1 text-gray-400 transition-colors hover:text-black"
-						style="font-family: monospace; font-size: 10px;"
-						aria-label="Move down"
-					>v</button>
-				{/if}
-			</div>
 			<button
 				onclick={onRemove}
 				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
-				style="font-family: monospace; font-size: 11px;"
+				style="font-family: monospace; font-size: 15px;"
 			>
 				Delete
 			</button>
@@ -152,68 +132,68 @@
 	<div class="border-t border-gray-100">
 		<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">
 			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 10px; color: #999;">Sets</span>
+				<span style="font-family: monospace; font-size: 14px; color: #999;">Sets</span>
 				<input
 					type="number"
 					min="1"
 					bind:value={item.cycles}
 					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 12px;"
+					style="font-family: monospace; font-size: 14px;"
 				/>
 			</div>
-			<span style="color: #ccc; font-size: 11px;">x</span>
+			<span style="color: #ccc; font-size: 15px;">x</span>
 			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 10px; color: #999;">Reps</span>
+				<span style="font-family: monospace; font-size: 14px; color: #999;">Reps</span>
 				<input
 					type="number"
 					min="1"
 					bind:value={item.reps}
 					oninput={onRepsChange}
 					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 12px;"
+					style="font-family: monospace; font-size: 14px;"
 				/>
 			</div>
 			<div class="h-3 w-px bg-gray-200"></div>
 			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 10px; color: #999;">Work</span>
+				<span style="font-family: monospace; font-size: 14px; color: #999;">Work</span>
 				<input
 					type="number"
 					min="1"
 					bind:value={item.hb_worktime_seconds}
 					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 12px;"
+					style="font-family: monospace; font-size: 14px;"
 				/>
-				<span style="font-family: monospace; font-size: 10px; color: #aaa;">s</span>
+				<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
 			</div>
 			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 10px; color: #999;">Rep rest</span>
+				<span style="font-family: monospace; font-size: 14px; color: #999;">Rep rest</span>
 				<input
 					type="number"
 					min="0"
 					bind:value={item.rest_seconds}
 					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 12px;"
+					style="font-family: monospace; font-size: 14px;"
 				/>
-				<span style="font-family: monospace; font-size: 10px; color: #aaa;">s</span>
+				<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
 			</div>
 			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 10px; color: #999;">Set rest</span>
+				<span style="font-family: monospace; font-size: 14px; color: #999;">Set rest</span>
 				<input
 					type="number"
 					min="0"
 					bind:value={item.cycle_rest_seconds}
 					class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 12px;"
+					style="font-family: monospace; font-size: 14px;"
 				/>
-				<span style="font-family: monospace; font-size: 10px; color: #aaa;">s</span>
+				<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
 			</div>
 			<div class="h-3 w-px bg-gray-200"></div>
 			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 10px; color: #999;">Both hands</span>
+				<span style="font-family: monospace; font-size: 14px; color: #999;">Both hands</span>
 				<button
 					onclick={onBothHandsToggle}
 					class="border px-2 py-0.5 transition-colors"
-					style="font-family: monospace; font-size: 11px; border-color: {item.both_hands ? '#C6613F' : '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
+					style="font-family: monospace; font-size: 15px; border-color: {item.both_hands ? '#C6613F' : '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
 				>
 					{item.both_hands ? 'yes' : 'no'}
 				</button>
@@ -222,11 +202,11 @@
 
 	<div class="border-t border-gray-200 px-3 py-2">
 		<div class="mb-2 flex items-center justify-between">
-			<span style="font-family: monospace; font-size: 10px; color: #999;">REP PARAMETERS</span>
+			<span style="font-family: monospace; font-size: 14px; color: #999;">REP PARAMETERS</span>
 			<button
 				onclick={togglePerRep}
 				class="border px-2 py-0.5 transition-colors"
-				style="font-family: monospace; font-size: 11px; border-color: {perRep ? '#C6613F' : '#ccc'}; color: {perRep ? '#C6613F' : '#999'};"
+				style="font-family: monospace; font-size: 15px; border-color: {perRep ? '#C6613F' : '#ccc'}; color: {perRep ? '#C6613F' : '#999'};"
 			>
 				{perRep ? 'PER-REP ON' : 'PER-REP OFF'}
 			</button>
@@ -235,18 +215,18 @@
 		{#if !perRep}
 			<div class="grid grid-cols-3 gap-2">
 				<div>
-					<label class="mb-0.5 block" style="font-family: monospace; font-size: 10px; color: #999;">EDGE (mm)</label>
+					<label class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">EDGE (mm)</label>
 					<input
 						type="number"
 						min="1"
 						bind:value={uniformEdge}
 						oninput={onUniformChange}
 						class="w-full border border-gray-300 px-2 py-1 text-center outline-none"
-						style="font-family: monospace; font-size: 12px;"
+						style="font-family: monospace; font-size: 14px;"
 					/>
 				</div>
 				<div>
-					<label class="mb-0.5 block" style="font-family: monospace; font-size: 10px; color: #999;">LOAD</label>
+					<label class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">LOAD</label>
 					<div class="flex gap-1">
 						<input
 							type="number"
@@ -254,13 +234,13 @@
 							bind:value={uniformLoadValue}
 							oninput={onUniformChange}
 							class="w-14 border border-gray-300 px-1 py-1 text-center outline-none"
-							style="font-family: monospace; font-size: 12px;"
+							style="font-family: monospace; font-size: 14px;"
 						/>
 						<select
 							bind:value={uniformLoadUnit}
 							onchange={onUniformChange}
 							class="flex-1 border border-gray-300 px-1 py-1 outline-none"
-							style="font-family: monospace; font-size: 11px;"
+							style="font-family: monospace; font-size: 15px;"
 						>
 							{#each LOAD_UNITS as u}
 								<option value={u.value}>{u.label}</option>
@@ -269,12 +249,12 @@
 					</div>
 				</div>
 				<div>
-					<label class="mb-0.5 block" style="font-family: monospace; font-size: 10px; color: #999;">GRIP</label>
+					<label class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">GRIP</label>
 					<select
 						bind:value={uniformHandPos}
 						onchange={onUniformChange}
 						class="w-full border border-gray-300 px-1 py-1 outline-none"
-						style="font-family: monospace; font-size: 12px;"
+						style="font-family: monospace; font-size: 14px;"
 					>
 						{#each HAND_POSITIONS as p}
 							<option value={p}>{p}</option>
@@ -285,7 +265,7 @@
 		{:else}
 			<!-- Per-rep grid -->
 			<div class="overflow-x-auto">
-				<table class="w-full border-collapse" style="font-family: monospace; font-size: 11px;">
+				<table class="w-full border-collapse" style="font-family: monospace; font-size: 15px;">
 					<thead>
 						<tr class="bg-gray-50">
 							<th class="border border-gray-200 px-2 py-1 text-left font-medium" style="color: #999;">REP</th>
@@ -310,7 +290,7 @@
 										min="1"
 										bind:value={item.edge_sizes_mm![repIdx]}
 										class="w-full border-0 text-center outline-none"
-										style="font-family: monospace; font-size: 11px;"
+										style="font-family: monospace; font-size: 15px;"
 									/>
 								</td>
 								<td class="border border-gray-200 px-1 py-1">
@@ -319,14 +299,14 @@
 										min="0"
 										bind:value={item.loads![repIdx].value}
 										class="w-full border-0 text-center outline-none"
-										style="font-family: monospace; font-size: 11px;"
+										style="font-family: monospace; font-size: 15px;"
 									/>
 								</td>
 								<td class="border border-gray-200 px-1 py-1">
 									<select
 										bind:value={item.loads![repIdx].unit}
 										class="w-full border-0 outline-none"
-										style="font-family: monospace; font-size: 11px;"
+										style="font-family: monospace; font-size: 15px;"
 									>
 										{#each LOAD_UNITS as u}
 											<option value={u.value}>{u.label}</option>
@@ -338,7 +318,7 @@
 										<select
 											bind:value={item.hand_positions![0][repIdx]}
 											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 11px;"
+											style="font-family: monospace; font-size: 15px;"
 										>
 											{#each HAND_POSITIONS as p}
 												<option value={p}>{p}</option>
@@ -350,7 +330,7 @@
 										<select
 											bind:value={item.hand_positions![0][repIdx]}
 											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 11px;"
+											style="font-family: monospace; font-size: 15px;"
 										>
 											{#each HAND_POSITIONS as p}
 												<option value={p}>{p}</option>
@@ -361,7 +341,7 @@
 										<select
 											bind:value={item.hand_positions![1][repIdx]}
 											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 11px;"
+											style="font-family: monospace; font-size: 15px;"
 										>
 											{#each HAND_POSITIONS as p}
 												<option value={p}>{p}</option>
