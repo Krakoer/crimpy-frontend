@@ -15,6 +15,7 @@
 		allowedTypes?: SessionItemType[];
 		depth?: number;
 		containerId?: string;
+		showAddPanel?: boolean;
 	}
 
 	let {
@@ -22,7 +23,8 @@
 		exercises,
 		allowedTypes = ['exercise', 'circuit', 'section', 'hangboard'],
 		depth = 0,
-		containerId = 'root'
+		containerId = 'root',
+		showAddPanel = true
 	}: Props = $props();
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
@@ -125,52 +127,54 @@
 		<EmptyDropZone {containerId} />
 	{/if}
 
-	<div class="mt-1 space-y-2 border-t border-gray-100 pt-3">
-		{#if containerTypes.length > 0}
-			<div class="flex flex-wrap gap-1.5">
-				{#each containerTypes as type}
-					<button
-						onclick={() => addItem(type)}
-						class="border border-dashed border-gray-300 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-						style="font-family: monospace; font-size: 15px;"
-					>
-						{type.charAt(0).toUpperCase() + type.slice(1)} +
-					</button>
-				{/each}
-			</div>
-		{/if}
-
-		{#if allowedTypes.includes('exercise')}
-			<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-				<input
-					type="text"
-					bind:value={exerciseSearch}
-					placeholder="Search exercises..."
-					class="border border-gray-200 px-2 py-0.5 outline-none focus:border-gray-400"
-					style="font-family: monospace; font-size: 15px; width: 160px;"
-				/>
-				{#if exercises.length === 0}
-					<button
-						onclick={() => addItem('exercise')}
-						class="border border-dashed border-gray-300 px-3 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-						style="font-family: monospace; font-size: 15px;"
-					>
-						+ exercise
-					</button>
-				{:else if filteredExercises.length > 0}
-					{#each filteredExercises as ex (ex.id)}
+	{#if showAddPanel}
+		<div class="mt-1 space-y-2 border-t border-gray-100 pt-3">
+			{#if containerTypes.length > 0}
+				<div class="flex flex-wrap gap-1.5">
+					{#each containerTypes as type}
 						<button
-							onclick={() => addItem('exercise', ex.id)}
-							class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-							style="font-family: monospace; font-size: 15px;"
+							onclick={() => addItem(type)}
+							class="border border-dashed border-gray-300 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+							style="font-family: monospace; font-size: 13px;"
 						>
-							{ex.name} +
+							{type.charAt(0).toUpperCase() + type.slice(1)} +
 						</button>
 					{/each}
-				{:else}
-					<span style="font-family: monospace; font-size: 15px; color: #bbb;">No exercises found</span>
-				{/if}
-			</div>
-		{/if}
-	</div>
+				</div>
+			{/if}
+
+			{#if allowedTypes.includes('exercise')}
+				<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+					<input
+						type="text"
+						bind:value={exerciseSearch}
+						placeholder="Search exercises..."
+						class="border border-gray-200 px-2 py-0.5 outline-none focus:border-gray-400"
+						style="font-family: monospace; font-size: 13px; width: 160px;"
+					/>
+					{#if exercises.length === 0}
+						<button
+							onclick={() => addItem('exercise')}
+							class="border border-dashed border-gray-300 px-3 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+							style="font-family: monospace; font-size: 13px;"
+						>
+							+ exercise
+						</button>
+					{:else if filteredExercises.length > 0}
+						{#each filteredExercises as ex (ex.id)}
+							<button
+								onclick={() => addItem('exercise', ex.id)}
+								class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
+								style="font-family: monospace; font-size: 13px;"
+							>
+								{ex.name} +
+							</button>
+						{/each}
+					{:else}
+						<span style="font-family: monospace; font-size: 13px; color: #bbb;">No exercises found</span>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>

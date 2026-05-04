@@ -4,8 +4,10 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachSessionRequest, Exercise, SessionItem } from '$lib/api/client';
+	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
 	import ItemList from '$lib/components/session/ItemList.svelte';
+	import CreateExerciseModal from '$lib/components/session/CreateExerciseModal.svelte';
+	import SidePanelDraggable from '$lib/components/session/SidePanelDraggable.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
@@ -126,11 +128,41 @@
 		}
 	}
 
-	function onDragEnd(event: { canceled: boolean }) {
-		if (event.canceled && itemsSnapshot) {
-			draft.items = itemsSnapshot as typeof draft.items;
+	function onDragEnd(event: { canceled: boolean; operation: { source: unknown; target: unknown } }) {
+		if (event.canceled) {
+			if (itemsSnapshot) draft.items = itemsSnapshot as typeof draft.items;
+			itemsSnapshot = null;
+			return;
 		}
 		itemsSnapshot = null;
+
+		const { source, target } = event.operation;
+		if (!source || !isSortable(source as never)) {
+			if (!source) return;
+			const srcId = String((source as { id: string }).id);
+			if (!srcId.startsWith('__new__:')) return;
+			const rest = srcId.slice(8);
+			const colonIdx = rest.indexOf(':');
+			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as SessionItemType;
+			const exerciseId = colonIdx === -1 ? undefined : rest.slice(colonIdx + 1);
+
+			let targetContainerId = 'root';
+			let insertIndex = draft.items.length;
+
+			if (target && isSortable(target as never)) {
+				const tgt = target as { group?: string; index: number };
+				targetContainerId = tgt.group ?? 'root';
+				insertIndex = tgt.index;
+			} else if (target) {
+				targetContainerId = String((target as { id: string }).id);
+				insertIndex = Infinity;
+			}
+
+			if (!isValidMove({ type } as SessionItem, targetContainerId)) return;
+			const container = findContainerArray(draft.items, targetContainerId);
+			if (!container) return;
+			container.splice(Math.min(insertIndex, container.length), 0, createNewItem(type, exerciseId));
+		}
 	}
 
 	const dndSensors = [PointerSensor.configure({
@@ -141,6 +173,52 @@
 
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<CoachSessionRequest>({ title: '', description: '', items: [] });
+
+	let showCreateExerciseModal = $state(false);
+
+	function onExerciseCreated(exercise: Exercise) {
+		exercises.push(exercise);
+		showCreateExerciseModal = false;
+	}
+
+	let rootExerciseSearch = $state('');
+	let filteredRootExercises = $derived(
+		rootExerciseSearch.trim()
+			? exercises.filter((e) => e.name.toLowerCase().includes(rootExerciseSearch.toLowerCase()))
+			: exercises
+	);
+
+	function createNewItem(type: SessionItemType, exerciseId?: string): SessionItem {
+		const base: SessionItem = { type, _id: crypto.randomUUID() };
+		if (type === 'exercise') {
+			base.exercise_id = exerciseId;
+			base.reps = 1;
+			base.reps_unit = 'count';
+			base.rest_seconds = 0;
+		} else if (type === 'circuit') {
+			base.cycles = 3;
+			base.cycle_rest_seconds = 120;
+			base.items = [];
+		} else if (type === 'section') {
+			base.section_title = 'Section';
+			base.items = [];
+		} else if (type === 'hangboard') {
+			base.cycles = 3;
+			base.cycle_rest_seconds = 180;
+			base.reps = 6;
+			base.hb_worktime_seconds = 7;
+			base.rest_seconds = 3;
+			base.both_hands = true;
+			base.edge_sizes_mm = [20];
+			base.loads = [{ value: 0, unit: 'percent_bw' }];
+			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
+		}
+		return base;
+	}
+
+	function addRootItem(type: SessionItemType, exerciseId?: string) {
+		draft.items.push(createNewItem(type, exerciseId));
+	}
 	let loading = $state(true);
 	let saving = $state(false);
 	let saveError = $state('');
@@ -224,8 +302,8 @@
 </script>
 
 <div class="min-h-screen bg-white">
-	<div class="mx-auto max-w-3xl p-6">
-		<div class="mb-8 border-b-2 border-black pb-4">
+	<div class="mx-auto max-w-6xl p-6">
+		<div class="mb-6 border-b-2 border-black pb-4">
 			<button
 				onclick={() => goto('/sessions')}
 				style="font-family: monospace; font-size: 14px; color: #666;"
@@ -305,41 +383,116 @@
 			</div>
 		{:else}
 			<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
-				<ItemList bind:items={draft.items} {exercises} />
-			</DragDropProvider>
+				<div class="flex gap-6 items-start">
+					<div class="min-w-0 flex-1">
+						<ItemList bind:items={draft.items} {exercises} showAddPanel={false} />
 
-			<div class="mt-12 border-t border-gray-200 pt-6">
-				{#if confirmDelete}
-					<p class="mb-3" style="font-family: monospace; font-size: 15px; color: #666;">
-						Delete this session permanently?
-					</p>
-					<div class="flex gap-3">
-						<button
-							onclick={handleDelete}
-							disabled={deleting}
-							class="border border-red-600 px-4 py-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-							style="font-family: monospace; font-size: 15px;"
-						>
-							{deleting ? 'DELETING...' : 'CONFIRM DELETE'}
-						</button>
-						<button
-							onclick={() => (confirmDelete = false)}
-							class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
-							style="font-family: monospace; font-size: 15px;"
-						>
-							CANCEL
-						</button>
+						<div class="mt-12 border-t border-gray-200 pt-6">
+							{#if confirmDelete}
+								<p class="mb-3" style="font-family: monospace; font-size: 15px; color: #666;">
+									Delete this session permanently?
+								</p>
+								<div class="flex gap-3">
+									<button
+										onclick={handleDelete}
+										disabled={deleting}
+										class="border border-red-600 px-4 py-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+										style="font-family: monospace; font-size: 15px;"
+									>
+										{deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+									</button>
+									<button
+										onclick={() => (confirmDelete = false)}
+										class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
+										style="font-family: monospace; font-size: 15px;"
+									>
+										CANCEL
+									</button>
+								</div>
+							{:else}
+								<button
+									onclick={() => (confirmDelete = true)}
+									class="text-red-600 transition-colors hover:underline"
+									style="font-family: monospace; font-size: 15px;"
+								>
+									Delete session
+								</button>
+							{/if}
+						</div>
 					</div>
-				{:else}
-					<button
-						onclick={() => (confirmDelete = true)}
-						class="text-red-600 transition-colors hover:underline"
-						style="font-family: monospace; font-size: 15px;"
-					>
-						Delete session
-					</button>
-				{/if}
-			</div>
+
+					<div class="w-60 shrink-0 sticky top-6 space-y-3 p-4">
+						<div class="space-y-2">
+							<div class="flex gap-2">
+								{#each (['circuit', 'section'] as SessionItemType[]) as type}
+									<SidePanelDraggable
+										id={'__new__:' + type}
+										onclick={() => addRootItem(type)}
+										class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
+										style="font-family: monospace; font-size: 14px;"
+									>
+										{type.charAt(0).toUpperCase() + type.slice(1)} +
+									</SidePanelDraggable>
+								{/each}
+							</div>
+							<SidePanelDraggable
+								id="__new__:hangboard"
+								onclick={() => addRootItem('hangboard')}
+								class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
+								style="font-family: monospace; font-size: 14px;"
+							>
+								Hangboard +
+							</SidePanelDraggable>
+						</div>
+
+						<div class="border-t border-gray-100 pt-3 space-y-2">
+							<div class="flex items-center justify-between">
+								<p style="font-family: monospace; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px;">
+									Exercises
+								</p>
+								<button
+									onclick={() => (showCreateExerciseModal = true)}
+									class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-700"
+									style="font-family: monospace; font-size: 14px;"
+									title="Create new exercise"
+								>
+									+
+								</button>
+							</div>
+							<input
+								type="text"
+								bind:value={rootExerciseSearch}
+								placeholder="Search..."
+								class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
+								style="font-family: monospace; font-size: 14px;"
+							/>
+							<div class="flex flex-wrap gap-1.5">
+								{#if filteredRootExercises.length > 0}
+									{#each filteredRootExercises as ex (ex.id)}
+										<SidePanelDraggable
+											id={'__new__:exercise:' + ex.id}
+											onclick={() => addRootItem('exercise', ex.id)}
+											class="border border-black px-2 py-1 transition-colors hover:border-gray-600 hover:text-gray-700"
+											style="font-family: monospace; font-size: 14px;"
+										>
+											{ex.name} +
+										</SidePanelDraggable>
+									{/each}
+								{:else}
+									<span style="font-family: monospace; font-size: 13px; color: #bbb;">No results</span>
+								{/if}
+							</div>
+						</div>
+					</div>
+				</div>
+			</DragDropProvider>
 		{/if}
 	</div>
 </div>
+
+{#if showCreateExerciseModal}
+	<CreateExerciseModal
+		onCreated={onExerciseCreated}
+		onClose={() => (showCreateExerciseModal = false)}
+	/>
+{/if}
