@@ -240,8 +240,8 @@
 				<span style="font-family: monospace; font-size: 14px; color: #999;">Both hands</span>
 				<button
 					onclick={onBothHandsToggle}
-					class="border px-2 py-0.5 transition-colors"
-					style="font-family: monospace; font-size: 15px; border-color: {item.both_hands ? '#C6613F' : '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
+					class="border px-2 py-0.5 text-center transition-colors"
+					style="font-family: monospace; font-size: 15px; width: 2.6rem; border-color: {item.both_hands ? '#C6613F' : '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
 				>
 					{item.both_hands ? 'yes' : 'no'}
 				</button>
