@@ -5,6 +5,12 @@
 	import { goto } from '$app/navigation';
 	import type { CoachSessionRequest, Exercise } from '$lib/api/client';
 	import ItemList from '$lib/components/session/ItemList.svelte';
+	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
+	import { PointerActivationConstraints } from '@dnd-kit/dom';
+
+	const dndSensors = [PointerSensor.configure({
+		activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
+	})];
 
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<CoachSessionRequest>({ title: '', description: '', items: [] });
@@ -121,6 +127,8 @@
 			</h2>
 		</div>
 
-		<ItemList bind:items={draft.items} {exercises} />
+		<DragDropProvider sensors={dndSensors}>
+				<ItemList bind:items={draft.items} {exercises} />
+			</DragDropProvider>
 	</div>
 </div>
