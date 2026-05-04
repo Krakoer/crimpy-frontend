@@ -146,14 +146,16 @@
 			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as SessionItemType;
 			const exerciseId = colonIdx === -1 ? undefined : rest.slice(colonIdx + 1);
 
+			if (!target) return;
+
 			let targetContainerId = 'root';
 			let insertIndex = draft.items.length;
 
-			if (target && isSortable(target as never)) {
+			if (isSortable(target as never)) {
 				const tgt = target as { group?: string; index: number };
 				targetContainerId = tgt.group ?? 'root';
 				insertIndex = tgt.index;
-			} else if (target) {
+			} else {
 				targetContainerId = String((target as { id: string }).id);
 				insertIndex = Infinity;
 			}
@@ -209,7 +211,7 @@
 			base.rest_seconds = 3;
 			base.both_hands = true;
 			base.edge_sizes_mm = [20];
-			base.loads = [{ value: 0, unit: 'percent_bw' }];
+			base.loads = [{ value: 100, unit: 'percent_bw' }];
 			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
 		}
 		return base;
