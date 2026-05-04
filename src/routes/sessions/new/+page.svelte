@@ -61,6 +61,11 @@
 	}
 
 	let itemsSnapshot: SessionItem[] | null = null;
+	let dragOverTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function clearDragOverTimer() {
+		if (dragOverTimer) { clearTimeout(dragOverTimer); dragOverTimer = null; }
+	}
 
 	function moveCrossContainer(sourceId: string, targetContainerId: string, insertIndex: number) {
 		const activeResult = findItemInTree(draft.items, sourceId);
@@ -76,6 +81,7 @@
 	}
 
 	function onDragStart() {
+		clearDragOverTimer();
 		itemsSnapshot = structuredClone($state.snapshot(draft.items) as SessionItem[]);
 	}
 
@@ -84,32 +90,39 @@
 		if (!source || !target) return;
 		if (!isSortable(source as never)) return;
 
-		const src = source as { id: string };
+		const srcId = String((source as { id: string }).id);
+		let op: () => void;
 
 		if (isSortable(target as never)) {
 			const tgt = target as { id: string; group?: string; index: number };
+			const tgtId = String(tgt.id);
 			const tgtContainerId = tgt.group ?? 'root';
-
-			const activeResult = findItemInTree(draft.items, String(src.id));
-			if (!activeResult) return;
-
-			if (activeResult.containerId === tgtContainerId) {
-				const overResult = findItemInTree(draft.items, String(tgt.id));
-				if (!overResult || activeResult.index === overResult.index) return;
-				const [item] = activeResult.container.splice(activeResult.index, 1);
-				const newOverResult = findItemInTree(draft.items, String(tgt.id));
-				const insertAt = newOverResult ? newOverResult.index : overResult.index;
-				activeResult.container.splice(insertAt, 0, item);
-			} else {
-				moveCrossContainer(String(src.id), tgtContainerId, tgt.index);
-			}
+			const tgtIndex = tgt.index;
+			op = () => {
+				const activeResult = findItemInTree(draft.items, srcId);
+				if (!activeResult) return;
+				if (activeResult.containerId === tgtContainerId) {
+					const overResult = findItemInTree(draft.items, tgtId);
+					if (!overResult || activeResult.index === overResult.index) return;
+					const [item] = activeResult.container.splice(activeResult.index, 1);
+					const newOverResult = findItemInTree(draft.items, tgtId);
+					const insertAt = newOverResult ? newOverResult.index : overResult.index;
+					activeResult.container.splice(insertAt, 0, item);
+				} else {
+					moveCrossContainer(srcId, tgtContainerId, tgtIndex);
+				}
+			};
 		} else {
-			const tgt = target as { id: string };
-			moveCrossContainer(String(src.id), String(tgt.id), Infinity);
+			const tgtId = String((target as { id: string }).id);
+			op = () => moveCrossContainer(srcId, tgtId, Infinity);
 		}
+
+		clearDragOverTimer();
+		dragOverTimer = setTimeout(op, 200);
 	}
 
 	function onDragEnd(event: { canceled: boolean; operation: { source: unknown; target: unknown } }) {
+		clearDragOverTimer();
 		if (event.canceled) {
 			if (itemsSnapshot) draft.items = itemsSnapshot as typeof draft.items;
 			itemsSnapshot = null;
