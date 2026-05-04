@@ -110,7 +110,6 @@ export interface ExerciseRequest {
 	video_link?: string;
 }
 
-export type RepsUnit = 'count' | 'seconds';
 export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs';
 
 export interface Load {
@@ -130,7 +129,7 @@ export interface SessionItem {
 	section_title?: string;
 	exercise_id?: string;
 	reps?: number;
-	reps_unit?: RepsUnit;
+	duration?: number;
 	rest_seconds?: number;
 	loads?: Load[];
 	hb_worktime_seconds?: number;

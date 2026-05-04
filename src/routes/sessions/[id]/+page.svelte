@@ -193,7 +193,6 @@
 		if (type === 'exercise') {
 			base.exercise_id = exerciseId;
 			base.reps = 1;
-			base.reps_unit = 'count';
 			base.rest_seconds = 0;
 		} else if (type === 'circuit') {
 			base.cycles = 3;

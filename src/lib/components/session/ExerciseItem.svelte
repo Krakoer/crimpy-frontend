@@ -130,28 +130,17 @@
 
 	{#if !collapsed}
 		<div class="space-y-3 border-t border-gray-100 px-3 py-3">
-			<div class="flex border border-gray-200" style="font-family: monospace; font-size: 12px;">
-				<button
-					onclick={setRepsMode}
-					class="flex-1 border-r border-gray-200 px-3 py-1 transition-colors"
-					style:background={!isDuration ? '#C6613F' : 'transparent'}
-					style:color={!isDuration ? 'white' : '#999'}
-				>
-					Reps
-				</button>
-				<button
-					onclick={setDurationMode}
-					class="flex-1 px-3 py-1 transition-colors"
-					style:background={isDuration ? '#C6613F' : 'transparent'}
-					style:color={isDuration ? 'white' : '#999'}
-				>
-					Duration
-				</button>
-			</div>
-
 			<div class="grid grid-cols-3">
 				<div class="flex flex-col items-center">
-					<p style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">{isDuration ? 'Duration' : 'Reps'}</p>
+					<select
+						value={isDuration ? 'duration' : 'reps'}
+						onchange={(e) => e.currentTarget.value === 'duration' ? setDurationMode() : setRepsMode()}
+						class="mb-1 px-2 py-0.5 outline-none focus:border-black"
+						style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; cursor: pointer; appearance: auto;"
+					>
+						<option value="reps">REPS</option>
+						<option value="duration">DURATION</option>
+					</select>
 					{#if isDuration}
 						<div class="flex items-center gap-1">
 							<input
