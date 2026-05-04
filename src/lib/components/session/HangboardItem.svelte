@@ -11,6 +11,7 @@
 	let { item = $bindable(), onRemove }: Props = $props();
 
 	let collapsed = $state(false);
+	let confirmDelete = $state(false);
 
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
 
@@ -141,20 +142,38 @@
 		>
 			{collapsed ? '>' : 'V'}
 		</button>
-		<span
-			class="shrink-0 font-bold"
-			style="font-family: monospace; font-size: 14px; color: #4A7C8C; letter-spacing: 0.5px;"
-		>HANGBOARD</span>
-		<div class="flex-1"></div>
-		<div class="flex shrink-0 items-center gap-2">
+		{#if confirmDelete}
+			<span class="flex-1 truncate" style="font-family: monospace; font-size: 13px; color: #B85450;">
+				Delete hangboard?
+			</span>
 			<button
 				onclick={onRemove}
-				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
-				style="font-family: monospace; font-size: 15px;"
+				class="border border-red-300 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-50"
+				style="font-family: monospace; font-size: 12px;"
 			>
-				Delete
+				yes
 			</button>
-		</div>
+			<button
+				onclick={() => (confirmDelete = false)}
+				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
+				style="font-family: monospace; font-size: 12px;"
+			>
+				no
+			</button>
+		{:else}
+			<span
+				class="shrink-0 font-bold"
+				style="font-family: monospace; font-size: 14px; color: #4A7C8C; letter-spacing: 0.5px;"
+			>HANGBOARD</span>
+			<div class="flex-1"></div>
+			<button
+				onclick={() => (confirmDelete = true)}
+				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-400 hover:text-red-500"
+				style="font-family: monospace; font-size: 12px;"
+			>
+				del
+			</button>
+		{/if}
 	</div>
 
 	{#if !collapsed}
