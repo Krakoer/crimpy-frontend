@@ -19,7 +19,7 @@
 </script>
 
 <div {@attach sortable.attach} class="group relative" style:opacity={sortable.isDragging ? '0.4' : undefined}>
-	<button
+	<!-- <button
 		{@attach sortable.attachHandle}
 		class="absolute inset-y-0 left-0 z-10 flex w-5 cursor-grab items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
 		style="color: #bbb;"
@@ -34,6 +34,6 @@
 			<circle cx="6" cy="7" r="1.2" />
 			<circle cx="6" cy="12" r="1.2" />
 		</svg>
-	</button>
+	</button> -->
 	{@render children()}
 </div>

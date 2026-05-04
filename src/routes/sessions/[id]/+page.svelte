@@ -385,7 +385,7 @@
 			<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 				<div class="flex gap-6 items-start">
 					<div class="min-w-0 flex-1">
-						<ItemList bind:items={draft.items} {exercises} showAddPanel={false} />
+						<ItemList bind:items={draft.items} {exercises} />
 
 						<div class="mt-12 border-t border-gray-200 pt-6">
 							{#if confirmDelete}

@@ -24,4 +24,4 @@ The design guidelines should align with the Crimpy flutter app, which theme is a
 
 ## API
 
-The API swagger is available at https://api.portfolio-online.ovh/swagger/doc.json
+The API swagger is available at https://api.crimpy.app/swagger/doc.json
