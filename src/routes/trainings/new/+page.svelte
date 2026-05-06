@@ -3,18 +3,18 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
+	import type { CoachTrainingRequest, Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
-	import ItemList from '$lib/components/session/ItemList.svelte';
-	import CreateExerciseModal from '$lib/components/session/CreateExerciseModal.svelte';
-	import SidePanelDraggable from '$lib/components/session/SidePanelDraggable.svelte';
+	import ItemList from '$lib/components/training/ItemList.svelte';
+	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
+	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 
-	type FindResult = { container: SessionItem[]; containerId: string; index: number };
+	type FindResult = { container: TrainingItem[]; containerId: string; index: number };
 
-	function findItemInTree(treeItems: SessionItem[], targetId: string, cid = 'root'): FindResult | null {
+	function findItemInTree(treeItems: TrainingItem[], targetId: string, cid = 'root'): FindResult | null {
 		for (let i = 0; i < treeItems.length; i++) {
 			if (treeItems[i]._id === targetId) return { container: treeItems, containerId: cid, index: i };
 			if (treeItems[i].items) {
@@ -25,7 +25,7 @@
 		return null;
 	}
 
-	function findContainerArray(treeItems: SessionItem[], cid: string): SessionItem[] | null {
+	function findContainerArray(treeItems: TrainingItem[], cid: string): TrainingItem[] | null {
 		if (cid === 'root') return treeItems;
 		const itemId = cid.startsWith('container:') ? cid.slice(10) : cid;
 		for (const item of treeItems) {
@@ -38,7 +38,7 @@
 		return null;
 	}
 
-	function findItemById(treeItems: SessionItem[], id: string): SessionItem | null {
+	function findItemById(treeItems: TrainingItem[], id: string): TrainingItem | null {
 		for (const item of treeItems) {
 			if (item._id === id) return item;
 			if (item.items) {
@@ -49,7 +49,7 @@
 		return null;
 	}
 
-	function isValidMove(movedItem: SessionItem, targetContainerId: string): boolean {
+	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
 		if (movedItem.type === 'section') {
@@ -60,7 +60,7 @@
 		return true;
 	}
 
-	let itemsSnapshot: SessionItem[] | null = null;
+	let itemsSnapshot: TrainingItem[] | null = null;
 	let dragOverTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function clearDragOverTimer() {
@@ -82,7 +82,7 @@
 
 	function onDragStart() {
 		clearDragOverTimer();
-		itemsSnapshot = structuredClone($state.snapshot(draft.items) as SessionItem[]);
+		itemsSnapshot = structuredClone($state.snapshot(draft.items) as TrainingItem[]);
 	}
 
 	function onDragOver(event: { operation: { source: unknown; target: unknown } }) {
@@ -137,7 +137,7 @@
 			if (!srcId.startsWith('__new__:')) return;
 			const rest = srcId.slice(8);
 			const colonIdx = rest.indexOf(':');
-			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as SessionItemType;
+			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as TrainingItemType;
 			const exerciseId = colonIdx === -1 ? undefined : rest.slice(colonIdx + 1);
 
 			if (!target) return;
@@ -154,7 +154,7 @@
 				insertIndex = Infinity;
 			}
 
-			if (!isValidMove({ type } as SessionItem, targetContainerId)) return;
+			if (!isValidMove({ type } as TrainingItem, targetContainerId)) return;
 			const container = findContainerArray(draft.items, targetContainerId);
 			if (!container) return;
 			container.splice(Math.min(insertIndex, container.length), 0, createNewItem(type, exerciseId));
@@ -166,7 +166,7 @@
 	})];
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<CoachSessionRequest>({ title: '', description: '', items: [] });
+	let draft = $state<CoachTrainingRequest>({ title: '', description: '', items: [] });
 	let saving = $state(false);
 	let saveError = $state('');
 	let showCreateExerciseModal = $state(false);
@@ -182,8 +182,8 @@
 		showCreateExerciseModal = false;
 	}
 
-	function createNewItem(type: SessionItemType, exerciseId?: string): SessionItem {
-		const base: SessionItem = { type, _id: crypto.randomUUID() };
+	function createNewItem(type: TrainingItemType, exerciseId?: string): TrainingItem {
+		const base: TrainingItem = { type, _id: crypto.randomUUID() };
 		if (type === 'exercise') {
 			base.exercise_id = exerciseId;
 			base.reps = 1;
@@ -209,7 +209,7 @@
 		return base;
 	}
 
-	function addRootItem(type: SessionItemType, exerciseId?: string) {
+	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		draft.items.push(createNewItem(type, exerciseId));
 	}
 
@@ -237,15 +237,15 @@
 		saving = true;
 		saveError = '';
 		try {
-			const session = await apiClient.createCoachSession({
+			const training = await apiClient.createCoachTraining({
 				title: draft.title.trim(),
 				description: draft.description?.trim() || undefined,
 				items: draft.items
 			});
-			snackbar.show('Session created');
-			goto(`/sessions/${session.id}`);
+			snackbar.show('Training created');
+			goto(`/trainings/${training.id}`);
 		} catch (e) {
-			saveError = e instanceof Error ? e.message : 'Failed to save session.';
+			saveError = e instanceof Error ? e.message : 'Failed to save training.';
 			saving = false;
 		}
 	}
@@ -255,11 +255,11 @@
 	<div class="mx-auto max-w-6xl p-6">
 		<div class="mb-6 border-b-2 border-black pb-4">
 			<button
-				onclick={() => goto('/sessions')}
+				onclick={() => goto('/trainings')}
 				style="font-family: monospace; font-size: 14px; color: #666;"
 				class="mb-2 block transition-colors hover:text-black"
 			>
-				&larr; sessions
+				&larr; trainings
 			</button>
 			<div class="flex items-start justify-between gap-4">
 				<div class="flex-1 space-y-2">
@@ -268,7 +268,7 @@
 						bind:value={draft.title}
 						class="w-full border-2 border-black px-3 py-2 text-2xl font-black outline-none focus:border-[#C6613F]"
 						style="font-family: monospace; letter-spacing: -0.5px;"
-						placeholder="Session title"
+						placeholder="Training title"
 					/>
 					<textarea
 						bind:value={draft.description}
@@ -284,7 +284,7 @@
 					class="shrink-0 border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
 					style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
 				>
-					{saving ? 'SAVING...' : 'SAVE SESSION'}
+					{saving ? 'SAVING...' : 'SAVE TRAINING'}
 				</button>
 			</div>
 		</div>
@@ -307,7 +307,7 @@
 				<div class="w-60 shrink-0 sticky top-6 space-y-3 p-4">
 					<div class="space-y-2">
 						<div class="flex gap-2">
-							{#each (['circuit', 'section'] as SessionItemType[]) as type}
+							{#each (['circuit', 'section'] as TrainingItemType[]) as type}
 								<SidePanelDraggable
 									id={'__new__:' + type}
 									onclick={() => addRootItem(type)}

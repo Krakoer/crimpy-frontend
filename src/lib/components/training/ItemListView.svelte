@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, SessionItem } from '$lib/api/client';
+	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import ExerciseItemView from './ExerciseItemView.svelte';
 	import HangboardItemView from './HangboardItemView.svelte';
 	import CircuitItemView from './CircuitItemView.svelte';
@@ -8,7 +8,7 @@
 	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
-		items: SessionItem[];
+		items: TrainingItem[];
 		exercises: Exercise[];
 		depth?: number;
 	}

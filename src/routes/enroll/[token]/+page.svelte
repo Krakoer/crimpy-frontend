@@ -111,7 +111,7 @@
 
 					<p class="mb-6" style="font-family: monospace; font-size: 13px; color: #666;">
 						Do you want to be enrolled by this coach? They will be able to assign training plans,
-						view your sessions, and send feedback.
+						view your trainings, and send feedback.
 					</p>
 
 					<div class="flex gap-3">
@@ -145,7 +145,7 @@
 					>
 						You are now enrolled with {tokenInfo?.coach_firstname}
 						{tokenInfo?.coach_lastname}. Your coach can now assign you training plans and track your
-						sessions.
+						trainings.
 					</div>
 					<button
 						onclick={() => goto('/dashboard')}

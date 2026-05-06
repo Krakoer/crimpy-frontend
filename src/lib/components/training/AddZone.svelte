@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { createDroppable } from '@dnd-kit/svelte';
-	import type { Exercise, SessionItemType } from '$lib/api/client';
+	import type { Exercise, TrainingItemType } from '$lib/api/client';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 
 	interface Props {
 		containerId: string;
-		allowedTypes: SessionItemType[];
+		allowedTypes: TrainingItemType[];
 		exercises: Exercise[];
-		onAdd: (type: SessionItemType, exerciseId?: string) => void;
+		onAdd: (type: TrainingItemType, exerciseId?: string) => void;
 	}
 
 	let { containerId, allowedTypes, exercises, onAdd }: Props = $props();
@@ -24,7 +24,7 @@
 		exercise: 'Exercise'
 	};
 
-	function handleTypeClick(type: SessionItemType) {
+	function handleTypeClick(type: TrainingItemType) {
 		if (type === 'exercise') {
 			showExerciseModal = true;
 		} else {

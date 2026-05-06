@@ -4,24 +4,24 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
+	import type { CoachTrainingRequest, Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
-	import ItemList from '$lib/components/session/ItemList.svelte';
-	import SessionPreview from '$lib/components/session/SessionPreview.svelte';
-	import CreateExerciseModal from '$lib/components/session/CreateExerciseModal.svelte';
-	import SidePanelDraggable from '$lib/components/session/SidePanelDraggable.svelte';
+	import ItemList from '$lib/components/training/ItemList.svelte';
+	import TrainingPreview from '$lib/components/training/TrainingPreview.svelte';
+	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
+	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 
-	function ensureClientIds(items: SessionItem[]) {
+	function ensureClientIds(items: TrainingItem[]) {
 		for (const item of items) {
 			if (!item._id) item._id = crypto.randomUUID();
 			if (item.items) ensureClientIds(item.items);
 		}
 	}
 
-	function stripClientIds(items: SessionItem[]): SessionItem[] {
+	function stripClientIds(items: TrainingItem[]): TrainingItem[] {
 		return items.map(({ _id, ...rest }) => ({
 			...rest,
 			items: rest.items ? stripClientIds(rest.items) : undefined
@@ -30,9 +30,9 @@
 
 	// --- DnD tree helpers ---
 
-	type FindResult = { container: SessionItem[]; containerId: string; index: number };
+	type FindResult = { container: TrainingItem[]; containerId: string; index: number };
 
-	function findItemInTree(treeItems: SessionItem[], targetId: string, cid = 'root'): FindResult | null {
+	function findItemInTree(treeItems: TrainingItem[], targetId: string, cid = 'root'): FindResult | null {
 		for (let i = 0; i < treeItems.length; i++) {
 			if (treeItems[i]._id === targetId) return { container: treeItems, containerId: cid, index: i };
 			if (treeItems[i].items) {
@@ -43,7 +43,7 @@
 		return null;
 	}
 
-	function findContainerArray(treeItems: SessionItem[], cid: string): SessionItem[] | null {
+	function findContainerArray(treeItems: TrainingItem[], cid: string): TrainingItem[] | null {
 		if (cid === 'root') return treeItems;
 		const itemId = cid.startsWith('container:') ? cid.slice(10) : cid;
 		for (const item of treeItems) {
@@ -56,7 +56,7 @@
 		return null;
 	}
 
-	function findItemById(treeItems: SessionItem[], id: string): SessionItem | null {
+	function findItemById(treeItems: TrainingItem[], id: string): TrainingItem | null {
 		for (const item of treeItems) {
 			if (item._id === id) return item;
 			if (item.items) {
@@ -67,7 +67,7 @@
 		return null;
 	}
 
-	function isValidMove(movedItem: SessionItem, targetContainerId: string): boolean {
+	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
 		if (movedItem.type === 'section') {
@@ -78,7 +78,7 @@
 		return true;
 	}
 
-	let itemsSnapshot: SessionItem[] | null = null;
+	let itemsSnapshot: TrainingItem[] | null = null;
 	let dragOverTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function clearDragOverTimer() {
@@ -100,7 +100,7 @@
 
 	function onDragStart() {
 		clearDragOverTimer();
-		itemsSnapshot = structuredClone($state.snapshot(draft.items) as SessionItem[]);
+		itemsSnapshot = structuredClone($state.snapshot(draft.items) as TrainingItem[]);
 	}
 
 	function onDragOver(event: { operation: { source: unknown; target: unknown } }) {
@@ -155,7 +155,7 @@
 			if (!srcId.startsWith('__new__:')) return;
 			const rest = srcId.slice(8);
 			const colonIdx = rest.indexOf(':');
-			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as SessionItemType;
+			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as TrainingItemType;
 			const exerciseId = colonIdx === -1 ? undefined : rest.slice(colonIdx + 1);
 
 			if (!target) return;
@@ -172,7 +172,7 @@
 				insertIndex = Infinity;
 			}
 
-			if (!isValidMove({ type } as SessionItem, targetContainerId)) return;
+			if (!isValidMove({ type } as TrainingItem, targetContainerId)) return;
 			const container = findContainerArray(draft.items, targetContainerId);
 			if (!container) return;
 			container.splice(Math.min(insertIndex, container.length), 0, createNewItem(type, exerciseId));
@@ -183,10 +183,10 @@
 		activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
 	})];
 
-	let sessionId = $derived($page.params.id as string);
+	let trainingId = $derived($page.params.id as string);
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<CoachSessionRequest>({ title: '', description: '', items: [] });
+	let draft = $state<CoachTrainingRequest>({ title: '', description: '', items: [] });
 
 	let showCreateExerciseModal = $state(false);
 
@@ -202,8 +202,8 @@
 			: exercises
 	);
 
-	function createNewItem(type: SessionItemType, exerciseId?: string): SessionItem {
-		const base: SessionItem = { type, _id: crypto.randomUUID() };
+	function createNewItem(type: TrainingItemType, exerciseId?: string): TrainingItem {
+		const base: TrainingItem = { type, _id: crypto.randomUUID() };
 		if (type === 'exercise') {
 			base.exercise_id = exerciseId;
 			base.reps = 1;
@@ -229,7 +229,7 @@
 		return base;
 	}
 
-	function addRootItem(type: SessionItemType, exerciseId?: string) {
+	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		draft.items.push(createNewItem(type, exerciseId));
 	}
 
@@ -239,7 +239,7 @@
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
 	let editMode = $state(false);
-	let editSnapshot = $state<CoachSessionRequest | null>(null);
+	let editSnapshot = $state<CoachTrainingRequest | null>(null);
 	let showLeaveModal = $state(false);
 	let pendingUrl = $state<string | null>(null);
 
@@ -298,21 +298,21 @@
 		}
 
 		Promise.all([
-			apiClient.getCoachSession(sessionId),
+			apiClient.getCoachTraining(trainingId),
 			apiClient.getExercises().catch(() => [])
-		]).then(([session, ex]) => {
-			const items = session.items ?? [];
+		]).then(([training, ex]) => {
+			const items = training.items ?? [];
 			ensureClientIds(items);
-			draft = { title: session.title, description: session.description ?? '', items };
+			draft = { title: training.title, description: training.description ?? '', items };
 			exercises = ex;
 			loading = false;
 		}).catch(() => {
-			goto('/sessions');
+			goto('/trainings');
 		});
 	});
 
 	function enterEditMode() {
-		editSnapshot = structuredClone($state.snapshot(draft) as CoachSessionRequest);
+		editSnapshot = structuredClone($state.snapshot(draft) as CoachTrainingRequest);
 		editMode = true;
 	}
 
@@ -333,20 +333,20 @@
 		saving = true;
 		saveError = '';
 		try {
-			await apiClient.updateCoachSession(sessionId, {
+			await apiClient.updateCoachTraining(trainingId, {
 				title,
 				description: draft.description?.trim() || undefined,
 				items: stripClientIds(draft.items)
 			});
 			if (stayInEditMode) {
-				editSnapshot = structuredClone($state.snapshot(draft) as CoachSessionRequest);
+				editSnapshot = structuredClone($state.snapshot(draft) as CoachTrainingRequest);
 			} else {
 				editMode = false;
 				editSnapshot = null;
 			}
-			snackbar.show('Session saved');
+			snackbar.show('Training saved');
 		} catch (e) {
-			saveError = e instanceof Error ? e.message : 'Failed to save session.';
+			saveError = e instanceof Error ? e.message : 'Failed to save training.';
 		} finally {
 			saving = false;
 		}
@@ -355,29 +355,29 @@
 	async function handleDelete() {
 		deleting = true;
 		try {
-			await apiClient.deleteCoachSession(sessionId);
-			snackbar.show('Session deleted');
-			goto('/sessions');
+			await apiClient.deleteCoachTraining(trainingId);
+			snackbar.show('Training deleted');
+			goto('/trainings');
 		} catch (e) {
-			saveError = e instanceof Error ? e.message : 'Failed to delete session.';
+			saveError = e instanceof Error ? e.message : 'Failed to delete training.';
 			deleting = false;
 		}
 	}
 </script>
 
 <svelte:head>
-	<title>{draft.title || 'Session'}{isDirty ? '* ' : ''} - Crimpy</title>
+	<title>{draft.title || 'Training'}{isDirty ? '* ' : ''} - Crimpy</title>
 </svelte:head>
 
 <div class="min-h-screen bg-white">
 	<div class="mx-auto max-w-6xl p-6">
 		<div class="mb-6 border-b-2 border-black pb-4">
 			<button
-				onclick={() => goto('/sessions')}
+				onclick={() => goto('/trainings')}
 				style="font-family: monospace; font-size: 14px; color: #666;"
 				class="mb-2 block transition-colors hover:text-black"
 			>
-				&larr; sessions
+				&larr; trainings
 			</button>
 
 			{#if loading}
@@ -396,7 +396,7 @@
 							bind:value={draft.title}
 							class="w-full border-2 border-black px-3 py-2 text-2xl font-black outline-none focus:border-[#C6613F]"
 							style="font-family: monospace; letter-spacing: -0.5px;"
-							placeholder="Session title"
+							placeholder="Training title"
 						/>
 						<textarea
 							bind:value={draft.description}
@@ -469,7 +469,7 @@
 							<div class="mt-12 border-t border-gray-200 pt-6">
 								{#if confirmDelete}
 									<p class="mb-3" style="font-family: monospace; font-size: 15px; color: #666;">
-										Delete this session permanently?
+										Delete this training permanently?
 									</p>
 									<div class="flex gap-3">
 										<button
@@ -494,7 +494,7 @@
 										class="text-red-600 transition-colors hover:underline"
 										style="font-family: monospace; font-size: 15px;"
 									>
-										Delete session
+										Delete training
 									</button>
 								{/if}
 							</div>
@@ -503,7 +503,7 @@
 						<div class="sticky top-6 w-60 shrink-0 space-y-3 p-4">
 							<div class="space-y-2">
 								<div class="flex gap-2">
-									{#each (['circuit', 'section'] as SessionItemType[]) as type}
+									{#each (['circuit', 'section'] as TrainingItemType[]) as type}
 										<SidePanelDraggable
 											id={'__new__:' + type}
 											onclick={() => addRootItem(type)}
@@ -570,7 +570,7 @@
 					</div>
 				</DragDropProvider>
 			{:else}
-				<SessionPreview items={draft.items} {exercises} />
+				<TrainingPreview items={draft.items} {exercises} />
 			{/if}
 		{/if}
 	</div>

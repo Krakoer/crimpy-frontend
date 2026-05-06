@@ -145,7 +145,7 @@ Future enhancements could include:
 
 - Complete dashboard functionality for coaches
 - Trainee management
-- Session viewing and feedback
+- Training viewing and feedback
 - Planning management
 - Profile settings
 - Password reset functionality

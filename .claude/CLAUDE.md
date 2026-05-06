@@ -16,7 +16,7 @@ Never use unicode characters such as long dashes, triple dots, arrows or emojis,
 
 ## Project Overview
 
-Crimpy is a climbing training platform composed of a flutter app that connects to a BLE force sensor, a Golang backend and a coach web portal. This project is the frontend for the coaching part of the app, which will allow a coach to invite trainees, manage their plannings, see their sessions, give feedback, etc.
+Crimpy is a climbing training platform composed of a flutter app that connects to a BLE force sensor, a Golang backend and a coach web portal. This project is the frontend for the coaching part of the app, which will allow a coach to invite trainees, manage their plannings, see their trainings, give feedback, etc.
 
 ## Design
 

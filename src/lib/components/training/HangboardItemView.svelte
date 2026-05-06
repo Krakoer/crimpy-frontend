@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { SessionItem, LoadUnit } from '$lib/api/client';
+	import type { TrainingItem, LoadUnit } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
-		item: SessionItem;
+		item: TrainingItem;
 	}
 
 	let { item }: Props = $props();

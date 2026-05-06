@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { Exercise, SessionItem, LoadUnit } from '$lib/api/client';
+	import type { Exercise, TrainingItem, LoadUnit } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 
 	interface Props {
-		item: SessionItem;
+		item: TrainingItem;
 		exercises: Exercise[];
 		onRemove: () => void;
 	}

@@ -3,10 +3,10 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachSessionSummary } from '$lib/api/client';
+	import type { CoachTrainingSummary } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 
-	let sessions = $state<CoachSessionSummary[]>([]);
+	let trainings = $state<CoachTrainingSummary[]>([]);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
 	let deleting = $state(false);
@@ -28,13 +28,13 @@
 			return;
 		}
 
-		loadSessions();
+		loadTrainings();
 	});
 
-	async function loadSessions() {
+	async function loadTrainings() {
 		loading = true;
 		try {
-			sessions = await apiClient.getCoachSessions();
+			trainings = await apiClient.getCoachTrainings();
 		} finally {
 			loading = false;
 		}
@@ -44,12 +44,12 @@
 		deleting = true;
 		deleteError = '';
 		try {
-			await apiClient.deleteCoachSession(id);
-			sessions = sessions.filter((s) => s.id !== id);
+			await apiClient.deleteCoachTraining(id);
+			trainings = trainings.filter((s) => s.id !== id);
 			confirmDeleteId = null;
-			snackbar.show('Session deleted');
+			snackbar.show('Training deleted');
 		} catch (e) {
-			deleteError = e instanceof Error ? e.message : 'Failed to delete session.';
+			deleteError = e instanceof Error ? e.message : 'Failed to delete training.';
 		} finally {
 			deleting = false;
 		}
@@ -69,7 +69,7 @@
 		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
 			<div>
 				<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-					SESSIONS
+					TRAININGS
 				</h1>
 				<button
 					onclick={() => goto('/dashboard')}
@@ -80,11 +80,11 @@
 				</button>
 			</div>
 			<button
-				onclick={() => goto('/sessions/new')}
+				onclick={() => goto('/trainings/new')}
 				class="border-2 px-4 py-2 font-bold transition-colors"
 				style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
 			>
-				+ NEW SESSION
+				+ NEW TRAINING
 			</button>
 		</div>
 
@@ -105,40 +105,40 @@
 				></div>
 				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
 			</div>
-		{:else if sessions.length === 0}
+		{:else if trainings.length === 0}
 			<div class="py-12 text-center">
 				<p style="font-family: monospace; font-size: 13px; color: #666;">
-					No sessions yet. Create your first one.
+					No trainings yet. Create your first one.
 				</p>
 			</div>
 		{:else}
 			<div class="divide-y divide-gray-200 border border-black">
-				{#each sessions as session (session.id)}
+				{#each trainings as training (training.id)}
 					<div class="p-4">
 						<div class="flex items-start justify-between gap-4">
 							<button
-								onclick={() => goto(`/sessions/${session.id}`)}
+								onclick={() => goto(`/trainings/${training.id}`)}
 								class="min-w-0 flex-1 text-left transition-colors hover:text-gray-600"
 							>
 								<p class="font-bold" style="font-family: monospace; font-size: 14px;">
-									{session.title}
+									{training.title}
 								</p>
-								{#if session.description}
+								{#if training.description}
 									<p
 										class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
 										style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
 									>
-										{session.description}
+										{training.description}
 									</p>
 								{/if}
 								<p class="mt-1" style="font-family: monospace; font-size: 11px; color: #999;">
-									Created {formatDate(session.created_at)}
+									Created {formatDate(training.created_at)}
 								</p>
 							</button>
 							<div class="flex shrink-0 gap-2">
-								{#if confirmDeleteId === session.id}
+								{#if confirmDeleteId === training.id}
 									<button
-										onclick={() => handleDelete(session.id)}
+										onclick={() => handleDelete(training.id)}
 										disabled={deleting}
 										class="border border-red-600 px-3 py-1 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
 										style="font-family: monospace; font-size: 12px;"
@@ -154,7 +154,7 @@
 									</button>
 								{:else}
 									<button
-										onclick={() => (confirmDeleteId = session.id)}
+										onclick={() => (confirmDeleteId = training.id)}
 										class="border border-gray-300 px-3 py-1 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
 										style="font-family: monospace; font-size: 12px;"
 									>

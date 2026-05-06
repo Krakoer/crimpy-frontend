@@ -62,14 +62,14 @@ export interface EnrollmentTokenInfo {
 	expires_at: string;
 }
 
-export interface SessionResponse {
+export interface TrainingResponse {
 	ID: string;
 	UserID: string;
 	Name: string;
 	Date: string;
 	Duration: number;
 	Notes: string;
-	SessionType: number;
+	TrainingType: number;
 	IsAssessment: boolean;
 	DeletedAt: string | null;
 }
@@ -117,12 +117,12 @@ export interface Load {
 	unit: LoadUnit;
 }
 
-export type SessionItemType = 'exercise' | 'circuit' | 'section' | 'hangboard';
+export type TrainingItemType = 'exercise' | 'circuit' | 'section' | 'hangboard';
 
-export interface SessionItem {
+export interface TrainingItem {
 	id?: string;
 	_id?: string;
-	type: SessionItemType;
+	type: TrainingItemType;
 	position?: number;
 	cycles?: number;
 	cycle_rest_seconds?: number;
@@ -136,10 +136,10 @@ export interface SessionItem {
 	both_hands?: boolean;
 	edge_sizes_mm?: number[];
 	hand_positions?: string[][];
-	items?: SessionItem[];
+	items?: TrainingItem[];
 }
 
-export interface CoachSessionSummary {
+export interface CoachTrainingSummary {
 	id: string;
 	coach_id: string;
 	title: string;
@@ -148,14 +148,14 @@ export interface CoachSessionSummary {
 	updated_at: string;
 }
 
-export interface CoachSession extends CoachSessionSummary {
-	items: SessionItem[];
+export interface CoachTraining extends CoachTrainingSummary {
+	items: TrainingItem[];
 }
 
-export interface CoachSessionRequest {
+export interface CoachTrainingRequest {
 	title: string;
 	description?: string;
-	items: SessionItem[];
+	items: TrainingItem[];
 }
 
 class ApiClient {
@@ -297,8 +297,8 @@ class ApiClient {
 		});
 	}
 
-	async getClientSessions(userId: string): Promise<SessionResponse[]> {
-		return this.request<SessionResponse[]>(`/api/coach/clients/${userId}/sessions`);
+	async getClientTrainings(userId: string): Promise<TrainingResponse[]> {
+		return this.request<TrainingResponse[]>(`/api/coach/clients/${userId}/trainings`);
 	}
 
 	async getExercises(): Promise<Exercise[]> {
@@ -329,30 +329,30 @@ class ApiClient {
 		});
 	}
 
-	async getCoachSessions(): Promise<CoachSessionSummary[]> {
-		return this.request<CoachSessionSummary[]>('/api/coach/sessions');
+	async getCoachTrainings(): Promise<CoachTrainingSummary[]> {
+		return this.request<CoachTrainingSummary[]>('/api/coach/trainings');
 	}
 
-	async getCoachSession(id: string): Promise<CoachSession> {
-		return this.request<CoachSession>(`/api/coach/sessions/${id}`);
+	async getCoachTraining(id: string): Promise<CoachTraining> {
+		return this.request<CoachTraining>(`/api/coach/trainings/${id}`);
 	}
 
-	async createCoachSession(data: CoachSessionRequest): Promise<CoachSession> {
-		return this.request<CoachSession>('/api/coach/sessions', {
+	async createCoachTraining(data: CoachTrainingRequest): Promise<CoachTraining> {
+		return this.request<CoachTraining>('/api/coach/trainings', {
 			method: 'POST',
 			body: JSON.stringify(data)
 		});
 	}
 
-	async updateCoachSession(id: string, data: CoachSessionRequest): Promise<CoachSession> {
-		return this.request<CoachSession>(`/api/coach/sessions/${id}`, {
+	async updateCoachTraining(id: string, data: CoachTrainingRequest): Promise<CoachTraining> {
+		return this.request<CoachTraining>(`/api/coach/trainings/${id}`, {
 			method: 'PUT',
 			body: JSON.stringify(data)
 		});
 	}
 
-	async deleteCoachSession(id: string): Promise<{ message: string }> {
-		return this.request<{ message: string }>(`/api/coach/sessions/${id}`, {
+	async deleteCoachTraining(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/coach/trainings/${id}`, {
 			method: 'DELETE'
 		});
 	}

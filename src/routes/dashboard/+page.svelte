@@ -7,7 +7,7 @@
 
 	let coacheesCount = $state(0);
 	let exercisesCount = $state(0);
-	let sessionsCount = $state(0);
+	let trainingsCount = $state(0);
 	let userEnrollment = $state<UserEnrollment | null>(null);
 
 	let loadingCoachees = $state(false);
@@ -38,7 +38,7 @@
 		if (authStore.isValidatedCoach) {
 			loadCoacheesCount();
 			loadExercisesCount();
-			loadSessionsCount();
+			loadTrainingsCount();
 		} else {
 			loadUserEnrollment();
 		}
@@ -59,9 +59,9 @@
 		exercisesCount = exercises.length;
 	}
 
-	async function loadSessionsCount() {
-		const sessions = await apiClient.getCoachSessions().catch(() => []);
-		sessionsCount = sessions.length;
+	async function loadTrainingsCount() {
+		const trainings = await apiClient.getCoachTrainings().catch(() => []);
+		trainingsCount = trainings.length;
 	}
 
 	async function loadUserEnrollment() {
@@ -151,13 +151,13 @@
 				</button>
 
 				<button
-					onclick={() => goto('/sessions')}
+					onclick={() => goto('/trainings')}
 					class="border-2 border-black bg-white p-6 text-left transition-colors hover:bg-gray-50"
 				>
 					<p class="mb-1 text-4xl font-black" style="font-family: monospace;">
-						{sessionsCount}
+						{trainingsCount}
 					</p>
-					<p style="font-family: monospace; font-size: 13px; color: #666;">Sessions</p>
+					<p style="font-family: monospace; font-size: 13px; color: #666;">Trainings</p>
 				</button>
 			</div>
 

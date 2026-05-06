@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, SessionItem, SessionItemType } from '$lib/api/client';
+	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ExerciseItem from './ExerciseItem.svelte';
 	import HangboardItem from './HangboardItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
@@ -10,9 +10,9 @@
 	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
-		items: SessionItem[];
+		items: TrainingItem[];
 		exercises: Exercise[];
-		allowedTypes?: SessionItemType[];
+		allowedTypes?: TrainingItemType[];
 		depth?: number;
 		containerId?: string;
 	}
@@ -31,8 +31,8 @@
 		setContext(COLLAPSE_KEY, collapseSignals);
 	}
 
-	function addItem(type: SessionItemType, exerciseId?: string) {
-		const base: SessionItem = { type, _id: crypto.randomUUID() };
+	function addItem(type: TrainingItemType, exerciseId?: string) {
+		const base: TrainingItem = { type, _id: crypto.randomUUID() };
 		if (type === 'exercise') {
 			base.exercise_id = exerciseId;
 			base.reps = 1;

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Exercise, SessionItem } from '$lib/api/client';
+	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import ItemListView from './ItemListView.svelte';
 
 	interface Props {
-		items: SessionItem[];
+		items: TrainingItem[];
 		exercises: Exercise[];
 	}
 
