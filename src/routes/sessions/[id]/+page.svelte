@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/session/ItemList.svelte';
@@ -240,6 +240,46 @@
 	let deleting = $state(false);
 	let editMode = $state(false);
 	let editSnapshot = $state<CoachSessionRequest | null>(null);
+	let showLeaveModal = $state(false);
+	let pendingUrl = $state<string | null>(null);
+
+	let isDirty = $derived(
+		editMode &&
+			editSnapshot !== null &&
+			JSON.stringify($state.snapshot(draft)) !== JSON.stringify(editSnapshot)
+	);
+
+	$effect(() => {
+		function handleKeydown(e: KeyboardEvent) {
+			if (e.ctrlKey && e.key === 's' && editMode) {
+				e.preventDefault();
+				handleSave(true);
+			}
+		}
+		window.addEventListener('keydown', handleKeydown);
+		return () => window.removeEventListener('keydown', handleKeydown);
+	});
+
+	beforeNavigate(({ cancel, to }) => {
+		if (isDirty) {
+			cancel();
+			pendingUrl = to?.url?.pathname ?? null;
+			showLeaveModal = true;
+		}
+	});
+
+	function confirmLeave() {
+		showLeaveModal = false;
+		editMode = false;
+		editSnapshot = null;
+		if (pendingUrl) goto(pendingUrl);
+		pendingUrl = null;
+	}
+
+	function cancelLeave() {
+		showLeaveModal = false;
+		pendingUrl = null;
+	}
 
 	onMount(() => {
 		authStore.initialize();
@@ -287,7 +327,7 @@
 		saveError = '';
 	}
 
-	async function handleSave() {
+	async function handleSave(stayInEditMode = false) {
 		const title = draft.title.trim();
 		if (!title) return;
 		saving = true;
@@ -298,8 +338,12 @@
 				description: draft.description?.trim() || undefined,
 				items: stripClientIds(draft.items)
 			});
-			editMode = false;
-			editSnapshot = null;
+			if (stayInEditMode) {
+				editSnapshot = structuredClone($state.snapshot(draft) as CoachSessionRequest);
+			} else {
+				editMode = false;
+				editSnapshot = null;
+			}
 			snackbar.show('Session saved');
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save session.';
@@ -320,6 +364,10 @@
 		}
 	}
 </script>
+
+<svelte:head>
+	<title>{draft.title || 'Session'}{isDirty ? '* ' : ''} - Crimpy</title>
+</svelte:head>
 
 <div class="min-h-screen bg-white">
 	<div class="mx-auto max-w-6xl p-6">
@@ -358,7 +406,10 @@
 							placeholder="Optional description"
 						></textarea>
 					</div>
-					<div class="flex shrink-0 gap-2">
+					<div class="flex shrink-0 items-center gap-2">
+						{#if isDirty}
+							<span style="font-family: monospace; font-size: 13px; color: #C6613F;">*</span>
+						{/if}
 						<button
 							onclick={handleSave}
 							disabled={saving || !draft.title.trim()}
@@ -530,4 +581,34 @@
 		onCreated={onExerciseCreated}
 		onClose={() => (showCreateExerciseModal = false)}
 	/>
+{/if}
+
+{#if showLeaveModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background: rgba(0,0,0,0.4);"
+	>
+		<div class="border-2 border-black bg-white p-6" style="min-width: 320px;">
+			<p class="mb-1 text-lg font-black" style="font-family: monospace;">Unsaved changes</p>
+			<p class="mb-5" style="font-family: monospace; font-size: 15px; color: #666;">
+				Leave without saving?
+			</p>
+			<div class="flex gap-3">
+				<button
+					onclick={confirmLeave}
+					class="border-2 border-black px-4 py-2 font-bold transition-colors hover:bg-gray-100"
+					style="font-family: monospace; font-size: 15px;"
+				>
+					LEAVE
+				</button>
+				<button
+					onclick={cancelLeave}
+					class="border-2 px-4 py-2 font-bold transition-colors"
+					style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
+				>
+					STAY
+				</button>
+			</div>
+		</div>
+	</div>
 {/if}
