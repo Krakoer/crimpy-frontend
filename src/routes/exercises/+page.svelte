@@ -4,6 +4,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { Exercise, ExerciseRequest } from '$lib/api/client';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	let exercises = $state<Exercise[]>([]);
 	let loading = $state(false);
@@ -11,6 +12,7 @@
 
 	type PanelMode = null | 'new' | Exercise;
 	let panel = $state<PanelMode>(null);
+	let viewExercise = $state<Exercise | null>(null);
 
 	let form = $state<ExerciseRequest>({ name: '', description: '', comment: '', video_link: '' });
 	let saving = $state(false);
@@ -88,8 +90,10 @@
 			};
 			if (panel === 'new') {
 				await apiClient.createExercise(data);
+				snackbar.show('Exercise created');
 			} else if (panel && typeof panel === 'object') {
 				await apiClient.updateExercise(panel.id, data);
+				snackbar.show('Exercise saved');
 			}
 			await loadExercises();
 			closePanel();
@@ -100,11 +104,19 @@
 		}
 	}
 
+	function onKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			if (viewExercise) viewExercise = null;
+			else if (panel) closePanel();
+		}
+	}
+
 	async function handleDelete() {
 		if (!panel || panel === 'new' || typeof panel !== 'object') return;
 		deleting = true;
 		try {
 			await apiClient.deleteExercise(panel.id);
+			snackbar.show('Exercise deleted');
 			await loadExercises();
 			closePanel();
 		} catch (e) {
@@ -114,6 +126,8 @@
 		}
 	}
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="min-h-screen bg-white">
 	<div class="mx-auto max-w-6xl p-6">
@@ -166,33 +180,123 @@
 		{:else}
 			<div class="divide-y divide-gray-200 border border-black">
 				{#each filtered as exercise (exercise.id)}
-					<div class="flex items-center justify-between p-4 hover:bg-gray-50">
-						<div class="min-w-0 flex-1">
-							<p class="font-bold" style="font-family: monospace; font-size: 14px;">
-								{exercise.name}
+					<button
+						onclick={() => (viewExercise = exercise)}
+						class="w-full p-4 text-left transition-colors hover:bg-gray-50"
+					>
+						<p class="font-bold" style="font-family: monospace; font-size: 14px;">
+							{exercise.name}
+						</p>
+						{#if exercise.description}
+							<p
+								class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
+								style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
+							>
+								{exercise.description}
 							</p>
-							{#if exercise.description}
-								<p
-									class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
-									style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
-								>
-									{exercise.description}
-								</p>
-							{/if}
-						</div>
-						<button
-							onclick={() => openEdit(exercise)}
-							class="ml-4 shrink-0 border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-							style="font-family: monospace; font-size: 12px;"
-						>
-							EDIT
-						</button>
-					</div>
+						{/if}
+					</button>
 				{/each}
 			</div>
 		{/if}
 	</div>
 </div>
+
+{#if viewExercise !== null}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background: rgba(0,0,0,0.4);"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div class="w-full max-w-md border-2 border-black bg-white">
+			<div class="flex items-center justify-between border-b border-black px-6 py-4">
+				<h2 class="font-black" style="font-family: monospace; font-size: 16px; letter-spacing: -0.5px;">
+					{viewExercise.name}
+				</h2>
+				<button
+					onclick={() => (viewExercise = null)}
+					class="text-gray-400 transition-colors hover:text-black"
+					style="font-family: monospace; font-size: 18px; line-height: 1;"
+					aria-label="Close"
+				>
+					x
+				</button>
+			</div>
+
+			<div class="space-y-4 px-6 py-5">
+				{#if viewExercise.description}
+					<div>
+						<p
+							class="mb-1 font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							DESCRIPTION
+						</p>
+						<p style="font-family: monospace; font-size: 13px;">{viewExercise.description}</p>
+					</div>
+				{/if}
+
+				{#if viewExercise.comment}
+					<div>
+						<p
+							class="mb-1 font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							EXECUTION NOTES
+						</p>
+						<p style="font-family: monospace; font-size: 13px;">{viewExercise.comment}</p>
+					</div>
+				{/if}
+
+				{#if viewExercise.video_link}
+					<div>
+						<p
+							class="mb-1 font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							VIDEO
+						</p>
+						<a
+							href={viewExercise.video_link}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="underline transition-colors hover:text-gray-600"
+							style="font-family: monospace; font-size: 13px;"
+						>
+							{viewExercise.video_link}
+						</a>
+					</div>
+				{/if}
+
+				{#if !viewExercise.description && !viewExercise.comment && !viewExercise.video_link}
+					<p style="font-family: monospace; font-size: 13px; color: #bbb;">No details added.</p>
+				{/if}
+			</div>
+
+			<div class="flex gap-3 border-t border-black px-6 py-4">
+				<button
+					onclick={() => {
+						const ex = viewExercise;
+						viewExercise = null;
+						if (ex) openEdit(ex);
+					}}
+					class="flex-1 border-2 px-4 py-2 font-bold transition-colors"
+					style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
+				>
+					EDIT
+				</button>
+				<button
+					onclick={() => (viewExercise = null)}
+					class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
+					style="font-family: monospace; font-size: 13px;"
+				>
+					CLOSE
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 {#if panel !== null}
 	<div class="fixed inset-0 z-10 flex">

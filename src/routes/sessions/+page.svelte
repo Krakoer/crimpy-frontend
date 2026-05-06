@@ -114,9 +114,12 @@
 		{:else}
 			<div class="divide-y divide-gray-200 border border-black">
 				{#each sessions as session (session.id)}
-					<div class="p-4 hover:bg-gray-50">
+					<div class="p-4">
 						<div class="flex items-start justify-between gap-4">
-							<div class="min-w-0 flex-1">
+							<button
+								onclick={() => goto(`/sessions/${session.id}`)}
+								class="min-w-0 flex-1 text-left transition-colors hover:text-gray-600"
+							>
 								<p class="font-bold" style="font-family: monospace; font-size: 14px;">
 									{session.title}
 								</p>
@@ -131,15 +134,8 @@
 								<p class="mt-1" style="font-family: monospace; font-size: 11px; color: #999;">
 									Created {formatDate(session.created_at)}
 								</p>
-							</div>
+							</button>
 							<div class="flex shrink-0 gap-2">
-								<button
-									onclick={() => goto(`/sessions/${session.id}`)}
-									class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-									style="font-family: monospace; font-size: 12px;"
-								>
-									EDIT
-								</button>
 								{#if confirmDeleteId === session.id}
 									<button
 										onclick={() => handleDelete(session.id)}

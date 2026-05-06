@@ -7,6 +7,7 @@
 	import type { CoachSessionRequest, Exercise, SessionItem, SessionItemType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/session/ItemList.svelte';
+	import SessionPreview from '$lib/components/session/SessionPreview.svelte';
 	import CreateExerciseModal from '$lib/components/session/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/session/SidePanelDraggable.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
@@ -231,14 +232,14 @@
 	function addRootItem(type: SessionItemType, exerciseId?: string) {
 		draft.items.push(createNewItem(type, exerciseId));
 	}
+
 	let loading = $state(true);
 	let saving = $state(false);
 	let saveError = $state('');
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
-	let editingMeta = $state(false);
-	let editTitle = $state('');
-	let editDescription = $state('');
+	let editMode = $state(false);
+	let editSnapshot = $state<CoachSessionRequest | null>(null);
 
 	onMount(() => {
 		authStore.initialize();
@@ -263,8 +264,6 @@
 			const items = session.items ?? [];
 			ensureClientIds(items);
 			draft = { title: session.title, description: session.description ?? '', items };
-			editTitle = session.title;
-			editDescription = session.description ?? '';
 			exercises = ex;
 			loading = false;
 		}).catch(() => {
@@ -273,27 +272,34 @@
 	});
 
 	function enterEditMode() {
-		editTitle = draft.title;
-		editDescription = draft.description ?? '';
-		editingMeta = true;
+		editSnapshot = structuredClone($state.snapshot(draft) as CoachSessionRequest);
+		editMode = true;
+	}
+
+	function cancelEdit() {
+		if (editSnapshot) {
+			const s = editSnapshot;
+			ensureClientIds(s.items);
+			draft = s as typeof draft;
+			editSnapshot = null;
+		}
+		editMode = false;
+		saveError = '';
 	}
 
 	async function handleSave() {
-		const title = editingMeta ? editTitle.trim() : draft.title.trim();
+		const title = draft.title.trim();
 		if (!title) return;
 		saving = true;
 		saveError = '';
 		try {
-			if (editingMeta) {
-				draft.title = title;
-				draft.description = editDescription.trim();
-			}
 			await apiClient.updateCoachSession(sessionId, {
-				title: draft.title.trim(),
+				title,
 				description: draft.description?.trim() || undefined,
 				items: stripClientIds(draft.items)
 			});
-			editingMeta = false;
+			editMode = false;
+			editSnapshot = null;
 			snackbar.show('Session saved');
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save session.';
@@ -325,57 +331,72 @@
 			>
 				&larr; sessions
 			</button>
-			<div class="flex items-start justify-between gap-4">
-				<div class="flex-1">
-					{#if editingMeta}
-						<div class="space-y-2">
-							<input
-								type="text"
-								bind:value={editTitle}
-								class="w-full border-2 border-black px-3 py-2 text-2xl font-black outline-none focus:border-[#C6613F]"
-								style="font-family: monospace; letter-spacing: -0.5px;"
-								placeholder="Session title"
-							/>
-							<textarea
-								bind:value={editDescription}
-								rows="2"
-								class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-								style="font-family: monospace; font-size: 15px;"
-								placeholder="Optional description"
-							></textarea>
-						</div>
-					{:else}
-						<div class="flex items-baseline gap-3">
-							<h1
-								class="text-3xl font-black"
-								style="font-family: monospace; letter-spacing: -0.5px;"
-							>
-								{draft.title || 'Untitled'}
-							</h1>
-							<button
-								onclick={enterEditMode}
-								class="border border-gray-300 px-2 py-0.5 text-gray-500 transition-colors hover:border-black hover:text-black"
-								style="font-family: monospace; font-size: 15px;"
-							>
-								edit
-							</button>
-						</div>
+
+			{#if loading}
+				<div class="flex items-center gap-3 py-4">
+					<div
+						class="animate-spin"
+						style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
+					></div>
+					<span style="font-family: monospace; font-size: 15px; color: #666;">Loading...</span>
+				</div>
+			{:else if editMode}
+				<div class="flex items-start gap-4">
+					<div class="flex-1 space-y-2">
+						<input
+							type="text"
+							bind:value={draft.title}
+							class="w-full border-2 border-black px-3 py-2 text-2xl font-black outline-none focus:border-[#C6613F]"
+							style="font-family: monospace; letter-spacing: -0.5px;"
+							placeholder="Session title"
+						/>
+						<textarea
+							bind:value={draft.description}
+							rows="2"
+							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 15px;"
+							placeholder="Optional description"
+						></textarea>
+					</div>
+					<div class="flex shrink-0 gap-2">
+						<button
+							onclick={handleSave}
+							disabled={saving || !draft.title.trim()}
+							class="border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
+							style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
+						>
+							{saving ? 'SAVING...' : 'SAVE'}
+						</button>
+						<button
+							onclick={cancelEdit}
+							class="border-2 border-black px-4 py-2 font-bold transition-colors hover:bg-gray-100"
+							style="font-family: monospace; font-size: 15px;"
+						>
+							CANCEL
+						</button>
+					</div>
+				</div>
+			{:else}
+				<div class="flex items-start justify-between gap-4">
+					<div>
+						<h1 class="text-3xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
+							{draft.title || 'Untitled'}
+						</h1>
 						{#if draft.description}
 							<p class="mt-1" style="font-family: monospace; font-size: 15px; color: #888;">
 								{draft.description}
 							</p>
 						{/if}
-					{/if}
+					</div>
+					<button
+						onclick={enterEditMode}
+						class="shrink-0 border-2 px-4 py-2 font-bold transition-colors hover:bg-gray-100"
+						style="font-family: monospace; font-size: 15px; border-color: black;"
+					>
+						EDIT
+					</button>
 				</div>
-				<button
-					onclick={handleSave}
-					disabled={saving || loading || (editingMeta ? !editTitle.trim() : !draft.title.trim())}
-					class="shrink-0 border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
-					style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
-				>
-					{saving ? 'SAVING...' : 'SAVE'}
-				</button>
-			</div>
+			{/if}
 		</div>
 
 		{#if saveError}
@@ -387,119 +408,119 @@
 			</div>
 		{/if}
 
-		{#if loading}
-			<div class="flex items-center gap-3 py-12">
-				<div
-					class="animate-spin"
-					style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
-				></div>
-				<span style="font-family: monospace; font-size: 15px; color: #666;">Loading...</span>
-			</div>
-		{:else}
-			<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
-				<div class="flex gap-6 items-start">
-					<div class="min-w-0 flex-1">
-						<ItemList bind:items={draft.items} {exercises} />
+		{#if !loading}
+			{#if editMode}
+				<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
+					<div class="flex items-start gap-6">
+						<div class="min-w-0 flex-1">
+							<ItemList bind:items={draft.items} {exercises} />
 
-						<div class="mt-12 border-t border-gray-200 pt-6">
-							{#if confirmDelete}
-								<p class="mb-3" style="font-family: monospace; font-size: 15px; color: #666;">
-									Delete this session permanently?
-								</p>
-								<div class="flex gap-3">
-									<button
-										onclick={handleDelete}
-										disabled={deleting}
-										class="border border-red-600 px-4 py-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-										style="font-family: monospace; font-size: 15px;"
-									>
-										{deleting ? 'DELETING...' : 'CONFIRM DELETE'}
-									</button>
-									<button
-										onclick={() => (confirmDelete = false)}
-										class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
-										style="font-family: monospace; font-size: 15px;"
-									>
-										CANCEL
-									</button>
-								</div>
-							{:else}
-								<button
-									onclick={() => (confirmDelete = true)}
-									class="text-red-600 transition-colors hover:underline"
-									style="font-family: monospace; font-size: 15px;"
-								>
-									Delete session
-								</button>
-							{/if}
-						</div>
-					</div>
-
-					<div class="w-60 shrink-0 sticky top-6 space-y-3 p-4">
-						<div class="space-y-2">
-							<div class="flex gap-2">
-								{#each (['circuit', 'section'] as SessionItemType[]) as type}
-									<SidePanelDraggable
-										id={'__new__:' + type}
-										onclick={() => addRootItem(type)}
-										class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
-										style="font-family: monospace; font-size: 14px;"
-									>
-										{type.charAt(0).toUpperCase() + type.slice(1)} +
-									</SidePanelDraggable>
-								{/each}
-							</div>
-							<SidePanelDraggable
-								id="__new__:hangboard"
-								onclick={() => addRootItem('hangboard')}
-								class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
-								style="font-family: monospace; font-size: 14px;"
-							>
-								Hangboard +
-							</SidePanelDraggable>
-						</div>
-
-						<div class="border-t border-gray-100 pt-3 space-y-2">
-							<div class="flex items-center justify-between">
-								<p style="font-family: monospace; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px;">
-									Exercises
-								</p>
-								<button
-									onclick={() => (showCreateExerciseModal = true)}
-									class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-700"
-									style="font-family: monospace; font-size: 14px;"
-									title="Create new exercise"
-								>
-									+
-								</button>
-							</div>
-							<input
-								type="text"
-								bind:value={rootExerciseSearch}
-								placeholder="Search..."
-								class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
-								style="font-family: monospace; font-size: 14px;"
-							/>
-							<div class="flex flex-wrap gap-1.5">
-								{#if filteredRootExercises.length > 0}
-									{#each filteredRootExercises as ex (ex.id)}
-										<SidePanelDraggable
-											id={'__new__:exercise:' + ex.id}
-											onclick={() => addRootItem('exercise', ex.id)}
-											class="border border-black px-2 py-1 transition-colors hover:border-gray-600 hover:text-gray-700"
-											style="font-family: monospace; font-size: 14px;"
+							<div class="mt-12 border-t border-gray-200 pt-6">
+								{#if confirmDelete}
+									<p class="mb-3" style="font-family: monospace; font-size: 15px; color: #666;">
+										Delete this session permanently?
+									</p>
+									<div class="flex gap-3">
+										<button
+											onclick={handleDelete}
+											disabled={deleting}
+											class="border border-red-600 px-4 py-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+											style="font-family: monospace; font-size: 15px;"
 										>
-											{ex.name} +
-										</SidePanelDraggable>
-									{/each}
+											{deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+										</button>
+										<button
+											onclick={() => (confirmDelete = false)}
+											class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
+											style="font-family: monospace; font-size: 15px;"
+										>
+											CANCEL
+										</button>
+									</div>
 								{:else}
-									<span style="font-family: monospace; font-size: 13px; color: #bbb;">No results</span>
+									<button
+										onclick={() => (confirmDelete = true)}
+										class="text-red-600 transition-colors hover:underline"
+										style="font-family: monospace; font-size: 15px;"
+									>
+										Delete session
+									</button>
 								{/if}
 							</div>
 						</div>
+
+						<div class="sticky top-6 w-60 shrink-0 space-y-3 p-4">
+							<div class="space-y-2">
+								<div class="flex gap-2">
+									{#each (['circuit', 'section'] as SessionItemType[]) as type}
+										<SidePanelDraggable
+											id={'__new__:' + type}
+											onclick={() => addRootItem(type)}
+											class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
+											style="font-family: monospace; font-size: 14px;"
+										>
+											{type.charAt(0).toUpperCase() + type.slice(1)} +
+										</SidePanelDraggable>
+									{/each}
+								</div>
+								<SidePanelDraggable
+									id="__new__:hangboard"
+									onclick={() => addRootItem('hangboard')}
+									class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
+									style="font-family: monospace; font-size: 14px;"
+								>
+									Hangboard +
+								</SidePanelDraggable>
+							</div>
+
+							<div class="space-y-2 border-t border-gray-100 pt-3">
+								<div class="flex items-center justify-between">
+									<p
+										style="font-family: monospace; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px;"
+									>
+										Exercises
+									</p>
+									<button
+										onclick={() => (showCreateExerciseModal = true)}
+										class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-700"
+										style="font-family: monospace; font-size: 14px;"
+										title="Create new exercise"
+									>
+										+
+									</button>
+								</div>
+								<input
+									type="text"
+									bind:value={rootExerciseSearch}
+									placeholder="Search..."
+									class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
+									style="font-family: monospace; font-size: 14px;"
+								/>
+								<div class="flex flex-wrap gap-1.5">
+									{#if filteredRootExercises.length > 0}
+										{#each filteredRootExercises as ex (ex.id)}
+											<SidePanelDraggable
+												id={'__new__:exercise:' + ex.id}
+												onclick={() => addRootItem('exercise', ex.id)}
+												class="border border-black px-2 py-1 transition-colors hover:border-gray-600 hover:text-gray-700"
+												style="font-family: monospace; font-size: 14px;"
+											>
+												{ex.name} +
+											</SidePanelDraggable>
+										{/each}
+									{:else}
+										<span style="font-family: monospace; font-size: 13px; color: #bbb;"
+											>No results</span
+										>
+									{/if}
+								</div>
+							</div>
+						</div>
 					</div>
-				</div>
-			</DragDropProvider>
+				</DragDropProvider>
+			{:else}
+				<SessionPreview items={draft.items} {exercises} />
+			{/if}
 		{/if}
 	</div>
 </div>
