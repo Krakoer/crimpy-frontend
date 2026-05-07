@@ -7,12 +7,19 @@
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import TagSelect from '$lib/components/TagSelect.svelte';
 
+	const PAGE_SIZE = 20;
+
 	let exercises = $state<Exercise[]>([]);
+	let total = $state(0);
+	let currentOffset = $state(0);
 	let allTags = $state<Tag[]>([]);
 	let loading = $state(false);
+	let loadingMore = $state(false);
 	let search = $state('');
 	let favoritesOnly = $state(false);
 	let filterTagIds = $state<string[]>([]);
+
+	let hasMore = $derived(!favoritesOnly && exercises.length < total);
 
 	type PanelMode = null | 'new' | Exercise;
 	let panel = $state<PanelMode>(null);
@@ -25,15 +32,7 @@
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
 
-	let filtered = $derived.by(() => {
-		let base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
-		const q = search.trim().toLowerCase();
-		if (q) base = base.filter((e) => e.name.toLowerCase().includes(q));
-		if (filterTagIds.length > 0) {
-			base = base.filter((e) => filterTagIds.every((id) => e.tags?.some((t) => t.id === id)));
-		}
-		return base;
-	});
+	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 	onMount(() => {
 		authStore.initialize();
@@ -57,11 +56,61 @@
 
 	async function loadExercises() {
 		loading = true;
+		currentOffset = 0;
+		exercises = [];
 		try {
-			exercises = await apiClient.getExercises();
+			if (favoritesOnly) {
+				const favs = await apiClient.getFavoriteExercises();
+				exercises = applyLocalFilters(favs);
+				total = exercises.length;
+			} else {
+				const page = await apiClient.getExercises({
+					name: search.trim() || undefined,
+					tags: filterTagIds.length > 0 ? filterTagIds : undefined,
+					limit: PAGE_SIZE,
+					offset: 0
+				});
+				exercises = page.exercises;
+				total = page.total;
+				currentOffset = page.exercises.length;
+			}
 		} finally {
 			loading = false;
 		}
+	}
+
+	async function loadMore() {
+		if (loadingMore || !hasMore) return;
+		loadingMore = true;
+		try {
+			const page = await apiClient.getExercises({
+				name: search.trim() || undefined,
+				tags: filterTagIds.length > 0 ? filterTagIds : undefined,
+				limit: PAGE_SIZE,
+				offset: currentOffset
+			});
+			exercises = [...exercises, ...page.exercises];
+			total = page.total;
+			currentOffset += page.exercises.length;
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	function applyLocalFilters(list: Exercise[]): Exercise[] {
+		const q = search.trim().toLowerCase();
+		let result = list;
+		if (q) result = result.filter((e) => e.name.toLowerCase().includes(q));
+		if (filterTagIds.length > 0) {
+			result = result.filter((e) => filterTagIds.every((id) => e.tags?.some((t) => t.id === id)));
+		}
+		return result;
+	}
+
+	function handleSearchInput(value: string) {
+		search = value;
+		if (searchDebounce) clearTimeout(searchDebounce);
+		searchDebounce = setTimeout(loadExercises, 250);
 	}
 
 	function toggleFilterTag(id: string) {
@@ -70,6 +119,12 @@
 		} else {
 			filterTagIds = [...filterTagIds, id];
 		}
+		loadExercises();
+	}
+
+	function toggleFavoritesOnly() {
+		favoritesOnly = !favoritesOnly;
+		loadExercises();
 	}
 
 	function openCreate() {
@@ -206,12 +261,13 @@
 			<input
 				type="text"
 				placeholder="Search exercises..."
-				bind:value={search}
+				value={search}
+				oninput={(e) => handleSearchInput(e.currentTarget.value)}
 				class="flex-1 border border-black px-3 py-2 outline-none focus:border-2"
 				style="font-family: monospace; font-size: 13px;"
 			/>
 			<button
-				onclick={() => (favoritesOnly = !favoritesOnly)}
+				onclick={toggleFavoritesOnly}
 				class="border-2 px-3 py-2 font-bold transition-colors"
 				style="font-family: monospace; font-size: 13px; {favoritesOnly ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: black; color: black;'}"
 			>
@@ -240,7 +296,7 @@
 				></div>
 				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
 			</div>
-		{:else if filtered.length === 0}
+		{:else if exercises.length === 0}
 			<div class="py-12 text-center">
 				<p style="font-family: monospace; font-size: 13px; color: #666;">
 					{favoritesOnly
@@ -254,7 +310,7 @@
 			</div>
 		{:else}
 			<div class="divide-y divide-gray-200 border border-black">
-				{#each filtered as exercise (exercise.id)}
+				{#each exercises as exercise (exercise.id)}
 					<div class="flex items-stretch">
 						<button
 							onclick={() => (viewExercise = exercise)}
@@ -293,6 +349,22 @@
 					</div>
 				{/each}
 			</div>
+			{#if hasMore}
+				<div class="mt-4 text-center">
+					<button
+						onclick={loadMore}
+						disabled={loadingMore}
+						class="border border-black px-6 py-2 transition-colors hover:bg-gray-50 disabled:opacity-50"
+						style="font-family: monospace; font-size: 13px;"
+					>
+						{loadingMore ? 'Loading...' : `Load more (${exercises.length} / ${total})`}
+					</button>
+				</div>
+			{:else if !loading && total > 0}
+				<p class="mt-3 text-center" style="font-family: monospace; font-size: 12px; color: #bbb;">
+					{total} exercise{total === 1 ? '' : 's'}
+				</p>
+			{/if}
 		{/if}
 	</div>
 </div>

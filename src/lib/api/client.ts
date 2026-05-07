@@ -126,6 +126,20 @@ export interface ExerciseRequest {
 	video_link?: string;
 }
 
+export interface ExerciseListParams {
+	name?: string;
+	tags?: string[];
+	limit?: number;
+	offset?: number;
+}
+
+export interface ExercisePage {
+	exercises: Exercise[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+
 export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs';
 
 export interface Load {
@@ -318,8 +332,14 @@ class ApiClient {
 		return this.request<TrainingResponse[]>(`/api/coach/clients/${userId}/sessions`);
 	}
 
-	async getExercises(): Promise<Exercise[]> {
-		return this.request<Exercise[]>('/api/coach/exercises');
+	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {
+		const query = new URLSearchParams();
+		if (params?.name) query.set('name', params.name);
+		if (params?.tags?.length) query.set('tags', params.tags.join(','));
+		if (params?.limit !== undefined) query.set('limit', String(params.limit));
+		if (params?.offset !== undefined) query.set('offset', String(params.offset));
+		const qs = query.toString();
+		return this.request<ExercisePage>(`/api/coach/exercises${qs ? '?' + qs : ''}`);
 	}
 
 	async getExercise(id: string): Promise<Exercise> {

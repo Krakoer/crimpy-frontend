@@ -107,5 +107,5 @@
 		</SortableWrapper>
 	{/each}
 
-	<AddZone {containerId} {allowedTypes} {exercises} onAdd={addItem} />
+	<AddZone {containerId} {allowedTypes} onAdd={addItem} />
 </div>

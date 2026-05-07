@@ -6,11 +6,10 @@
 	interface Props {
 		containerId: string;
 		allowedTypes: TrainingItemType[];
-		exercises: Exercise[];
 		onAdd: (type: TrainingItemType, exerciseId?: string) => void;
 	}
 
-	let { containerId, allowedTypes, exercises, onAdd }: Props = $props();
+	let { containerId, allowedTypes, onAdd }: Props = $props();
 
 	const droppable = createDroppable({ get id() { return containerId; } });
 
@@ -81,7 +80,6 @@
 
 {#if showExerciseModal}
 	<SelectExerciseModal
-		{exercises}
 		onSelect={handleExerciseSelect}
 		onClose={() => { showExerciseModal = false; }}
 	/>

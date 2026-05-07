@@ -22,6 +22,15 @@
 		}
 	}
 
+	function collectExerciseIds(items: TrainingItem[]): string[] {
+		const ids: string[] = [];
+		for (const item of items) {
+			if (item.type === 'exercise' && item.exercise_id) ids.push(item.exercise_id);
+			if (item.items) ids.push(...collectExerciseIds(item.items));
+		}
+		return ids;
+	}
+
 	function stripClientIds(items: TrainingItem[]): TrainingItem[] {
 		return items.map(({ _id, ...rest }) => ({
 			...rest,
@@ -177,6 +186,10 @@
 			const container = findContainerArray(draft.items, targetContainerId);
 			if (!container) return;
 			container.splice(Math.min(insertIndex, container.length), 0, createNewItem(type, exerciseId));
+			if (type === 'exercise' && exerciseId) {
+				const ex = sidebarResults.find((e) => e.id === exerciseId);
+				if (ex && !exercises.find((e) => e.id === exerciseId)) exercises.push(ex);
+			}
 		}
 	}
 
@@ -192,22 +205,95 @@
 	let showCreateExerciseModal = $state(false);
 
 	function onExerciseCreated(exercise: Exercise) {
-		exercises.push(exercise);
+		if (!exercises.find((e) => e.id === exercise.id)) exercises.push(exercise);
 		showCreateExerciseModal = false;
 	}
 
+	const SIDEBAR_PAGE_SIZE = 20;
 	let rootExerciseSearch = $state('');
 	let favoritesOnlyExercises = $state(false);
 	let filterExerciseTags = $state<Tag[]>([]);
-	let filteredRootExercises = $derived.by(() => {
-		let base = favoritesOnlyExercises ? exercises.filter((e) => e.is_favorite) : exercises;
+	let sidebarResults = $state<Exercise[]>([]);
+	let sidebarTotal = $state(0);
+	let sidebarOffset = $state(0);
+	let sidebarLoading = $state(false);
+	let sidebarLoadingMore = $state(false);
+	let sidebarHasMore = $derived(!favoritesOnlyExercises && sidebarResults.length < sidebarTotal);
+	let sidebarDebounce: ReturnType<typeof setTimeout> | null = null;
+
+	function applySidebarFilters(list: Exercise[]): Exercise[] {
 		const q = rootExerciseSearch.trim().toLowerCase();
-		if (q) base = base.filter((e) => e.name.toLowerCase().includes(q));
+		let result = list;
+		if (q) result = result.filter((e) => e.name.toLowerCase().includes(q));
 		if (filterExerciseTags.length > 0) {
-			base = base.filter((e) => filterExerciseTags.every((t) => e.tags?.some((et) => et.id === t.id)));
+			result = result.filter((e) => filterExerciseTags.every((t) => e.tags?.some((et) => et.id === t.id)));
 		}
-		return base;
-	});
+		return result;
+	}
+
+	async function loadSidebarExercises() {
+		sidebarLoading = true;
+		sidebarOffset = 0;
+		sidebarResults = [];
+		try {
+			if (favoritesOnlyExercises) {
+				const favs = await apiClient.getFavoriteExercises();
+				sidebarResults = applySidebarFilters(favs);
+				sidebarTotal = sidebarResults.length;
+			} else {
+				const page = await apiClient.getExercises({
+					name: rootExerciseSearch.trim() || undefined,
+					tags: filterExerciseTags.length > 0 ? filterExerciseTags.map((t) => t.id) : undefined,
+					limit: SIDEBAR_PAGE_SIZE,
+					offset: 0
+				});
+				sidebarResults = page.exercises;
+				sidebarTotal = page.total;
+				sidebarOffset = page.exercises.length;
+			}
+		} finally {
+			sidebarLoading = false;
+		}
+	}
+
+	async function loadMoreSidebar() {
+		if (sidebarLoadingMore || !sidebarHasMore) return;
+		sidebarLoadingMore = true;
+		try {
+			const page = await apiClient.getExercises({
+				name: rootExerciseSearch.trim() || undefined,
+				tags: filterExerciseTags.length > 0 ? filterExerciseTags.map((t) => t.id) : undefined,
+				limit: SIDEBAR_PAGE_SIZE,
+				offset: sidebarOffset
+			});
+			sidebarResults = [...sidebarResults, ...page.exercises];
+			sidebarTotal = page.total;
+			sidebarOffset += page.exercises.length;
+		} finally {
+			sidebarLoadingMore = false;
+		}
+	}
+
+	function handleSidebarSearch(value: string) {
+		rootExerciseSearch = value;
+		if (sidebarDebounce) clearTimeout(sidebarDebounce);
+		sidebarDebounce = setTimeout(loadSidebarExercises, 250);
+	}
+
+	function toggleSidebarFavorites() {
+		favoritesOnlyExercises = !favoritesOnlyExercises;
+		loadSidebarExercises();
+	}
+
+	function handleSidebarTagsChange(tags: Tag[]) {
+		filterExerciseTags = tags;
+		loadSidebarExercises();
+	}
+
+	function addExerciseToTraining(exercise: Exercise) {
+		if (!exercises.find((e) => e.id === exercise.id)) exercises.push(exercise);
+		addRootItem('exercise', exercise.id);
+	}
 
 	function createNewItem(type: TrainingItemType, exerciseId?: string): TrainingItem {
 		const base: TrainingItem = { type, _id: crypto.randomUUID() };
@@ -304,15 +390,17 @@
 			return;
 		}
 
-		Promise.all([
-			apiClient.getCoachTraining(trainingId),
-			apiClient.getExercises().catch(() => [])
-		]).then(([training, ex]) => {
+		apiClient.getCoachTraining(trainingId).then(async (training) => {
 			const items = training.items ?? [];
 			ensureClientIds(items);
 			draft = { title: training.title, description: training.description ?? '', items };
-			exercises = ex;
+			const ids = [...new Set(collectExerciseIds(items))];
+			if (ids.length > 0) {
+				const fetched = await Promise.all(ids.map((id) => apiClient.getExercise(id).catch(() => null)));
+				exercises = fetched.filter(Boolean) as Exercise[];
+			}
 			loading = false;
+			loadSidebarExercises();
 		}).catch(() => {
 			goto('/trainings');
 		});
@@ -540,7 +628,7 @@
 									</p>
 									<div class="flex gap-1">
 										<button
-											onclick={() => (favoritesOnlyExercises = !favoritesOnlyExercises)}
+											onclick={toggleSidebarFavorites}
 											class="border px-2 py-0.5 transition-colors"
 											style="font-family: monospace; font-size: 12px; {favoritesOnlyExercises ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: #ccc; color: #999;'}"
 											title="Show favorites only"
@@ -559,31 +647,42 @@
 								</div>
 								<input
 									type="text"
-									bind:value={rootExerciseSearch}
+									value={rootExerciseSearch}
+									oninput={(e) => handleSidebarSearch(e.currentTarget.value)}
 									placeholder="Search..."
 									class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
 									style="font-family: monospace; font-size: 14px;"
 								/>
 								<TagFilterSelect
 									selectedTags={filterExerciseTags}
-									onchange={(tags) => (filterExerciseTags = tags)}
+									onchange={handleSidebarTagsChange}
 								/>
 								<div class="flex flex-wrap gap-1.5">
-									{#if filteredRootExercises.length > 0}
-										{#each filteredRootExercises as ex (ex.id)}
+									{#if sidebarLoading}
+										<span style="font-family: monospace; font-size: 13px; color: #bbb;">Loading...</span>
+									{:else if sidebarResults.length > 0}
+										{#each sidebarResults as ex (ex.id)}
 											<SidePanelDraggable
 												id={'__new__:exercise:' + ex.id}
-												onclick={() => addRootItem('exercise', ex.id)}
+												onclick={() => addExerciseToTraining(ex)}
 												class="border border-black px-2 py-1 transition-colors hover:border-gray-600 hover:text-gray-700"
 												style="font-family: monospace; font-size: 14px;"
 											>
 												{ex.name} +
 											</SidePanelDraggable>
 										{/each}
+										{#if sidebarHasMore}
+											<button
+												onclick={loadMoreSidebar}
+												disabled={sidebarLoadingMore}
+												class="w-full border border-dashed border-gray-300 px-2 py-1 text-center text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600 disabled:opacity-50"
+												style="font-family: monospace; font-size: 12px;"
+											>
+												{sidebarLoadingMore ? '...' : 'more'}
+											</button>
+										{/if}
 									{:else}
-										<span style="font-family: monospace; font-size: 13px; color: #bbb;"
-											>No results</span
-										>
+										<span style="font-family: monospace; font-size: 13px; color: #bbb;">No results</span>
 									{/if}
 								</div>
 							</div>

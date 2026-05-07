@@ -226,7 +226,6 @@
 
 {#if showEditModal}
 	<SelectExerciseModal
-		{exercises}
 		onSelect={(exercise) => {
 			item.exercise_id = exercise.id;
 			showEditModal = false;

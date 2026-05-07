@@ -55,8 +55,8 @@
 	}
 
 	async function loadExercisesCount() {
-		const exercises = await apiClient.getExercises().catch(() => []);
-		exercisesCount = exercises.length;
+		const page = await apiClient.getExercises({ limit: 1, offset: 0 }).catch(() => null);
+		exercisesCount = page?.total ?? 0;
 	}
 
 	async function loadTrainingsCount() {
