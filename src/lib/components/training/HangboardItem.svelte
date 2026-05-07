@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { TrainingItem, LoadUnit } from '$lib/api/client';
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
@@ -50,11 +50,13 @@
 	if (!item.rest_seconds) item.rest_seconds = 3;
 	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
 	// Initialize arrays for brand-new items that have no data yet
-	if (!item.edge_sizes_mm?.length) {
-		item.edge_sizes_mm = [uniformEdge];
-		item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
-		item.hand_positions = [Array.from({ length: item.reps }, () => uniformHandPos)];
-	}
+	untrack(() => {
+		if (!item.edge_sizes_mm?.length) {
+			item.edge_sizes_mm = [uniformEdge];
+			item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
+			item.hand_positions = [Array.from({ length: item.reps ?? 1 }, () => uniformHandPos)];
+		}
+	});
 
 	function resizeArraysToReps() {
 		const n = item.reps ?? 1;
@@ -263,8 +265,9 @@
 		{#if !perRep}
 			<div class="grid grid-cols-3 gap-2">
 				<div>
-					<label class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">EDGE (mm)</label>
+					<label for="hb-edge" class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">EDGE (mm)</label>
 					<input
+						id="hb-edge"
 						type="number"
 						min="1"
 						bind:value={uniformEdge}
@@ -274,7 +277,7 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">LOAD</label>
+					<p class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">LOAD</p>
 					{#if item.both_hands}
 						<div class="flex gap-1">
 							<input
@@ -344,8 +347,9 @@
 					{/if}
 				</div>
 				<div>
-					<label class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">GRIP</label>
+					<label for="hb-grip" class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">GRIP</label>
 					<select
+						id="hb-grip"
 						bind:value={uniformHandPos}
 						onchange={onUniformChange}
 						class="w-full border border-gray-300 px-1 py-1 outline-none"

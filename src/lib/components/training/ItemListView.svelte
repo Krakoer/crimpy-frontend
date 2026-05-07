@@ -4,7 +4,7 @@
 	import HangboardItemView from './HangboardItemView.svelte';
 	import CircuitItemView from './CircuitItemView.svelte';
 	import SectionItemView from './SectionItemView.svelte';
-	import { setContext } from 'svelte';
+	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
@@ -17,9 +17,9 @@
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
 
-	if (depth === 0) {
-		setContext(COLLAPSE_KEY, collapseSignals);
-	}
+	untrack(() => {
+		if (depth === 0) setContext(COLLAPSE_KEY, collapseSignals);
+	});
 </script>
 
 <div class="space-y-2">

@@ -12,7 +12,7 @@
 	let { id, group, index, children }: Props = $props();
 
 	const sortable = createSortable({
-		id,
+		get id() { return id; },
 		get group() { return group; },
 		get index() { return index; }
 	});

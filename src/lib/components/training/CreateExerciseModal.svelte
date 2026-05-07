@@ -10,6 +10,10 @@
 
 	let { onCreated, onClose }: Props = $props();
 
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
+	}
+
 	let name = $state('');
 	let description = $state('');
 	let comment = $state('');
@@ -71,24 +75,26 @@
 			{/if}
 
 			<div>
-				<label class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
+				<label for="cem-name" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
 					NAME *
 				</label>
 				<input
+					id="cem-name"
 					type="text"
 					bind:value={name}
 					class="w-full border border-black px-3 py-2 outline-none focus:border-2"
 					style="font-family: monospace; font-size: 13px;"
 					placeholder="Exercise name"
-					autofocus
+					use:focusOnMount
 				/>
 			</div>
 
 			<div>
-				<label class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
+				<label for="cem-description" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
 					DESCRIPTION
 				</label>
 				<textarea
+					id="cem-description"
 					bind:value={description}
 					rows="2"
 					class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
@@ -98,10 +104,11 @@
 			</div>
 
 			<div>
-				<label class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
+				<label for="cem-comment" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
 					EXECUTION NOTES
 				</label>
 				<textarea
+					id="cem-comment"
 					bind:value={comment}
 					rows="2"
 					class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
@@ -111,10 +118,11 @@
 			</div>
 
 			<div>
-				<label class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
+				<label for="cem-video" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
 					VIDEO LINK
 				</label>
 				<input
+					id="cem-video"
 					type="url"
 					bind:value={videoLink}
 					class="w-full border border-black px-3 py-2 outline-none focus:border-2"

@@ -92,6 +92,20 @@ export interface UserEnrollment {
 	enrolled_at: string;
 }
 
+export interface Tag {
+	id: string;
+	coach_id: string;
+	name: string;
+	color: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface TagRequest {
+	name: string;
+	color: string;
+}
+
 export interface Exercise {
 	id: string;
 	coach_id: string;
@@ -100,6 +114,7 @@ export interface Exercise {
 	comment?: string | null;
 	video_link?: string | null;
 	is_favorite?: boolean;
+	tags?: Tag[];
 	created_at: string;
 	updated_at: string;
 }
@@ -187,6 +202,7 @@ class ApiClient {
 			throw new Error(error.error || `HTTP ${response.status}`);
 		}
 
+		if (response.status === 204) return null as T;
 		return response.json();
 	}
 
@@ -299,7 +315,7 @@ class ApiClient {
 	}
 
 	async getClientTrainings(userId: string): Promise<TrainingResponse[]> {
-		return this.request<TrainingResponse[]>(`/api/coach/clients/${userId}/trainings`);
+		return this.request<TrainingResponse[]>(`/api/coach/clients/${userId}/sessions`);
 	}
 
 	async getExercises(): Promise<Exercise[]> {
@@ -365,6 +381,42 @@ class ApiClient {
 
 	async deleteCoachTraining(id: string): Promise<{ message: string }> {
 		return this.request<{ message: string }>(`/api/coach/trainings/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async getTags(): Promise<Tag[]> {
+		return this.request<Tag[]>('/api/coach/tags');
+	}
+
+	async createTag(data: TagRequest): Promise<Tag> {
+		return this.request<Tag>('/api/coach/tags', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateTag(id: string, data: TagRequest): Promise<Tag> {
+		return this.request<Tag>(`/api/coach/tags/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteTag(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/coach/tags/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async assignTagToExercise(exerciseId: string, tagId: string): Promise<void> {
+		await this.request<void>(`/api/coach/exercises/${exerciseId}/tags/${tagId}`, {
+			method: 'POST'
+		});
+	}
+
+	async unassignTagFromExercise(exerciseId: string, tagId: string): Promise<void> {
+		await this.request<void>(`/api/coach/exercises/${exerciseId}/tags/${tagId}`, {
 			method: 'DELETE'
 		});
 	}

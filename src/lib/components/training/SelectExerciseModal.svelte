@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { Exercise } from '$lib/api/client';
+	import type { Exercise, Tag } from '$lib/api/client';
+	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
 
 	interface Props {
 		exercises: Exercise[];
@@ -9,12 +10,22 @@
 
 	let { exercises, onSelect, onClose }: Props = $props();
 
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
+	}
+
 	let search = $state('');
 	let favoritesOnly = $state(false);
+	let filterTags = $state<Tag[]>([]);
+
 	let filtered = $derived.by(() => {
-		const base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
+		let base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
 		const q = search.trim().toLowerCase();
-		return q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+		if (q) base = base.filter((e) => e.name.toLowerCase().includes(q));
+		if (filterTags.length > 0) {
+			base = base.filter((e) => filterTags.every((t) => e.tags?.some((et) => et.id === t.id)));
+		}
+		return base;
 	});
 </script>
 
@@ -48,7 +59,7 @@
 				placeholder="Search..."
 				class="flex-1 border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
 				style="font-family: monospace; font-size: 14px;"
-				autofocus
+				use:focusOnMount
 			/>
 			<button
 				onclick={() => (favoritesOnly = !favoritesOnly)}
@@ -58,6 +69,13 @@
 			>
 				fav
 			</button>
+		</div>
+
+		<div class="border-b border-gray-100 px-5 py-3">
+			<TagFilterSelect
+				selectedTags={filterTags}
+				onchange={(tags) => (filterTags = tags)}
+			/>
 		</div>
 
 		<div class="flex-1 overflow-y-auto px-5 py-2">

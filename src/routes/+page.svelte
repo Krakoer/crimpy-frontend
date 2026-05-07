@@ -116,12 +116,14 @@
 					>
 						<div class="mb-4">
 							<label
+								for="login-email"
 								class="mb-2 block font-medium"
 								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
 							>
 								EMAIL
 							</label>
 							<input
+								id="login-email"
 								bind:value={email}
 								required
 								class="w-full border border-black bg-white px-3 py-2"
@@ -132,12 +134,14 @@
 
 						<div class="mb-6">
 							<label
+								for="login-password"
 								class="mb-2 block font-medium"
 								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
 							>
 								PASSWORD
 							</label>
 							<input
+								id="login-password"
 								type="password"
 								bind:value={password}
 								required
@@ -166,12 +170,14 @@
 					>
 						<div class="mb-4">
 							<label
+								for="reg-firstname"
 								class="mb-2 block font-medium"
 								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
 							>
 								FIRST NAME
 							</label>
 							<input
+								id="reg-firstname"
 								type="text"
 								bind:value={firstname}
 								required
@@ -182,12 +188,14 @@
 
 						<div class="mb-4">
 							<label
+								for="reg-lastname"
 								class="mb-2 block font-medium"
 								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
 							>
 								LAST NAME
 							</label>
 							<input
+								id="reg-lastname"
 								type="text"
 								bind:value={lastname}
 								required
@@ -198,12 +206,14 @@
 
 						<div class="mb-4">
 							<label
+								for="reg-email"
 								class="mb-2 block font-medium"
 								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
 							>
 								EMAIL
 							</label>
 							<input
+								id="reg-email"
 								type="email"
 								bind:value={email}
 								required
@@ -215,12 +225,14 @@
 
 						<div class="mb-4">
 							<label
+								for="reg-password"
 								class="mb-2 block font-medium"
 								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
 							>
 								PASSWORD
 							</label>
 							<input
+								id="reg-password"
 								type="password"
 								bind:value={password}
 								required

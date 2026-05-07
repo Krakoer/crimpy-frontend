@@ -3,11 +3,12 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachTrainingRequest, Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
+	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
+	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
@@ -172,10 +173,15 @@
 	let showCreateExerciseModal = $state(false);
 	let rootExerciseSearch = $state('');
 	let favoritesOnlyExercises = $state(false);
+	let filterExerciseTags = $state<Tag[]>([]);
 	let filteredRootExercises = $derived.by(() => {
-		const base = favoritesOnlyExercises ? exercises.filter((e) => e.is_favorite) : exercises;
+		let base = favoritesOnlyExercises ? exercises.filter((e) => e.is_favorite) : exercises;
 		const q = rootExerciseSearch.trim().toLowerCase();
-		return q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+		if (q) base = base.filter((e) => e.name.toLowerCase().includes(q));
+		if (filterExerciseTags.length > 0) {
+			base = base.filter((e) => filterExerciseTags.every((t) => e.tags?.some((et) => et.id === t.id)));
+		}
+		return base;
 	});
 
 	function onExerciseCreated(exercise: Exercise) {
@@ -359,6 +365,10 @@
 							placeholder="Search..."
 							class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
 							style="font-family: monospace; font-size: 14px;"
+						/>
+						<TagFilterSelect
+							selectedTags={filterExerciseTags}
+							onchange={(tags) => (filterExerciseTags = tags)}
 						/>
 						<div class="flex flex-wrap gap-1.5">
 							{#if filteredRootExercises.length > 0}

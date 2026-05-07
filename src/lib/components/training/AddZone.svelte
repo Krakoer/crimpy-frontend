@@ -12,7 +12,7 @@
 
 	let { containerId, allowedTypes, exercises, onAdd }: Props = $props();
 
-	const droppable = createDroppable({ id: containerId });
+	const droppable = createDroppable({ get id() { return containerId; } });
 
 	let expanded = $state(false);
 	let showExerciseModal = $state(false);

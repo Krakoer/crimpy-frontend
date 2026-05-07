@@ -6,7 +6,7 @@
 	import SectionItem from './SectionItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
-	import { setContext } from 'svelte';
+	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
 	interface Props {
@@ -27,9 +27,9 @@
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
 
-	if (depth === 0) {
-		setContext(COLLAPSE_KEY, collapseSignals);
-	}
+	untrack(() => {
+		if (depth === 0) setContext(COLLAPSE_KEY, collapseSignals);
+	});
 
 	function addItem(type: TrainingItemType, exerciseId?: string) {
 		const base: TrainingItem = { type, _id: crypto.randomUUID() };

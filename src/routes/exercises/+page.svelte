@@ -3,28 +3,36 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { Exercise, ExerciseRequest } from '$lib/api/client';
+	import type { Exercise, ExerciseRequest, Tag } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import TagSelect from '$lib/components/TagSelect.svelte';
 
 	let exercises = $state<Exercise[]>([]);
+	let allTags = $state<Tag[]>([]);
 	let loading = $state(false);
 	let search = $state('');
 	let favoritesOnly = $state(false);
+	let filterTagIds = $state<string[]>([]);
 
 	type PanelMode = null | 'new' | Exercise;
 	let panel = $state<PanelMode>(null);
 	let viewExercise = $state<Exercise | null>(null);
 
 	let form = $state<ExerciseRequest>({ name: '', description: '', comment: '', video_link: '' });
+	let selectedTags = $state<Tag[]>([]);
 	let saving = $state(false);
 	let saveError = $state('');
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
 
 	let filtered = $derived.by(() => {
-		const base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
+		let base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
 		const q = search.trim().toLowerCase();
-		return q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+		if (q) base = base.filter((e) => e.name.toLowerCase().includes(q));
+		if (filterTagIds.length > 0) {
+			base = base.filter((e) => filterTagIds.every((id) => e.tags?.some((t) => t.id === id)));
+		}
+		return base;
 	});
 
 	onMount(() => {
@@ -44,6 +52,7 @@
 		}
 
 		loadExercises();
+		apiClient.getTags().then((tags) => (allTags = tags)).catch(() => {});
 	});
 
 	async function loadExercises() {
@@ -55,23 +64,41 @@
 		}
 	}
 
+	function toggleFilterTag(id: string) {
+		if (filterTagIds.includes(id)) {
+			filterTagIds = filterTagIds.filter((t) => t !== id);
+		} else {
+			filterTagIds = [...filterTagIds, id];
+		}
+	}
+
 	function openCreate() {
 		form = { name: '', description: '', comment: '', video_link: '' };
+		selectedTags = [];
 		saveError = '';
 		confirmDelete = false;
 		panel = 'new';
 	}
 
-	function openEdit(exercise: Exercise) {
+	async function openEdit(exercise: Exercise) {
 		form = {
 			name: exercise.name,
 			description: exercise.description ?? '',
 			comment: exercise.comment ?? '',
 			video_link: exercise.video_link ?? ''
 		};
+		selectedTags = exercise.tags ?? [];
 		saveError = '';
 		confirmDelete = false;
 		panel = exercise;
+
+		try {
+			const full = await apiClient.getExercise(exercise.id);
+			selectedTags = full.tags ?? [];
+			panel = full;
+		} catch {
+			// use what we have
+		}
 	}
 
 	function closePanel() {
@@ -90,13 +117,23 @@
 				video_link: form.video_link?.trim() || undefined
 			};
 			if (panel === 'new') {
-				await apiClient.createExercise(data);
+				const exercise = await apiClient.createExercise(data);
+				await Promise.all(selectedTags.map((t) => apiClient.assignTagToExercise(exercise.id, t.id)));
 				snackbar.show('Exercise created');
 			} else if (panel && typeof panel === 'object') {
-				await apiClient.updateExercise(panel.id, data);
+				const exerciseId = panel.id;
+				const prevTags = panel.tags ?? [];
+				await apiClient.updateExercise(exerciseId, data);
+				const prevIds = new Set(prevTags.map((t) => t.id));
+				const newIds = new Set(selectedTags.map((t) => t.id));
+				await Promise.all([
+					...selectedTags.filter((t) => !prevIds.has(t.id)).map((t) => apiClient.assignTagToExercise(exerciseId, t.id)),
+					...prevTags.filter((t) => !newIds.has(t.id)).map((t) => apiClient.unassignTagFromExercise(exerciseId, t.id))
+				]);
 				snackbar.show('Exercise saved');
 			}
 			await loadExercises();
+			apiClient.getTags().then((tags) => (allTags = tags)).catch(() => {});
 			closePanel();
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save exercise.';
@@ -165,7 +202,7 @@
 			</button>
 		</div>
 
-		<div class="mb-6 flex gap-2">
+		<div class="mb-3 flex gap-2">
 			<input
 				type="text"
 				placeholder="Search exercises..."
@@ -181,6 +218,19 @@
 				FAV
 			</button>
 		</div>
+
+		{#if allTags.length > 0}
+			<div class="mb-6 flex flex-wrap gap-1.5">
+				{#each allTags as tag (tag.id)}
+					{@const active = filterTagIds.includes(tag.id)}
+					<button
+						onclick={() => toggleFilterTag(tag.id)}
+						class="px-2 py-0.5 transition-opacity"
+						style="font-family: monospace; font-size: 11px; background-color: {tag.color}; color: white; opacity: {active ? '1' : '0.35'};"
+					>{tag.name}</button>
+				{/each}
+			</div>
+		{/if}
 
 		{#if loading}
 			<div class="flex items-center gap-3 py-12">
@@ -220,6 +270,16 @@
 								>
 									{exercise.description}
 								</p>
+							{/if}
+							{#if exercise.tags?.length}
+								<div class="mt-1.5 flex flex-wrap gap-1">
+									{#each exercise.tags as tag (tag.id)}
+										<span
+											class="px-1.5 py-0.5 text-white"
+											style="background-color: {tag.color}; font-family: monospace; font-size: 10px;"
+										>{tag.name}</span>
+									{/each}
+								</div>
 							{/if}
 						</button>
 						<button
@@ -377,12 +437,14 @@
 				<div class="space-y-4">
 					<div>
 						<label
+							for="ex-name"
 							class="mb-1 block font-medium"
 							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
 						>
 							NAME *
 						</label>
 						<input
+							id="ex-name"
 							type="text"
 							bind:value={form.name}
 							class="w-full border border-black px-3 py-2 outline-none focus:border-2"
@@ -393,12 +455,14 @@
 
 					<div>
 						<label
+							for="ex-description"
 							class="mb-1 block font-medium"
 							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
 						>
 							DESCRIPTION
 						</label>
 						<textarea
+							id="ex-description"
 							bind:value={form.description}
 							rows="3"
 							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
@@ -409,12 +473,14 @@
 
 					<div>
 						<label
+							for="ex-comment"
 							class="mb-1 block font-medium"
 							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
 						>
 							EXECUTION NOTES
 						</label>
 						<textarea
+							id="ex-comment"
 							bind:value={form.comment}
 							rows="3"
 							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
@@ -425,17 +491,32 @@
 
 					<div>
 						<label
+							for="ex-video-link"
 							class="mb-1 block font-medium"
 							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
 						>
 							VIDEO LINK
 						</label>
 						<input
+							id="ex-video-link"
 							type="url"
 							bind:value={form.video_link}
 							class="w-full border border-black px-3 py-2 outline-none focus:border-2"
 							style="font-family: monospace; font-size: 13px;"
 							placeholder="https://..."
+						/>
+					</div>
+
+					<div>
+						<p
+							class="mb-1 font-medium"
+							style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;"
+						>
+							TAGS
+						</p>
+						<TagSelect
+							{selectedTags}
+							onchange={(tags) => (selectedTags = tags)}
 						/>
 					</div>
 				</div>

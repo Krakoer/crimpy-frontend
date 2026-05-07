@@ -7,7 +7,7 @@
 
 	let { containerId }: Props = $props();
 
-	const droppable = createDroppable({ id: containerId });
+	const droppable = createDroppable({ get id() { return containerId; } });
 </script>
 
 <div
