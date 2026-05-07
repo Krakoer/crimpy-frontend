@@ -9,6 +9,7 @@
 	let exercises = $state<Exercise[]>([]);
 	let loading = $state(false);
 	let search = $state('');
+	let favoritesOnly = $state(false);
 
 	type PanelMode = null | 'new' | Exercise;
 	let panel = $state<PanelMode>(null);
@@ -20,11 +21,11 @@
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
 
-	let filtered = $derived(
-		search.trim()
-			? exercises.filter((e) => e.name.toLowerCase().includes(search.trim().toLowerCase()))
-			: exercises
-	);
+	let filtered = $derived.by(() => {
+		const base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
+		const q = search.trim().toLowerCase();
+		return q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+	});
 
 	onMount(() => {
 		authStore.initialize();
@@ -125,6 +126,17 @@
 			deleting = false;
 		}
 	}
+
+	async function toggleFavorite(exercise: Exercise) {
+		try {
+			const updated = await apiClient.setExerciseFavorite(exercise.id, !exercise.is_favorite);
+			const idx = exercises.findIndex((e) => e.id === exercise.id);
+			if (idx !== -1) exercises[idx] = updated;
+			if (viewExercise?.id === exercise.id) viewExercise = updated;
+		} catch {
+			snackbar.show('Failed to update favorite');
+		}
+	}
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -153,14 +165,21 @@
 			</button>
 		</div>
 
-		<div class="mb-6">
+		<div class="mb-6 flex gap-2">
 			<input
 				type="text"
 				placeholder="Search exercises..."
 				bind:value={search}
-				class="w-full border border-black px-3 py-2 outline-none focus:border-2"
+				class="flex-1 border border-black px-3 py-2 outline-none focus:border-2"
 				style="font-family: monospace; font-size: 13px;"
 			/>
+			<button
+				onclick={() => (favoritesOnly = !favoritesOnly)}
+				class="border-2 px-3 py-2 font-bold transition-colors"
+				style="font-family: monospace; font-size: 13px; {favoritesOnly ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: black; color: black;'}"
+			>
+				FAV
+			</button>
 		</div>
 
 		{#if loading}
@@ -174,28 +193,44 @@
 		{:else if filtered.length === 0}
 			<div class="py-12 text-center">
 				<p style="font-family: monospace; font-size: 13px; color: #666;">
-					{search ? 'No exercises match your search.' : 'No exercises yet. Create your first one.'}
+					{favoritesOnly
+						? search
+							? 'No favorites match your search.'
+							: 'No favorites yet.'
+						: search
+							? 'No exercises match your search.'
+							: 'No exercises yet. Create your first one.'}
 				</p>
 			</div>
 		{:else}
 			<div class="divide-y divide-gray-200 border border-black">
 				{#each filtered as exercise (exercise.id)}
-					<button
-						onclick={() => (viewExercise = exercise)}
-						class="w-full p-4 text-left transition-colors hover:bg-gray-50"
-					>
-						<p class="font-bold" style="font-family: monospace; font-size: 14px;">
-							{exercise.name}
-						</p>
-						{#if exercise.description}
-							<p
-								class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
-								style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
-							>
-								{exercise.description}
+					<div class="flex items-stretch">
+						<button
+							onclick={() => (viewExercise = exercise)}
+							class="flex-1 p-4 text-left transition-colors hover:bg-gray-50"
+						>
+							<p class="font-bold" style="font-family: monospace; font-size: 14px;">
+								{exercise.name}
 							</p>
-						{/if}
-					</button>
+							{#if exercise.description}
+								<p
+									class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
+									style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
+								>
+									{exercise.description}
+								</p>
+							{/if}
+						</button>
+						<button
+							onclick={() => toggleFavorite(exercise)}
+							class="border-l border-gray-200 px-4 transition-colors hover:bg-gray-50"
+							title={exercise.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+							style="font-family: monospace; font-size: 12px; color: {exercise.is_favorite ? '#C6613F' : '#bbb'};"
+						>
+							fav
+						</button>
+					</div>
 				{/each}
 			</div>
 		{/if}
@@ -285,6 +320,13 @@
 					style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
 				>
 					EDIT
+				</button>
+				<button
+					onclick={() => { if (viewExercise) toggleFavorite(viewExercise); }}
+					class="border-2 px-4 py-2 font-bold transition-colors"
+					style="font-family: monospace; font-size: 13px; {viewExercise?.is_favorite ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: black; color: black;'}"
+				>
+					{viewExercise?.is_favorite ? 'UNFAV' : 'FAV'}
 				</button>
 				<button
 					onclick={() => (viewExercise = null)}

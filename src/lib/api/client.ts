@@ -99,6 +99,7 @@ export interface Exercise {
 	description?: string | null;
 	comment?: string | null;
 	video_link?: string | null;
+	is_favorite?: boolean;
 	created_at: string;
 	updated_at: string;
 }
@@ -327,6 +328,17 @@ class ApiClient {
 		return this.request<{ message: string }>(`/api/coach/exercises/${id}`, {
 			method: 'DELETE'
 		});
+	}
+
+	async setExerciseFavorite(id: string, isFavorite: boolean): Promise<Exercise> {
+		return this.request<Exercise>(`/api/coach/exercises/${id}/favorite`, {
+			method: 'PUT',
+			body: JSON.stringify({ is_favorite: isFavorite })
+		});
+	}
+
+	async getFavoriteExercises(): Promise<Exercise[]> {
+		return this.request<Exercise[]>('/api/coach/exercises/favorites');
 	}
 
 	async getCoachTrainings(): Promise<CoachTrainingSummary[]> {

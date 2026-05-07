@@ -196,11 +196,12 @@
 	}
 
 	let rootExerciseSearch = $state('');
-	let filteredRootExercises = $derived(
-		rootExerciseSearch.trim()
-			? exercises.filter((e) => e.name.toLowerCase().includes(rootExerciseSearch.toLowerCase()))
-			: exercises
-	);
+	let favoritesOnlyExercises = $state(false);
+	let filteredRootExercises = $derived.by(() => {
+		const base = favoritesOnlyExercises ? exercises.filter((e) => e.is_favorite) : exercises;
+		const q = rootExerciseSearch.trim().toLowerCase();
+		return q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+	});
 
 	function createNewItem(type: TrainingItemType, exerciseId?: string): TrainingItem {
 		const base: TrainingItem = { type, _id: crypto.randomUUID() };
@@ -411,7 +412,7 @@
 							<span style="font-family: monospace; font-size: 13px; color: #C6613F;">*</span>
 						{/if}
 						<button
-							onclick={handleSave}
+							onclick={() => handleSave()}
 							disabled={saving || !draft.title.trim()}
 							class="border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
 							style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
@@ -531,14 +532,24 @@
 									>
 										Exercises
 									</p>
-									<button
-										onclick={() => (showCreateExerciseModal = true)}
-										class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-700"
-										style="font-family: monospace; font-size: 14px;"
-										title="Create new exercise"
-									>
-										+
-									</button>
+									<div class="flex gap-1">
+										<button
+											onclick={() => (favoritesOnlyExercises = !favoritesOnlyExercises)}
+											class="border px-2 py-0.5 transition-colors"
+											style="font-family: monospace; font-size: 12px; {favoritesOnlyExercises ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: #ccc; color: #999;'}"
+											title="Show favorites only"
+										>
+											fav
+										</button>
+										<button
+											onclick={() => (showCreateExerciseModal = true)}
+											class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-700"
+											style="font-family: monospace; font-size: 14px;"
+											title="Create new exercise"
+										>
+											+
+										</button>
+									</div>
 								</div>
 								<input
 									type="text"

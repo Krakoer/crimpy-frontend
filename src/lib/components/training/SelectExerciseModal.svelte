@@ -10,11 +10,12 @@
 	let { exercises, onSelect, onClose }: Props = $props();
 
 	let search = $state('');
-	let filtered = $derived(
-		search.trim()
-			? exercises.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
-			: exercises
-	);
+	let favoritesOnly = $state(false);
+	let filtered = $derived.by(() => {
+		const base = favoritesOnly ? exercises.filter((e) => e.is_favorite) : exercises;
+		const q = search.trim().toLowerCase();
+		return q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+	});
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} />
@@ -40,15 +41,23 @@
 			</button>
 		</div>
 
-		<div class="border-b border-gray-100 px-5 py-3">
+		<div class="flex gap-2 border-b border-gray-100 px-5 py-3">
 			<input
 				type="text"
 				bind:value={search}
 				placeholder="Search..."
-				class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
+				class="flex-1 border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
 				style="font-family: monospace; font-size: 14px;"
 				autofocus
 			/>
+			<button
+				onclick={() => (favoritesOnly = !favoritesOnly)}
+				class="border px-2 py-1 transition-colors"
+				style="font-family: monospace; font-size: 12px; {favoritesOnly ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: #ccc; color: #999;'}"
+				title="Show favorites only"
+			>
+				fav
+			</button>
 		</div>
 
 		<div class="flex-1 overflow-y-auto px-5 py-2">
