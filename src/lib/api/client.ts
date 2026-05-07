@@ -62,14 +62,14 @@ export interface EnrollmentTokenInfo {
 	expires_at: string;
 }
 
-export interface TrainingResponse {
+export interface SessionResponse {
 	ID: string;
 	UserID: string;
 	Name: string;
 	Date: string;
 	Duration: number;
 	Notes: string;
-	TrainingType: number;
+	SessionType: number;
 	IsAssessment: boolean;
 	DeletedAt: string | null;
 }
@@ -328,8 +328,8 @@ class ApiClient {
 		});
 	}
 
-	async getClientTrainings(userId: string): Promise<TrainingResponse[]> {
-		return this.request<TrainingResponse[]>(`/api/coach/clients/${userId}/sessions`);
+	async getClientSessions(userId: string): Promise<SessionResponse[]> {
+		return this.request<SessionResponse[]>(`/api/coach/clients/${userId}/sessions`);
 	}
 
 	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {

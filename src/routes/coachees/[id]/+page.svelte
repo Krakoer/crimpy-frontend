@@ -3,33 +3,33 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { TrainingResponse, EnrolledUser } from '$lib/api/client';
+	import type { SessionResponse, EnrolledUser } from '$lib/api/client';
 
 	let { data } = $props();
 
 	let coachee = $state<EnrolledUser | null>(null);
-	let trainings = $state<TrainingResponse[]>([]);
+	let sessions = $state<SessionResponse[]>([]);
 	let loading = $state(false);
 	let error = $state('');
 
 	let calendarEl = $state<HTMLElement | undefined>(undefined);
 
-	const TRAINING_TYPES: Record<number, { label: string; color: string }> = {
+	const SESSION_TYPES: Record<number, { label: string; color: string }> = {
 		0: { label: 'CR', color: '#C6613F' },
 		1: { label: 'CL', color: '#D4A644' },
 		2: { label: 'ST', color: '#5A8C5A' },
 		3: { label: 'WO', color: '#8B6B9E' }
 	};
 
-	const TRAINING_NAMES: Record<number, string> = {
-		0: 'Crimpy Training',
+	const SESSION_NAMES: Record<number, string> = {
+		0: 'Crimpy Session',
 		1: 'Climbing',
 		2: 'Stretching',
 		3: 'Workout'
 	};
 
-	function trainingType(type: number) {
-		return TRAINING_TYPES[type] ?? { label: '??', color: '#888' };
+	function sessionType(type: number) {
+		return SESSION_TYPES[type] ?? { label: '??', color: '#888' };
 	}
 
 	function hexWithOpacity(hex: string, opacity: number): string {
@@ -47,9 +47,9 @@
 		);
 	}
 
-	function groupTrainingsByDate(
-		items: TrainingResponse[]
-	): { label: string; items: TrainingResponse[] }[] {
+	function groupSessionsByDate(
+		items: SessionResponse[]
+	): { label: string; items: SessionResponse[] }[] {
 		const today = new Date();
 		const yesterday = new Date(today);
 		yesterday.setDate(today.getDate() - 1);
@@ -58,9 +58,9 @@
 			(a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()
 		);
 
-		const groups = new Map<string, TrainingResponse[]>();
-		for (const training of sorted) {
-			const d = new Date(training.Date);
+		const groups = new Map<string, SessionResponse[]>();
+		for (const session of sorted) {
+			const d = new Date(session.Date);
 			let key: string;
 			if (isSameDay(d, today)) key = 'Today';
 			else if (isSameDay(d, yesterday)) key = 'Yesterday';
@@ -71,7 +71,7 @@
 					day: 'numeric'
 				});
 			if (!groups.has(key)) groups.set(key, []);
-			groups.get(key)!.push(training);
+			groups.get(key)!.push(session);
 		}
 
 		return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
@@ -95,12 +95,12 @@
 		authStore.initialize();
 		loading = true;
 		try {
-			const [enrollments, clientTrainings] = await Promise.all([
+			const [enrollments, clientSessions] = await Promise.all([
 				apiClient.getEnrollments(),
-				apiClient.getClientTrainings(data.id!)
+				apiClient.getClientSessions(data.id!)
 			]);
 			coachee = enrollments.find((e) => e.user_id === data.id!) ?? null;
-			trainings = clientTrainings.filter((s) => s.DeletedAt === null);
+			sessions = clientSessions.filter((s) => s.DeletedAt === null);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data.';
 		} finally {
@@ -109,7 +109,7 @@
 	});
 
 	$effect(() => {
-		if (!calendarEl || loading || trainings.length === undefined) return;
+		if (!calendarEl || loading || sessions.length === undefined) return;
 
 		let destroyed = false;
 		let calendar: import('@fullcalendar/core').Calendar;
@@ -141,11 +141,11 @@
 					dot.style.cssText = `display:inline-block;width:15px;height:15px;border-radius:50%;background-color:${color};`;
 					return { domNodes: [dot] };
 				},
-				events: trainings.map((s) => ({
+				events: sessions.map((s) => ({
 					id: s.ID,
 					title: s.Name,
 					start: s.Date,
-					extendedProps: { color: trainingType(s.TrainingType).color }
+					extendedProps: { color: sessionType(s.SessionType).color }
 				}))
 			} as any);
 
@@ -158,7 +158,7 @@
 		};
 	});
 
-	let trainingGroups = $derived(groupTrainingsByDate(trainings));
+	let sessionGroups = $derived(groupSessionsByDate(sessions));
 
 	function handleLogout() {
 		authStore.logout();
@@ -221,15 +221,15 @@
 			{/if}
 		</div>
 
-		<!-- Training list -->
+		<!-- Session list -->
 		{#if !loading}
-			{#if trainings.length === 0}
+			{#if sessions.length === 0}
 				<p style="font-family: monospace; font-size: 13px; color: #666;">
-					No trainings recorded yet.
+					No sessions recorded yet.
 				</p>
 			{:else}
 				<div class="space-y-6">
-					{#each trainingGroups as group}
+					{#each sessionGroups as group}
 						<div>
 							<p
 								class="mb-3 font-medium"
@@ -238,8 +238,8 @@
 								{group.label}
 							</p>
 							<div class="space-y-2">
-								{#each group.items as training (training.ID)}
-									{@const type = trainingType(training.TrainingType)}
+								{#each group.items as session (session.ID)}
+									{@const type = sessionType(session.SessionType)}
 									<div class="flex items-start gap-4 border border-gray-200 bg-white p-3">
 										<!-- Type icon box -->
 										<div
@@ -253,21 +253,21 @@
 											</span>
 										</div>
 
-										<!-- Training details -->
+										<!-- Session details -->
 										<div class="min-w-0 flex-1">
 											<p class="mb-1 font-semibold" style="font-family: monospace; font-size: 14px;">
-												{training.Name}
+												{session.Name}
 											</p>
 											<div class="flex gap-4" style="font-family: monospace; font-size: 12px; color: #666;">
-												<span>{formatTime(training.Date)}</span>
-												<span>{formatDuration(training.Duration)}</span>
+												<span>{formatTime(session.Date)}</span>
+												<span>{formatDuration(session.Duration)}</span>
 											</div>
-											{#if training.Notes?.trim()}
+											{#if session.Notes?.trim()}
 												<p
 													class="mt-1 line-clamp-2"
 													style="font-family: monospace; font-size: 12px; color: #555;"
 												>
-													{training.Notes}
+													{session.Notes}
 												</p>
 											{/if}
 										</div>
