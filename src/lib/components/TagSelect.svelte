@@ -287,6 +287,7 @@
 									<span style="color: #C6613F; font-size: 11px; font-family: monospace;">x</span>
 								{/if}
 							</button>
+							{#if !tag.is_builtin}
 							<button
 								type="button"
 								onclick={(e) => startEdit(tag, e)}
@@ -294,6 +295,7 @@
 								style="font-family: monospace; font-size: 10px; color: #999;"
 								aria-label="Edit {tag.name}"
 							>edit</button>
+						{/if}
 						</div>
 					{/if}
 				{/each}
