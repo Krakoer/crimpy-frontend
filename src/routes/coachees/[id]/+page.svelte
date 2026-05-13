@@ -155,7 +155,7 @@
 			]);
 			coachee = enrollments.find((e) => e.user_id === data.id!) ?? null;
 			sessions = clientSessions.filter((s) => s.DeletedAt === null);
-			assessments = clientAssessments;
+			assessments = clientAssessments ?? [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data.';
 		} finally {
@@ -342,90 +342,86 @@
 				</div>
 
 				<!-- Right: assessments sidebar (sticky) -->
-				{#if assessments.length > 0}
-					<div style="width: 300px; flex-shrink: 0; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
-						<p
-							class="font-bold"
-							style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;"
-						>
-							ASSESSMENTS
-						</p>
+				<div style="width: 300px; flex-shrink: 0; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+					<p
+						class="font-bold"
+						style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;"
+					>
+						ASSESSMENTS
+					</p>
 
-						{#each [0, 1, 2] as type}
-							{#if hasAnyAssessment(type)}
-								{@const typeInfo = ASSESSMENT_TYPES[type]}
-								{@const grips = availableGrips(type)}
-								{@const grip = selectedGrip[type]}
-								{@const latest = latestForGrip(type, grip)}
-								{@const history = historyForGrip(type, grip)}
-								{@const graphOpen = showGraph[type]}
-								<div class="border border-gray-200 bg-white">
-									<!-- Card header -->
-									<div class="border-b border-gray-200 px-3 py-2 flex items-center justify-between" style="background-color: #fafafa;">
-										<div class="flex items-baseline gap-2">
-											<span style="font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #C6613F;">{typeInfo.label}</span>
-											<span style="font-family: monospace; font-size: 10px; color: #bbb;">{typeInfo.unit}</span>
-										</div>
-										{#if history.length >= 2}
-											<button
-												onclick={() => (showGraph[type] = !showGraph[type])}
-												style="font-family: monospace; font-size: 10px; letter-spacing: 0.5px; color: {graphOpen ? '#C6613F' : '#bbb'}; background: none; border: none; cursor: pointer; padding: 0;"
-											>
-												{graphOpen ? 'HIDE' : 'GRAPH'}
-											</button>
-										{/if}
-									</div>
+					{#each [0, 1, 2] as type}
+						{@const typeInfo = ASSESSMENT_TYPES[type]}
+						{@const grips = availableGrips(type)}
+						{@const grip = selectedGrip[type]}
+						{@const latest = latestForGrip(type, grip)}
+						{@const history = historyForGrip(type, grip)}
+						{@const graphOpen = showGraph[type]}
+						<div class="border border-gray-200 bg-white">
+							<!-- Card header -->
+							<div class="border-b border-gray-200 px-3 py-2 flex items-center justify-between" style="background-color: #fafafa;">
+								<div class="flex items-baseline gap-2">
+									<span style="font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #C6613F;">{typeInfo.label}</span>
+									<span style="font-family: monospace; font-size: 10px; color: #bbb;">{typeInfo.unit}</span>
+								</div>
+								{#if history.length >= 2}
+									<button
+										onclick={() => (showGraph[type] = !showGraph[type])}
+										style="font-family: monospace; font-size: 10px; letter-spacing: 0.5px; color: {graphOpen ? '#C6613F' : '#bbb'}; background: none; border: none; cursor: pointer; padding: 0;"
+									>
+										{graphOpen ? 'HIDE' : 'GRAPH'}
+									</button>
+								{/if}
+							</div>
 
-									<!-- Grip tabs -->
-									{#if grips.length > 1}
-										<div class="flex border-b border-gray-200" style="overflow-x: auto;">
-											{#each grips as g}
-												<button
-													onclick={() => (selectedGrip[type] = g)}
-													style="font-family: monospace; font-size: 10px; padding: 4px 8px; background: none; border: none; border-bottom: 2px solid {g === grip ? '#C6613F' : 'transparent'}; color: {g === grip ? '#C6613F' : '#aaa'}; cursor: pointer; white-space: nowrap; font-weight: {g === grip ? '700' : '400'};"
-												>
-													{GRIP_POSITIONS[g]}
-												</button>
-											{/each}
-										</div>
-									{:else if grips.length === 1}
-										<div class="px-3 pt-2" style="font-family: monospace; font-size: 10px; color: #aaa;">
-											{GRIP_POSITIONS[grips[0]]}
-										</div>
-									{/if}
-
-									<!-- Values -->
-									<div class="flex px-3 py-2 gap-3">
-										<div style="flex: 1; text-align: center;">
-											<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #5A8C5A; margin-bottom: 2px;">LEFT</div>
-											<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: #222; line-height: 1;">
-												{formatVal(latest?.LeftValue, type)}
-											</div>
-										</div>
-										<div style="width: 1px; background: #e5e7eb;"></div>
-										<div style="flex: 1; text-align: center;">
-											<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #C6613F; margin-bottom: 2px;">RIGHT</div>
-											<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: #222; line-height: 1;">
-												{formatVal(latest?.RightValue, type)}
-											</div>
-										</div>
-									</div>
-
-									<!-- Graph -->
-									{#if graphOpen && history.length >= 2}
-										<div class="border-t border-gray-200 px-1 py-1">
-											<AssessmentChart
-												{history}
-												unit={typeInfo.unit}
-												formatValue={typeInfo.format}
-											/>
-										</div>
-									{/if}
+							<!-- Grip tabs -->
+							{#if grips.length > 1}
+								<div class="flex border-b border-gray-200" style="overflow-x: auto;">
+									{#each grips as g}
+										<button
+											onclick={() => (selectedGrip[type] = g)}
+											style="font-family: monospace; font-size: 10px; padding: 4px 8px; background: none; border: none; border-bottom: 2px solid {g === grip ? '#C6613F' : 'transparent'}; color: {g === grip ? '#C6613F' : '#aaa'}; cursor: pointer; white-space: nowrap; font-weight: {g === grip ? '700' : '400'};"
+										>
+											{GRIP_POSITIONS[g]}
+										</button>
+									{/each}
+								</div>
+							{:else if grips.length === 1}
+								<div class="px-3 pt-2" style="font-family: monospace; font-size: 10px; color: #aaa;">
+									{GRIP_POSITIONS[grips[0]]}
 								</div>
 							{/if}
-						{/each}
-					</div>
-				{/if}
+
+							<!-- Values -->
+							<div class="flex px-3 py-2 gap-3">
+								<div style="flex: 1; text-align: center;">
+									<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #5A8C5A; margin-bottom: 2px;">LEFT</div>
+									<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: {latest ? '#222' : '#ccc'}; line-height: 1;">
+										{formatVal(latest?.LeftValue, type)}
+									</div>
+								</div>
+								<div style="width: 1px; background: #e5e7eb;"></div>
+								<div style="flex: 1; text-align: center;">
+									<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #C6613F; margin-bottom: 2px;">RIGHT</div>
+									<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: {latest ? '#222' : '#ccc'}; line-height: 1;">
+										{formatVal(latest?.RightValue, type)}
+									</div>
+								</div>
+							</div>
+
+							<!-- Graph -->
+							{#if graphOpen && history.length >= 2}
+								<div class="border-t border-gray-200 px-1 py-1">
+									<AssessmentChart
+										{history}
+										unit={typeInfo.unit}
+										formatValue={typeInfo.format}
+									/>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
 
 			</div>
 		{/if}
