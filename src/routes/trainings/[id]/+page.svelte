@@ -209,6 +209,7 @@
 	function onExerciseCreated(exercise: Exercise) {
 		if (!exercises.find((e) => e.id === exercise.id)) exercises.push(exercise);
 		showCreateExerciseModal = false;
+		loadSidebarExercises();
 	}
 
 	const SIDEBAR_PAGE_SIZE = 20;
