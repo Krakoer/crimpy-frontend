@@ -199,6 +199,8 @@
 
 	let trainingId = $derived($page.params.id as string);
 
+	const TYPE_COLORS: Record<TrainingType, string> = { workout: '#C6613F', climbing: '#D4A644', stretching: '#5A8C5A' };
+
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
 
@@ -539,7 +541,7 @@
 								<button
 									onclick={() => handleTypeChange(t)}
 									class="border px-3 py-1 transition-colors"
-									style="font-family: monospace; font-size: 12px; {draft.training_type === t ? 'background-color: #000; color: white; border-color: #000;' : 'border-color: #ccc; color: #999;'}"
+									style="font-family: monospace; font-size: 12px; {draft.training_type === t ? `background-color: ${TYPE_COLORS[t]}; color: white; border-color: ${TYPE_COLORS[t]};` : 'border-color: #ccc; color: #999;'}"
 								>{t.toUpperCase()}</button>
 							{/each}
 						</div>
@@ -589,7 +591,7 @@
 								{draft.title || 'Untitled'}
 							</h1>
 							{#if draft.training_type && draft.training_type !== 'workout'}
-								<span style="font-family: monospace; font-size: 12px; color: #999;">[{draft.training_type}]</span>
+								<span style="font-family: monospace; font-size: 12px; color: {TYPE_COLORS[draft.training_type]};">[{draft.training_type}]</span>
 							{/if}
 						</div>
 						{#if draft.description}

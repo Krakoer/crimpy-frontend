@@ -170,6 +170,8 @@
 		activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
 	})];
 
+	const TYPE_COLORS: Record<TrainingType, string> = { workout: '#C6613F', climbing: '#D4A644', stretching: '#5A8C5A' };
+
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
 	let saving = $state(false);
@@ -389,7 +391,7 @@
 							<button
 								onclick={() => handleTypeChange(t)}
 								class="border px-3 py-1 transition-colors"
-								style="font-family: monospace; font-size: 12px; {draft.training_type === t ? 'background-color: #000; color: white; border-color: #000;' : 'border-color: #ccc; color: #999;'}"
+								style="font-family: monospace; font-size: 12px; {draft.training_type === t ? `background-color: ${TYPE_COLORS[t]}; color: white; border-color: ${TYPE_COLORS[t]};` : 'border-color: #ccc; color: #999;'}"
 							>{t.toUpperCase()}</button>
 						{/each}
 					</div>

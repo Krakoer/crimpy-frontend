@@ -3,7 +3,13 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachTrainingSummary } from '$lib/api/client';
+	import type { CoachTrainingSummary, TrainingType } from '$lib/api/client';
+
+	const TYPE_COLORS: Record<TrainingType, string> = { workout: '#C6613F', climbing: '#D4A644', stretching: '#5A8C5A' };
+
+	function typeColor(t: TrainingType | undefined): string {
+		return t ? TYPE_COLORS[t] : '#999';
+	}
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	let trainings = $state<CoachTrainingSummary[]>([]);
@@ -125,7 +131,7 @@
 										{training.title}
 									</p>
 									{#if training.training_type && training.training_type !== 'workout'}
-										<span style="font-family: monospace; font-size: 11px; color: #999;">[{training.training_type}]</span>
+										<span style="font-family: monospace; font-size: 11px; color: {typeColor(training.training_type)};">[{training.training_type}]</span>
 									{/if}
 								</div>
 								{#if training.description}
