@@ -635,7 +635,14 @@
 				<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 					<div class="flex items-start gap-6">
 						<div class="min-w-0 flex-1">
-							<ItemList bind:items={draft.items} {exercises} />
+							<ItemList
+							bind:items={draft.items}
+							{exercises}
+							allowedTypes={draft.training_type === 'stretching'
+								? (draft.items.some((i) => i.type === 'circuit') ? ['exercise'] : ['exercise', 'circuit'])
+								: ['exercise', 'circuit', 'section', 'hangboard']}
+							circuitInnerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
+						/>
 
 							<div class="mt-12 border-t border-gray-200 pt-6">
 								{#if confirmDelete}
