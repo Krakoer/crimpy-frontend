@@ -539,5 +539,6 @@
 	<CreateExerciseModal
 		onCreated={onExerciseCreated}
 		onClose={() => (showCreateExerciseModal = false)}
+		initialTags={draft.training_type === 'stretching' ? filterExerciseTags : []}
 	/>
 {/if}

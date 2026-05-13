@@ -1,14 +1,17 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { Exercise } from '$lib/api/client';
+	import type { Exercise, Tag } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import TagSelect from '$lib/components/TagSelect.svelte';
 
 	interface Props {
 		onCreated: (exercise: Exercise) => void;
 		onClose: () => void;
+		initialTags?: Tag[];
 	}
 
-	let { onCreated, onClose }: Props = $props();
+	let { onCreated, onClose, initialTags = [] }: Props = $props();
 
 	function focusOnMount(node: HTMLElement) {
 		node.focus();
@@ -18,6 +21,7 @@
 	let description = $state('');
 	let comment = $state('');
 	let videoLink = $state('');
+	let selectedTags = $state<Tag[]>(untrack(() => initialTags));
 	let saving = $state(false);
 	let error = $state('');
 
@@ -32,6 +36,10 @@
 				comment: comment.trim() || undefined,
 				video_link: videoLink.trim() || undefined
 			});
+			if (selectedTags.length > 0) {
+				await Promise.all(selectedTags.map((t) => apiClient.assignTagToExercise(exercise.id, t.id)));
+				exercise.tags = selectedTags;
+			}
 			snackbar.show('Exercise created');
 			onCreated(exercise);
 		} catch (e) {
@@ -128,6 +136,16 @@
 					class="w-full border border-black px-3 py-2 outline-none focus:border-2"
 					style="font-family: monospace; font-size: 13px;"
 					placeholder="https://..."
+				/>
+			</div>
+
+			<div>
+				<p class="mb-1 font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
+					TAGS
+				</p>
+				<TagSelect
+					selectedTags={selectedTags}
+					onchange={(tags) => (selectedTags = tags)}
 				/>
 			</div>
 		</div>
