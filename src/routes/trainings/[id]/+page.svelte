@@ -78,6 +78,10 @@
 	}
 
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
+		if (draft.training_type === 'stretching') {
+			if (movedItem.type === 'section' || movedItem.type === 'hangboard') return false;
+			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return false;
+		}
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
 		if (movedItem.type === 'section') {
@@ -346,6 +350,10 @@
 	}
 
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
+		if (draft.training_type === 'stretching') {
+			if (type === 'section' || type === 'hangboard') return;
+			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
+		}
 		draft.items.push(createNewItem(type, exerciseId));
 	}
 
@@ -665,26 +673,39 @@
 
 						<div class="sticky top-6 w-60 shrink-0 space-y-3 p-4">
 							<div class="space-y-2">
-								<div class="flex gap-2">
-									{#each (['circuit', 'section'] as TrainingItemType[]) as type}
+								{#if draft.training_type === 'stretching'}
+									{#if !draft.items.some((i) => i.type === 'circuit')}
 										<SidePanelDraggable
-											id={'__new__:' + type}
-											onclick={() => addRootItem(type)}
+											id="__new__:circuit"
+											onclick={() => addRootItem('circuit')}
 											class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
 											style="font-family: monospace; font-size: 14px;"
 										>
-											{type.charAt(0).toUpperCase() + type.slice(1)} +
+											Circuit +
 										</SidePanelDraggable>
-									{/each}
-								</div>
-								<SidePanelDraggable
-									id="__new__:hangboard"
-									onclick={() => addRootItem('hangboard')}
-									class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
-									style="font-family: monospace; font-size: 14px;"
-								>
-									Hangboard +
-								</SidePanelDraggable>
+									{/if}
+								{:else}
+									<div class="flex gap-2">
+										{#each (['circuit', 'section'] as TrainingItemType[]) as type}
+											<SidePanelDraggable
+												id={'__new__:' + type}
+												onclick={() => addRootItem(type)}
+												class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
+												style="font-family: monospace; font-size: 14px;"
+											>
+												{type.charAt(0).toUpperCase() + type.slice(1)} +
+											</SidePanelDraggable>
+										{/each}
+									</div>
+									<SidePanelDraggable
+										id="__new__:hangboard"
+										onclick={() => addRootItem('hangboard')}
+										class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
+										style="font-family: monospace; font-size: 14px;"
+									>
+										Hangboard +
+									</SidePanelDraggable>
+								{/if}
 							</div>
 
 							<div class="space-y-2 border-t border-gray-100 pt-3">
