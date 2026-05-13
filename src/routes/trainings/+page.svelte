@@ -4,19 +4,30 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { CoachTrainingSummary, TrainingType } from '$lib/api/client';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	const TYPE_COLORS: Record<TrainingType, string> = { workout: '#C6613F', climbing: '#D4A644', stretching: '#5A8C5A' };
-
-	function typeColor(t: TrainingType | undefined): string {
-		return t ? TYPE_COLORS[t] : '#999';
-	}
-	import { snackbar } from '$lib/stores/snackbar.svelte';
+	const ALL_TYPES: TrainingType[] = ['workout', 'stretching', 'climbing'];
 
 	let trainings = $state<CoachTrainingSummary[]>([]);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
 	let deleting = $state(false);
 	let deleteError = $state('');
+	let search = $state('');
+	let typeFilter = $state<TrainingType | null>(null);
+
+	let filtered = $derived.by(() => {
+		const q = search.trim().toLowerCase();
+		return trainings.filter((t) => {
+			if (q && !t.title.toLowerCase().includes(q)) return false;
+			if (typeFilter) {
+				const effectiveType = t.training_type ?? 'workout';
+				if (effectiveType !== typeFilter) return false;
+			}
+			return true;
+		});
+	});
 
 	onMount(() => {
 		authStore.initialize();
@@ -103,6 +114,32 @@
 			</div>
 		{/if}
 
+		{#if !loading}
+			<div class="mb-4 flex items-center gap-2">
+				<input
+					type="text"
+					bind:value={search}
+					placeholder="Search by name..."
+					class="flex-1 border border-black px-3 py-1.5 outline-none focus:border-2"
+					style="font-family: monospace; font-size: 13px;"
+				/>
+				<div class="flex gap-1">
+					<button
+						onclick={() => (typeFilter = null)}
+						class="border px-3 py-1.5 transition-colors"
+						style="font-family: monospace; font-size: 12px; {typeFilter === null ? 'background-color: #000; color: white; border-color: #000;' : 'border-color: #ccc; color: #999;'}"
+					>ALL</button>
+					{#each ALL_TYPES as t}
+						<button
+							onclick={() => (typeFilter = typeFilter === t ? null : t)}
+							class="border px-3 py-1.5 transition-colors"
+							style="font-family: monospace; font-size: 12px; {typeFilter === t ? `background-color: ${TYPE_COLORS[t]}; color: white; border-color: ${TYPE_COLORS[t]};` : 'border-color: #ccc; color: #999;'}"
+						>{t.toUpperCase()}</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
 		{#if loading}
 			<div class="flex items-center gap-3 py-12">
 				<div
@@ -117,9 +154,13 @@
 					No trainings yet. Create your first one.
 				</p>
 			</div>
+		{:else if filtered.length === 0}
+			<div class="py-12 text-center">
+				<p style="font-family: monospace; font-size: 13px; color: #666;">No results.</p>
+			</div>
 		{:else}
 			<div class="divide-y divide-gray-200 border border-black">
-				{#each trainings as training (training.id)}
+				{#each filtered as training (training.id)}
 					<div class="p-4">
 						<div class="flex items-start justify-between gap-4">
 							<button
@@ -131,7 +172,7 @@
 										{training.title}
 									</p>
 									{#if training.training_type && training.training_type !== 'workout'}
-										<span style="font-family: monospace; font-size: 11px; color: {typeColor(training.training_type)};">[{training.training_type}]</span>
+										<span style="font-family: monospace; font-size: 11px; color: {TYPE_COLORS[training.training_type]};">[{training.training_type}]</span>
 									{/if}
 								</div>
 								{#if training.description}
