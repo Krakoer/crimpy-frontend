@@ -599,16 +599,6 @@
 								{draft.description}
 							</p>
 						{/if}
-						{#if draft.goal}
-							<p class="mt-1" style="font-family: monospace; font-size: 13px; color: #666;">
-								Goal: {draft.goal}
-							</p>
-						{/if}
-						{#if draft.training_type === 'climbing' && draft.comment}
-							<p class="mt-0.5" style="font-family: monospace; font-size: 13px; color: #666; white-space: pre-wrap;">
-								{draft.comment}
-							</p>
-						{/if}
 					</div>
 					<button
 						onclick={enterEditMode}
@@ -801,8 +791,31 @@
 				</div>
 			{/if}
 			{:else}
-				{#if draft.training_type !== 'climbing'}
-					<TrainingPreview items={draft.items} {exercises} />
+				{#if draft.training_type === 'climbing'}
+					<div class="mt-6 space-y-4" style="border-left: 3px solid {TYPE_COLORS['climbing']}; padding-left: 20px;">
+						{#if draft.goal}
+							<div>
+								<p style="font-family: monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #999;">Goal</p>
+								<p style="font-family: monospace; font-size: 14px; color: #333;">{draft.goal}</p>
+							</div>
+						{/if}
+						{#if draft.comment}
+							<div>
+								<p style="font-family: monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #999;">Session</p>
+								<p style="font-family: monospace; font-size: 14px; color: #333; white-space: pre-wrap; line-height: 1.6;">{draft.comment}</p>
+							</div>
+						{/if}
+					</div>
+				{:else}
+					{#if draft.goal}
+						<div class="mt-4">
+							<p style="font-family: monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #999;">Goal</p>
+							<p style="font-family: monospace; font-size: 14px; color: #333;">{draft.goal}</p>
+						</div>
+					{/if}
+					<div class="mt-4">
+						<TrainingPreview items={draft.items} {exercises} />
+					</div>
 				{/if}
 			{/if}
 		{/if}
