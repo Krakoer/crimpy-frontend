@@ -4,7 +4,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType } from '$lib/api/client';
+	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import TrainingPreview from '$lib/components/training/TrainingPreview.svelte';
@@ -200,7 +200,7 @@
 	let trainingId = $derived($page.params.id as string);
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<CoachTrainingRequest>({ title: '', description: '', items: [] });
+	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
 
 	let showCreateExerciseModal = $state(false);
 
@@ -288,6 +288,26 @@
 	function handleSidebarTagsChange(tags: Tag[]) {
 		filterExerciseTags = tags;
 		loadSidebarExercises();
+	}
+
+	async function applyStretchingFilter() {
+		const tags = await apiClient.getTags();
+		const stretchingTag = tags.find((t) => t.is_builtin);
+		if (stretchingTag) {
+			filterExerciseTags = [stretchingTag];
+			loadSidebarExercises();
+		}
+	}
+
+	function handleTypeChange(type: TrainingType) {
+		const prev = draft.training_type;
+		draft.training_type = type;
+		if (type === 'stretching' && prev !== 'stretching') {
+			applyStretchingFilter();
+		} else if (type !== 'stretching' && prev === 'stretching') {
+			filterExerciseTags = [];
+			loadSidebarExercises();
+		}
 	}
 
 	function addExerciseToTraining(exercise: Exercise) {
@@ -393,14 +413,25 @@
 		apiClient.getCoachTraining(trainingId).then(async (training) => {
 			const items = training.items ?? [];
 			ensureClientIds(items);
-			draft = { title: training.title, description: training.description ?? '', items };
+			draft = {
+				title: training.title,
+				description: training.description ?? '',
+				training_type: training.training_type ?? 'workout',
+				goal: training.goal ?? '',
+				comment: training.comment ?? '',
+				items
+			};
 			const ids = [...new Set(collectExerciseIds(items))];
 			if (ids.length > 0) {
 				const fetched = await Promise.all(ids.map((id) => apiClient.getExercise(id).catch(() => null)));
 				exercises = fetched.filter(Boolean) as Exercise[];
 			}
 			loading = false;
-			loadSidebarExercises();
+			if (draft.training_type === 'stretching') {
+				applyStretchingFilter();
+			} else {
+				loadSidebarExercises();
+			}
 		}).catch(() => {
 			goto('/trainings');
 		});
@@ -431,7 +462,10 @@
 			await apiClient.updateCoachTraining(trainingId, {
 				title,
 				description: draft.description?.trim() || undefined,
-				items: stripClientIds(draft.items)
+				training_type: draft.training_type,
+				goal: draft.goal?.trim() || undefined,
+				comment: draft.comment?.trim() || undefined,
+				items: draft.training_type === 'climbing' ? [] : stripClientIds(draft.items)
 			});
 			if (stayInEditMode) {
 				editSnapshot = structuredClone($state.snapshot(draft) as CoachTrainingRequest);
@@ -500,6 +534,29 @@
 							style="font-family: monospace; font-size: 15px;"
 							placeholder="Optional description"
 						></textarea>
+						<div class="flex gap-1">
+							{#each (['workout', 'stretching', 'climbing'] as TrainingType[]) as t}
+								<button
+									onclick={() => handleTypeChange(t)}
+									class="border px-3 py-1 transition-colors"
+									style="font-family: monospace; font-size: 12px; {draft.training_type === t ? 'background-color: #000; color: white; border-color: #000;' : 'border-color: #ccc; color: #999;'}"
+								>{t.toUpperCase()}</button>
+							{/each}
+						</div>
+						<textarea
+							bind:value={draft.goal}
+							rows="1"
+							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 13px;"
+							placeholder="Goal (optional)"
+						></textarea>
+						<textarea
+							bind:value={draft.comment}
+							rows="1"
+							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+							style="font-family: monospace; font-size: 13px;"
+							placeholder="Comment (optional)"
+						></textarea>
 					</div>
 					<div class="flex shrink-0 items-center gap-2">
 						{#if isDirty}
@@ -525,12 +582,27 @@
 			{:else}
 				<div class="flex items-start justify-between gap-4">
 					<div>
-						<h1 class="text-3xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-							{draft.title || 'Untitled'}
-						</h1>
+						<div class="flex items-center gap-3">
+							<h1 class="text-3xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
+								{draft.title || 'Untitled'}
+							</h1>
+							{#if draft.training_type && draft.training_type !== 'workout'}
+								<span style="font-family: monospace; font-size: 12px; color: #999;">[{draft.training_type}]</span>
+							{/if}
+						</div>
 						{#if draft.description}
 							<p class="mt-1" style="font-family: monospace; font-size: 15px; color: #888;">
 								{draft.description}
+							</p>
+						{/if}
+						{#if draft.goal}
+							<p class="mt-1" style="font-family: monospace; font-size: 13px; color: #666;">
+								Goal: {draft.goal}
+							</p>
+						{/if}
+						{#if draft.comment}
+							<p class="mt-0.5" style="font-family: monospace; font-size: 13px; color: #666;">
+								Comment: {draft.comment}
 							</p>
 						{/if}
 					</div>
@@ -556,6 +628,7 @@
 
 		{#if !loading}
 			{#if editMode}
+			{#if draft.training_type !== 'climbing'}
 				<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 					<div class="flex items-start gap-6">
 						<div class="min-w-0 flex-1">
@@ -690,7 +763,43 @@
 					</div>
 				</DragDropProvider>
 			{:else}
-				<TrainingPreview items={draft.items} {exercises} />
+				<div class="mt-12 border-t border-gray-200 pt-6">
+					{#if confirmDelete}
+						<p class="mb-3" style="font-family: monospace; font-size: 15px; color: #666;">
+							Delete this training permanently?
+						</p>
+						<div class="flex gap-3">
+							<button
+								onclick={handleDelete}
+								disabled={deleting}
+								class="border border-red-600 px-4 py-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+								style="font-family: monospace; font-size: 15px;"
+							>
+								{deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+							</button>
+							<button
+								onclick={() => (confirmDelete = false)}
+								class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
+								style="font-family: monospace; font-size: 15px;"
+							>
+								CANCEL
+							</button>
+						</div>
+					{:else}
+						<button
+							onclick={() => (confirmDelete = true)}
+							class="text-red-600 transition-colors hover:underline"
+							style="font-family: monospace; font-size: 15px;"
+						>
+							Delete training
+						</button>
+					{/if}
+				</div>
+			{/if}
+			{:else}
+				{#if draft.training_type !== 'climbing'}
+					<TrainingPreview items={draft.items} {exercises} />
+				{/if}
 			{/if}
 		{/if}
 	</div>
