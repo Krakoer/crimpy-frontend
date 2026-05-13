@@ -550,13 +550,15 @@
 							style="font-family: monospace; font-size: 13px;"
 							placeholder="Goal (optional)"
 						></textarea>
+						{#if draft.training_type === 'climbing'}
 						<textarea
 							bind:value={draft.comment}
-							rows="1"
+							rows="4"
 							class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
 							style="font-family: monospace; font-size: 13px;"
-							placeholder="Comment (optional)"
+							placeholder="Describe the session: volume, intensity, focus points, duration..."
 						></textarea>
+						{/if}
 					</div>
 					<div class="flex shrink-0 items-center gap-2">
 						{#if isDirty}
@@ -564,7 +566,7 @@
 						{/if}
 						<button
 							onclick={() => handleSave()}
-							disabled={saving || !draft.title.trim()}
+							disabled={saving || !draft.title.trim() || (draft.training_type === 'climbing' && !draft.comment?.trim())}
 							class="border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
 							style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
 						>
@@ -600,9 +602,9 @@
 								Goal: {draft.goal}
 							</p>
 						{/if}
-						{#if draft.comment}
-							<p class="mt-0.5" style="font-family: monospace; font-size: 13px; color: #666;">
-								Comment: {draft.comment}
+						{#if draft.training_type === 'climbing' && draft.comment}
+							<p class="mt-0.5" style="font-family: monospace; font-size: 13px; color: #666; white-space: pre-wrap;">
+								{draft.comment}
 							</p>
 						{/if}
 					</div>
