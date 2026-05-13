@@ -107,6 +107,7 @@ export interface Tag {
 	coach_id: string;
 	name: string;
 	color: string;
+	is_builtin: boolean;
 	created_at: string;
 	updated_at: string;
 }
@@ -179,11 +180,16 @@ export interface TrainingItem {
 	items?: TrainingItem[];
 }
 
+export type TrainingType = 'workout' | 'stretching' | 'climbing';
+
 export interface CoachTrainingSummary {
 	id: string;
 	coach_id: string;
 	title: string;
 	description?: string | null;
+	training_type?: TrainingType;
+	goal?: string;
+	comment?: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -195,6 +201,9 @@ export interface CoachTraining extends CoachTrainingSummary {
 export interface CoachTrainingRequest {
 	title: string;
 	description?: string;
+	training_type?: TrainingType;
+	goal?: string;
+	comment?: string;
 	items: TrainingItem[];
 }
 
