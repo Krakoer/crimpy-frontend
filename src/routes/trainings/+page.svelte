@@ -120,9 +120,14 @@
 								onclick={() => goto(`/trainings/${training.id}`)}
 								class="min-w-0 flex-1 text-left transition-colors hover:text-gray-600"
 							>
-								<p class="font-bold" style="font-family: monospace; font-size: 14px;">
-									{training.title}
-								</p>
+								<div class="flex items-center gap-2">
+									<p class="font-bold" style="font-family: monospace; font-size: 14px;">
+										{training.title}
+									</p>
+									{#if training.training_type && training.training_type !== 'workout'}
+										<span style="font-family: monospace; font-size: 11px; color: #999;">[{training.training_type}]</span>
+									{/if}
+								</div>
 								{#if training.description}
 									<p
 										class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
