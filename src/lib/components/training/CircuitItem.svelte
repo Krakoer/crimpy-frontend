@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem } from '$lib/api/client';
+	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ItemList from './ItemList.svelte';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
@@ -9,9 +9,10 @@
 		exercises: Exercise[];
 		onRemove: () => void;
 		depth: number;
+		innerAllowedTypes?: TrainingItemType[];
 	}
 
-	let { item = $bindable(), exercises, onRemove, depth }: Props = $props();
+	let { item = $bindable(), exercises, onRemove, depth, innerAllowedTypes }: Props = $props();
 
 	let collapsed = $state(false);
 
@@ -89,7 +90,7 @@
 			<ItemList
 				bind:items={item.items!}
 				{exercises}
-				allowedTypes={depth < 1 ? ['exercise', 'section', 'hangboard'] : ['exercise', 'hangboard']}
+				allowedTypes={innerAllowedTypes ?? (depth < 1 ? ['exercise', 'section', 'hangboard'] : ['exercise', 'hangboard'])}
 				depth={depth + 1}
 				containerId={'container:' + item._id}
 			/>

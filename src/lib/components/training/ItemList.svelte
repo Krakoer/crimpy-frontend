@@ -13,6 +13,7 @@
 		items: TrainingItem[];
 		exercises: Exercise[];
 		allowedTypes?: TrainingItemType[];
+		circuitInnerAllowedTypes?: TrainingItemType[];
 		depth?: number;
 		containerId?: string;
 	}
@@ -21,6 +22,7 @@
 		items = $bindable(),
 		exercises,
 		allowedTypes = ['exercise', 'circuit', 'section', 'hangboard'],
+		circuitInnerAllowedTypes,
 		depth = 0,
 		containerId = 'root'
 	}: Props = $props();
@@ -95,6 +97,7 @@
 					{exercises}
 					onRemove={() => removeItem(i)}
 					{depth}
+					innerAllowedTypes={circuitInnerAllowedTypes}
 				/>
 			{:else if item.type === 'section'}
 				<SectionItem
