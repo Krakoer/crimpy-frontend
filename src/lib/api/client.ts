@@ -92,6 +92,20 @@ export interface UserEnrollment {
 	enrolled_at: string;
 }
 
+export interface AssessmentResponse {
+	ID: string;
+	UserID: string;
+	Type: number;
+	RightValue: number | null;
+	LeftValue: number | null;
+	SessionID: string;
+	GripPosition: number;
+	UpdatedAt: string;
+	DeletedAt: string | null;
+	SyncVersion: number;
+	ServerUpdatedAt: string;
+}
+
 export interface Tag {
 	id: string;
 	coach_id: string;
@@ -330,6 +344,10 @@ class ApiClient {
 
 	async getClientSessions(userId: string): Promise<SessionResponse[]> {
 		return this.request<SessionResponse[]>(`/api/coach/clients/${userId}/sessions`);
+	}
+
+	async getClientAssessments(userId: string): Promise<AssessmentResponse[]> {
+		return this.request<AssessmentResponse[]>(`/api/coach/clients/${userId}/assessments`);
 	}
 
 	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {

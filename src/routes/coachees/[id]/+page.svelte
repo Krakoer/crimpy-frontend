@@ -3,14 +3,67 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { SessionResponse, EnrolledUser } from '$lib/api/client';
+	import type { SessionResponse, EnrolledUser, AssessmentResponse } from '$lib/api/client';
+	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
 
 	let { data } = $props();
 
 	let coachee = $state<EnrolledUser | null>(null);
 	let sessions = $state<SessionResponse[]>([]);
+	let assessments = $state<AssessmentResponse[]>([]);
 	let loading = $state(false);
 	let error = $state('');
+
+	const ASSESSMENT_TYPES: Record<number, { label: string; unit: string; format: (v: number) => string }> = {
+		0: { label: 'CRITICAL FORCE', unit: 'kg', format: (v) => v.toFixed(1) },
+		1: { label: 'MAX FORCE', unit: 'kg', format: (v) => v.toFixed(1) },
+		2: { label: '60% ENDURANCE', unit: 's', format: (v) => v.toFixed(0) }
+	};
+
+	const GRIP_POSITIONS: Record<number, string> = {
+		0: 'Half Crimp',
+		1: '3-Finger',
+		2: 'Full Crimp',
+		3: 'Open Hand'
+	};
+
+	function formatVal(v: number | null | undefined, type: number): string {
+		if (v === null || v === undefined) return '--';
+		return ASSESSMENT_TYPES[type]?.format(v) ?? '--';
+	}
+
+	function availableGrips(type: number): number[] {
+		return [0, 1, 2, 3].filter((g) =>
+			assessments.some((a) => a.DeletedAt === null && a.Type === type && a.GripPosition === g)
+		);
+	}
+
+	function historyForGrip(type: number, grip: number): AssessmentResponse[] {
+		return assessments
+			.filter((a) => a.DeletedAt === null && a.Type === type && a.GripPosition === grip)
+			.sort((a, b) => new Date(a.UpdatedAt).getTime() - new Date(b.UpdatedAt).getTime());
+	}
+
+	function latestForGrip(type: number, grip: number): AssessmentResponse | undefined {
+		const history = historyForGrip(type, grip);
+		return history.at(-1);
+	}
+
+	function hasAnyAssessment(type: number): boolean {
+		return assessments.some((a) => a.DeletedAt === null && a.Type === type);
+	}
+
+	let selectedGrip = $state<Record<number, number>>({ 0: 0, 1: 0, 2: 0 });
+	let showGraph = $state<Record<number, boolean>>({ 0: false, 1: false, 2: false });
+
+	$effect(() => {
+		for (const type of [0, 1, 2]) {
+			const grips = availableGrips(type);
+			if (grips.length > 0 && !grips.includes(selectedGrip[type])) {
+				selectedGrip[type] = grips[0];
+			}
+		}
+	});
 
 	let calendarEl = $state<HTMLElement | undefined>(undefined);
 
@@ -95,12 +148,14 @@
 		authStore.initialize();
 		loading = true;
 		try {
-			const [enrollments, clientSessions] = await Promise.all([
+			const [enrollments, clientSessions, clientAssessments] = await Promise.all([
 				apiClient.getEnrollments(),
-				apiClient.getClientSessions(data.id!)
+				apiClient.getClientSessions(data.id!),
+				apiClient.getClientAssessments(data.id!)
 			]);
 			coachee = enrollments.find((e) => e.user_id === data.id!) ?? null;
 			sessions = clientSessions.filter((s) => s.DeletedAt === null);
+			assessments = clientAssessments;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data.';
 		} finally {
@@ -166,9 +221,11 @@
 	}
 </script>
 
-<div class="min-h-screen bg-white p-6">
-	<div class="mx-auto max-w-5xl">
-		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
+<div class="min-h-screen bg-white" style="padding: 24px;">
+	<div class="mx-auto" style="max-width: 1200px;">
+
+		<!-- Header -->
+		<div class="mb-6 flex items-center justify-between border-b-2 border-black pb-4">
 			<div class="flex items-center gap-4">
 				<button
 					onclick={() => goto('/coachees')}
@@ -206,79 +263,173 @@
 			</div>
 		{/if}
 
-		<!-- FullCalendar week view -->
-		<div class="mb-8 bg-white">
-			{#if loading}
-				<div class="flex items-center gap-3 p-6">
-					<div
-						class="animate-spin"
-						style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
-					></div>
-					<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
-				</div>
-			{:else}
-				<div bind:this={calendarEl} class="fc-crimpy"></div>
-			{/if}
-		</div>
+		{#if loading}
+			<div class="flex items-center gap-3 p-6">
+				<div
+					class="animate-spin"
+					style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
+				></div>
+				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+			</div>
+		{:else}
+			<!-- Two-column layout -->
+			<div style="display: flex; gap: 24px; align-items: flex-start;">
 
-		<!-- Session list -->
-		{#if !loading}
-			{#if sessions.length === 0}
-				<p style="font-family: monospace; font-size: 13px; color: #666;">
-					No sessions recorded yet.
-				</p>
-			{:else}
-				<div class="space-y-6">
-					{#each sessionGroups as group}
-						<div>
-							<p
-								class="mb-3 font-medium"
-								style="font-family: monospace; font-size: 16px; color: #666; letter-spacing: 0.5px; text-transform: uppercase;"
-							>
-								{group.label}
-							</p>
-							<div class="space-y-2">
-								{#each group.items as session (session.ID)}
-									{@const type = sessionType(session.SessionType)}
-									<div class="flex items-start gap-4 border border-gray-200 bg-white p-3">
-										<!-- Type icon box -->
-										<div
-											class="flex shrink-0 items-center justify-center"
-											style="width: 40px; height: 40px; background-color: {hexWithOpacity(type.color, 0.15)}; border: 1px solid {hexWithOpacity(type.color, 0.3)};"
-										>
-											<span
-												style="font-family: monospace; font-size: 11px; font-weight: 700; color: {type.color}; letter-spacing: 0.5px;"
-											>
-												{type.label}
-											</span>
-										</div>
+				<!-- Left: calendar + session list -->
+				<div style="flex: 1; min-width: 0;">
+					<!-- Calendar -->
+					<div class="mb-6 border border-gray-200 p-3">
+						<div bind:this={calendarEl} class="fc-crimpy"></div>
+					</div>
 
-										<!-- Session details -->
-										<div class="min-w-0 flex-1">
-											<p class="mb-1 font-semibold" style="font-family: monospace; font-size: 14px;">
-												{session.Name}
-											</p>
-											<div class="flex gap-4" style="font-family: monospace; font-size: 12px; color: #666;">
-												<span>{formatTime(session.Date)}</span>
-												<span>{formatDuration(session.Duration)}</span>
-											</div>
-											{#if session.Notes?.trim()}
-												<p
-													class="mt-1 line-clamp-2"
-													style="font-family: monospace; font-size: 12px; color: #555;"
+					<!-- Session list -->
+					<p
+						class="mb-3 font-bold"
+						style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;"
+					>
+						SESSIONS
+					</p>
+					{#if sessions.length === 0}
+						<p style="font-family: monospace; font-size: 13px; color: #666;">
+							No sessions recorded yet.
+						</p>
+					{:else}
+						<div class="space-y-6">
+							{#each sessionGroups as group}
+								<div>
+									<p
+										class="mb-2"
+										style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase;"
+									>
+										{group.label}
+									</p>
+									<div class="space-y-2">
+										{#each group.items as session (session.ID)}
+											{@const type = sessionType(session.SessionType)}
+											<div class="flex items-center gap-3 border border-gray-200 bg-white p-3">
+												<div
+													class="flex shrink-0 items-center justify-center"
+													style="width: 36px; height: 36px; background-color: {hexWithOpacity(type.color, 0.12)}; border: 1px solid {hexWithOpacity(type.color, 0.25)};"
 												>
-													{session.Notes}
-												</p>
-											{/if}
+													<span style="font-family: monospace; font-size: 10px; font-weight: 700; color: {type.color}; letter-spacing: 0.5px;">
+														{type.label}
+													</span>
+												</div>
+												<div class="min-w-0 flex-1">
+													<p class="font-semibold" style="font-family: monospace; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+														{session.Name}
+													</p>
+													<div class="flex gap-3" style="font-family: monospace; font-size: 11px; color: #888;">
+														<span>{formatTime(session.Date)}</span>
+														<span>{formatDuration(session.Duration)}</span>
+													</div>
+												</div>
+												{#if session.Notes?.trim()}
+													<p
+														class="line-clamp-1 shrink-0"
+														style="font-family: monospace; font-size: 11px; color: #999; max-width: 200px;"
+													>
+														{session.Notes}
+													</p>
+												{/if}
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				<!-- Right: assessments sidebar (sticky) -->
+				{#if assessments.length > 0}
+					<div style="width: 300px; flex-shrink: 0; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+						<p
+							class="font-bold"
+							style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;"
+						>
+							ASSESSMENTS
+						</p>
+
+						{#each [0, 1, 2] as type}
+							{#if hasAnyAssessment(type)}
+								{@const typeInfo = ASSESSMENT_TYPES[type]}
+								{@const grips = availableGrips(type)}
+								{@const grip = selectedGrip[type]}
+								{@const latest = latestForGrip(type, grip)}
+								{@const history = historyForGrip(type, grip)}
+								{@const graphOpen = showGraph[type]}
+								<div class="border border-gray-200 bg-white">
+									<!-- Card header -->
+									<div class="border-b border-gray-200 px-3 py-2 flex items-center justify-between" style="background-color: #fafafa;">
+										<div class="flex items-baseline gap-2">
+											<span style="font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #C6613F;">{typeInfo.label}</span>
+											<span style="font-family: monospace; font-size: 10px; color: #bbb;">{typeInfo.unit}</span>
+										</div>
+										{#if history.length >= 2}
+											<button
+												onclick={() => (showGraph[type] = !showGraph[type])}
+												style="font-family: monospace; font-size: 10px; letter-spacing: 0.5px; color: {graphOpen ? '#C6613F' : '#bbb'}; background: none; border: none; cursor: pointer; padding: 0;"
+											>
+												{graphOpen ? 'HIDE' : 'GRAPH'}
+											</button>
+										{/if}
+									</div>
+
+									<!-- Grip tabs -->
+									{#if grips.length > 1}
+										<div class="flex border-b border-gray-200" style="overflow-x: auto;">
+											{#each grips as g}
+												<button
+													onclick={() => (selectedGrip[type] = g)}
+													style="font-family: monospace; font-size: 10px; padding: 4px 8px; background: none; border: none; border-bottom: 2px solid {g === grip ? '#C6613F' : 'transparent'}; color: {g === grip ? '#C6613F' : '#aaa'}; cursor: pointer; white-space: nowrap; font-weight: {g === grip ? '700' : '400'};"
+												>
+													{GRIP_POSITIONS[g]}
+												</button>
+											{/each}
+										</div>
+									{:else if grips.length === 1}
+										<div class="px-3 pt-2" style="font-family: monospace; font-size: 10px; color: #aaa;">
+											{GRIP_POSITIONS[grips[0]]}
+										</div>
+									{/if}
+
+									<!-- Values -->
+									<div class="flex px-3 py-2 gap-3">
+										<div style="flex: 1; text-align: center;">
+											<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #5A8C5A; margin-bottom: 2px;">LEFT</div>
+											<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: #222; line-height: 1;">
+												{formatVal(latest?.LeftValue, type)}
+											</div>
+										</div>
+										<div style="width: 1px; background: #e5e7eb;"></div>
+										<div style="flex: 1; text-align: center;">
+											<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #C6613F; margin-bottom: 2px;">RIGHT</div>
+											<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: #222; line-height: 1;">
+												{formatVal(latest?.RightValue, type)}
+											</div>
 										</div>
 									</div>
-								{/each}
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
+
+									<!-- Graph -->
+									{#if graphOpen && history.length >= 2}
+										<div class="border-t border-gray-200 px-1 py-1">
+											<AssessmentChart
+												{history}
+												unit={typeInfo.unit}
+												formatValue={typeInfo.format}
+											/>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/each}
+					</div>
+				{/if}
+
+			</div>
 		{/if}
+
 	</div>
 </div>
 
