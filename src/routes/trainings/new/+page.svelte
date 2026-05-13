@@ -3,7 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType } from '$lib/api/client';
+	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
@@ -171,7 +171,7 @@
 	})];
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<CoachTrainingRequest>({ title: '', description: '', items: [] });
+	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
 	let saving = $state(false);
 	let saveError = $state('');
 	let showCreateExerciseModal = $state(false);
@@ -256,6 +256,26 @@
 		loadSidebarExercises();
 	}
 
+	async function applyStretchingFilter() {
+		const tags = await apiClient.getTags();
+		const stretchingTag = tags.find((t) => t.is_builtin);
+		if (stretchingTag) {
+			filterExerciseTags = [stretchingTag];
+			loadSidebarExercises();
+		}
+	}
+
+	function handleTypeChange(type: TrainingType) {
+		const prev = draft.training_type;
+		draft.training_type = type;
+		if (type === 'stretching' && prev !== 'stretching') {
+			applyStretchingFilter();
+		} else if (type !== 'stretching' && prev === 'stretching') {
+			filterExerciseTags = [];
+			loadSidebarExercises();
+		}
+	}
+
 	function addExerciseToTraining(exercise: Exercise) {
 		if (!exercises.find((e) => e.id === exercise.id)) exercises.push(exercise);
 		addRootItem('exercise', exercise.id);
@@ -324,7 +344,10 @@
 			const training = await apiClient.createCoachTraining({
 				title: draft.title.trim(),
 				description: draft.description?.trim() || undefined,
-				items: draft.items
+				training_type: draft.training_type,
+				goal: draft.goal?.trim() || undefined,
+				comment: draft.comment?.trim() || undefined,
+				items: draft.training_type === 'climbing' ? [] : draft.items
 			});
 			snackbar.show('Training created');
 			goto(`/trainings/${training.id}`);
@@ -361,6 +384,29 @@
 						style="font-family: monospace; font-size: 15px;"
 						placeholder="Optional description"
 					></textarea>
+					<div class="flex gap-1">
+						{#each (['workout', 'stretching', 'climbing'] as TrainingType[]) as t}
+							<button
+								onclick={() => handleTypeChange(t)}
+								class="border px-3 py-1 transition-colors"
+								style="font-family: monospace; font-size: 12px; {draft.training_type === t ? 'background-color: #000; color: white; border-color: #000;' : 'border-color: #ccc; color: #999;'}"
+							>{t.toUpperCase()}</button>
+						{/each}
+					</div>
+					<textarea
+						bind:value={draft.goal}
+						rows="1"
+						class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+						style="font-family: monospace; font-size: 13px;"
+						placeholder="Goal (optional)"
+					></textarea>
+					<textarea
+						bind:value={draft.comment}
+						rows="1"
+						class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
+						style="font-family: monospace; font-size: 13px;"
+						placeholder="Comment (optional)"
+					></textarea>
 				</div>
 				<button
 					onclick={handleSave}
@@ -382,6 +428,7 @@
 			</div>
 		{/if}
 
+		{#if draft.training_type !== 'climbing'}
 		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 			<div class="flex gap-6 items-start">
 				<div class="min-w-0 flex-1">
@@ -480,6 +527,7 @@
 				</div>
 			</div>
 		</DragDropProvider>
+		{/if}
 	</div>
 </div>
 
