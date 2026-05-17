@@ -211,6 +211,63 @@ export interface CoachTrainingRequest {
 	items: TrainingItem[];
 }
 
+export interface Program {
+	id: string;
+	coach_id: string;
+	user_id: string;
+	name: string;
+	objective?: string;
+	start_date: string;
+	duration_weeks?: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ProgramRequest {
+	name: string;
+	start_date: string;
+	objective?: string;
+	duration_weeks?: number;
+}
+
+export interface WeekSummary {
+	id: string;
+	program_id: string;
+	week_number: number;
+	notes?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface WeekSession {
+	id: string;
+	training_id: string;
+	training_title: string;
+	training_type: TrainingType;
+	day_of_week?: number;
+	times_per_week?: number;
+	position: number;
+	notes?: string;
+	overrides: [];
+}
+
+export interface WeekDetail extends WeekSummary {
+	sessions: WeekSession[];
+}
+
+export interface SessionRequest {
+	training_id: string;
+	day_of_week?: number;
+	times_per_week?: number;
+	notes?: string;
+	overrides: [];
+}
+
+export interface WeekRequest {
+	notes?: string;
+	sessions: SessionRequest[];
+}
+
 class ApiClient {
 	private baseUrl: string = API_BASE_URL;
 
@@ -466,6 +523,69 @@ class ApiClient {
 		await this.request<void>(`/api/coach/exercises/${exerciseId}/tags/${tagId}`, {
 			method: 'DELETE'
 		});
+	}
+
+	async listPrograms(userId: string): Promise<Program[]> {
+		return this.request<Program[]>(`/api/coach/clients/${userId}/programs`);
+	}
+
+	async getProgram(userId: string, programId: string): Promise<Program> {
+		return this.request<Program>(`/api/coach/clients/${userId}/programs/${programId}`);
+	}
+
+	async createProgram(userId: string, data: ProgramRequest): Promise<Program> {
+		return this.request<Program>(`/api/coach/clients/${userId}/programs`, {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateProgram(userId: string, programId: string, data: ProgramRequest): Promise<Program> {
+		return this.request<Program>(`/api/coach/clients/${userId}/programs/${programId}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteProgram(userId: string, programId: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/coach/clients/${userId}/programs/${programId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async listWeeks(userId: string, programId: string): Promise<WeekSummary[]> {
+		return this.request<WeekSummary[]>(
+			`/api/coach/clients/${userId}/programs/${programId}/weeks`
+		);
+	}
+
+	async getWeek(userId: string, programId: string, weekNumber: number): Promise<WeekDetail> {
+		return this.request<WeekDetail>(
+			`/api/coach/clients/${userId}/programs/${programId}/weeks/${weekNumber}`
+		);
+	}
+
+	async upsertWeek(
+		userId: string,
+		programId: string,
+		weekNumber: number,
+		data: WeekRequest
+	): Promise<WeekDetail> {
+		return this.request<WeekDetail>(
+			`/api/coach/clients/${userId}/programs/${programId}/weeks/${weekNumber}`,
+			{ method: 'PUT', body: JSON.stringify(data) }
+		);
+	}
+
+	async deleteWeek(
+		userId: string,
+		programId: string,
+		weekNumber: number
+	): Promise<{ message: string }> {
+		return this.request<{ message: string }>(
+			`/api/coach/clients/${userId}/programs/${programId}/weeks/${weekNumber}`,
+			{ method: 'DELETE' }
+		);
 	}
 }
 
