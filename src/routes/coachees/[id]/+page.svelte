@@ -3,8 +3,9 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { SessionResponse, EnrolledUser, AssessmentResponse } from '$lib/api/client';
+	import type { SessionResponse, EnrolledUser, AssessmentResponse, Program, ProgramRequest } from '$lib/api/client';
 	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	let { data } = $props();
 
@@ -13,6 +14,21 @@
 	let assessments = $state<AssessmentResponse[]>([]);
 	let loading = $state(false);
 	let error = $state('');
+
+	let activeTab = $state<'sessions' | 'programs'>('sessions');
+
+	let programs = $state<Program[]>([]);
+	let programsLoading = $state(false);
+	let confirmDeleteProgramId = $state<string | null>(null);
+	let deletingProgram = $state(false);
+
+	let showNewProgramForm = $state(false);
+	let newProgramName = $state('');
+	let newProgramStartDate = $state('');
+	let newProgramObjective = $state('');
+	let newProgramDurationWeeks = $state('');
+	let savingProgram = $state(false);
+	let newProgramError = $state('');
 
 	const ASSESSMENT_TYPES: Record<number, { label: string; unit: string; format: (v: number) => string }> = {
 		0: { label: 'CRITICAL FORCE', unit: 'kg', format: (v) => v.toFixed(1) },
@@ -144,6 +160,62 @@
 		return `${s}s`;
 	}
 
+	async function loadPrograms() {
+		programsLoading = true;
+		try {
+			programs = await apiClient.listPrograms(data.id!);
+		} catch {
+			// non-fatal
+		} finally {
+			programsLoading = false;
+		}
+	}
+
+	async function handleCreateProgram() {
+		if (!newProgramName.trim() || !newProgramStartDate) {
+			newProgramError = 'Name and start date are required.';
+			return;
+		}
+		savingProgram = true;
+		newProgramError = '';
+		try {
+			const req: ProgramRequest = {
+				name: newProgramName.trim(),
+				start_date: newProgramStartDate,
+				objective: newProgramObjective.trim() || undefined,
+				duration_weeks: newProgramDurationWeeks ? parseInt(newProgramDurationWeeks) : undefined
+			};
+			const created = await apiClient.createProgram(data.id!, req);
+			goto(`/coachees/${data.id}/programs/${created.id}`);
+		} catch (e) {
+			newProgramError = e instanceof Error ? e.message : 'Failed to create program.';
+		} finally {
+			savingProgram = false;
+		}
+	}
+
+	async function handleDeleteProgram(programId: string) {
+		deletingProgram = true;
+		try {
+			await apiClient.deleteProgram(data.id!, programId);
+			programs = programs.filter((p) => p.id !== programId);
+			confirmDeleteProgramId = null;
+			snackbar.show('Program deleted');
+		} catch (e) {
+			snackbar.show(e instanceof Error ? e.message : 'Failed to delete program.', 'error');
+		} finally {
+			deletingProgram = false;
+		}
+	}
+
+	function formatProgramDate(date: string): string {
+		return new Date(date).toLocaleDateString('en-GB', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		});
+	}
+
 	onMount(async () => {
 		authStore.initialize();
 		loading = true;
@@ -161,6 +233,7 @@
 		} finally {
 			loading = false;
 		}
+		loadPrograms();
 	});
 
 	$effect(() => {
@@ -272,11 +345,22 @@
 				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
 			</div>
 		{:else}
+			<!-- Tab switcher -->
+			<div class="mb-6 flex gap-0 border-b border-gray-200">
+				{#each (['sessions', 'programs'] as const) as tab}
+					<button
+						onclick={() => (activeTab = tab)}
+						style="font-family: monospace; font-size: 12px; letter-spacing: 1px; padding: 8px 16px; background: none; border: none; border-bottom: 2px solid {activeTab === tab ? '#C6613F' : 'transparent'}; color: {activeTab === tab ? '#C6613F' : '#999'}; font-weight: {activeTab === tab ? '700' : '400'}; cursor: pointer; text-transform: uppercase;"
+					>{tab}</button>
+				{/each}
+			</div>
+
 			<!-- Two-column layout -->
 			<div style="display: flex; gap: 24px; align-items: flex-start;">
 
-				<!-- Left: calendar + session list -->
+				<!-- Left: tab content -->
 				<div style="flex: 1; min-width: 0;">
+					{#if activeTab === 'sessions'}
 					<!-- Calendar -->
 					<div class="mb-6 border border-gray-200 p-3">
 						<div bind:this={calendarEl} class="fc-crimpy"></div>
@@ -338,6 +422,124 @@
 								</div>
 							{/each}
 						</div>
+					{/if}
+					{:else}
+					<!-- Programs tab -->
+					<div class="mb-4 flex items-center justify-between" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
+						<p class="font-bold" style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333;">
+							PROGRAMS
+						</p>
+						{#if !showNewProgramForm}
+							<button
+								onclick={() => { showNewProgramForm = true; newProgramError = ''; }}
+								class="border px-3 py-1 transition-colors hover:bg-gray-100"
+								style="font-family: monospace; font-size: 12px; border-color: #C6613F; color: #C6613F;"
+							>+ NEW PROGRAM</button>
+						{/if}
+					</div>
+
+					{#if showNewProgramForm}
+						<div class="mb-6 border border-black p-4 space-y-3">
+							<p style="font-family: monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">NEW PROGRAM</p>
+							{#if newProgramError}
+								<p style="font-family: monospace; font-size: 12px; color: #B85450;">{newProgramError}</p>
+							{/if}
+							<div class="space-y-2">
+								<input
+									type="text"
+									bind:value={newProgramName}
+									placeholder="Name *"
+									class="w-full border border-black px-3 py-1.5 outline-none focus:border-2"
+									style="font-family: monospace; font-size: 13px;"
+								/>
+								<input
+									type="date"
+									bind:value={newProgramStartDate}
+									class="w-full border border-black px-3 py-1.5 outline-none focus:border-2"
+									style="font-family: monospace; font-size: 13px;"
+								/>
+								<textarea
+									bind:value={newProgramObjective}
+									placeholder="Objective (optional)"
+									rows="2"
+									class="w-full border border-gray-300 px-3 py-1.5 outline-none focus:border-black resize-none"
+									style="font-family: monospace; font-size: 13px;"
+								></textarea>
+								<input
+									type="number"
+									bind:value={newProgramDurationWeeks}
+									placeholder="Duration (weeks, optional)"
+									min="1"
+									class="w-full border border-gray-300 px-3 py-1.5 outline-none focus:border-black"
+									style="font-family: monospace; font-size: 13px;"
+								/>
+							</div>
+							<div class="flex gap-2">
+								<button
+									onclick={handleCreateProgram}
+									disabled={savingProgram}
+									class="border border-black px-4 py-1.5 font-bold transition-colors hover:bg-black hover:text-white disabled:opacity-50"
+									style="font-family: monospace; font-size: 12px;"
+								>{savingProgram ? '...' : 'SAVE'}</button>
+								<button
+									onclick={() => { showNewProgramForm = false; newProgramName = ''; newProgramStartDate = ''; newProgramObjective = ''; newProgramDurationWeeks = ''; newProgramError = ''; }}
+									class="border border-gray-300 px-4 py-1.5 transition-colors hover:bg-gray-100"
+									style="font-family: monospace; font-size: 12px;"
+								>CANCEL</button>
+							</div>
+						</div>
+					{/if}
+
+					{#if programsLoading}
+						<div class="flex items-center gap-3 py-6">
+							<div class="animate-spin" style="width: 14px; height: 14px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"></div>
+							<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+						</div>
+					{:else if programs.length === 0}
+						<p style="font-family: monospace; font-size: 13px; color: #666;">No programs yet.</p>
+					{:else}
+						<div class="divide-y divide-gray-200 border border-black">
+							{#each programs as program (program.id)}
+								<div class="p-4">
+									<div class="flex items-start justify-between gap-4">
+										<button
+											onclick={() => goto(`/coachees/${data.id}/programs/${program.id}`)}
+											class="min-w-0 flex-1 text-left transition-colors hover:text-gray-600"
+										>
+											<p class="font-bold" style="font-family: monospace; font-size: 14px;">{program.name}</p>
+											{#if program.objective}
+												<p class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap" style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;">{program.objective}</p>
+											{/if}
+											<p class="mt-1" style="font-family: monospace; font-size: 11px; color: #999;">
+												{formatProgramDate(program.start_date)}{program.duration_weeks ? ` -- ${program.duration_weeks} weeks` : ''}
+											</p>
+										</button>
+										<div class="flex shrink-0 gap-2">
+											{#if confirmDeleteProgramId === program.id}
+												<button
+													onclick={() => handleDeleteProgram(program.id)}
+													disabled={deletingProgram}
+													class="border border-red-600 px-3 py-1 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+													style="font-family: monospace; font-size: 12px;"
+												>{deletingProgram ? '...' : 'CONFIRM'}</button>
+												<button
+													onclick={() => (confirmDeleteProgramId = null)}
+													class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
+													style="font-family: monospace; font-size: 12px;"
+												>CANCEL</button>
+											{:else}
+												<button
+													onclick={() => (confirmDeleteProgramId = program.id)}
+													class="border border-gray-300 px-3 py-1 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
+													style="font-family: monospace; font-size: 12px;"
+												>DELETE</button>
+											{/if}
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
 					{/if}
 				</div>
 
