@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -27,7 +28,7 @@
 		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
 	);
 
-	let isDuration = $state((item.duration ?? 0) !== 0);
+	let isDuration = $state((item.duration ?? 0) !== 0 && (item.reps ?? 0) === 0);
 
 	let durationMin = $state(Math.floor((item.duration ?? 0) / 60));
 	let durationSec = $state((item.duration ?? 0) % 60);
@@ -71,153 +72,150 @@
 	$effect(() => {
 		if (collapseSignals?.expand) collapsed = false;
 	});
+
+	let collapsedSummary = $derived.by(() => {
+		const parts: string[] = [];
+		if (isDuration) {
+			const m = Math.floor((item.duration ?? 0) / 60);
+			const s = (item.duration ?? 0) % 60;
+			parts.push(m > 0 ? `${m}m${s > 0 ? s + 's' : ''}` : `${s}s`);
+		} else {
+			parts.push(`${item.reps ?? 0} reps`);
+		}
+		const rest = item.rest_seconds ?? 0;
+		if (rest > 0) parts.push(`${rest}s rest`);
+		const load = item.loads?.[0];
+		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
+			parts.push(`${load.value} ${load.unit}`);
+		}
+		return parts.join(' · ');
+	});
 </script>
 
-<div
-	class="bg-white"
-	style="border-left: 3px solid #C6613F; border-top: 1px solid #1d1d1d; border-right: 1px solid #1d1d1d; border-bottom: 1px solid #1d1d1d; box-shadow: 2px 2px 0 0 rgba(29,29,29,0.1);"
->
-	<div class="flex items-center gap-2 px-3 py-2">
-		<button
-			onclick={() => (collapsed = !collapsed)}
-			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 13px;"
-			aria-label="Toggle collapse"
-		>
-			{collapsed ? '>' : 'v'}
-		</button>
-
-		{#if confirmDelete}
-			<span class="flex-1 truncate" style="font-family: monospace; font-size: 13px; color: #B85450;">
-				Delete "{exerciseName}"?
-			</span>
-			<button
-				onclick={onRemove}
-				class="border border-red-300 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-50"
-				style="font-family: monospace; font-size: 12px;"
-			>
-				yes
-			</button>
-			<button
-				onclick={() => (confirmDelete = false)}
-				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
-				style="font-family: monospace; font-size: 12px;"
-			>
-				no
-			</button>
-		{:else}
-			<span class="flex-1 truncate font-bold" style="font-family: monospace; font-size: 14px;">
-				{exerciseName}
-			</span>
-			<div class="flex shrink-0 items-center gap-1">
+<div style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;">
+	<div
+		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed ? '#fff' : 'var(--panel2)'};"
+		onclick={() => { if (!confirmDelete) collapsed = !collapsed; }}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === 'Enter' && !confirmDelete && (collapsed = !collapsed)}
+	>
+		<div style="width: 4px; height: 20px; background: var(--pr); border-radius: 2px; flex-shrink: 0;"></div>
+		<div style="transform: {collapsed ? 'rotate(0deg)' : 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;">
+			<Icon name="chevron" size={12} color="var(--tx3)" />
+		</div>
+		<span style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden;">
+			<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{exerciseName}</span>
+			{#if collapsed && collapsedSummary}
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 500; flex-shrink: 0;">{collapsedSummary}</span>
+			{/if}
+		</span>
+		<div style="display: flex; gap: 3px; flex-shrink: 0;" onclick={(e) => e.stopPropagation()} role="none">
+			{#if confirmDelete}
+				<button
+					onclick={onRemove}
+					style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+				>Delete</button>
+				<button
+					onclick={() => (confirmDelete = false)}
+					style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+				>Cancel</button>
+			{:else}
 				<button
 					onclick={() => (showEditModal = true)}
-					class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-700"
-					style="font-family: monospace; font-size: 12px;"
+					title="Change exercise"
+					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
 				>
-					edit
+					<Icon name="edit" size={11} color="var(--tx3)" />
 				</button>
 				<button
 					onclick={() => (confirmDelete = true)}
-					class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-400 hover:text-red-500"
-					style="font-family: monospace; font-size: 12px;"
+					title="Delete"
+					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
 				>
-					del
+					<Icon name="trash" size={11} color="var(--tx3)" />
 				</button>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</div>
 
 	{#if !collapsed}
-		<div class="space-y-3 border-t border-gray-100 px-3 py-3">
-			<div class="grid grid-cols-3">
-				<div class="flex flex-col items-center">
-					<select
-						value={isDuration ? 'duration' : 'reps'}
-						onchange={(e) => e.currentTarget.value === 'duration' ? setDurationMode() : setRepsMode()}
-						class="mb-1 px-2 py-0.5 outline-none focus:border-black"
-						style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; cursor: pointer; appearance: auto;"
-					>
-						<option value="reps">REPS</option>
-						<option value="duration">DURATION</option>
-					</select>
-					{#if isDuration}
-						<div class="flex items-center gap-1">
-							<input
-								type="number"
-								min="0"
-								bind:value={durationMin}
-								class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 15px;"
-							/>
-							<span style="font-family: monospace; font-size: 13px; color: #999;">mn</span>
-							<input
-								type="number"
-								min="0"
-								max="59"
-								bind:value={durationSec}
-								class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 15px;"
-							/>
-							<span style="font-family: monospace; font-size: 13px; color: #999;">s</span>
-						</div>
-					{:else}
-						<input
-							type="number"
-							min="1"
-							bind:value={item.reps}
-							class="w-16 border border-gray-200 px-2 py-0.5 text-center outline-none focus:border-black"
-							style="font-family: monospace; font-size: 15px;"
-						/>
-					{/if}
+		<div style="padding: 14px 18px; border-top: 1px solid var(--bd2); display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+			<!-- Reps vs Duration toggle -->
+			<div style="display: flex; flex-direction: column; gap: 4px;">
+				<div style="display: flex; gap: 2px; background: var(--panel2); border-radius: 5px; padding: 2px;">
+					<button
+						onclick={() => setRepsMode()}
+						style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {!isDuration ? '#fff' : 'transparent'}; color: {!isDuration ? 'var(--pr)' : 'var(--tx3)'}; font-family: var(--font); box-shadow: {!isDuration ? 'var(--sh)' : 'none'};"
+					>Reps</button>
+					<button
+						onclick={() => setDurationMode()}
+						style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {isDuration ? '#fff' : 'transparent'}; color: {isDuration ? 'var(--pr)' : 'var(--tx3)'}; font-family: var(--font); box-shadow: {isDuration ? 'var(--sh)' : 'none'};"
+					>Duration</button>
 				</div>
-
-				{#if item.loads && item.loads.length > 0}
-					<div class="flex flex-col items-center">
-						<p style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">Load</p>
-						<div class="flex items-center gap-1">
-							<input
-								type="number"
-								min="0"
-								step="0.5"
-								bind:value={item.loads[0].value}
-								class="w-16 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-								style="font-family: monospace; font-size: 15px;"
-							/>
-							<select
-								bind:value={item.loads[0].unit}
-								class="border border-gray-200 px-1 py-0.5 outline-none focus:border-black"
-								style="font-family: monospace; font-size: 13px;"
-							>
-								{#each LOAD_UNITS as u}
-									<option value={u.value}>{u.label}</option>
-								{/each}
-							</select>
-						</div>
+				{#if isDuration}
+					<div style="display: flex; align-items: center; gap: 2px;">
+						<input
+							type="number" min="0" bind:value={durationMin}
+							onclick={(e) => e.stopPropagation()}
+							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+						/>
+						<span style="font-size: 10px; color: var(--tx3);">m</span>
+						<input
+							type="number" min="0" max="59" bind:value={durationSec}
+							onclick={(e) => e.stopPropagation()}
+							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+						/>
+						<span style="font-size: 10px; color: var(--tx3);">s</span>
 					</div>
+				{:else}
+					<input
+						type="number" min="1" bind:value={item.reps}
+						onclick={(e) => e.stopPropagation()}
+						style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+					/>
 				{/if}
+			</div>
 
-				<div class="flex flex-col items-center">
-					<p style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">Rest</p>
-					<div class="flex items-center gap-1">
+			<!-- Load -->
+			{#if item.loads && item.loads.length > 0}
+				<div style="display: flex; flex-direction: column; gap: 4px;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; text-align: center;">LOAD</span>
+					<div style="display: flex; gap: 4px; align-items: center;">
 						<input
-							type="number"
-							min="0"
-							bind:value={restMin}
-							class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-							style="font-family: monospace; font-size: 15px;"
+							type="number" min="0" step="0.5" bind:value={item.loads[0].value}
+							onclick={(e) => e.stopPropagation()}
+							style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
-						<span style="font-family: monospace; font-size: 13px; color: #999;">mn</span>
-						<input
-							type="number"
-							min="0"
-							max="59"
-							bind:value={restSec}
-							class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-							style="font-family: monospace; font-size: 15px;"
-						/>
-						<span style="font-family: monospace; font-size: 13px; color: #999;">s</span>
+						<select
+							bind:value={item.loads[0].unit}
+							onclick={(e) => e.stopPropagation()}
+							style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
+						>
+							{#each LOAD_UNITS as u}
+								<option value={u.value}>{u.label}</option>
+							{/each}
+						</select>
 					</div>
+				</div>
+			{/if}
+
+			<!-- Rest -->
+			<div style="display: flex; flex-direction: column; gap: 4px;">
+				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; text-align: center;">REST</span>
+				<div style="display: flex; align-items: center; gap: 2px;">
+					<input
+						type="number" min="0" bind:value={restMin}
+						onclick={(e) => e.stopPropagation()}
+						style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+					/>
+					<span style="font-size: 10px; color: var(--tx3);">m</span>
+					<input
+						type="number" min="0" max="59" bind:value={restSec}
+						onclick={(e) => e.stopPropagation()}
+						style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+					/>
+					<span style="font-size: 10px; color: var(--tx3);">s</span>
 				</div>
 			</div>
 		</div>

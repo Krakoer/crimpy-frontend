@@ -3,6 +3,7 @@
 	import ItemList from './ItemList.svelte';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -14,6 +15,7 @@
 	let { item = $bindable(), exercises, onRemove, depth }: Props = $props();
 
 	let collapsed = $state(false);
+	let confirmDelete = $state(false);
 
 	if (!item.items) item.items = [];
 
@@ -28,47 +30,61 @@
 	});
 </script>
 
-<div class="border border-black" style="border-left: 3px solid #888; border-radius: 4px;">
-	<div class="flex items-center gap-2 px-3 py-2">
-		<button
-			onclick={() => (collapsed = !collapsed)}
-			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 15px;"
-			aria-label="Toggle collapse"
-		>
-			{collapsed ? '>' : 'V'}
-		</button>
-		<span
-			class="shrink-0"
-			style="font-family: monospace; font-size: 14px; color: #aaa; letter-spacing: 0.5px;"
-		>SECTION</span>
-		<input
-			type="text"
-			bind:value={item.section_title}
-			class="flex-1 border-0 bg-transparent font-bold outline-none"
-			style="font-family: monospace; font-size: 15px;"
-			placeholder="Section title"
-		/>
-		<div class="flex shrink-0 items-center gap-2">
-			<button
-				onclick={onRemove}
-				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
-				style="font-family: monospace; font-size: 15px;"
-			>
-				Delete
-			</button>
+<div style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;">
+	<div
+		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed ? '#fff' : 'var(--panel2)'};"
+		onclick={() => { if (!confirmDelete) collapsed = !collapsed; }}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === 'Enter' && !confirmDelete && (collapsed = !collapsed)}
+	>
+		<div style="width: 4px; height: 20px; background: var(--tx2); border-radius: 2px; flex-shrink: 0;"></div>
+		<div style="transform: {collapsed ? 'rotate(0deg)' : 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;">
+			<Icon name="chevron" size={12} color="var(--tx3)" />
+		</div>
+		<span style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px;">
+			<input
+				type="text"
+				bind:value={item.section_title}
+				onclick={(e) => e.stopPropagation()}
+				placeholder="Section title..."
+				style="border: none; outline: none; background: transparent; font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--tx); width: 160px;"
+			/>
+			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{item.items?.length ?? 0} items</span>
+		</span>
+		<div style="display: flex; gap: 3px; flex-shrink: 0;" onclick={(e) => e.stopPropagation()} role="none">
+			{#if confirmDelete}
+				<button
+					onclick={onRemove}
+					style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+				>Delete</button>
+				<button
+					onclick={() => (confirmDelete = false)}
+					style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+				>Cancel</button>
+			{:else}
+				<button
+					onclick={() => (confirmDelete = true)}
+					title="Delete"
+					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+				>
+					<Icon name="trash" size={11} color="var(--tx3)" />
+				</button>
+			{/if}
 		</div>
 	</div>
 
 	{#if !collapsed}
-		<div class="border-t border-gray-200 p-3">
-			<ItemList
-				bind:items={item.items!}
-				{exercises}
-				allowedTypes={['exercise', 'hangboard']}
-				depth={depth + 1}
-				containerId={'container:' + item._id}
-			/>
+		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
+			<div style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tx2) 20%, transparent);">
+				<ItemList
+					bind:items={item.items!}
+					{exercises}
+					allowedTypes={['exercise', 'hangboard']}
+					depth={depth + 1}
+					containerId={'container:' + item._id}
+				/>
+			</div>
 		</div>
 	{/if}
 </div>

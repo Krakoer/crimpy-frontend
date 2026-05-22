@@ -10,6 +10,8 @@
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 
@@ -174,7 +176,12 @@
 		activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
 	})];
 
-	const TYPE_COLORS: Record<TrainingType, string> = { workout: '#C6613F', climbing: '#D4A644', stretching: '#5A8C5A' };
+	const TYPE_COLORS: Record<TrainingType, string> = {
+		workout: 'var(--pr)', climbing: 'var(--gd)', stretching: 'var(--gn)'
+	};
+	const TYPE_LABELS: Record<TrainingType, string> = {
+		workout: 'Workout', climbing: 'Climbing', stretching: 'Stretching'
+	};
 
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
@@ -213,15 +220,15 @@
 				sidebarResults = applySidebarFilters(favs);
 				sidebarTotal = sidebarResults.length;
 			} else {
-				const page = await apiClient.getExercises({
+				const p = await apiClient.getExercises({
 					name: rootExerciseSearch.trim() || undefined,
 					tags: filterExerciseTags.length > 0 ? filterExerciseTags.map((t) => t.id) : undefined,
 					limit: SIDEBAR_PAGE_SIZE,
 					offset: 0
 				});
-				sidebarResults = page.exercises;
-				sidebarTotal = page.total;
-				sidebarOffset = page.exercises.length;
+				sidebarResults = p.exercises;
+				sidebarTotal = p.total;
+				sidebarOffset = p.exercises.length;
 			}
 		} finally {
 			sidebarLoading = false;
@@ -232,15 +239,15 @@
 		if (sidebarLoadingMore || !sidebarHasMore) return;
 		sidebarLoadingMore = true;
 		try {
-			const page = await apiClient.getExercises({
+			const p = await apiClient.getExercises({
 				name: rootExerciseSearch.trim() || undefined,
 				tags: filterExerciseTags.length > 0 ? filterExerciseTags.map((t) => t.id) : undefined,
 				limit: SIDEBAR_PAGE_SIZE,
 				offset: sidebarOffset
 			});
-			sidebarResults = [...sidebarResults, ...page.exercises];
-			sidebarTotal = page.total;
-			sidebarOffset += page.exercises.length;
+			sidebarResults = [...sidebarResults, ...p.exercises];
+			sidebarTotal = p.total;
+			sidebarOffset += p.exercises.length;
 		} finally {
 			sidebarLoadingMore = false;
 		}
@@ -331,18 +338,9 @@
 	onMount(() => {
 		authStore.initialize();
 
-		if (!authStore.isAuthenticated) {
-			goto('/');
-			return;
-		}
-		if (!authStore.isEmailVerified) {
-			goto('/verify-email');
-			return;
-		}
-		if (!authStore.isValidatedCoach) {
-			goto('/dashboard');
-			return;
-		}
+		if (!authStore.isAuthenticated) { goto('/'); return; }
+		if (!authStore.isEmailVerified) { goto('/verify-email'); return; }
+		if (!authStore.isValidatedCoach) { goto('/dashboard'); return; }
 
 		loadSidebarExercises();
 	});
@@ -367,84 +365,110 @@
 			saving = false;
 		}
 	}
+
+	const structureButtons = [
+		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
+		{ type: 'section' as TrainingItemType, label: 'Section', icon: 'filter', color: 'var(--tx2)' },
+		{ type: 'hangboard' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' },
+	];
+
+	let allowedStructureButtons = $derived(
+		draft.training_type === 'stretching'
+			? structureButtons.filter(b => b.type === 'circuit' && !draft.items.some(i => i.type === 'circuit'))
+			: structureButtons
+	);
 </script>
 
-<div class="min-h-screen bg-white">
-	<div class="mx-auto max-w-6xl p-6">
-		<div class="mb-6 border-b-2 border-black pb-4">
-			<button
-				onclick={() => goto('/trainings')}
-				style="font-family: monospace; font-size: 14px; color: #666;"
-				class="mb-2 block transition-colors hover:text-black"
-			>
-				&larr; trainings
-			</button>
-			<div class="flex items-start justify-between gap-4">
-				<div class="flex-1 space-y-2">
-					<input
-						type="text"
-						bind:value={draft.title}
-						class="w-full border-2 border-black px-3 py-2 text-2xl font-black outline-none focus:border-[#C6613F]"
-						style="font-family: monospace; letter-spacing: -0.5px;"
-						placeholder="Training title"
-					/>
-					<textarea
-						bind:value={draft.description}
-						rows="2"
-						class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-						style="font-family: monospace; font-size: 15px;"
-						placeholder="Optional description"
-					></textarea>
-					<div class="flex gap-1">
-						{#each (['workout', 'stretching', 'climbing'] as TrainingType[]) as t}
-							<button
-								onclick={() => handleTypeChange(t)}
-								class="border px-3 py-1 transition-colors"
-								style="font-family: monospace; font-size: 12px; {draft.training_type === t ? `background-color: ${TYPE_COLORS[t]}; color: white; border-color: ${TYPE_COLORS[t]};` : 'border-color: #ccc; color: #999;'}"
-							>{t.toUpperCase()}</button>
-						{/each}
-					</div>
-					<textarea
-						bind:value={draft.goal}
-						rows="1"
-						class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-						style="font-family: monospace; font-size: 13px;"
-						placeholder="Goal (optional)"
-					></textarea>
-					{#if draft.training_type === 'climbing'}
-					<textarea
-						bind:value={draft.comment}
-						rows="4"
-						class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-						style="font-family: monospace; font-size: 13px;"
-						placeholder="Describe the session: volume, intensity, focus points, duration..."
-					></textarea>
-					{/if}
-				</div>
-				<button
-					onclick={handleSave}
-					disabled={saving || !draft.title.trim() || (draft.training_type === 'climbing' && !draft.comment?.trim())}
-					class="shrink-0 border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
-					style="font-family: monospace; font-size: 15px; background-color: #C6613F; color: white; border-color: #C6613F;"
-				>
-					{saving ? 'SAVING...' : 'SAVE TRAINING'}
-				</button>
-			</div>
-		</div>
+<svelte:head>
+	<title>{draft.title || 'New training'} - Crimpy</title>
+</svelte:head>
 
-		{#if saveError}
-			<div
-				class="mb-4 border border-red-600 bg-red-50 p-3"
-				style="font-family: monospace; font-size: 14px; color: #B85450;"
-			>
-				{saveError}
-			</div>
-		{/if}
+<AppShell
+	title={draft.title || 'New training'}
+	breadcrumbs={[{ label: 'Studio' }, { label: 'Trainings', href: '/trainings' }, { label: 'New training' }]}
+>
+	{#snippet actions()}
+		<button
+			onclick={handleSave}
+			disabled={saving || !draft.title.trim()}
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 8px 16px; border-radius: var(--rs);
+				background: var(--pr); color: #fff; border: 1px solid var(--pr);
+				font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+				opacity: {saving || !draft.title.trim() ? 0.6 : 1};
+			"
+		>
+			<Icon name="check" size={13} color="#fff" />
+			{saving ? 'Saving...' : 'Save training'}
+		</button>
+	{/snippet}
 
-		{#if draft.training_type !== 'climbing'}
+	{#if draft.training_type !== 'climbing'}
 		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
-			<div class="flex gap-6 items-start">
-				<div class="min-w-0 flex-1">
+			<div class="flex items-start" style="overflow: hidden; height: 100%;">
+				<!-- Main content -->
+				<div class="flex-1 overflow-auto" style="padding: 20px 28px 40px; min-width: 0;">
+					<!-- Meta card -->
+					<div style="
+						background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
+						padding: 18px 22px; box-shadow: var(--sh); margin-bottom: 16px;
+					">
+						<div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-bottom: 12px;">
+							<div>
+								<input
+									type="text"
+									bind:value={draft.title}
+									placeholder="Training title"
+									style="
+										width: 100%; border: none; outline: none; background: transparent;
+										font-family: var(--font); font-size: 20px; font-weight: 700; color: var(--tx);
+										letter-spacing: -0.01em;
+									"
+								/>
+								<input
+									type="text"
+									bind:value={draft.description}
+									placeholder="Description (optional)"
+									style="
+										width: 100%; border: none; outline: none; background: transparent;
+										font-family: var(--font); font-size: 13px; color: var(--tx2); margin-top: 4px;
+									"
+								/>
+							</div>
+							<div style="display: flex; gap: 4px; align-self: flex-start;">
+								{#each (['workout', 'climbing', 'stretching'] as TrainingType[]) as t}
+									<button
+										onclick={() => handleTypeChange(t)}
+										style="
+											padding: 5px 12px; font-size: 12px; font-weight: 600;
+											border-radius: var(--rs); font-family: var(--font);
+											border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
+											background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+											color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
+											cursor: pointer; transition: all 0.15s;
+										"
+									>{TYPE_LABELS[t]}</button>
+								{/each}
+							</div>
+						</div>
+						<div style="display: flex; align-items: center; gap: 8px;">
+							<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">GOAL</span>
+							<input
+								type="text"
+								bind:value={draft.goal}
+								placeholder="Training goal..."
+								style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx2);"
+							/>
+						</div>
+					</div>
+
+					{#if saveError}
+						<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;">
+							{saveError}
+						</div>
+					{/if}
+
 					<ItemList
 						bind:items={draft.items}
 						{exercises}
@@ -455,114 +479,218 @@
 					/>
 				</div>
 
-				<div class="w-60 shrink-0 sticky top-6 space-y-3 p-4">
-					<div class="space-y-2">
-						{#if draft.training_type === 'stretching'}
-							{#if !draft.items.some((i) => i.type === 'circuit')}
-								<SidePanelDraggable
-									id="__new__:circuit"
-									onclick={() => addRootItem('circuit')}
-									class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
-									style="font-family: monospace; font-size: 14px;"
-								>
-									Circuit +
-								</SidePanelDraggable>
-							{/if}
-						{:else}
-							<div class="flex gap-2">
-								{#each (['circuit', 'section'] as TrainingItemType[]) as type}
+				<!-- Right rail -->
+				<div style="
+					width: 260px; flex-shrink: 0; border-left: 1px solid var(--bd);
+					background: var(--panel); display: flex; flex-direction: column; overflow: hidden;
+					position: sticky; top: 0; align-self: flex-start; max-height: calc(100vh - 65px);
+				">
+					<!-- Structure buttons -->
+					{#if allowedStructureButtons.length > 0}
+						<div style="padding: 14px 14px 10px; border-bottom: 1px solid var(--bd2);">
+							<div style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px;">ADD BLOCK</div>
+							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+								{#each allowedStructureButtons as btn}
 									<SidePanelDraggable
-										id={'__new__:' + type}
-										onclick={() => addRootItem(type)}
-										class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
-										style="font-family: monospace; font-size: 14px;"
+										id={'__new__:' + btn.type}
+										onclick={() => addRootItem(btn.type)}
+										style="
+											display: flex; align-items: center; gap: 6px;
+											padding: 7px 12px; border-radius: var(--rs);
+											border: 1px solid var(--bd); background: #fff;
+											font-family: var(--font); font-size: 12px; font-weight: 600;
+											color: {btn.color};
+										"
 									>
-										{type.charAt(0).toUpperCase() + type.slice(1)} +
+										<Icon name={btn.icon} size={13} color={btn.color} />
+										{btn.label}
 									</SidePanelDraggable>
 								{/each}
 							</div>
-							<SidePanelDraggable
-								id="__new__:hangboard"
-								onclick={() => addRootItem('hangboard')}
-								class="w-full border border-black px-3 py-2 transition-colors hover:border-gray-600 hover:text-gray-700"
-								style="font-family: monospace; font-size: 14px;"
-							>
-								Hangboard +
-							</SidePanelDraggable>
-						{/if}
-					</div>
+						</div>
+					{/if}
 
-					<div class="border-t border-gray-100 pt-3 space-y-2">
-						<div class="flex items-center justify-between">
-							<p style="font-family: monospace; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px;">
-								Exercises
-							</p>
-							<div class="flex gap-1">
+					<!-- Exercise library -->
+					<div style="padding: 12px 14px 8px; border-bottom: 1px solid var(--bd2);">
+						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+							<span style="font-size: 12px; font-weight: 700; color: var(--tx);">Exercises</span>
+							<div style="display: flex; gap: 4px;">
 								<button
 									onclick={toggleSidebarFavorites}
-									class="border px-2 py-0.5 transition-colors"
-									style="font-family: monospace; font-size: 12px; {favoritesOnlyExercises ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: #ccc; color: #999;'}"
 									title="Show favorites only"
-								>
-									fav
-								</button>
+									style="
+										padding: 3px 8px; border-radius: var(--rs); font-size: 11px; font-weight: 600;
+										border: 1px solid {favoritesOnlyExercises ? 'var(--pr)' : 'var(--bd)'};
+										background: {favoritesOnlyExercises ? 'var(--pr-lt)' : '#fff'};
+										color: {favoritesOnlyExercises ? 'var(--pr)' : 'var(--tx3)'};
+										cursor: pointer; font-family: var(--font);
+									"
+								>Fav</button>
 								<button
 									onclick={() => (showCreateExerciseModal = true)}
-									class="border border-dashed border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-700"
-									style="font-family: monospace; font-size: 14px;"
 									title="Create new exercise"
+									style="
+										width: 24px; height: 24px; border-radius: var(--rs);
+										border: 1px dashed var(--bd); background: #fff; color: var(--tx3);
+										cursor: pointer; display: flex; align-items: center; justify-content: center;
+									"
 								>
-									+
+									<Icon name="plus" size={12} color="var(--tx3)" />
 								</button>
 							</div>
 						</div>
-						<input
-							type="text"
-							value={rootExerciseSearch}
-							oninput={(e) => handleSidebarSearch(e.currentTarget.value)}
-							placeholder="Search..."
-							class="w-full border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
-							style="font-family: monospace; font-size: 14px;"
-						/>
-						<TagFilterSelect
-							selectedTags={filterExerciseTags}
-							onchange={handleSidebarTagsChange}
-						/>
-						<div class="flex flex-wrap gap-1.5">
-							{#if sidebarLoading}
-								<span style="font-family: monospace; font-size: 13px; color: #bbb;">Loading...</span>
-							{:else if sidebarResults.length > 0}
-								{#each sidebarResults as ex (ex.id)}
-									<SidePanelDraggable
-										id={'__new__:exercise:' + ex.id}
-										onclick={() => addExerciseToTraining(ex)}
-										class="border border-black px-2 py-1 transition-colors hover:border-gray-600 hover:text-gray-700"
-										style="font-family: monospace; font-size: 14px;"
-									>
-										{ex.name} +
-									</SidePanelDraggable>
-								{/each}
-								{#if sidebarHasMore}
-									<button
-										onclick={loadMoreSidebar}
-										disabled={sidebarLoadingMore}
-										class="w-full border border-dashed border-gray-300 px-2 py-1 text-center text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600 disabled:opacity-50"
-										style="font-family: monospace; font-size: 12px;"
-									>
-										{sidebarLoadingMore ? '...' : 'more'}
-									</button>
-								{/if}
-							{:else}
-								<span style="font-family: monospace; font-size: 13px; color: #bbb;">No results</span>
+						<div style="
+							display: flex; align-items: center; gap: 7px;
+							background: var(--panel2); border: 1px solid var(--bd); border-radius: var(--rs);
+							padding: 6px 10px;
+						">
+							<Icon name="search" size={13} color="var(--tx3)" />
+							<input
+								type="text"
+								value={rootExerciseSearch}
+								oninput={(e) => handleSidebarSearch(e.currentTarget.value)}
+								placeholder="Find exercise..."
+								style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12px; color: var(--tx);"
+							/>
+							{#if rootExerciseSearch}
+								<span
+									onclick={() => handleSidebarSearch('')}
+									style="cursor: pointer; color: var(--tx3); font-size: 11px;"
+									role="button"
+									tabindex="0"
+									onkeydown={(e) => e.key === 'Enter' && handleSidebarSearch('')}
+								>x</span>
 							{/if}
 						</div>
+						<div style="margin-top: 6px;">
+							<TagFilterSelect selectedTags={filterExerciseTags} onchange={handleSidebarTagsChange} />
+						</div>
+					</div>
+
+					<div class="flex-1 overflow-auto" style="padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;">
+						{#if sidebarLoading}
+							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">Loading...</div>
+						{:else if sidebarResults.length > 0}
+							{#each sidebarResults as ex (ex.id)}
+								<SidePanelDraggable
+									id={'__new__:exercise:' + ex.id}
+									onclick={() => addExerciseToTraining(ex)}
+									style="
+										display: flex; align-items: center; gap: 8px;
+										padding: 7px 10px; border-radius: var(--rs);
+										background: #fff; border: 1px solid var(--bd);
+										text-align: left; font-family: var(--font);
+										transition: border-color 0.1s;
+									"
+								>
+									<div style="
+										width: 22px; height: 22px; border-radius: 5px;
+										background: var(--pr-fog); color: var(--pr);
+										display: flex; align-items: center; justify-content: center;
+										font-size: 8px; font-weight: 700; flex-shrink: 0;
+									">EX</div>
+									<div style="flex: 1; min-width: 0;">
+										<div style="font-size: 12px; font-weight: 600; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ex.name}</div>
+										{#if ex.tags && ex.tags.length > 0}
+											<div style="font-size: 10px; color: var(--tx3);">{ex.tags.map(t => t.name).join(' · ')}</div>
+										{/if}
+									</div>
+									<Icon name="plus" size={12} color="var(--tx3)" />
+								</SidePanelDraggable>
+							{/each}
+							{#if sidebarHasMore}
+								<button
+									onclick={loadMoreSidebar}
+									disabled={sidebarLoadingMore}
+									style="
+										width: 100%; padding: 6px; border-radius: var(--rs);
+										border: 1px dashed var(--bd); background: transparent;
+										font-size: 11px; color: var(--tx3); cursor: pointer;
+										font-family: var(--font); opacity: {sidebarLoadingMore ? 0.5 : 1};
+									"
+								>{sidebarLoadingMore ? '...' : 'Load more'}</button>
+							{/if}
+						{:else}
+							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">No exercises found</div>
+						{/if}
 					</div>
 				</div>
 			</div>
 		</DragDropProvider>
-		{/if}
-	</div>
-</div>
+	{:else}
+		<div style="padding: 20px 28px 40px;">
+			<!-- Meta card (climbing - no item tree) -->
+			<div style="
+				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
+				padding: 18px 22px; box-shadow: var(--sh); margin-bottom: 16px;
+			">
+				<div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-bottom: 12px;">
+					<div>
+						<input
+							type="text"
+							bind:value={draft.title}
+							placeholder="Training title"
+							style="
+								width: 100%; border: none; outline: none; background: transparent;
+								font-family: var(--font); font-size: 20px; font-weight: 700; color: var(--tx);
+								letter-spacing: -0.01em;
+							"
+						/>
+						<input
+							type="text"
+							bind:value={draft.description}
+							placeholder="Description (optional)"
+							style="
+								width: 100%; border: none; outline: none; background: transparent;
+								font-family: var(--font); font-size: 13px; color: var(--tx2); margin-top: 4px;
+							"
+						/>
+					</div>
+					<div style="display: flex; gap: 4px; align-self: flex-start;">
+						{#each (['workout', 'climbing', 'stretching'] as TrainingType[]) as t}
+							<button
+								onclick={() => handleTypeChange(t)}
+								style="
+									padding: 5px 12px; font-size: 12px; font-weight: 600;
+									border-radius: var(--rs); font-family: var(--font);
+									border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
+									background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+									color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
+									cursor: pointer; transition: all 0.15s;
+								"
+							>{TYPE_LABELS[t]}</button>
+						{/each}
+					</div>
+				</div>
+				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+					<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">GOAL</span>
+					<input
+						type="text"
+						bind:value={draft.goal}
+						placeholder="Training goal..."
+						style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx2);"
+					/>
+				</div>
+				<textarea
+					bind:value={draft.comment}
+					rows="5"
+					placeholder="Describe the session: volume, intensity, focus points, duration..."
+					style="
+						width: 100%; resize: none; border: 1px solid var(--bd); border-radius: var(--rs);
+						padding: 10px 12px; outline: none; font-family: var(--font); font-size: 13px;
+						color: var(--tx); background: var(--panel2); line-height: 1.5;
+					"
+				></textarea>
+			</div>
+
+			{#if saveError}
+				<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;">
+					{saveError}
+				</div>
+			{/if}
+		</div>
+	{/if}
+</AppShell>
 
 {#if showCreateExerciseModal}
 	<CreateExerciseModal
