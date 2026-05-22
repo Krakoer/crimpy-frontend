@@ -2,6 +2,7 @@
 	import type { TrainingItem, LoadUnit } from '$lib/api/client';
 	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -12,6 +13,8 @@
 
 	let collapsed = $state(false);
 	let confirmDelete = $state(false);
+
+	const HB_COLOR = '#4A7C8C';
 
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
 
@@ -31,10 +34,8 @@
 		{ value: 'lbs', label: 'lbs' }
 	];
 
-	// Detect per-rep mode from edge array length only (loads can be 2 for per-hand without being per-rep)
 	let perRep = $state((item.edge_sizes_mm?.length ?? 0) > 1);
 
-	// Seed uniform controls from item's first element (or defaults)
 	let uniformEdge = $state(item.edge_sizes_mm?.[0] ?? 20);
 	let uniformLoadValue = $state(item.loads?.[0]?.value ?? 0);
 	let uniformLoadUnit = $state<LoadUnit>(item.loads?.[0]?.unit ?? 'percent_bw');
@@ -42,14 +43,12 @@
 	let uniformLoadUnitR = $state<LoadUnit>(item.loads?.[1]?.unit ?? item.loads?.[0]?.unit ?? 'percent_bw');
 	let uniformHandPos = $state(item.hand_positions?.[0]?.[0] ?? 'HC');
 
-	// One-time initialization of scalar fields (runs synchronously, not in an effect)
 	if (item.both_hands === undefined) item.both_hands = true;
 	if (!item.reps) item.reps = 6;
 	if (!item.cycles) item.cycles = 3;
 	if (!item.hb_worktime_seconds) item.hb_worktime_seconds = 7;
 	if (!item.rest_seconds) item.rest_seconds = 3;
 	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
-	// Initialize arrays for brand-new items that have no data yet
 	untrack(() => {
 		if (!item.edge_sizes_mm?.length) {
 			item.edge_sizes_mm = [uniformEdge];
@@ -113,13 +112,11 @@
 		if (perRep) {
 			const prev_load = item.loads ?? [];
 			if (item.both_hands) {
-				// Switching to per-hand: interleave, duplicating each rep's load as the initial R value
 				item.loads = Array.from({ length: n }, (_, i) => {
 					const load = prev_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit };
 					return [load, { ...load }];
 				}).flat();
 			} else {
-				// Switching back to both-hands: de-interleave, keeping L loads
 				item.loads = Array.from({ length: n }, (_, i) =>
 					prev_load[2 * i] ?? { value: uniformLoadValue, unit: uniformLoadUnit }
 				);
@@ -132,379 +129,239 @@
 	function onUniformChange() {
 		if (!perRep) resizeArraysToReps();
 	}
+
+	let collapsedSummary = $derived.by(() => {
+		const edge = item.edge_sizes_mm?.[0] ?? 20;
+		const grip = item.hand_positions?.[0]?.[0] ?? 'HC';
+		return `${item.cycles}x${item.reps} · ${item.hb_worktime_seconds}s on / ${item.rest_seconds}s off · ${edge}mm ${grip}`;
+	});
+
+	const inputStyle = 'width: 44px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;';
+	const labelStyle = 'font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;';
 </script>
 
-<div class="border border-black bg-white" style="border-left: 3px solid #4A7C8C; border-radius: 4px;">
-	<div class="flex items-center gap-2 px-3 py-2">
-		<button
-			onclick={() => (collapsed = !collapsed)}
-			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 15px;"
-			aria-label="Toggle collapse"
-		>
-			{collapsed ? '>' : 'V'}
-		</button>
-		{#if confirmDelete}
-			<span class="flex-1 truncate" style="font-family: monospace; font-size: 13px; color: #B85450;">
-				Delete hangboard?
-			</span>
-			<button
-				onclick={onRemove}
-				class="border border-red-300 px-2 py-0.5 text-red-500 transition-colors hover:bg-red-50"
-				style="font-family: monospace; font-size: 12px;"
-			>
-				yes
-			</button>
-			<button
-				onclick={() => (confirmDelete = false)}
-				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
-				style="font-family: monospace; font-size: 12px;"
-			>
-				no
-			</button>
-		{:else}
-			<span
-				class="shrink-0 font-bold"
-				style="font-family: monospace; font-size: 14px; color: #4A7C8C; letter-spacing: 0.5px;"
-			>HANGBOARD</span>
-			<div class="flex-1"></div>
-			<button
-				onclick={() => (confirmDelete = true)}
-				class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-400 hover:text-red-500"
-				style="font-family: monospace; font-size: 12px;"
-			>
-				del
-			</button>
-		{/if}
+<div style="background: #fff; border-radius: var(--rl); border: 1px solid color-mix(in srgb, {HB_COLOR} 30%, transparent); box-shadow: var(--sh); overflow: hidden;">
+	<div
+		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed ? '#fff' : 'var(--panel2)'};"
+		onclick={() => { if (!confirmDelete) collapsed = !collapsed; }}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === 'Enter' && !confirmDelete && (collapsed = !collapsed)}
+	>
+		<div style="width: 4px; height: 20px; background: {HB_COLOR}; border-radius: 2px; flex-shrink: 0;"></div>
+		<div style="transform: {collapsed ? 'rotate(0deg)' : 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;">
+			<Icon name="chevron" size={12} color="var(--tx3)" />
+		</div>
+		<span style="font-size: 13px; font-weight: 700; color: {HB_COLOR}; flex: 1; display: flex; align-items: center; gap: 8px;">
+			Hangboard
+			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
+		</span>
+		<div style="display: flex; gap: 3px; flex-shrink: 0;" onclick={(e) => e.stopPropagation()} role="none">
+			{#if confirmDelete}
+				<button
+					onclick={onRemove}
+					style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+				>Delete</button>
+				<button
+					onclick={() => (confirmDelete = false)}
+					style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+				>Cancel</button>
+			{:else}
+				<button
+					onclick={() => (confirmDelete = true)}
+					title="Delete"
+					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+				>
+					<Icon name="trash" size={11} color="var(--tx3)" />
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	{#if !collapsed}
-	<div class="border-t border-gray-100">
-		<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">
-			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 14px; color: #999;">Sets</span>
-				<input
-					type="number"
-					min="1"
-					bind:value={item.cycles}
-					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 14px;"
-				/>
+		<div style="border-top: 1px solid var(--bd2); padding: 14px 18px;">
+			<!-- Row 1: sets x reps, work/rest, set rest, hands -->
+			<div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end;">
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style={labelStyle}>SETS</span>
+					<input type="number" min="1" bind:value={item.cycles} onclick={(e) => e.stopPropagation()} style={inputStyle} />
+				</div>
+				<span style="font-size: 16px; color: var(--tx3); padding-bottom: 6px;">x</span>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style={labelStyle}>REPS</span>
+					<input type="number" min="1" bind:value={item.reps} oninput={onRepsChange} onclick={(e) => e.stopPropagation()} style={inputStyle} />
+				</div>
+				<div style="width: 1px; height: 30px; background: var(--bd);"></div>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style={labelStyle}>WORK</span>
+					<div style="display: flex; align-items: center; gap: 2px;">
+						<input type="number" min="1" bind:value={item.hb_worktime_seconds} onclick={(e) => e.stopPropagation()} style={inputStyle} />
+						<span style="font-size: 10px; color: var(--tx3);">s</span>
+					</div>
+				</div>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style={labelStyle}>REP REST</span>
+					<div style="display: flex; align-items: center; gap: 2px;">
+						<input type="number" min="0" bind:value={item.rest_seconds} onclick={(e) => e.stopPropagation()} style={inputStyle} />
+						<span style="font-size: 10px; color: var(--tx3);">s</span>
+					</div>
+				</div>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style={labelStyle}>SET REST</span>
+					<div style="display: flex; align-items: center; gap: 2px;">
+						<input type="number" min="0" bind:value={item.cycle_rest_seconds} onclick={(e) => e.stopPropagation()} style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+						<span style="font-size: 10px; color: var(--tx3);">s</span>
+					</div>
+				</div>
+				<div style="width: 1px; height: 30px; background: var(--bd);"></div>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style={labelStyle}>HANDS</span>
+					<button
+						onclick={onBothHandsToggle}
+						style="
+							padding: 5px 10px; border-radius: 5px;
+							border: 1px solid {item.both_hands ? HB_COLOR : 'var(--bd)'};
+							background: {item.both_hands ? HB_COLOR + '18' : '#fff'};
+							color: {item.both_hands ? HB_COLOR : 'var(--tx3)'};
+							font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);
+						"
+					>{item.both_hands ? 'Both' : 'L / R'}</button>
+				</div>
 			</div>
-			<span style="color: #ccc; font-size: 15px;">x</span>
-			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 14px; color: #999;">Reps</span>
-				<input
-					type="number"
-					min="1"
-					bind:value={item.reps}
-					oninput={onRepsChange}
-					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 14px;"
-				/>
-			</div>
-			<div class="h-3 w-px bg-gray-200"></div>
-			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 14px; color: #999;">Work</span>
-				<input
-					type="number"
-					min="1"
-					bind:value={item.hb_worktime_seconds}
-					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 14px;"
-				/>
-				<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
-			</div>
-			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 14px; color: #999;">Rep rest</span>
-				<input
-					type="number"
-					min="0"
-					bind:value={item.rest_seconds}
-					class="w-10 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 14px;"
-				/>
-				<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
-			</div>
-			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 14px; color: #999;">Set rest</span>
-				<input
-					type="number"
-					min="0"
-					bind:value={item.cycle_rest_seconds}
-					class="w-12 border border-gray-200 px-1 py-0.5 text-center outline-none focus:border-black"
-					style="font-family: monospace; font-size: 14px;"
-				/>
-				<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
-			</div>
-			<div class="h-3 w-px bg-gray-200"></div>
-			<div class="flex items-center gap-1.5">
-				<span style="font-family: monospace; font-size: 14px; color: #999;">Both hands</span>
+
+			<!-- Row 2: rep config toggle + uniform or per-rep -->
+			<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REP CONFIG</span>
 				<button
-					onclick={onBothHandsToggle}
-					class="border px-2 py-0.5 text-center transition-colors"
-					style="font-family: monospace; font-size: 15px; width: 2.6rem; border-color: {item.both_hands ? '#C6613F' : '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
-				>
-					{item.both_hands ? 'yes' : 'no'}
-				</button>
+					onclick={togglePerRep}
+					style="
+						padding: 3px 10px; font-size: 11px; font-weight: 600;
+						border-radius: 999px; border: 1px solid {perRep ? HB_COLOR : 'var(--bd)'};
+						background: {perRep ? HB_COLOR + '15' : '#fff'};
+						color: {perRep ? HB_COLOR : 'var(--tx3)'};
+						cursor: pointer; font-family: var(--font);
+					"
+				>{perRep ? 'Per-rep ON' : 'Uniform'}</button>
 			</div>
-		</div>
 
-	<div class="border-t border-gray-200 px-3 py-2">
-		<div class="mb-2 flex items-center justify-between">
-			<span style="font-family: monospace; font-size: 14px; color: #999;">REP PARAMETERS</span>
-			<button
-				onclick={togglePerRep}
-				class="border px-2 py-0.5 transition-colors"
-				style="font-family: monospace; font-size: 15px; border-color: {perRep ? '#C6613F' : '#ccc'}; color: {perRep ? '#C6613F' : '#999'};"
-			>
-				{perRep ? 'PER-REP ON' : 'PER-REP OFF'}
-			</button>
-		</div>
-
-		{#if !perRep}
-			<div class="grid grid-cols-3 gap-2">
-				<div>
-					<label for="hb-edge" class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">EDGE (mm)</label>
-					<input
-						id="hb-edge"
-						type="number"
-						min="1"
-						bind:value={uniformEdge}
-						oninput={onUniformChange}
-						class="w-full border border-gray-300 px-2 py-1 text-center outline-none"
-						style="font-family: monospace; font-size: 14px;"
-					/>
-				</div>
-				<div>
-					<p class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">LOAD</p>
-					{#if item.both_hands}
-						<div class="flex gap-1">
-							<input
-								type="number"
-								min="0"
-								bind:value={uniformLoadValue}
-								oninput={onUniformChange}
-								class="w-14 border border-gray-300 px-1 py-1 text-center outline-none"
-								style="font-family: monospace; font-size: 14px;"
-							/>
-							<select
-								bind:value={uniformLoadUnit}
-								onchange={onUniformChange}
-								class="flex-1 border border-gray-300 px-1 py-1 outline-none"
-								style="font-family: monospace; font-size: 15px;"
-							>
-								{#each LOAD_UNITS as u}
-									<option value={u.value}>{u.label}</option>
-								{/each}
-							</select>
-						</div>
-					{:else}
-						<div class="flex flex-col gap-1">
-							<div class="flex items-center gap-1">
-								<span style="font-family: monospace; font-size: 11px; color: #999; width: 10px;">L</span>
-								<input
-									type="number"
-									min="0"
-									bind:value={uniformLoadValue}
-									oninput={onUniformChange}
-									class="w-14 border border-gray-300 px-1 py-1 text-center outline-none"
-									style="font-family: monospace; font-size: 14px;"
-								/>
-								<select
-									bind:value={uniformLoadUnit}
-									onchange={onUniformChange}
-									class="flex-1 border border-gray-300 px-1 py-1 outline-none"
-									style="font-family: monospace; font-size: 15px;"
-								>
-									{#each LOAD_UNITS as u}
-										<option value={u.value}>{u.label}</option>
-									{/each}
+			{#if !perRep}
+				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
+					<div style="display: flex; flex-direction: column; gap: 2px;">
+						<label for="hb-edge" style={labelStyle}>EDGE (mm)</label>
+						<input id="hb-edge" type="number" min="1" bind:value={uniformEdge} oninput={onUniformChange}
+							style="width: 64px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+					</div>
+					<div style="display: flex; flex-direction: column; gap: 2px;">
+						<span style={labelStyle}>LOAD</span>
+						{#if item.both_hands}
+							<div style="display: flex; gap: 4px;">
+								<input type="number" min="0" bind:value={uniformLoadValue} oninput={onUniformChange}
+									style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+								<select bind:value={uniformLoadUnit} onchange={onUniformChange}
+									style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;">
+									{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
 								</select>
 							</div>
-							<div class="flex items-center gap-1">
-								<span style="font-family: monospace; font-size: 11px; color: #999; width: 10px;">R</span>
-								<input
-									type="number"
-									min="0"
-									bind:value={uniformLoadValueR}
-									oninput={onUniformChange}
-									class="w-14 border border-gray-300 px-1 py-1 text-center outline-none"
-									style="font-family: monospace; font-size: 14px;"
-								/>
-								<select
-									bind:value={uniformLoadUnitR}
-									onchange={onUniformChange}
-									class="flex-1 border border-gray-300 px-1 py-1 outline-none"
-									style="font-family: monospace; font-size: 15px;"
-								>
-									{#each LOAD_UNITS as u}
-										<option value={u.value}>{u.label}</option>
-									{/each}
-								</select>
+						{:else}
+							<div style="display: flex; flex-direction: column; gap: 3px;">
+								<div style="display: flex; align-items: center; gap: 4px;">
+									<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
+									<input type="number" min="0" bind:value={uniformLoadValue} oninput={onUniformChange}
+										style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+									<select bind:value={uniformLoadUnit} onchange={onUniformChange}
+										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;">
+										{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+									</select>
+								</div>
+								<div style="display: flex; align-items: center; gap: 4px;">
+									<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
+									<input type="number" min="0" bind:value={uniformLoadValueR} oninput={onUniformChange}
+										style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+									<select bind:value={uniformLoadUnitR} onchange={onUniformChange}
+										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;">
+										{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+									</select>
+								</div>
 							</div>
-						</div>
-					{/if}
+						{/if}
+					</div>
+					<div style="display: flex; flex-direction: column; gap: 2px;">
+						<label for="hb-grip" style={labelStyle}>GRIP</label>
+						<select id="hb-grip" bind:value={uniformHandPos} onchange={onUniformChange}
+							style="padding: 5px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;">
+							{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+						</select>
+					</div>
 				</div>
-				<div>
-					<label for="hb-grip" class="mb-0.5 block" style="font-family: monospace; font-size: 14px; color: #999;">GRIP</label>
-					<select
-						id="hb-grip"
-						bind:value={uniformHandPos}
-						onchange={onUniformChange}
-						class="w-full border border-gray-300 px-1 py-1 outline-none"
-						style="font-family: monospace; font-size: 14px;"
-					>
-						{#each HAND_POSITIONS as p}
-							<option value={p}>{p}</option>
-						{/each}
-					</select>
-				</div>
-			</div>
-		{:else}
-			<!-- Per-rep grid -->
-			<div class="overflow-x-auto">
-				<table class="w-full border-collapse" style="font-family: monospace; font-size: 15px;">
-					<thead>
-						<tr class="bg-gray-50">
-							<th class="border border-gray-200 px-2 py-1 text-left font-medium" style="color: #999;">REP</th>
-							<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">EDGE (mm)</th>
-							{#if item.both_hands}
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">LOAD</th>
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">UNIT</th>
-							{:else}
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">L LOAD</th>
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">L UNIT</th>
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">R LOAD</th>
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">R UNIT</th>
-							{/if}
-							{#if item.both_hands}
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">GRIP</th>
-							{:else}
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">L GRIP</th>
-								<th class="border border-gray-200 px-2 py-1 text-center font-medium" style="color: #999;">R GRIP</th>
-							{/if}
-						</tr>
-					</thead>
-					<tbody>
-						{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as repIdx}
+			{:else}
+				<div style="overflow-x: auto;">
+					<table style="border-collapse: collapse; font-family: var(--font); font-size: 12px; min-width: 350px;">
+						<thead>
 							<tr>
-								<td class="border border-gray-200 px-2 py-1 text-center font-bold">{repIdx + 1}</td>
-								<td class="border border-gray-200 px-1 py-1">
-									<input
-										type="number"
-										min="1"
-										bind:value={item.edge_sizes_mm![repIdx]}
-										class="w-full border-0 text-center outline-none"
-										style="font-family: monospace; font-size: 15px;"
-									/>
-								</td>
-								{#if item.both_hands}
-									<td class="border border-gray-200 px-1 py-1">
-										<input
-											type="number"
-											min="0"
-											bind:value={item.loads![repIdx].value}
-											class="w-full border-0 text-center outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										/>
-									</td>
-									<td class="border border-gray-200 px-1 py-1">
-										<select
-											bind:value={item.loads![repIdx].unit}
-											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										>
-											{#each LOAD_UNITS as u}
-												<option value={u.value}>{u.label}</option>
-											{/each}
-										</select>
-									</td>
-								{:else}
-									<td class="border border-gray-200 px-1 py-1">
-										<input
-											type="number"
-											min="0"
-											bind:value={item.loads![2 * repIdx].value}
-											class="w-full border-0 text-center outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										/>
-									</td>
-									<td class="border border-gray-200 px-1 py-1">
-										<select
-											bind:value={item.loads![2 * repIdx].unit}
-											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										>
-											{#each LOAD_UNITS as u}
-												<option value={u.value}>{u.label}</option>
-											{/each}
-										</select>
-									</td>
-									<td class="border border-gray-200 px-1 py-1">
-										<input
-											type="number"
-											min="0"
-											bind:value={item.loads![2 * repIdx + 1].value}
-											class="w-full border-0 text-center outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										/>
-									</td>
-									<td class="border border-gray-200 px-1 py-1">
-										<select
-											bind:value={item.loads![2 * repIdx + 1].unit}
-											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										>
-											{#each LOAD_UNITS as u}
-												<option value={u.value}>{u.label}</option>
-											{/each}
-										</select>
-									</td>
-								{/if}
-								{#if item.both_hands}
-									<td class="border border-gray-200 px-1 py-1">
-										<select
-											bind:value={item.hand_positions![0][repIdx]}
-											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										>
-											{#each HAND_POSITIONS as p}
-												<option value={p}>{p}</option>
-											{/each}
-										</select>
-									</td>
-								{:else}
-									<td class="border border-gray-200 px-1 py-1">
-										<select
-											bind:value={item.hand_positions![0][repIdx]}
-											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										>
-											{#each HAND_POSITIONS as p}
-												<option value={p}>{p}</option>
-											{/each}
-										</select>
-									</td>
-									<td class="border border-gray-200 px-1 py-1">
-										<select
-											bind:value={item.hand_positions![1][repIdx]}
-											class="w-full border-0 outline-none"
-											style="font-family: monospace; font-size: 15px;"
-										>
-											{#each HAND_POSITIONS as p}
-												<option value={p}>{p}</option>
-											{/each}
-										</select>
-									</td>
-								{/if}
+								{#each (item.both_hands ? ['Rep', 'Edge (mm)', 'Load', 'Unit', 'Grip'] : ['Rep', 'Edge (mm)', 'L Load', 'L Unit', 'R Load', 'R Unit', 'L Grip', 'R Grip']) as h}
+									<th style="padding: 5px 8px; background: var(--panel2); font-weight: 600; color: var(--tx3); text-align: center; font-size: 10px; letter-spacing: 0.04em; border: 1px solid var(--bd2);">{h}</th>
+								{/each}
 							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
-	</div>
-	</div>
+						</thead>
+						<tbody>
+							{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as ri}
+								<tr>
+									<td style="padding: 4px 6px; text-align: center; font-weight: 700; color: var(--tx); border: 1px solid var(--bd2);">{ri + 1}</td>
+									<td style="padding: 2px; border: 1px solid var(--bd2);">
+										<input type="number" min="1" bind:value={item.edge_sizes_mm![ri]}
+											style="width: 100%; padding: 4px 2px; text-align: center; border: none; outline: none; font-family: var(--font); font-size: 12px;" />
+									</td>
+									{#if item.both_hands}
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<input type="number" min="0" bind:value={item.loads![ri].value}
+												style="width: 100%; padding: 4px 2px; text-align: center; border: none; outline: none; font-family: var(--font); font-size: 12px;" />
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<select bind:value={item.loads![ri].unit} style="width: 100%; border: none; outline: none; font-family: var(--font); font-size: 11px;">
+												{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+											</select>
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<select bind:value={item.hand_positions![0][ri]} style="width: 100%; border: none; outline: none; font-family: var(--font); font-size: 11px;">
+												{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+											</select>
+										</td>
+									{:else}
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<input type="number" min="0" bind:value={item.loads![2 * ri].value}
+												style="width: 100%; padding: 4px 2px; text-align: center; border: none; outline: none; font-family: var(--font); font-size: 12px;" />
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<select bind:value={item.loads![2 * ri].unit} style="width: 100%; border: none; outline: none; font-family: var(--font); font-size: 11px;">
+												{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+											</select>
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<input type="number" min="0" bind:value={item.loads![2 * ri + 1].value}
+												style="width: 100%; padding: 4px 2px; text-align: center; border: none; outline: none; font-family: var(--font); font-size: 12px;" />
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<select bind:value={item.loads![2 * ri + 1].unit} style="width: 100%; border: none; outline: none; font-family: var(--font); font-size: 11px;">
+												{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+											</select>
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<select bind:value={item.hand_positions![0][ri]} style="width: 100%; border: none; outline: none; font-family: var(--font); font-size: 11px;">
+												{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+											</select>
+										</td>
+										<td style="padding: 2px; border: 1px solid var(--bd2);">
+											<select bind:value={item.hand_positions![1][ri]} style="width: 100%; border: none; outline: none; font-family: var(--font); font-size: 11px;">
+												{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+											</select>
+										</td>
+									{/if}
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+		</div>
 	{/if}
 </div>
