@@ -143,13 +143,21 @@
 		return `${fmt(weekStart)} - ${fmt(weekEnd)}`;
 	});
 
-	const activeProgram = $derived(programs.length > 0 ? programs[0] : null);
+	type ProgramStatus = { state: 'upcoming' | 'active' | 'completed'; week: number };
 
-	function computeCurrentWeek(startDate: string, durationWeeks?: number): number {
-		const start = new Date(startDate);
-		const diffWeeks = Math.max(1, Math.ceil((Date.now() - start.getTime()) / (7 * 86400000)));
-		return durationWeeks ? Math.min(diffWeeks, durationWeeks) : diffWeeks;
+	function programStatus(startDate: string, durationWeeks?: number): ProgramStatus {
+		const diffMs = Date.now() - new Date(startDate).getTime();
+		if (diffMs < 0) return { state: 'upcoming', week: 0 };
+		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
+		if (durationWeeks && week > durationWeeks) return { state: 'completed', week: durationWeeks };
+		return { state: 'active', week };
 	}
+
+	const activeProgram = $derived(
+		programs.find((p) => programStatus(p.start_date, p.duration_weeks).state === 'active') ??
+		programs.find((p) => programStatus(p.start_date, p.duration_weeks).state === 'upcoming') ??
+		null
+	);
 
 	function groupSessionsByDate(
 		items: SessionResponse[]
@@ -548,11 +556,11 @@
 						">No assessments yet.</div>
 					{/if}
 
-					<!-- Active program card -->
+					<!-- Active/upcoming program card -->
 					{#if activeProgram}
-						{@const currentWk = computeCurrentWeek(activeProgram.start_date, activeProgram.duration_weeks)}
-						{@const totalWks = activeProgram.duration_weeks ?? currentWk}
-						{@const progress = Math.min(currentWk / totalWks, 1)}
+						{@const ps = programStatus(activeProgram.start_date, activeProgram.duration_weeks)}
+						{@const totalWks = activeProgram.duration_weeks}
+						{@const progress = totalWks ? Math.min(ps.week / totalWks, 1) : 0}
 						<button
 							onclick={() => goto(`/coachees/${data.id}/programs/${activeProgram.id}`)}
 							style="
@@ -564,18 +572,25 @@
 							onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
 						>
 							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-								<div style="font-size: 11px; font-weight: 600; color: var(--tx); letter-spacing: 0.04em; text-transform: uppercase;">Active program</div>
-								<span style="
-									display: inline-flex; padding: 2px 8px; border-radius: 999px;
-									font-size: 11px; font-weight: 600;
-									background: #e3ede4; color: var(--gn);
-								">Week {currentWk}{totalWks ? ` / ${totalWks}` : ''}</span>
+								<div style="font-size: 11px; font-weight: 600; color: var(--tx); letter-spacing: 0.04em; text-transform: uppercase;">{ps.state === 'upcoming' ? 'Upcoming program' : 'Active program'}</div>
+								{#if ps.state === 'active'}
+									<span style="
+										display: inline-flex; padding: 2px 8px; border-radius: 999px;
+										font-size: 11px; font-weight: 600;
+										background: #e3ede4; color: var(--gn);
+									">Week {ps.week}{totalWks ? ` / ${totalWks}` : ''}</span>
+								{:else if ps.state === 'upcoming'}
+									<span style="
+										display: inline-flex; padding: 2px 8px; border-radius: 999px;
+										font-size: 11px; font-weight: 600; background: var(--bd2); color: var(--tx3);
+									">Starts soon</span>
+								{/if}
 							</div>
 							<div style="font-size: 14.5px; font-weight: 600; color: var(--tx); margin-bottom: 4px;">{activeProgram.name}</div>
 							{#if activeProgram.objective}
 								<div style="font-size: 12.5px; color: var(--tx2); margin-bottom: 12px;">{activeProgram.objective}</div>
 							{/if}
-							{#if activeProgram.duration_weeks}
+							{#if totalWks && ps.state === 'active'}
 								<div style="height: 5px; background: var(--bd2); border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
 									<div style="width: {(progress * 100).toFixed(0)}%; height: 100%; background: var(--pr); border-radius: 3px;"></div>
 								</div>
@@ -716,32 +731,35 @@
 					</div>
 				{:else}
 					{#each programs as program (program.id)}
-						{@const currentWk = computeCurrentWeek(program.start_date, program.duration_weeks)}
+						{@const ps = programStatus(program.start_date, program.duration_weeks)}
 						{@const totalWks = program.duration_weeks}
-						{@const isActive = !totalWks || currentWk <= totalWks}
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 						<div
+							onclick={(e) => { if (!(e.target as HTMLElement).closest('button')) goto(`/coachees/${data.id}/programs/${program.id}`); }}
 							style="
 								background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-								box-shadow: var(--sh); overflow: hidden; transition: border-color 0.15s;
+								box-shadow: var(--sh); overflow: hidden; transition: border-color 0.15s; cursor: pointer;
 							"
 							onmouseenter={(e) => (e.currentTarget.style.borderColor = 'rgba(194,113,79,0.4)')}
 							onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
 						>
-							{#if isActive}
+							{#if ps.state === 'active'}
 								<div style="height: 3px; background: linear-gradient(90deg, var(--pr), var(--gd));"></div>
 							{/if}
 							<div style="padding: 18px 22px; display: flex; gap: 20px; align-items: center;">
 								<div style="flex: 1; min-width: 0;">
 									<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-										<button
-											onclick={() => goto(`/coachees/${data.id}/programs/${program.id}`)}
-											style="font-size: 16px; font-weight: 700; color: var(--tx); letter-spacing: -0.01em; background: none; border: none; cursor: pointer; padding: 0; font-family: var(--font); text-align: left;"
-										>{program.name}</button>
-										{#if isActive}
+										<span style="font-size: 16px; font-weight: 700; color: var(--tx); letter-spacing: -0.01em;">{program.name}</span>
+										{#if ps.state === 'active'}
 											<span style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
 												font-size: 11px; font-weight: 600; background: #e3ede4; color: var(--gn);
-											">Active · Week {currentWk}</span>
+											">Active · Week {ps.week}</span>
+										{:else if ps.state === 'upcoming'}
+											<span style="
+												display: inline-flex; padding: 2px 8px; border-radius: 999px;
+												font-size: 11px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
+											">Upcoming</span>
 										{:else}
 											<span style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
@@ -762,13 +780,13 @@
 								</div>
 
 								<div style="display: flex; gap: 10px; align-items: center; flex-shrink: 0;">
-									{#if isActive && totalWks}
+									{#if ps.state === 'active' && totalWks}
 										<div style="width: 60px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
 											<div style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">PROGRESS</div>
 											<div style="width: 100%; height: 5px; background: var(--bd2); border-radius: 3px; overflow: hidden;">
-												<div style="width: {Math.min(currentWk / totalWks * 100, 100).toFixed(0)}%; height: 100%; background: var(--pr); border-radius: 3px;"></div>
+												<div style="width: {Math.min(ps.week / totalWks * 100, 100).toFixed(0)}%; height: 100%; background: var(--pr); border-radius: 3px;"></div>
 											</div>
-											<div style="font-size: 10px; color: var(--tx3);">{currentWk}/{totalWks}</div>
+											<div style="font-size: 10px; color: var(--tx3);">{ps.week}/{totalWks}</div>
 										</div>
 									{/if}
 
@@ -792,12 +810,7 @@
 										>
 											<Icon name="trash" size={14} color="currentColor" />
 										</button>
-										<button
-											onclick={() => goto(`/coachees/${data.id}/programs/${program.id}`)}
-											style="width: 32px; height: 32px; border-radius: var(--rs); border: 1px solid var(--bd); color: var(--tx3); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-										>
-											<Icon name="chevron" size={16} color="var(--tx3)" />
-										</button>
+										<Icon name="chevron" size={16} color="var(--tx3)" />
 									{/if}
 								</div>
 							</div>

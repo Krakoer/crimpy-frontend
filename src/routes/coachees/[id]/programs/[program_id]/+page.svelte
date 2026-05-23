@@ -435,9 +435,19 @@
 
 	const computedCurrentWeek = $derived.by(() => {
 		if (!program) return 1;
-		const diffWeeks = Math.max(1, Math.ceil((Date.now() - new Date(program.start_date).getTime()) / (7 * 86400000)));
-		return program.duration_weeks ? Math.min(diffWeeks, program.duration_weeks) : diffWeeks;
+		const diffMs = Date.now() - new Date(program.start_date).getTime();
+		if (diffMs < 0) return 1;
+		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
+		return program.duration_weeks ? Math.min(week, program.duration_weeks) : week;
 	});
+
+	const isProgramUpcoming = $derived(
+		program ? Date.now() < new Date(program.start_date).getTime() : false
+	);
+
+	const isProgramCompleted = $derived(
+		program?.duration_weeks ? computedCurrentWeek >= program.duration_weeks && Date.now() > new Date(program.start_date).getTime() : false
+	);
 
 	const totalSessions = $derived(
 		Object.values(weekDrafts).reduce(
@@ -619,10 +629,22 @@
 				</div>
 			{:else}
 				<div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; margin-bottom: 10px;">
-					<span style="
-						display: inline-flex; padding: 2px 9px; border-radius: 999px;
-						font-size: 11.5px; font-weight: 600; background: #e3ede4; color: var(--gn);
-					">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span>
+					{#if isProgramUpcoming}
+						<span style="
+							display: inline-flex; padding: 2px 9px; border-radius: 999px;
+							font-size: 11.5px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
+						">Upcoming</span>
+					{:else if isProgramCompleted}
+						<span style="
+							display: inline-flex; padding: 2px 9px; border-radius: 999px;
+							font-size: 11.5px; font-weight: 600; background: var(--bd2); color: var(--tx3);
+						">Completed · {program.duration_weeks} weeks</span>
+					{:else}
+						<span style="
+							display: inline-flex; padding: 2px 9px; border-radius: 999px;
+							font-size: 11.5px; font-weight: 600; background: #e3ede4; color: var(--gn);
+						">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span>
+					{/if}
 					{#if program.objective}
 						<span style="font-size: 12.5px; color: var(--tx2);">{program.objective}</span>
 						<span style="font-size: 12px; color: var(--tx3);">·</span>
