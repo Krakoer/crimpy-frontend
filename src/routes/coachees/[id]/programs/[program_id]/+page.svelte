@@ -91,6 +91,7 @@
 	}
 
 	let program = $state<Program | null>(null);
+	let coacheeName = $state('Coachee');
 	let loading = $state(true);
 	let error = $state('');
 	let editing = $state(false);
@@ -450,6 +451,10 @@
 
 	onMount(async () => {
 		authStore.initialize();
+		apiClient.getEnrollments().then((enrollments) => {
+			const found = enrollments.find((e) => e.user_id === userId);
+			if (found) coacheeName = `${found.user_firstname} ${found.user_lastname}`;
+		}).catch(() => {});
 		loading = true;
 		try {
 			const [p, w, t] = await Promise.all([
@@ -492,7 +497,7 @@
 	breadcrumbs={[
 		{ label: 'Studio' },
 		{ label: 'Coachees', href: '/coachees' },
-		{ label: 'Coachee', href: `/coachees/${userId}` },
+		{ label: coacheeName, href: `/coachees/${userId}` },
 		{ label: program?.name ?? 'Program' }
 	]}
 >
