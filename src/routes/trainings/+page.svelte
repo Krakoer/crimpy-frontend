@@ -228,12 +228,16 @@
 			<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
 				{#each filtered as training (training.id)}
 					{@const tc = typeInfo(training)}
+					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
+						onclick={(e) => { if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`); }}
 						style="
 							background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 							box-shadow: var(--sh); overflow: hidden; position: relative;
-							display: flex; flex-direction: column;
+							display: flex; flex-direction: column; cursor: pointer;
 						"
+						onmouseenter={(e) => (e.currentTarget.style.borderColor = 'var(--pr-lt)')}
+						onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
 					>
 						<div style="height: 4px; background: {tc.bg};"></div>
 						<div style="padding: 16px 18px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
@@ -289,17 +293,9 @@
 								</div>
 							</div>
 
-							<button
-								onclick={() => goto(`/trainings/${training.id}`)}
-								style="
-									font-size: 15.5px; font-weight: 700; color: var(--tx);
-									letter-spacing: -0.01em; line-height: 1.25;
-									background: none; border: none; cursor: pointer;
-									font-family: var(--font); text-align: left; padding: 0;
-								"
-							>
+							<div style="font-size: 15.5px; font-weight: 700; color: var(--tx); letter-spacing: -0.01em; line-height: 1.25;">
 								{training.title}
-							</button>
+							</div>
 
 							{#if training.description}
 								<div
@@ -354,12 +350,16 @@
 			>
 				{#each filtered as training, i (training.id)}
 					{@const tc = typeInfo(training)}
+					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
+						onclick={(e) => { if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`); }}
 						style="
 							display: grid; grid-template-columns: 48px 1.6fr 1fr 1fr 1fr 40px;
-							align-items: center; gap: 14px; padding: 14px 20px;
+							align-items: center; gap: 14px; padding: 14px 20px; cursor: pointer;
 							border-bottom: {i < filtered.length - 1 ? '1px solid var(--bd2)' : 'none'};
 						"
+						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
+						onmouseleave={(e) => (e.currentTarget.style.background = '')}
 					>
 						<div
 							style="
@@ -371,13 +371,7 @@
 						>
 							{tc.initials}
 						</div>
-						<button
-							onclick={() => goto(`/trainings/${training.id}`)}
-							style="
-								text-align: left; background: none; border: none;
-								cursor: pointer; font-family: var(--font);
-							"
-						>
+						<div style="font-family: var(--font);">
 							<div style="font-size: 14px; font-weight: 600; color: var(--tx);">{training.title}</div>
 							{#if training.description}
 								<div
@@ -386,7 +380,7 @@
 									{training.description}
 								</div>
 							{/if}
-						</button>
+						</div>
 						<div>
 							<span
 								style="
@@ -441,12 +435,9 @@
 								</button>
 							{/if}
 						</div>
-						<button
-							onclick={() => goto(`/trainings/${training.id}`)}
-							style="background: none; border: none; cursor: pointer; display: flex; justify-content: flex-end;"
-						>
+						<div style="display: flex; justify-content: flex-end;">
 							<Icon name="chevron" size={16} color="var(--tx3)" />
-						</button>
+						</div>
 					</div>
 				{/each}
 			</div>
