@@ -186,7 +186,10 @@
 	}
 
 	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
+		if (e.ctrlKey && e.key === 's' && panel) {
+			e.preventDefault();
+			handleSave();
+		} else if (e.key === 'Escape') {
 			if (viewExercise) viewExercise = null;
 			else if (panel) closePanel();
 		}

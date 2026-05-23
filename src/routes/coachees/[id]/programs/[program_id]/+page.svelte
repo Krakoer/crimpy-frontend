@@ -500,7 +500,16 @@
 			loading = false;
 		}
 	});
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.ctrlKey && e.key === 's' && isDirty && !isSaving) {
+			e.preventDefault();
+			saveAllProgram();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <AppShell
 	title={program?.name ?? 'Program'}
