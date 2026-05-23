@@ -5,8 +5,18 @@
 	import { goto } from '$app/navigation';
 	import type { CoachTrainingSummary, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
-	const TYPE_COLORS: Record<TrainingType, string> = { workout: '#C6613F', climbing: '#D4A644', stretching: '#5A8C5A' };
+	type TypeInfo = { bg: string; tint: string; label: string; initials: string };
+
+	const TYPE_INFO: Record<string, TypeInfo> = {
+		workout: { bg: 'var(--pr)', tint: '#fbebe2', label: 'Workout', initials: 'WO' },
+		climbing: { bg: 'var(--gd)', tint: '#fbf1de', label: 'Climbing', initials: 'CL' },
+		stretching: { bg: 'var(--gn)', tint: '#e6efe6', label: 'Stretching', initials: 'ST' },
+		crimpy: { bg: 'var(--pl)', tint: '#efeaf1', label: 'Crimpy', initials: 'CR' }
+	};
+
 	const ALL_TYPES: TrainingType[] = ['workout', 'stretching', 'climbing'];
 
 	let trainings = $state<CoachTrainingSummary[]>([]);
@@ -16,6 +26,7 @@
 	let deleteError = $state('');
 	let search = $state('');
 	let typeFilter = $state<TrainingType | null>(null);
+	let view = $state<'grid' | 'list'>('grid');
 
 	let filtered = $derived.by(() => {
 		const q = search.trim().toLowerCase();
@@ -31,20 +42,9 @@
 
 	onMount(() => {
 		authStore.initialize();
-
-		if (!authStore.isAuthenticated) {
-			goto('/');
-			return;
-		}
-		if (!authStore.isEmailVerified) {
-			goto('/verify-email');
-			return;
-		}
-		if (!authStore.isValidatedCoach) {
-			goto('/dashboard');
-			return;
-		}
-
+		if (!authStore.isAuthenticated) { goto('/'); return; }
+		if (!authStore.isEmailVerified) { goto('/verify-email'); return; }
+		if (!authStore.isValidatedCoach) { goto('/dashboard'); return; }
 		loadTrainings();
 	});
 
@@ -73,151 +73,395 @@
 	}
 
 	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
+		return new Date(iso).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+	}
+
+	function typeInfo(t: CoachTrainingSummary): TypeInfo {
+		return TYPE_INFO[t.training_type ?? 'workout'] ?? TYPE_INFO.workout;
 	}
 </script>
 
-<div class="min-h-screen bg-white">
-	<div class="mx-auto max-w-4xl p-6">
-		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
-			<div>
-				<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-					TRAININGS
-				</h1>
-				<button
-					onclick={() => goto('/dashboard')}
-					style="font-family: monospace; font-size: 12px; color: #666;"
-					class="transition-colors hover:text-black"
-				>
-					&larr; Dashboard
-				</button>
-			</div>
-			<button
-				onclick={() => goto('/trainings/new')}
-				class="border-2 px-4 py-2 font-bold transition-colors"
-				style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
-			>
-				+ NEW TRAINING
-			</button>
-		</div>
+<AppShell
+	title="Trainings"
+	breadcrumbs={[{ label: 'Studio' }, { label: 'Trainings' }]}
+>
+	{#snippet actions()}
+		<button
+			onclick={() => goto('/trainings/new')}
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 9px 16px; border-radius: var(--rs);
+				background: var(--pr); color: #fff; border: 1px solid var(--pr);
+				font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+			"
+		>
+			<Icon name="plus" size={14} color="#fff" />
+			New training
+		</button>
+	{/snippet}
+
+	<div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px;">
 
 		{#if deleteError}
 			<div
-				class="mb-4 border border-red-600 bg-red-50 p-3"
-				style="font-family: monospace; font-size: 12px; color: #B85450;"
+				style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
 			>
 				{deleteError}
 			</div>
 		{/if}
 
-		{#if !loading}
-			<div class="mb-4 flex items-center gap-2">
+		<!-- Filter row -->
+		<div style="display: flex; align-items: center; gap: 12px;">
+			<div
+				style="display: flex; gap: 4px; background: #fff; border: 1px solid var(--bd); border-radius: var(--rs); padding: 3px;"
+			>
+				<button
+					onclick={() => (typeFilter = null)}
+					style="
+						padding: 7px 14px; font-size: 12.5px; font-weight: 600;
+						border-radius: 6px; border: none; cursor: pointer;
+						background: {typeFilter === null ? 'var(--pr-fog)' : 'transparent'};
+						color: {typeFilter === null ? 'var(--pr)' : 'var(--tx2)'};
+						font-family: var(--font);
+					"
+				>
+					All
+				</button>
+				{#each ALL_TYPES as t}
+					<button
+						onclick={() => (typeFilter = typeFilter === t ? null : t)}
+						style="
+							padding: 7px 14px; font-size: 12.5px; font-weight: 600;
+							border-radius: 6px; border: none; cursor: pointer;
+							background: {typeFilter === t ? 'var(--pr-fog)' : 'transparent'};
+							color: {typeFilter === t ? 'var(--pr)' : 'var(--tx2)'};
+							font-family: var(--font);
+						"
+					>
+						{TYPE_INFO[t]?.label ?? t}
+					</button>
+				{/each}
+			</div>
+
+			<!-- Search -->
+			<div
+				style="
+					flex: 1; display: flex; align-items: center; gap: 8px;
+					background: #fff; border: 1px solid var(--bd); border-radius: var(--rs);
+					padding: 9px 12px; max-width: 320px;
+				"
+			>
+				<Icon name="search" size={14} color="var(--tx3)" />
 				<input
 					type="text"
 					bind:value={search}
-					placeholder="Search by name..."
-					class="flex-1 border border-black px-3 py-1.5 outline-none focus:border-2"
-					style="font-family: monospace; font-size: 13px;"
+					placeholder="Search trainings..."
+					style="
+						flex: 1; border: none; outline: none; background: transparent;
+						font-family: var(--font); font-size: 13.5px; color: var(--tx);
+					"
 				/>
-				<div class="flex gap-1">
-					<button
-						onclick={() => (typeFilter = null)}
-						class="border px-3 py-1.5 transition-colors"
-						style="font-family: monospace; font-size: 12px; {typeFilter === null ? 'background-color: #000; color: white; border-color: #000;' : 'border-color: #ccc; color: #999;'}"
-					>ALL</button>
-					{#each ALL_TYPES as t}
-						<button
-							onclick={() => (typeFilter = typeFilter === t ? null : t)}
-							class="border px-3 py-1.5 transition-colors"
-							style="font-family: monospace; font-size: 12px; {typeFilter === t ? `background-color: ${TYPE_COLORS[t]}; color: white; border-color: ${TYPE_COLORS[t]};` : 'border-color: #ccc; color: #999;'}"
-						>{t.toUpperCase()}</button>
-					{/each}
-				</div>
 			</div>
-		{/if}
+
+			<div style="flex: 1;"></div>
+
+			<!-- View toggle -->
+			<div
+				style="display: flex; gap: 4px; background: #fff; border: 1px solid var(--bd); border-radius: var(--rs); padding: 3px;"
+			>
+				<button
+					onclick={() => (view = 'grid')}
+					style="
+						width: 32px; height: 28px; border-radius: 6px;
+						border: none; cursor: pointer;
+						background: {view === 'grid' ? 'var(--pr-fog)' : 'transparent'};
+						display: flex; align-items: center; justify-content: center;
+					"
+				>
+					<Icon name="grip" size={14} color={view === 'grid' ? 'var(--pr)' : 'var(--tx3)'} />
+				</button>
+				<button
+					onclick={() => (view = 'list')}
+					style="
+						width: 32px; height: 28px; border-radius: 6px;
+						border: none; cursor: pointer;
+						background: {view === 'list' ? 'var(--pr-fog)' : 'transparent'};
+						display: flex; align-items: center; justify-content: center;
+					"
+				>
+					<Icon name="filter" size={14} color={view === 'list' ? 'var(--pr)' : 'var(--tx3)'} />
+				</button>
+			</div>
+		</div>
 
 		{#if loading}
-			<div class="flex items-center gap-3 py-12">
+			<div style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;">
 				<div
-					class="animate-spin"
-					style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
+					style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 				></div>
-				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+				Loading trainings...
 			</div>
 		{:else if trainings.length === 0}
-			<div class="py-12 text-center">
-				<p style="font-family: monospace; font-size: 13px; color: #666;">
-					No trainings yet. Create your first one.
-				</p>
+			<div
+				style="
+					background: var(--pr-fog); border-radius: var(--rl); border: 1.5px dashed var(--pr-lt);
+					padding: 48px; text-align: center;
+					display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--pr);
+				"
+			>
+				<div
+					style="
+						width: 44px; height: 44px; border-radius: 50%;
+						background: #fff; border: 1px solid var(--pr-lt);
+						display: flex; align-items: center; justify-content: center;
+					"
+				>
+					<Icon name="plus" size={20} color="var(--pr)" />
+				</div>
+				<div style="font-size: 13.5px; font-weight: 600;">No trainings yet</div>
+				<div style="font-size: 12px; color: var(--pr); opacity: 0.7;">
+					Create your first training to get started.
+				</div>
 			</div>
-		{:else if filtered.length === 0}
-			<div class="py-12 text-center">
-				<p style="font-family: monospace; font-size: 13px; color: #666;">No results.</p>
-			</div>
-		{:else}
-			<div class="divide-y divide-gray-200 border border-black">
+		{:else if view === 'grid'}
+			<!-- Grid view -->
+			<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
 				{#each filtered as training (training.id)}
-					<div class="p-4">
-						<div class="flex items-start justify-between gap-4">
-							<button
-								onclick={() => goto(`/trainings/${training.id}`)}
-								class="min-w-0 flex-1 text-left transition-colors hover:text-gray-600"
-							>
-								<div class="flex items-center gap-2">
-									<p class="font-bold" style="font-family: monospace; font-size: 14px;">
-										{training.title}
-									</p>
-									{#if training.training_type && training.training_type !== 'workout'}
-										<span style="font-family: monospace; font-size: 11px; color: {TYPE_COLORS[training.training_type]};">[{training.training_type}]</span>
+					{@const tc = typeInfo(training)}
+					<div
+						style="
+							background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
+							box-shadow: var(--sh); overflow: hidden; position: relative;
+							display: flex; flex-direction: column;
+						"
+					>
+						<div style="height: 4px; background: {tc.bg};"></div>
+						<div style="padding: 16px 18px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+								<span
+									style="
+										display: inline-flex; align-items: center;
+										background: {tc.tint}; color: {tc.bg};
+										font-size: 11px; font-weight: 600;
+										padding: 3px 9px; border-radius: 999px;
+									"
+								>
+									{tc.label}
+								</span>
+								<div style="display: flex; gap: 4px;">
+									{#if confirmDeleteId === training.id}
+										<button
+											onclick={() => handleDelete(training.id)}
+											disabled={deleting}
+											style="
+												padding: 4px 10px; border-radius: 6px;
+												border: 1px solid var(--rd); color: var(--rd);
+												background: #fff5f5; font-size: 11px; font-weight: 600;
+												cursor: pointer; font-family: var(--font);
+											"
+										>
+											{deleting ? '...' : 'Confirm'}
+										</button>
+										<button
+											onclick={() => (confirmDeleteId = null)}
+											style="
+												padding: 4px 10px; border-radius: 6px;
+												border: 1px solid var(--bd); color: var(--tx2);
+												background: #fff; font-size: 11px; font-weight: 600;
+												cursor: pointer; font-family: var(--font);
+											"
+										>
+											Cancel
+										</button>
+									{:else}
+										<button
+											onclick={() => (confirmDeleteId = training.id)}
+											style="
+												width: 28px; height: 28px; border-radius: 6px;
+												border: none; background: transparent;
+												display: flex; align-items: center; justify-content: center;
+												cursor: pointer; color: var(--tx3);
+											"
+										>
+											<Icon name="trash" size={14} color="var(--tx3)" />
+										</button>
 									{/if}
 								</div>
-								{#if training.description}
-									<p
-										class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
-										style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;"
-									>
-										{training.description}
-									</p>
-								{/if}
-								<p class="mt-1" style="font-family: monospace; font-size: 11px; color: #999;">
-									Created {formatDate(training.created_at)}
-								</p>
+							</div>
+
+							<button
+								onclick={() => goto(`/trainings/${training.id}`)}
+								style="
+									font-size: 15.5px; font-weight: 700; color: var(--tx);
+									letter-spacing: -0.01em; line-height: 1.25;
+									background: none; border: none; cursor: pointer;
+									font-family: var(--font); text-align: left; padding: 0;
+								"
+							>
+								{training.title}
 							</button>
-							<div class="flex shrink-0 gap-2">
-								{#if confirmDeleteId === training.id}
-									<button
-										onclick={() => handleDelete(training.id)}
-										disabled={deleting}
-										class="border border-red-600 px-3 py-1 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-										style="font-family: monospace; font-size: 12px;"
-									>
-										{deleting ? '...' : 'CONFIRM'}
-									</button>
-									<button
-										onclick={() => (confirmDeleteId = null)}
-										class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-										style="font-family: monospace; font-size: 12px;"
-									>
-										CANCEL
-									</button>
-								{:else}
-									<button
-										onclick={() => (confirmDeleteId = training.id)}
-										class="border border-gray-300 px-3 py-1 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
-										style="font-family: monospace; font-size: 12px;"
-									>
-										DELETE
-									</button>
-								{/if}
+
+							{#if training.description}
+								<div
+									style="font-size: 12.5px; color: var(--tx2); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+								>
+									{training.description}
+								</div>
+							{/if}
+
+							<div style="height: 1px; background: var(--bd2);"></div>
+							<div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--tx3);">
+								<span style="display: inline-flex; align-items: center; gap: 4px;">
+									<Icon name="clock" size={12} color="var(--tx3)" />
+									Created {formatDate(training.created_at)}
+								</span>
 							</div>
 						</div>
 					</div>
 				{/each}
+
+				<!-- New training tile -->
+				<button
+					onclick={() => goto('/trainings/new')}
+					style="
+						background: var(--pr-fog); border-radius: var(--rl);
+						border: 1.5px dashed var(--pr-lt);
+						padding: 18px; cursor: pointer;
+						display: flex; flex-direction: column; align-items: center; justify-content: center;
+						min-height: 200px; gap: 10px; color: var(--pr);
+						font-family: var(--font);
+					"
+				>
+					<div
+						style="
+							width: 44px; height: 44px; border-radius: 50%;
+							background: #fff; border: 1px solid var(--pr-lt);
+							display: flex; align-items: center; justify-content: center;
+						"
+					>
+						<Icon name="plus" size={20} color="var(--pr)" />
+					</div>
+					<div style="font-size: 13.5px; font-weight: 600;">Create a training</div>
+					<div style="font-size: 11.5px; color: var(--pr); opacity: 0.7; text-align: center; max-width: 180px;">
+						Build from scratch or start from a template.
+					</div>
+				</button>
+			</div>
+		{:else}
+			<!-- List view -->
+			<div
+				style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); overflow: hidden; box-shadow: var(--sh);"
+			>
+				{#each filtered as training, i (training.id)}
+					{@const tc = typeInfo(training)}
+					<div
+						style="
+							display: grid; grid-template-columns: 48px 1.6fr 1fr 1fr 1fr 40px;
+							align-items: center; gap: 14px; padding: 14px 20px;
+							border-bottom: {i < filtered.length - 1 ? '1px solid var(--bd2)' : 'none'};
+						"
+					>
+						<div
+							style="
+								width: 48px; height: 48px; border-radius: var(--rs);
+								background: {tc.tint}; color: {tc.bg};
+								display: flex; align-items: center; justify-content: center;
+								font-size: 12px; font-weight: 700;
+							"
+						>
+							{tc.initials}
+						</div>
+						<button
+							onclick={() => goto(`/trainings/${training.id}`)}
+							style="
+								text-align: left; background: none; border: none;
+								cursor: pointer; font-family: var(--font);
+							"
+						>
+							<div style="font-size: 14px; font-weight: 600; color: var(--tx);">{training.title}</div>
+							{#if training.description}
+								<div
+									style="font-size: 12px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch;"
+								>
+									{training.description}
+								</div>
+							{/if}
+						</button>
+						<div>
+							<span
+								style="
+									display: inline-flex; align-items: center;
+									background: {tc.tint}; color: {tc.bg};
+									font-size: 11px; font-weight: 600;
+									padding: 3px 9px; border-radius: 999px;
+								"
+							>
+								{tc.label}
+							</span>
+						</div>
+						<div style="font-size: 12.5px; color: var(--tx2);">Created {formatDate(training.created_at)}</div>
+						<div>
+							{#if confirmDeleteId === training.id}
+								<div style="display: flex; gap: 4px;">
+									<button
+										onclick={() => handleDelete(training.id)}
+										disabled={deleting}
+										style="
+											padding: 4px 10px; border-radius: 6px;
+											border: 1px solid var(--rd); color: var(--rd);
+											background: #fff5f5; font-size: 11px; font-weight: 600;
+											cursor: pointer; font-family: var(--font);
+										"
+									>
+										{deleting ? '...' : 'Confirm'}
+									</button>
+									<button
+										onclick={() => (confirmDeleteId = null)}
+										style="
+											padding: 4px 10px; border-radius: 6px;
+											border: 1px solid var(--bd); color: var(--tx2);
+											background: #fff; font-size: 11px; font-weight: 600;
+											cursor: pointer; font-family: var(--font);
+										"
+									>
+										Cancel
+									</button>
+								</div>
+							{:else}
+								<button
+									onclick={() => (confirmDeleteId = training.id)}
+									style="
+										padding: 4px 10px; border-radius: 6px;
+										border: 1px solid var(--bd); color: var(--tx3);
+										background: transparent; font-size: 12px; font-weight: 500;
+										cursor: pointer; font-family: var(--font);
+									"
+								>
+									Delete
+								</button>
+							{/if}
+						</div>
+						<button
+							onclick={() => goto(`/trainings/${training.id}`)}
+							style="background: none; border: none; cursor: pointer; display: flex; justify-content: flex-end;"
+						>
+							<Icon name="chevron" size={16} color="var(--tx3)" />
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if !loading && filtered.length === 0 && trainings.length > 0}
+			<div style="text-align: center; padding: 32px 0; color: var(--tx3); font-size: 13.5px;">
+				No results for your current filters.
 			</div>
 		{/if}
 	</div>
-</div>
+</AppShell>
+
+<style>
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+</style>

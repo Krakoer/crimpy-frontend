@@ -6,6 +6,8 @@
 	import type { SessionResponse, EnrolledUser, AssessmentResponse, Program, ProgramRequest } from '$lib/api/client';
 	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { data } = $props();
 
@@ -15,7 +17,7 @@
 	let loading = $state(false);
 	let error = $state('');
 
-	let activeTab = $state<'sessions' | 'programs'>('sessions');
+	let activeTab = $state<'sessions' | 'programs' | 'assess' | 'notes'>('sessions');
 
 	let programs = $state<Program[]>([]);
 	let programsLoading = $state(false);
@@ -31,9 +33,9 @@
 	let newProgramError = $state('');
 
 	const ASSESSMENT_TYPES: Record<number, { label: string; unit: string; format: (v: number) => string }> = {
-		0: { label: 'CRITICAL FORCE', unit: 'kg', format: (v) => v.toFixed(1) },
-		1: { label: 'MAX FORCE', unit: 'kg', format: (v) => v.toFixed(1) },
-		2: { label: '60% ENDURANCE', unit: 's', format: (v) => v.toFixed(0) }
+		0: { label: 'Critical force', unit: 'kg', format: (v) => v.toFixed(1) },
+		1: { label: 'Max force', unit: 'kg', format: (v) => v.toFixed(1) },
+		2: { label: '60% endurance', unit: 's', format: (v) => v.toFixed(0) }
 	};
 
 	const GRIP_POSITIONS: Record<number, string> = {
@@ -61,8 +63,7 @@
 	}
 
 	function latestForGrip(type: number, grip: number): AssessmentResponse | undefined {
-		const history = historyForGrip(type, grip);
-		return history.at(-1);
+		return historyForGrip(type, grip).at(-1);
 	}
 
 	function hasAnyAssessment(type: number): boolean {
@@ -81,13 +82,11 @@
 		}
 	});
 
-	let calendarEl = $state<HTMLElement | undefined>(undefined);
-
-	const SESSION_TYPES: Record<number, { label: string; color: string }> = {
-		0: { label: 'CR', color: '#C6613F' },
-		1: { label: 'CL', color: '#D4A644' },
-		2: { label: 'ST', color: '#5A8C5A' },
-		3: { label: 'WO', color: '#8B6B9E' }
+	const SESSION_TYPES: Record<number, { label: string; color: string; tint: string }> = {
+		0: { label: 'CR', color: '#c2714f', tint: '#f5e2d7' },
+		1: { label: 'CL', color: '#d4a15e', tint: '#faf0dc' },
+		2: { label: 'ST', color: '#6b8f71', tint: '#e3ede4' },
+		3: { label: 'WO', color: '#907b99', tint: '#ede8f0' }
 	};
 
 	const SESSION_NAMES: Record<number, string> = {
@@ -98,14 +97,7 @@
 	};
 
 	function sessionType(type: number) {
-		return SESSION_TYPES[type] ?? { label: '??', color: '#888' };
-	}
-
-	function hexWithOpacity(hex: string, opacity: number): string {
-		const r = parseInt(hex.slice(1, 3), 16);
-		const g = parseInt(hex.slice(3, 5), 16);
-		const b = parseInt(hex.slice(5, 7), 16);
-		return `rgba(${r},${g},${b},${opacity})`;
+		return SESSION_TYPES[type] ?? { label: '??', color: '#888', tint: '#eee' };
 	}
 
 	function isSameDay(a: Date, b: Date): boolean {
@@ -114,6 +106,49 @@
 			a.getMonth() === b.getMonth() &&
 			a.getDate() === b.getDate()
 		);
+	}
+
+	function getWeekStart(date: Date): Date {
+		const d = new Date(date);
+		const day = d.getDay();
+		const diff = day === 0 ? -6 : 1 - day;
+		d.setDate(d.getDate() + diff);
+		d.setHours(0, 0, 0, 0);
+		return d;
+	}
+
+	const weekStripDays = $derived.by(() => {
+		const today = new Date();
+		const weekStart = getWeekStart(today);
+		return Array.from({ length: 7 }, (_, i) => {
+			const date = new Date(weekStart);
+			date.setDate(weekStart.getDate() + i);
+			const daySessions = sessions.filter((s) => isSameDay(new Date(s.Date), date));
+			return {
+				dayLabel: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+				day: date.getDate(),
+				isToday: isSameDay(date, today),
+				dots: daySessions.map((s) => SESSION_TYPES[s.SessionType]?.color ?? '#888')
+			};
+		});
+	});
+
+	const weekStripLabel = $derived.by(() => {
+		const today = new Date();
+		const weekStart = getWeekStart(today);
+		const weekEnd = new Date(weekStart);
+		weekEnd.setDate(weekStart.getDate() + 6);
+		const fmt = (d: Date) =>
+			d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+		return `${fmt(weekStart)} - ${fmt(weekEnd)}`;
+	});
+
+	const activeProgram = $derived(programs.length > 0 ? programs[0] : null);
+
+	function computeCurrentWeek(startDate: string, durationWeeks?: number): number {
+		const start = new Date(startDate);
+		const diffWeeks = Math.max(1, Math.ceil((Date.now() - start.getTime()) / (7 * 86400000)));
+		return durationWeeks ? Math.min(diffWeeks, durationWeeks) : diffWeeks;
 	}
 
 	function groupSessionsByDate(
@@ -154,10 +189,21 @@
 	function formatDuration(seconds: number): string {
 		const h = Math.floor(seconds / 3600);
 		const m = Math.floor((seconds % 3600) / 60);
-		const s = seconds % 60;
 		if (h > 0) return `${h}h ${m}m`;
-		if (m > 0) return `${m}m ${s}s`;
-		return `${s}s`;
+		if (m > 0) return `${m}m`;
+		return `${seconds}s`;
+	}
+
+	function formatProgramDate(date: string): string {
+		return new Date(date).toLocaleDateString('en-GB', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		});
+	}
+
+	function formatAssessmentDate(iso: string): string {
+		return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 	}
 
 	async function loadPrograms() {
@@ -208,14 +254,6 @@
 		}
 	}
 
-	function formatProgramDate(date: string): string {
-		return new Date(date).toLocaleDateString('en-GB', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
-	}
-
 	onMount(async () => {
 		authStore.initialize();
 		loading = true;
@@ -236,496 +274,695 @@
 		loadPrograms();
 	});
 
-	$effect(() => {
-		if (!calendarEl || loading || sessions.length === undefined) return;
+	const sessionGroups = $derived(groupSessionsByDate(sessions));
 
-		let destroyed = false;
-		let calendar: import('@fullcalendar/core').Calendar;
+	const coacheeName = $derived(
+		coachee ? `${coachee.user_firstname} ${coachee.user_lastname}` : loading ? 'Loading...' : 'Coachee'
+	);
 
-		(async () => {
-			const { Calendar } = await import('@fullcalendar/core');
-			const { default: dayGridPlugin } = await import('@fullcalendar/daygrid');
+	const coacheeInitials = $derived(
+		coachee
+			? (coachee.user_firstname[0] + coachee.user_lastname[0]).toUpperCase()
+			: '?'
+	);
 
-			if (destroyed || !calendarEl) return;
+	const totalAssessmentCount = $derived(
+		assessments.filter((a) => a.DeletedAt === null).length
+	);
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			calendar = new Calendar(calendarEl, {
-				plugins: [dayGridPlugin],
-				initialView: 'dayGridWeek',
-				firstDay: 1,
-				contentHeight: 150,
-				headerToolbar: {
-					left: 'prev,next today',
-					center: 'title',
-					right: ''
-				},
-				editable: false,
-				selectable: false,
-				eventStartEditable: false,
-				dayMaxEvents: false,
-				eventContent: (arg: any) => {
-					const color = arg.event.extendedProps.color as string;
-					const dot = document.createElement('span');
-					dot.style.cssText = `display:inline-block;width:15px;height:15px;border-radius:50%;background-color:${color};`;
-					return { domNodes: [dot] };
-				},
-				events: sessions.map((s) => ({
-					id: s.ID,
-					title: s.Name,
-					start: s.Date,
-					extendedProps: { color: sessionType(s.SessionType).color }
-				}))
-			} as any);
-
-			calendar.render();
-		})();
-
-		return () => {
-			destroyed = true;
-			calendar?.destroy();
-		};
-	});
-
-	let sessionGroups = $derived(groupSessionsByDate(sessions));
-
-	function handleLogout() {
-		authStore.logout();
-		goto('/');
-	}
+	const assessmentHistory = $derived(
+		[...assessments]
+			.filter((a) => a.DeletedAt === null)
+			.sort((a, b) => new Date(b.UpdatedAt).getTime() - new Date(a.UpdatedAt).getTime())
+			.slice(0, 8)
+	);
 </script>
 
-<div class="min-h-screen bg-white" style="padding: 24px;">
-	<div class="mx-auto" style="max-width: 1200px;">
+<AppShell
+	title={coacheeName}
+	breadcrumbs={[
+		{ label: 'Studio' },
+		{ label: 'Coachees', href: '/coachees' },
+		{ label: coacheeName }
+	]}
+>
+	{#snippet actions()}
+		<button
+			onclick={() => goto('/coachees')}
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 6px 12px; border-radius: var(--rs);
+				background: #fff; color: var(--tx); border: 1px solid var(--bd);
+				font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+			"
+		>
+			<Icon name="arrow-left" size={14} color="var(--tx2)" />
+			All coachees
+		</button>
+	{/snippet}
 
-		<!-- Header -->
-		<div class="mb-6 flex items-center justify-between border-b-2 border-black pb-4">
-			<div class="flex items-center gap-4">
-				<button
-					onclick={() => goto('/coachees')}
-					class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 12px;"
-				>
-					BACK
-				</button>
-				<h1 class="text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-					{#if coachee}
-						{coachee.user_firstname}
-						{coachee.user_lastname}
-					{:else if loading}
-						...
-					{:else}
-						COACHEE
-					{/if}
-				</h1>
-			</div>
-			<button
-				onclick={handleLogout}
-				class="border border-black px-4 py-2 font-medium transition-colors hover:bg-gray-100"
-				style="font-family: monospace; font-size: 13px;"
-			>
-				LOGOUT
-			</button>
-		</div>
+	<div style="padding: 24px 32px 40px;">
 
 		{#if error}
 			<div
-				class="mb-6 border border-red-600 bg-red-50 p-4"
-				style="font-family: monospace; font-size: 13px; color: #B85450;"
-			>
-				{error}
-			</div>
+				style="margin-bottom: 16px; padding: 14px 18px; border-radius: var(--rs);
+					background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c;
+					font-size: 13px;"
+			>{error}</div>
 		{/if}
 
 		{#if loading}
-			<div class="flex items-center gap-3 p-6">
-				<div
-					class="animate-spin"
-					style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
-				></div>
-				<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+			<div style="display: flex; align-items: center; gap: 10px; padding: 40px 0;">
+				<div class="animate-spin" style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%;"></div>
+				<span style="font-size: 13px; color: var(--tx2);">Loading...</span>
 			</div>
 		{:else}
-			<!-- Tab switcher -->
-			<div class="mb-6 flex gap-0 border-b border-gray-200">
-				{#each (['sessions', 'programs'] as const) as tab}
-					<button
-						onclick={() => (activeTab = tab)}
-						style="font-family: monospace; font-size: 12px; letter-spacing: 1px; padding: 8px 16px; background: none; border: none; border-bottom: 2px solid {activeTab === tab ? '#C6613F' : 'transparent'}; color: {activeTab === tab ? '#C6613F' : '#999'}; font-weight: {activeTab === tab ? '700' : '400'}; cursor: pointer; text-transform: uppercase;"
-					>{tab}</button>
-				{/each}
+
+		<!-- Header card -->
+		<div style="
+			background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+			padding: 24px; box-shadow: var(--sh); margin-bottom: 20px;
+			display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center;
+			background-image: linear-gradient(135deg, var(--pr-fog) 0%, transparent 40%);
+		">
+			<div style="
+				width: 64px; height: 64px; border-radius: 50%;
+				background: var(--pr-lt); color: var(--pr);
+				display: flex; align-items: center; justify-content: center;
+				font-size: 22px; font-weight: 700; flex-shrink: 0;
+			">{coacheeInitials}</div>
+
+			<div>
+				<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+					<h2 style="font-size: 22px; font-weight: 700; color: var(--tx); letter-spacing: -0.02em;">
+						{coacheeName}
+					</h2>
+					<span style="
+						display: inline-flex; align-items: center; padding: 2px 8px;
+						border-radius: 999px; font-size: 11px; font-weight: 600;
+						background: var(--pr-fog); color: var(--pr);
+					">Active</span>
+				</div>
+				<div style="display: flex; gap: 18px; font-size: 12.5px; color: var(--tx2);">
+					{#if coachee?.user_email}
+						<span>{coachee.user_email}</span>
+					{/if}
+					<span>{sessions.length} sessions logged</span>
+				</div>
 			</div>
 
-			<!-- Two-column layout -->
-			<div style="display: flex; gap: 24px; align-items: flex-start;">
-
-				<!-- Left: tab content -->
-				<div style="flex: 1; min-width: 0;">
-					{#if activeTab === 'sessions'}
-					<!-- Calendar -->
-					<div class="mb-6 border border-gray-200 p-3">
-						<div bind:this={calendarEl} class="fc-crimpy"></div>
+			<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+				{#each [
+					{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' },
+					{ k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' },
+					{ k: 'Programs', v: String(programs.length), c: 'var(--gd)' },
+				] as stat}
+					<div style="
+						padding: 10px 14px; border: 1px solid var(--bd);
+						border-radius: var(--rs); background: #fff; min-width: 80px; text-align: center;
+					">
+						<div style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">{stat.k}</div>
+						<div style="font-size: 20px; font-weight: 700; color: {stat.c}; margin-top: 2px;">{stat.v}</div>
 					</div>
+				{/each}
+			</div>
+		</div>
 
-					<!-- Session list -->
-					<p
-						class="mb-3 font-bold"
-						style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;"
-					>
-						SESSIONS
-					</p>
-					{#if sessions.length === 0}
-						<p style="font-family: monospace; font-size: 13px; color: #666;">
-							No sessions recorded yet.
-						</p>
-					{:else}
-						<div class="space-y-6">
-							{#each sessionGroups as group}
-								<div>
-									<p
-										class="mb-2"
-										style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase;"
-									>
-										{group.label}
-									</p>
-									<div class="space-y-2">
-										{#each group.items as session (session.ID)}
-											{@const type = sessionType(session.SessionType)}
-											<div class="flex items-center gap-3 border border-gray-200 bg-white p-3">
-												<div
-													class="flex shrink-0 items-center justify-center"
-													style="width: 36px; height: 36px; background-color: {hexWithOpacity(type.color, 0.12)}; border: 1px solid {hexWithOpacity(type.color, 0.25)};"
-												>
-													<span style="font-family: monospace; font-size: 10px; font-weight: 700; color: {type.color}; letter-spacing: 0.5px;">
-														{type.label}
-													</span>
-												</div>
-												<div class="min-w-0 flex-1">
-													<p class="font-semibold" style="font-family: monospace; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-														{session.Name}
-													</p>
-													<div class="flex gap-3" style="font-family: monospace; font-size: 11px; color: #888;">
-														<span>{formatTime(session.Date)}</span>
-														<span>{formatDuration(session.Duration)}</span>
-													</div>
-												</div>
-												{#if session.Notes?.trim()}
-													<p
-														class="line-clamp-1 shrink-0"
-														style="font-family: monospace; font-size: 11px; color: #999; max-width: 200px;"
-													>
-														{session.Notes}
-													</p>
-												{/if}
-											</div>
+		<!-- Tabs -->
+		<div style="display: flex; gap: 4px; border-bottom: 1px solid var(--bd); padding: 0 4px; margin-bottom: 20px;">
+			{#each [
+				{ id: 'sessions',  label: 'Sessions',    n: sessions.length },
+				{ id: 'programs',  label: 'Programs',    n: programs.length },
+				{ id: 'assess',    label: 'Assessments', n: totalAssessmentCount },
+				{ id: 'notes',     label: 'Notes',       n: 0 },
+			] as tab}
+				<button
+					onclick={() => (activeTab = tab.id as typeof activeTab)}
+					style="
+						padding: 12px 16px; font-size: 13.5px; font-weight: 600;
+						border: none; background: transparent; cursor: pointer;
+						color: {activeTab === tab.id ? 'var(--pr)' : 'var(--tx2)'};
+						border-bottom: 2px solid {activeTab === tab.id ? 'var(--pr)' : 'transparent'};
+						margin-bottom: -1px; font-family: var(--font);
+						display: flex; align-items: center; gap: 7px;
+					"
+				>
+					{tab.label}
+					<span style="
+						font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
+						background: {activeTab === tab.id ? 'var(--pr-fog)' : 'var(--bd2)'};
+						color: {activeTab === tab.id ? 'var(--pr)' : 'var(--tx3)'};
+					">{tab.n}</span>
+				</button>
+			{/each}
+		</div>
+
+		<!-- Sessions tab -->
+		{#if activeTab === 'sessions'}
+			<div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: flex-start;">
+
+				<!-- Left column -->
+				<div style="display: flex; flex-direction: column; gap: 16px;">
+
+					<!-- Week strip -->
+					<div style="
+						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+						padding: 16px; box-shadow: var(--sh);
+					">
+						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+							<div style="font-size: 13.5px; font-weight: 700; color: var(--tx);">{weekStripLabel}</div>
+						</div>
+						<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
+							{#each weekStripDays as day}
+								<div style="
+									padding: 10px 4px; border-radius: var(--rs); text-align: center;
+									background: {day.isToday ? 'var(--pr-fog)' : 'var(--panel2)'};
+									border: 1px solid {day.isToday ? 'var(--pr-lt)' : 'transparent'};
+								">
+									<div style="font-size: 10px; color: {day.isToday ? 'var(--pr)' : 'var(--tx3)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;">{day.dayLabel}</div>
+									<div style="font-size: 16px; font-weight: 700; color: {day.isToday ? 'var(--pr)' : 'var(--tx)'}; margin-top: 2px;">{day.day}</div>
+									<div style="display: flex; justify-content: center; gap: 3px; margin-top: 6px; min-height: 8px;">
+										{#each day.dots as dotColor}
+											<div style="width: 5px; height: 5px; border-radius: 50%; background: {dotColor};"></div>
 										{/each}
 									</div>
 								</div>
 							{/each}
 						</div>
-					{/if}
-					{:else}
-					<!-- Programs tab -->
-					<div class="mb-4 flex items-center justify-between" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
-						<p class="font-bold" style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333;">
-							PROGRAMS
-						</p>
-						{#if !showNewProgramForm}
-							<button
-								onclick={() => { showNewProgramForm = true; newProgramError = ''; }}
-								class="border px-3 py-1 transition-colors hover:bg-gray-100"
-								style="font-family: monospace; font-size: 12px; border-color: #C6613F; color: #C6613F;"
-							>+ NEW PROGRAM</button>
-						{/if}
 					</div>
 
-					{#if showNewProgramForm}
-						<div class="mb-6 border border-black p-4 space-y-3">
-							<p style="font-family: monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">NEW PROGRAM</p>
-							{#if newProgramError}
-								<p style="font-family: monospace; font-size: 12px; color: #B85450;">{newProgramError}</p>
-							{/if}
-							<div class="space-y-2">
-								<input
-									type="text"
-									bind:value={newProgramName}
-									placeholder="Name *"
-									class="w-full border border-black px-3 py-1.5 outline-none focus:border-2"
-									style="font-family: monospace; font-size: 13px;"
-								/>
-								<input
-									type="date"
-									bind:value={newProgramStartDate}
-									class="w-full border border-black px-3 py-1.5 outline-none focus:border-2"
-									style="font-family: monospace; font-size: 13px;"
-								/>
-								<textarea
-									bind:value={newProgramObjective}
-									placeholder="Objective (optional)"
-									rows="2"
-									class="w-full border border-gray-300 px-3 py-1.5 outline-none focus:border-black resize-none"
-									style="font-family: monospace; font-size: 13px;"
-								></textarea>
-								<input
-									type="number"
-									bind:value={newProgramDurationWeeks}
-									placeholder="Duration (weeks, optional)"
-									min="1"
-									class="w-full border border-gray-300 px-3 py-1.5 outline-none focus:border-black"
-									style="font-family: monospace; font-size: 13px;"
-								/>
-							</div>
-							<div class="flex gap-2">
-								<button
-									onclick={handleCreateProgram}
-									disabled={savingProgram}
-									class="border border-black px-4 py-1.5 font-bold transition-colors hover:bg-black hover:text-white disabled:opacity-50"
-									style="font-family: monospace; font-size: 12px;"
-								>{savingProgram ? '...' : 'SAVE'}</button>
-								<button
-									onclick={() => { showNewProgramForm = false; newProgramName = ''; newProgramStartDate = ''; newProgramObjective = ''; newProgramDurationWeeks = ''; newProgramError = ''; }}
-									class="border border-gray-300 px-4 py-1.5 transition-colors hover:bg-gray-100"
-									style="font-family: monospace; font-size: 12px;"
-								>CANCEL</button>
-							</div>
+					<!-- Sessions list -->
+					<div style="
+						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+						box-shadow: var(--sh); overflow: hidden;
+					">
+						<div style="
+							padding: 14px 20px; border-bottom: 1px solid var(--bd2);
+							display: flex; align-items: center; justify-content: space-between;
+						">
+							<h3 style="font-size: 14px; font-weight: 700; color: var(--tx);">Recent sessions</h3>
 						</div>
+
+						{#if sessions.length === 0}
+							<div style="padding: 32px 20px; text-align: center; color: var(--tx3); font-size: 13px;">
+								No sessions recorded yet.
+							</div>
+						{:else}
+							<div>
+								{#each sessionGroups as group, gi}
+									<div style="padding: 10px 20px 0; font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;">{group.label}</div>
+									{#each group.items as session, si (session.ID)}
+										{@const type = sessionType(session.SessionType)}
+										<div style="
+											display: grid; grid-template-columns: 44px 1fr auto;
+											padding: 12px 20px; align-items: center; gap: 12px;
+											border-bottom: 1px solid var(--bd2);
+										">
+											<div style="
+												width: 44px; height: 44px; border-radius: var(--rs);
+												background: {type.tint}; color: {type.color};
+												display: flex; align-items: center; justify-content: center;
+												font-size: 11px; font-weight: 700; flex-shrink: 0;
+											">{type.label}</div>
+											<div style="min-width: 0;">
+												<div style="font-size: 13.5px; font-weight: 600; color: var(--tx); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{session.Name}</div>
+												<div style="font-size: 12px; color: var(--tx2);">{formatTime(session.Date)} · {formatDuration(session.Duration)}</div>
+												{#if session.Notes?.trim()}
+													<div style="font-size: 11.5px; color: var(--tx3); margin-top: 3px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">"{session.Notes}"</div>
+												{/if}
+											</div>
+											<Icon name="chevron" size={16} color="var(--tx3)" />
+										</div>
+									{/each}
+								{/each}
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Right column -->
+				<div style="display: flex; flex-direction: column; gap: 12px;">
+					<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px;">
+						<h3 style="font-size: 12px; font-weight: 700; color: var(--tx2); letter-spacing: 0.06em; text-transform: uppercase;">Assessments</h3>
+						<button
+							onclick={() => (activeTab = 'assess')}
+							style="font-size: 12.5px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
+						>View all</button>
+					</div>
+
+					{#each [0, 1, 2] as type}
+						{#if hasAnyAssessment(type)}
+							{@const typeInfo = ASSESSMENT_TYPES[type]}
+							{@const grip = selectedGrip[type]}
+							{@const latest = latestForGrip(type, grip)}
+							{@const grips = availableGrips(type)}
+							<div style="
+								background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+								padding: 16px; box-shadow: var(--sh);
+							">
+								<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;">
+									<div style="font-size: 12px; font-weight: 600; color: var(--tx);">{typeInfo.label}</div>
+									<div style="font-size: 11px; color: var(--tx3);">{typeInfo.unit}</div>
+								</div>
+								{#if grips.length > 0}
+									<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">{GRIP_POSITIONS[grip]}</div>
+								{/if}
+								<div style="display: flex; gap: 20px; align-items: center;">
+									<div>
+										<div style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;">LEFT</div>
+										<div style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;">{formatVal(latest?.LeftValue, type)}</div>
+									</div>
+									<div>
+										<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">RIGHT</div>
+										<div style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;">{formatVal(latest?.RightValue, type)}</div>
+									</div>
+								</div>
+							</div>
+						{/if}
+					{/each}
+
+					{#if totalAssessmentCount === 0}
+						<div style="
+							background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+							padding: 24px 16px; text-align: center; color: var(--tx3); font-size: 13px;
+						">No assessments yet.</div>
 					{/if}
 
-					{#if programsLoading}
-						<div class="flex items-center gap-3 py-6">
-							<div class="animate-spin" style="width: 14px; height: 14px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"></div>
-							<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
-						</div>
-					{:else if programs.length === 0}
-						<p style="font-family: monospace; font-size: 13px; color: #666;">No programs yet.</p>
-					{:else}
-						<div class="divide-y divide-gray-200 border border-black">
-							{#each programs as program (program.id)}
-								<div class="p-4">
-									<div class="flex items-start justify-between gap-4">
-										<button
-											onclick={() => goto(`/coachees/${data.id}/programs/${program.id}`)}
-											class="min-w-0 flex-1 text-left transition-colors hover:text-gray-600"
-										>
-											<p class="font-bold" style="font-family: monospace; font-size: 14px;">{program.name}</p>
-											{#if program.objective}
-												<p class="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap" style="font-family: monospace; font-size: 12px; color: #666; max-width: 60ch;">{program.objective}</p>
-											{/if}
-											<p class="mt-1" style="font-family: monospace; font-size: 11px; color: #999;">
-												{formatProgramDate(program.start_date)}{program.duration_weeks ? ` -- ${program.duration_weeks} weeks` : ''}
-											</p>
-										</button>
-										<div class="flex shrink-0 gap-2">
-											{#if confirmDeleteProgramId === program.id}
-												<button
-													onclick={() => handleDeleteProgram(program.id)}
-													disabled={deletingProgram}
-													class="border border-red-600 px-3 py-1 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-													style="font-family: monospace; font-size: 12px;"
-												>{deletingProgram ? '...' : 'CONFIRM'}</button>
-												<button
-													onclick={() => (confirmDeleteProgramId = null)}
-													class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-													style="font-family: monospace; font-size: 12px;"
-												>CANCEL</button>
-											{:else}
-												<button
-													onclick={() => (confirmDeleteProgramId = program.id)}
-													class="border border-gray-300 px-3 py-1 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
-													style="font-family: monospace; font-size: 12px;"
-												>DELETE</button>
-											{/if}
+					<!-- Active program card -->
+					{#if activeProgram}
+						{@const currentWk = computeCurrentWeek(activeProgram.start_date, activeProgram.duration_weeks)}
+						{@const totalWks = activeProgram.duration_weeks ?? currentWk}
+						{@const progress = Math.min(currentWk / totalWks, 1)}
+						<button
+							onclick={() => goto(`/coachees/${data.id}/programs/${activeProgram.id}`)}
+							style="
+								background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+								padding: 16px; box-shadow: var(--sh); cursor: pointer; text-align: left;
+								transition: border-color 0.15s; width: 100%; font-family: var(--font);
+							"
+							onmouseenter={(e) => (e.currentTarget.style.borderColor = 'var(--pr)')}
+							onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
+						>
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+								<div style="font-size: 11px; font-weight: 600; color: var(--tx); letter-spacing: 0.04em; text-transform: uppercase;">Active program</div>
+								<span style="
+									display: inline-flex; padding: 2px 8px; border-radius: 999px;
+									font-size: 11px; font-weight: 600;
+									background: #e3ede4; color: var(--gn);
+								">Week {currentWk}{totalWks ? ` / ${totalWks}` : ''}</span>
+							</div>
+							<div style="font-size: 14.5px; font-weight: 600; color: var(--tx); margin-bottom: 4px;">{activeProgram.name}</div>
+							{#if activeProgram.objective}
+								<div style="font-size: 12.5px; color: var(--tx2); margin-bottom: 12px;">{activeProgram.objective}</div>
+							{/if}
+							{#if activeProgram.duration_weeks}
+								<div style="height: 5px; background: var(--bd2); border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
+									<div style="width: {(progress * 100).toFixed(0)}%; height: 100%; background: var(--pr); border-radius: 3px;"></div>
+								</div>
+							{/if}
+							<div style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--pr); font-weight: 600;">
+								Open program
+								<Icon name="chevron" size={13} color="var(--pr)" />
+							</div>
+						</button>
+					{/if}
+				</div>
+			</div>
+
+		<!-- Programs tab -->
+		{:else if activeTab === 'programs'}
+			<div style="display: flex; flex-direction: column; gap: 14px;">
+				<div style="display: flex; align-items: center; justify-content: space-between;">
+					<div style="font-size: 13px; color: var(--tx2);">
+						<span style="font-weight: 600; color: var(--tx);">{programs.length} program{programs.length === 1 ? '' : 's'}</span>
+					</div>
+					<button
+						onclick={() => { showNewProgramForm = true; newProgramError = ''; }}
+						style="
+							display: inline-flex; align-items: center; gap: 6px;
+							padding: 7px 14px; border-radius: var(--rs);
+							background: var(--pr); color: #fff; border: none;
+							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+						"
+					>
+						<Icon name="plus" size={14} color="#fff" />
+						New program
+					</button>
+				</div>
+
+				{#if showNewProgramForm}
+					<div style="
+						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+						box-shadow: var(--sh); overflow: hidden;
+					">
+						<div style="height: 3px; background: linear-gradient(90deg, var(--pr), var(--gd));"></div>
+						<div style="padding: 22px 24px;">
+							<h3 style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">New program</h3>
+							<p style="font-size: 13px; color: var(--tx2); margin-bottom: 18px;">Create a multi-week training program for this coachee.</p>
+							{#if newProgramError}
+								<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;">{newProgramError}</div>
+							{/if}
+							<div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
+								<div>
+									<label style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;">Program name *</label>
+									<input
+										type="text"
+										bind:value={newProgramName}
+										placeholder="e.g. Summer Bouldering Block"
+										style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 14px; color: var(--tx); outline: none; background: #fff;"
+									/>
+								</div>
+								<div>
+									<label style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;">Objective</label>
+									<textarea
+										bind:value={newProgramObjective}
+										placeholder="What's the goal?"
+										rows={2}
+										style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; resize: none; background: #fff;"
+									></textarea>
+								</div>
+								<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+									<div>
+										<label style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;">Start date *</label>
+										<input
+											type="date"
+											bind:value={newProgramStartDate}
+											style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+										/>
+									</div>
+									<div>
+										<label style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;">Duration</label>
+										<div style="display: flex; align-items: center; gap: 8px;">
+											<input
+												type="number"
+												bind:value={newProgramDurationWeeks}
+												min="1"
+												max="52"
+												placeholder="--"
+												style="width: 80px; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+											/>
+											<span style="font-size: 13px; color: var(--tx2);">weeks</span>
 										</div>
 									</div>
 								</div>
-							{/each}
+							</div>
+							<div style="display: flex; justify-content: flex-end; gap: 8px;">
+								<button
+									onclick={() => { showNewProgramForm = false; newProgramName = ''; newProgramStartDate = ''; newProgramObjective = ''; newProgramDurationWeeks = ''; newProgramError = ''; }}
+									style="padding: 8px 16px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+								>Cancel</button>
+								<button
+									onclick={handleCreateProgram}
+									disabled={savingProgram}
+									style="
+										display: inline-flex; align-items: center; gap: 6px;
+										padding: 8px 16px; border-radius: var(--rs);
+										background: var(--pr); color: #fff; border: none;
+										font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+										opacity: {savingProgram ? 0.7 : 1};
+									"
+								>
+									<Icon name="plus" size={14} color="#fff" />
+									{savingProgram ? 'Creating...' : 'Create program'}
+								</button>
+							</div>
 						</div>
-					{/if}
-					{/if}
-				</div>
+					</div>
+				{/if}
 
-				<!-- Right: assessments sidebar (sticky) -->
-				<div style="width: 300px; flex-shrink: 0; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
-					<p
-						class="font-bold"
-						style="font-family: monospace; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;"
-					>
-						ASSESSMENTS
-					</p>
-
-					{#each [0, 1, 2] as type}
-						{@const typeInfo = ASSESSMENT_TYPES[type]}
-						{@const grips = availableGrips(type)}
-						{@const grip = selectedGrip[type]}
-						{@const latest = latestForGrip(type, grip)}
-						{@const history = historyForGrip(type, grip)}
-						{@const graphOpen = showGraph[type]}
-						<div class="border border-gray-200 bg-white">
-							<!-- Card header -->
-							<div class="border-b border-gray-200 px-3 py-2 flex items-center justify-between" style="background-color: #fafafa;">
-								<div class="flex items-baseline gap-2">
-									<span style="font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #C6613F;">{typeInfo.label}</span>
-									<span style="font-family: monospace; font-size: 10px; color: #bbb;">{typeInfo.unit}</span>
-								</div>
-								{#if history.length >= 2}
-									<button
-										onclick={() => (showGraph[type] = !showGraph[type])}
-										style="font-family: monospace; font-size: 10px; letter-spacing: 0.5px; color: {graphOpen ? '#C6613F' : '#bbb'}; background: none; border: none; cursor: pointer; padding: 0;"
-									>
-										{graphOpen ? 'HIDE' : 'GRAPH'}
-									</button>
-								{/if}
-							</div>
-
-							<!-- Grip tabs -->
-							{#if grips.length > 1}
-								<div class="flex border-b border-gray-200" style="overflow-x: auto;">
-									{#each grips as g}
+				{#if programsLoading}
+					<div style="display: flex; align-items: center; gap: 10px; padding: 24px 0;">
+						<div class="animate-spin" style="width: 14px; height: 14px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%;"></div>
+						<span style="font-size: 13px; color: var(--tx2);">Loading...</span>
+					</div>
+				{:else if programs.length === 0 && !showNewProgramForm}
+					<div style="
+						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+						padding: 40px 24px; text-align: center;
+					">
+						<div style="font-size: 13px; color: var(--tx3); margin-bottom: 12px;">No programs yet.</div>
+						<button
+							onclick={() => { showNewProgramForm = true; newProgramError = ''; }}
+							style="
+								display: inline-flex; align-items: center; gap: 6px;
+								padding: 8px 16px; border-radius: var(--rs);
+								background: var(--pr); color: #fff; border: none;
+								font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+							"
+						>
+							<Icon name="plus" size={14} color="#fff" />
+							Create first program
+						</button>
+					</div>
+				{:else}
+					{#each programs as program (program.id)}
+						{@const currentWk = computeCurrentWeek(program.start_date, program.duration_weeks)}
+						{@const totalWks = program.duration_weeks}
+						{@const isActive = !totalWks || currentWk <= totalWks}
+						<div
+							style="
+								background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+								box-shadow: var(--sh); overflow: hidden; transition: border-color 0.15s;
+							"
+							onmouseenter={(e) => (e.currentTarget.style.borderColor = 'rgba(194,113,79,0.4)')}
+							onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
+						>
+							{#if isActive}
+								<div style="height: 3px; background: linear-gradient(90deg, var(--pr), var(--gd));"></div>
+							{/if}
+							<div style="padding: 18px 22px; display: flex; gap: 20px; align-items: center;">
+								<div style="flex: 1; min-width: 0;">
+									<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
 										<button
-											onclick={() => (selectedGrip[type] = g)}
-											style="font-family: monospace; font-size: 10px; padding: 4px 8px; background: none; border: none; border-bottom: 2px solid {g === grip ? '#C6613F' : 'transparent'}; color: {g === grip ? '#C6613F' : '#aaa'}; cursor: pointer; white-space: nowrap; font-weight: {g === grip ? '700' : '400'};"
-										>
-											{GRIP_POSITIONS[g]}
-										</button>
-									{/each}
+											onclick={() => goto(`/coachees/${data.id}/programs/${program.id}`)}
+											style="font-size: 16px; font-weight: 700; color: var(--tx); letter-spacing: -0.01em; background: none; border: none; cursor: pointer; padding: 0; font-family: var(--font); text-align: left;"
+										>{program.name}</button>
+										{#if isActive}
+											<span style="
+												display: inline-flex; padding: 2px 8px; border-radius: 999px;
+												font-size: 11px; font-weight: 600; background: #e3ede4; color: var(--gn);
+											">Active · Week {currentWk}</span>
+										{:else}
+											<span style="
+												display: inline-flex; padding: 2px 8px; border-radius: 999px;
+												font-size: 11px; font-weight: 600; background: var(--bd2); color: var(--tx3);
+											">Completed</span>
+										{/if}
+									</div>
+									{#if program.objective}
+										<div style="font-size: 12.5px; color: var(--tx2); margin-bottom: 6px;">{program.objective}</div>
+									{/if}
+									<div style="display: flex; gap: 12px; font-size: 12px; color: var(--tx3);">
+										<span>Started {formatProgramDate(program.start_date)}</span>
+										{#if program.duration_weeks}
+											<span>·</span>
+											<span>{program.duration_weeks} weeks</span>
+										{/if}
+									</div>
 								</div>
-							{:else if grips.length === 1}
-								<div class="px-3 pt-2" style="font-family: monospace; font-size: 10px; color: #aaa;">
-									{GRIP_POSITIONS[grips[0]]}
-								</div>
-							{/if}
 
-							<!-- Values -->
-							<div class="flex px-3 py-2 gap-3">
-								<div style="flex: 1; text-align: center;">
-									<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #5A8C5A; margin-bottom: 2px;">LEFT</div>
-									<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: {latest ? '#222' : '#ccc'}; line-height: 1;">
-										{formatVal(latest?.LeftValue, type)}
-									</div>
-								</div>
-								<div style="width: 1px; background: #e5e7eb;"></div>
-								<div style="flex: 1; text-align: center;">
-									<div style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px; color: #C6613F; margin-bottom: 2px;">RIGHT</div>
-									<div style="font-family: monospace; font-size: 20px; font-weight: 700; color: {latest ? '#222' : '#ccc'}; line-height: 1;">
-										{formatVal(latest?.RightValue, type)}
-									</div>
+								<div style="display: flex; gap: 10px; align-items: center; flex-shrink: 0;">
+									{#if isActive && totalWks}
+										<div style="width: 60px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+											<div style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">PROGRESS</div>
+											<div style="width: 100%; height: 5px; background: var(--bd2); border-radius: 3px; overflow: hidden;">
+												<div style="width: {Math.min(currentWk / totalWks * 100, 100).toFixed(0)}%; height: 100%; background: var(--pr); border-radius: 3px;"></div>
+											</div>
+											<div style="font-size: 10px; color: var(--tx3);">{currentWk}/{totalWks}</div>
+										</div>
+									{/if}
+
+									{#if confirmDeleteProgramId === program.id}
+										<button
+											onclick={() => handleDeleteProgram(program.id)}
+											disabled={deletingProgram}
+											style="padding: 6px 12px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+										>{deletingProgram ? '...' : 'Confirm'}</button>
+										<button
+											onclick={() => (confirmDeleteProgramId = null)}
+											style="padding: 6px 12px; border-radius: var(--rs); border: 1px solid var(--bd); color: var(--tx); background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+										>Cancel</button>
+									{:else}
+										<button
+											onclick={() => (confirmDeleteProgramId = program.id)}
+											style="width: 32px; height: 32px; border-radius: var(--rs); border: 1px solid var(--bd); color: var(--tx3); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+											onmouseenter={(e) => { e.currentTarget.style.borderColor = 'var(--rd)'; e.currentTarget.style.color = 'var(--rd)'; }}
+											onmouseleave={(e) => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--tx3)'; }}
+											title="Delete program"
+										>
+											<Icon name="trash" size={14} color="currentColor" />
+										</button>
+										<button
+											onclick={() => goto(`/coachees/${data.id}/programs/${program.id}`)}
+											style="width: 32px; height: 32px; border-radius: var(--rs); border: 1px solid var(--bd); color: var(--tx3); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+										>
+											<Icon name="chevron" size={16} color="var(--tx3)" />
+										</button>
+									{/if}
 								</div>
 							</div>
-
-							<!-- Graph -->
-							{#if graphOpen && history.length >= 2}
-								<div class="border-t border-gray-200 px-1 py-1">
-									<AssessmentChart
-										{history}
-										unit={typeInfo.unit}
-										formatValue={typeInfo.format}
-									/>
-								</div>
-							{/if}
 						</div>
 					{/each}
+				{/if}
+			</div>
+
+		<!-- Assessments tab -->
+		{:else if activeTab === 'assess'}
+			<div style="display: flex; flex-direction: column; gap: 14px;">
+				<div style="display: flex; align-items: center; justify-content: space-between;">
+					<div style="font-size: 13px; color: var(--tx2);">
+						<span style="font-weight: 600; color: var(--tx);">{totalAssessmentCount} records</span>
+					</div>
 				</div>
 
+				{#if totalAssessmentCount === 0}
+					<div style="
+						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+						padding: 40px 24px; text-align: center; color: var(--tx3); font-size: 13px;
+					">No assessment records yet. Assessments are recorded through the Crimpy mobile app.</div>
+				{:else}
+					<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+						{#each [0, 1, 2] as type}
+							{#if hasAnyAssessment(type)}
+								{@const typeInfo = ASSESSMENT_TYPES[type]}
+								{@const grips = availableGrips(type)}
+								{@const grip = selectedGrip[type]}
+								{@const latest = latestForGrip(type, grip)}
+								{@const history = historyForGrip(type, grip)}
+								{@const typeColor = type === 0 ? 'var(--pr)' : type === 1 ? 'var(--gd)' : 'var(--gn)'}
+								<div style="
+									background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+									padding: 20px; box-shadow: var(--sh);
+								">
+									<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;">
+										<div style="font-size: 13px; font-weight: 700; color: var(--tx);">{typeInfo.label}</div>
+										<div style="font-size: 11px; color: var(--tx3);">{typeInfo.unit}</div>
+									</div>
+
+									{#if grips.length > 1}
+										<div style="display: flex; gap: 4px; margin-bottom: 8px; overflow-x: auto;">
+											{#each grips as g}
+												<button
+													onclick={() => (selectedGrip[type] = g)}
+													style="
+														padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
+														border: none; cursor: pointer; white-space: nowrap; font-family: var(--font);
+														background: {g === grip ? 'var(--pr-fog)' : 'var(--bd2)'};
+														color: {g === grip ? 'var(--pr)' : 'var(--tx3)'};
+													"
+												>{GRIP_POSITIONS[g]}</button>
+											{/each}
+										</div>
+									{:else if grips.length === 1}
+										<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">{GRIP_POSITIONS[grips[0]]}</div>
+									{/if}
+
+									<div style="display: flex; gap: 20px; margin-bottom: 14px;">
+										<div>
+											<div style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;">LEFT</div>
+											<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">{formatVal(latest?.LeftValue, type)}</div>
+										</div>
+										<div>
+											<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">RIGHT</div>
+											<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">{formatVal(latest?.RightValue, type)}</div>
+										</div>
+									</div>
+
+									{#if history.length >= 2}
+										<button
+											onclick={() => (showGraph[type] = !showGraph[type])}
+											style="
+												font-size: 11.5px; color: {showGraph[type] ? 'var(--pr)' : 'var(--tx3)'};
+												background: none; border: none; cursor: pointer; padding: 0;
+												font-family: var(--font); font-weight: 600; margin-bottom: 8px;
+											"
+										>{showGraph[type] ? 'Hide chart' : 'Show chart'}</button>
+									{/if}
+
+									{#if showGraph[type] && history.length >= 2}
+										<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
+											<AssessmentChart {history} unit={typeInfo.unit} formatValue={typeInfo.format} />
+										</div>
+									{/if}
+
+									{#if history.length >= 2}
+										{@const first = type === 0 ? (history[0].RightValue ?? 0) : (history[0].RightValue ?? 0)}
+										{@const last = type === 0 ? (history[history.length - 1].RightValue ?? 0) : (history[history.length - 1].RightValue ?? 0)}
+										{@const delta = last - first}
+										<div style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3); margin-top: 6px;">
+											<span>{history.length} records</span>
+											<span>·</span>
+											<span style="color: {delta >= 0 ? 'var(--gn)' : 'var(--rd)'}; font-weight: 600;">
+												{delta >= 0 ? '+' : ''}{typeInfo.format(delta)} {typeInfo.unit} overall
+											</span>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/each}
+					</div>
+
+					<!-- Assessment history table -->
+					<div style="
+						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+						box-shadow: var(--sh); overflow: hidden;
+					">
+						<div style="
+							padding: 14px 20px; border-bottom: 1px solid var(--bd2);
+							display: flex; align-items: center; justify-content: space-between;
+						">
+							<h3 style="font-size: 14px; font-weight: 700; color: var(--tx);">Assessment history</h3>
+						</div>
+						<div style="
+							display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;
+							padding: 10px 20px; border-bottom: 1px solid var(--bd2);
+							font-size: 10.5px; color: var(--tx3); font-weight: 600;
+							letter-spacing: 0.06em; text-transform: uppercase;
+							background: var(--panel2);
+						">
+							<div>Date</div>
+							<div>Type</div>
+							<div>Grip</div>
+							<div style="text-align: right;">Left</div>
+							<div style="text-align: right;">Right</div>
+						</div>
+						{#each assessmentHistory as a, i}
+							{@const typeInfo = ASSESSMENT_TYPES[a.Type]}
+							<div style="
+								display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;
+								padding: 11px 20px; align-items: center;
+								border-bottom: {i < assessmentHistory.length - 1 ? '1px solid var(--bd2)' : 'none'};
+								font-size: 13px;
+							">
+								<div style="color: var(--tx2); font-size: 12px;">{formatAssessmentDate(a.UpdatedAt)}</div>
+								<div style="font-weight: 600; color: var(--tx);">{typeInfo?.label ?? `Type ${a.Type}`}</div>
+								<div style="color: var(--tx3); font-size: 12px;">{GRIP_POSITIONS[a.GripPosition] ?? `Grip ${a.GripPosition}`}</div>
+								<div style="text-align: right; font-weight: 600;">
+									{a.LeftValue !== null ? typeInfo?.format(a.LeftValue) : '--'}
+								</div>
+								<div style="text-align: right; font-weight: 600;">
+									{a.RightValue !== null ? typeInfo?.format(a.RightValue) : '--'}
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+		<!-- Notes tab -->
+		{:else if activeTab === 'notes'}
+			<div style="
+				background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+				padding: 48px 24px; text-align: center; box-shadow: var(--sh);
+			">
+				<div style="font-size: 32px; margin-bottom: 12px; opacity: 0.2;">
+					<Icon name="edit" size={40} color="var(--tx)" />
+				</div>
+				<div style="font-size: 15px; font-weight: 600; color: var(--tx); margin-bottom: 6px;">Notes coming soon</div>
+				<div style="font-size: 13px; color: var(--tx3);">Coach notes and annotations will appear here.</div>
 			</div>
 		{/if}
 
+		{/if}
 	</div>
-</div>
-
-<style>
-	/* FullCalendar overrides — sharp monospace aesthetic */
-	:global(.fc-crimpy) {
-		font-family: monospace;
-		font-size: 12px;
-	}
-
-	:global(.fc-crimpy .fc-toolbar-title) {
-		font-size: 14px;
-		font-weight: 700;
-		letter-spacing: -0.5px;
-	}
-
-	:global(.fc-crimpy .fc-button) {
-		background-color: white;
-		border: 1px solid black;
-		border-radius: 0;
-		color: black;
-		font-family: monospace;
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.5px;
-		text-transform: uppercase;
-		padding: 4px 10px;
-		box-shadow: none;
-	}
-
-	:global(.fc-crimpy .fc-button:hover) {
-		background-color: #f5f5f5;
-		border-color: black;
-		color: black;
-	}
-
-	:global(.fc-crimpy .fc-button:focus) {
-		box-shadow: none;
-	}
-
-	:global(.fc-crimpy .fc-button-active),
-	:global(.fc-crimpy .fc-button-primary:not(:disabled):active) {
-		background-color: black;
-		border-color: black;
-		color: white;
-	}
-
-	:global(.fc-crimpy .fc-col-header-cell) {
-		border-color: #e5e7eb;
-		padding: 6px 0;
-	}
-
-	:global(.fc-crimpy .fc-col-header-cell-cushion) {
-		font-weight: 600;
-		color: #333;
-		text-decoration: none;
-	}
-
-	:global(.fc-crimpy .fc-daygrid-day) {
-		min-height: 0;
-	}
-
-	:global(.fc-crimpy .fc-daygrid-day-number) {
-		font-size: 12px;
-		color: #333;
-		text-decoration: none;
-		padding: 4px 6px;
-	}
-
-	:global(.fc-crimpy .fc-day-today) {
-		background-color: transparent !important;
-	}
-
-	:global(.fc-crimpy .fc-day-today .fc-daygrid-day-number) {
-		background-color: #C6613F;
-		color: white;
-		border-radius: 0;
-	}
-
-	:global(.fc-crimpy .fc-daygrid-event) {
-		background: transparent;
-		border: none;
-		margin: 1px 2px;
-	}
-
-	:global(.fc-crimpy .fc-daygrid-event-dot) {
-		display: none;
-	}
-
-	:global(.fc-crimpy .fc-event-title) {
-		display: none;
-	}
-
-	:global(.fc-crimpy .fc-scrollgrid) {
-		border-color: #e5e7eb;
-	}
-
-	:global(.fc-crimpy td, .fc-crimpy th) {
-		border-color: #e5e7eb;
-	}
-</style>
+</AppShell>

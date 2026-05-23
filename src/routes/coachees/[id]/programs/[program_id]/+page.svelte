@@ -7,6 +7,8 @@
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import DraggableSession from '$lib/components/program/DraggableSession.svelte';
 	import type {
@@ -23,7 +25,6 @@
 	const userId = $derived(data.userId as string);
 	const programId = $derived(data.programId as string);
 
-	// --- Draft types ---
 	type DaySession = { _id: string; training_id: string };
 	type FreqSession = { _id: string; training_id: string; times_per_week: number };
 	type WeekDraft = {
@@ -89,7 +90,6 @@
 		return reqs;
 	}
 
-	// --- Program ---
 	let program = $state<Program | null>(null);
 	let loading = $state(true);
 	let error = $state('');
@@ -102,30 +102,33 @@
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
 
-	// --- Weeks ---
 	let weeks = $state<WeekSummary[]>([]);
 	let weekDrafts = $state<Record<number, WeekDraft>>({});
-	let calendarVersion = $state(0);
 
-	// Ensure drafts exist for all current week numbers whenever duration changes
+	let expandedWeeks = $state<Set<number>>(new Set());
+
 	$effect(() => {
 		for (const n of weekNumbers()) {
 			if (!weekDrafts[n]) weekDrafts[n] = emptyDraft();
 		}
 	});
 
-	// --- Trainings ---
 	let trainings = $state<CoachTrainingSummary[]>([]);
 	let trainingSearch = $state('');
+	let trainingTypeFilter = $state<string>('all');
 	let filteredTrainings = $derived(
-		trainingSearch.trim()
-			? trainings.filter((t) =>
-					t.title.toLowerCase().includes(trainingSearch.trim().toLowerCase())
-				)
-			: trainings
+		trainings.filter((t) => {
+			if (trainingTypeFilter !== 'all' && t.training_type !== trainingTypeFilter) return false;
+			if (!trainingSearch.trim()) return true;
+			return t.title.toLowerCase().includes(trainingSearch.trim().toLowerCase());
+		})
 	);
 
-	// --- DnD ---
+	const isDirty = $derived(Object.values(weekDrafts).some((d) => d.dirty));
+	const isSaving = $derived(Object.values(weekDrafts).some((d) => d.saving));
+
+	let dupModalSourceWn = $state<number | null>(null);
+
 	const dndSensors = [
 		PointerSensor.configure({
 			activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
@@ -200,7 +203,11 @@
 				const wn = parseInt(targetId.slice(5));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
 				const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
-				weekDrafts[wn].freqSessions.push({ _id: session._id, training_id: session.training_id, times_per_week: times });
+				weekDrafts[wn].freqSessions.push({
+					_id: session._id,
+					training_id: session.training_id,
+					times_per_week: times
+				});
 				weekDrafts[wn].dirty = true;
 			}
 		}
@@ -245,11 +252,23 @@
 					updated_at: detail.updated_at
 				});
 			}
-			calendarVersion++;
-			snackbar.show(`Week ${wn} saved`);
 		} catch (e) {
 			weekDrafts[wn].saving = false;
 			weekDrafts[wn].saveError = e instanceof Error ? e.message : 'Failed to save.';
+			throw e;
+		}
+	}
+
+	async function saveAllProgram() {
+		const dirtyWns = Object.entries(weekDrafts)
+			.filter(([, d]) => d.dirty)
+			.map(([n]) => parseInt(n));
+		if (dirtyWns.length === 0) return;
+		try {
+			await Promise.all(dirtyWns.map((n) => saveWeek(n)));
+			snackbar.show('Program saved');
+		} catch {
+			snackbar.show('Some weeks failed to save', 'error');
 		}
 	}
 
@@ -260,43 +279,44 @@
 			const idx = weeks.findIndex((w) => w.week_number === wn);
 			if (idx !== -1) weeks.splice(idx, 1);
 			weekDrafts[wn] = emptyDraft();
-			calendarVersion++;
-			snackbar.show(`Week ${wn} deleted`);
+			snackbar.show(`Week ${wn} cleared`);
 		} catch (e) {
 			weekDrafts[wn].deleting = false;
 			weekDrafts[wn].saveError = e instanceof Error ? e.message : 'Failed to delete.';
 		}
 	}
 
-	// --- Duplicate ---
-	let dupSourceWn = $state<number | null>(null);
-	let dupTargetStr = $state('');
-
-	function executeDuplicate(sourceWn: number) {
-		const target = parseInt(dupTargetStr);
-		if (isNaN(target) || target < 1) return;
+	function executeDuplicate(sourceWn: number, targetWn: number) {
 		const src = weekDrafts[sourceWn];
 		if (!src) return;
-		weekDrafts[target] = {
+		if (!weekDrafts[targetWn]) weekDrafts[targetWn] = emptyDraft();
+		weekDrafts[targetWn] = {
+			...weekDrafts[targetWn],
 			notes: src.notes,
 			days: src.days.map((d) => d.map((s) => ({ ...s, _id: crypto.randomUUID() }))),
 			freqSessions: src.freqSessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
-			dirty: true,
-			saving: false,
-			saveError: '',
-			deleteConfirm: false,
-			deleting: false
+			dirty: true
 		};
-		dupSourceWn = null;
-		dupTargetStr = '';
-		snackbar.show(`Week ${sourceWn} duplicated to week ${target}`);
+		dupModalSourceWn = null;
+		snackbar.show(`Week ${sourceWn} duplicated to week ${targetWn}`);
 	}
 
-	// --- Helpers ---
 	const TYPE_COLORS: Record<TrainingType, string> = {
-		workout: '#C6613F',
-		climbing: '#D4A644',
-		stretching: '#5A8C5A'
+		workout: '#c2714f',
+		climbing: '#d4a15e',
+		stretching: '#6b8f71'
+	};
+
+	const TYPE_TINTS: Record<TrainingType, string> = {
+		workout: '#f5e2d7',
+		climbing: '#faf0dc',
+		stretching: '#e3ede4'
+	};
+
+	const TYPE_LABELS: Record<string, string> = {
+		workout: 'WO',
+		climbing: 'CL',
+		stretching: 'ST'
 	};
 
 	const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -306,7 +326,11 @@
 	}
 
 	function trainingColor(id: string): string {
-		return TYPE_COLORS[trainingById(id)?.training_type ?? 'workout'];
+		return TYPE_COLORS[(trainingById(id)?.training_type ?? 'workout') as TrainingType] ?? '#c2714f';
+	}
+
+	function trainingTint(id: string): string {
+		return TYPE_TINTS[(trainingById(id)?.training_type ?? 'workout') as TrainingType] ?? '#f5e2d7';
 	}
 
 	function formatDate(d: string): string {
@@ -325,11 +349,20 @@
 		return Array.from({ length: max + 1 }, (_, i) => i + 1);
 	}
 
+	function weekDateRange(weekNum: number): string {
+		if (!program) return '';
+		const start = new Date(program.start_date);
+		start.setDate(start.getDate() + (weekNum - 1) * 7);
+		const end = new Date(start);
+		end.setDate(end.getDate() + 6);
+		const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+		return `${fmt(start)} - ${fmt(end)}`;
+	}
+
 	function isWeekDefined(n: number): boolean {
 		return weeks.some((w) => w.week_number === n);
 	}
 
-	// --- Metadata editing ---
 	function startEdit() {
 		if (!program) return;
 		editName = program.name;
@@ -372,75 +405,49 @@
 		}
 	}
 
-	// --- FullCalendar ---
-	let calendarEl = $state<HTMLElement | undefined>(undefined);
-
-	function calendarEvents(): { title: string; start: string; color: string }[] {
-		if (!program) return [];
-		const events: { title: string; start: string; color: string }[] = [];
-		const startMs = new Date(program.start_date).getTime();
-		for (const ws of weeks) {
-			const draft = weekDrafts[ws.week_number];
-			if (!draft) continue;
-			const offset = (ws.week_number - 1) * 7;
-			for (let day = 0; day < 7; day++) {
-				for (const s of draft.days[day]) {
-					const t = trainingById(s.training_id);
-					events.push({
-						title: t?.title ?? 'Training',
-						start: new Date(startMs + (offset + day) * 86400000).toISOString().slice(0, 10),
-						color: trainingColor(s.training_id)
-					});
-				}
-			}
-		}
-		return events;
+	function toggleWeek(wn: number) {
+		const next = new Set(expandedWeeks);
+		if (next.has(wn)) next.delete(wn);
+		else next.add(wn);
+		expandedWeeks = next;
 	}
 
-	function buildCalendar() {
-		if (!calendarEl || !program) return;
-		let destroyed = false;
-		let cal: import('@fullcalendar/core').Calendar;
-		(async () => {
-			const { Calendar } = await import('@fullcalendar/core');
-			const { default: dayGridPlugin } = await import('@fullcalendar/daygrid');
-			if (destroyed || !calendarEl) return;
-			const startDate = program!.start_date;
-			const endDate = program!.duration_weeks
-				? new Date(
-						new Date(startDate).getTime() + program!.duration_weeks * 7 * 86400000
-					)
-						.toISOString()
-						.slice(0, 10)
-				: undefined;
-			cal = new Calendar(calendarEl, {
-				plugins: [dayGridPlugin],
-				initialView: 'dayGridMonth',
-				initialDate: startDate,
-				firstDay: 1,
-				contentHeight: 200,
-				validRange: endDate ? { start: startDate, end: endDate } : undefined,
-				headerToolbar: { left: 'prev,next', center: 'title', right: '' },
-				editable: false,
-				selectable: false,
-				eventDisplay: 'list-item',
-				events: calendarEvents()
-			} as any);
-			cal.render();
-		})();
-		return () => {
-			destroyed = true;
-			cal?.destroy();
+	function expandAll() {
+		expandedWeeks = new Set(weekNumbers());
+	}
+
+	function collapseAll() {
+		expandedWeeks = new Set();
+	}
+
+	function clearWeek(wn: number) {
+		if (!weekDrafts[wn]) return;
+		weekDrafts[wn] = {
+			...weekDrafts[wn],
+			days: Array.from({ length: 7 }, () => []),
+			freqSessions: [],
+			notes: '',
+			dirty: true,
+			deleteConfirm: false
 		};
 	}
 
-	$effect(() => {
-		if (!calendarEl || !program) return;
-		void calendarVersion;
-		return buildCalendar();
+	const computedCurrentWeek = $derived.by(() => {
+		if (!program) return 1;
+		const diffWeeks = Math.max(1, Math.ceil((Date.now() - new Date(program.start_date).getTime()) / (7 * 86400000)));
+		return program.duration_weeks ? Math.min(diffWeeks, program.duration_weeks) : diffWeeks;
 	});
 
-	// --- Mount ---
+	const totalSessions = $derived(
+		Object.values(weekDrafts).reduce(
+			(sum, d) =>
+				sum +
+				d.days.reduce((s, day) => s + day.length, 0) +
+				d.freqSessions.reduce((s, f) => s + f.times_per_week, 0),
+			0
+		)
+	);
+
 	onMount(async () => {
 		authStore.initialize();
 		loading = true;
@@ -465,6 +472,13 @@
 				for (const d of details) allDrafts[d.week_number] = weekDetailToDraft(d);
 			}
 			weekDrafts = allDrafts;
+
+			// Open the current week by default
+			const currentWn = Math.max(1, Math.min(
+				Math.ceil((Date.now() - new Date(p.start_date).getTime()) / (7 * 86400000)),
+				p.duration_weeks ?? 999
+			));
+			expandedWeeks = new Set([currentWn]);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load program.';
 		} finally {
@@ -473,325 +487,570 @@
 	});
 </script>
 
-<div class="min-h-screen bg-white" style="padding: 24px;">
-
-	<!-- Header -->
-	<div style="max-width: 1400px; margin: 0 auto 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid black; padding-bottom: 16px;">
+<AppShell
+	title={program?.name ?? 'Program'}
+	breadcrumbs={[
+		{ label: 'Studio' },
+		{ label: 'Coachees', href: '/coachees' },
+		{ label: 'Coachee', href: `/coachees/${userId}` },
+		{ label: program?.name ?? 'Program' }
+	]}
+>
+	{#snippet actions()}
 		<button
 			onclick={() => goto(`/coachees/${userId}`)}
-			class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-			style="font-family: monospace; font-size: 12px;"
-		>BACK</button>
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 6px 12px; border-radius: var(--rs);
+				background: #fff; color: var(--tx); border: 1px solid var(--bd);
+				font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+			"
+		>
+			<Icon name="arrow-left" size={14} color="var(--tx2)" />
+			Back to coachee
+		</button>
 		{#if !confirmDelete}
 			<button
 				onclick={() => (confirmDelete = true)}
-				class="border border-gray-300 px-3 py-1 text-gray-500 transition-colors hover:border-red-600 hover:text-red-600"
-				style="font-family: monospace; font-size: 12px;"
-			>DELETE PROGRAM</button>
+				style="
+					display: inline-flex; align-items: center; gap: 6px;
+					padding: 6px 12px; border-radius: var(--rs);
+					background: #fff; color: var(--rd); border: 1px solid rgba(194,107,107,0.3);
+					font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+				"
+			>
+				<Icon name="trash" size={13} color="var(--rd)" />
+				Delete
+			</button>
 		{:else}
-			<div class="flex gap-2">
-				<button
-					onclick={handleDeleteProgram}
-					disabled={deleting}
-					class="border border-red-600 px-3 py-1 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-					style="font-family: monospace; font-size: 12px;"
-				>{deleting ? '...' : 'CONFIRM DELETE'}</button>
-				<button
-					onclick={() => (confirmDelete = false)}
-					class="border border-black px-3 py-1 transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 12px;"
-				>CANCEL</button>
-			</div>
+			<button
+				onclick={handleDeleteProgram}
+				disabled={deleting}
+				style="
+					padding: 6px 12px; border-radius: var(--rs);
+					border: 1px solid var(--rd); color: var(--rd);
+					background: #fff5f5; font-size: 12.5px; font-weight: 600;
+					cursor: pointer; font-family: var(--font);
+				"
+			>{deleting ? '...' : 'Confirm delete'}</button>
+			<button
+				onclick={() => (confirmDelete = false)}
+				style="
+					padding: 6px 12px; border-radius: var(--rs);
+					border: 1px solid var(--bd); color: var(--tx);
+					background: #fff; font-size: 12.5px; font-weight: 600;
+					cursor: pointer; font-family: var(--font);
+				"
+			>Cancel</button>
 		{/if}
-	</div>
+		<button
+			onclick={saveAllProgram}
+			disabled={!isDirty || isSaving}
+			style="
+				display: inline-flex; align-items: center; gap: 6px;
+				padding: 6px 14px; border-radius: var(--rs);
+				background: {isDirty ? 'var(--pr)' : '#fff'};
+				color: {isDirty ? '#fff' : 'var(--tx3)'};
+				border: 1px solid {isDirty ? 'var(--pr)' : 'var(--bd)'};
+				font-size: 12.5px; font-weight: 600; cursor: {isDirty ? 'pointer' : 'default'};
+				font-family: var(--font); transition: all 0.15s;
+			"
+		>
+			<Icon name="check" size={13} color={isDirty ? '#fff' : 'var(--tx3)'} />
+			{isSaving ? 'Saving...' : isDirty ? 'Save program' : 'Saved'}
+		</button>
+	{/snippet}
 
 	{#if error}
-		<div style="max-width: 1400px; margin: 0 auto 16px;" class="border border-red-600 bg-red-50 p-4" style:font-family="monospace" style:font-size="13px" style:color="#B85450">{error}</div>
+		<div style="padding: 16px 24px;">
+			<div style="padding: 14px 18px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;">{error}</div>
+		</div>
 	{/if}
 
 	{#if loading}
-		<div style="max-width: 1400px; margin: 0 auto;" class="flex items-center gap-3 py-12">
-			<div class="animate-spin" style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"></div>
-			<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+		<div style="display: flex; align-items: center; gap: 10px; padding: 40px 24px;">
+			<div class="animate-spin" style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%;"></div>
+			<span style="font-size: 13px; color: var(--tx2);">Loading...</span>
 		</div>
 	{:else if program}
 
-		<!-- Metadata -->
-		<div style="max-width: 1400px; margin: 0 auto 24px;">
-			{#if editing}
-				<div class="space-y-3">
-					<input
-						type="text"
-						bind:value={editName}
-						class="w-full border-b-2 border-black px-0 py-1 text-3xl font-black outline-none"
-						style="font-family: monospace;"
-					/>
-					<textarea
-						bind:value={editObjective}
-						placeholder="Objective (optional)"
-						rows="2"
-						class="w-full resize-none border border-gray-300 px-3 py-2 outline-none focus:border-black"
-						style="font-family: monospace; font-size: 13px;"
-					></textarea>
-					<div class="flex flex-wrap gap-4">
+		<!-- Compact meta bar -->
+		<div style="padding: 0 24px;">
+		{#if editing}
+				<div style="
+					background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+					box-shadow: var(--sh); padding: 18px 20px; margin-bottom: 14px;
+				">
+					<div style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;">Edit program</div>
+					<div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 0.7fr; gap: 12px; margin-bottom: 14px;">
 						<div>
-							<label for="edit-start-date" style="font-family: monospace; font-size: 11px; color: #999; display: block; margin-bottom: 2px;">START DATE</label>
-							<input id="edit-start-date" type="date" bind:value={editStartDate}
-								class="border border-black px-2 py-1 outline-none"
-								style="font-family: monospace; font-size: 13px;" />
+							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Name</label>
+							<input bind:value={editName} style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--tx); outline: none; background: #fff;" />
 						</div>
 						<div>
-							<label for="edit-duration-weeks" style="font-family: monospace; font-size: 11px; color: #999; display: block; margin-bottom: 2px;">DURATION (WEEKS)</label>
-							<input id="edit-duration-weeks" type="number" bind:value={editDurationWeeks} min="1" placeholder="--"
-								class="border border-gray-300 px-2 py-1 outline-none focus:border-black"
-								style="font-family: monospace; font-size: 13px; width: 80px;" />
+							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Objective</label>
+							<input bind:value={editObjective} placeholder="Goal..." style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+						</div>
+						<div>
+							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Start date</label>
+							<input type="date" bind:value={editStartDate} style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+						</div>
+						<div>
+							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Weeks</label>
+							<input type="number" bind:value={editDurationWeeks} min="1" style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
 						</div>
 					</div>
-					<div class="flex gap-2">
+					<div style="display: flex; gap: 8px;">
 						<button onclick={saveEdit} disabled={saving}
-							class="border border-black px-4 py-1.5 font-bold transition-colors hover:bg-black hover:text-white disabled:opacity-50"
-							style="font-family: monospace; font-size: 12px;">{saving ? '...' : 'SAVE'}</button>
+							style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--rs); background: var(--pr); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving ? 0.7 : 1};"
+						>
+							<Icon name="check" size={13} color="#fff" />
+							{saving ? 'Saving...' : 'Done'}
+						</button>
 						<button onclick={() => (editing = false)}
-							class="border border-gray-300 px-4 py-1.5 transition-colors hover:bg-gray-100"
-							style="font-family: monospace; font-size: 12px;">CANCEL</button>
+							style="padding: 7px 14px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+						>Cancel</button>
 					</div>
 				</div>
 			{:else}
-				<div class="flex items-start justify-between gap-4">
-					<div>
-						<h1 class="mb-1 text-3xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">{program.name}</h1>
-						{#if program.objective}
-							<p class="mb-1" style="font-family: monospace; font-size: 13px; color: #555;">{program.objective}</p>
-						{/if}
-						<p style="font-family: monospace; font-size: 12px; color: #999;">
-							{formatDate(program.start_date)}{program.duration_weeks ? ` -- ${program.duration_weeks} weeks` : ''}
-						</p>
-					</div>
+				<div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; margin-bottom: 10px;">
+					<span style="
+						display: inline-flex; padding: 2px 9px; border-radius: 999px;
+						font-size: 11.5px; font-weight: 600; background: #e3ede4; color: var(--gn);
+					">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span>
+					{#if program.objective}
+						<span style="font-size: 12.5px; color: var(--tx2);">{program.objective}</span>
+						<span style="font-size: 12px; color: var(--tx3);">·</span>
+					{/if}
+					<span style="font-size: 12px; color: var(--tx3);">Started {formatDate(program.start_date)}</span>
+					<div style="flex: 1;"></div>
 					<button onclick={startEdit}
-						class="shrink-0 border border-gray-300 px-3 py-1 transition-colors hover:bg-gray-100"
-						style="font-family: monospace; font-size: 12px;">EDIT</button>
+						style="font-size: 12px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
+					>Edit details</button>
 				</div>
 			{/if}
+
 		</div>
 
-		<!-- FullCalendar overview -->
-		<div style="max-width: 1400px; margin: 0 auto 32px;" class="border border-gray-200 p-3">
-			<div bind:this={calendarEl} class="fc-crimpy"></div>
-		</div>
-
-		<!-- DnD layout -->
+		<!-- DragDropProvider wraps week grid + right rail so SidePanelDraggable has context -->
 		<DragDropProvider sensors={dndSensors} {onDragEnd}>
-			<div style="max-width: 1400px; margin: 0 auto; display: flex; gap: 16px; align-items: flex-start;">
+		<div style="display: flex; align-items: flex-start;">
+			<div style="flex: 1; min-width: 0; padding: 16px 24px 40px;">
+				<div style="display: flex; flex-direction: column; gap: 6px;">
 
-				<!-- Sidebar: training list -->
-				<div style="width: 200px; flex-shrink: 0; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-					<p style="font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #999; text-transform: uppercase;">TRAININGS</p>
-					<input
-						type="text"
-						bind:value={trainingSearch}
-						placeholder="Search..."
-						class="w-full border border-black px-2 py-1.5 outline-none focus:border-2"
-						style="font-family: monospace; font-size: 12px;"
-					/>
-					<div style="display: flex; flex-direction: column; gap: 3px;">
-						{#each filteredTrainings as t (t.id)}
-							<SidePanelDraggable
-								id="__new__:{t.id}"
-								style="width: 100%; text-align: left; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #e5e7eb; font-family: monospace; font-size: 11px;"
-								class="hover:border-black hover:bg-gray-50 transition-colors"
-							>
-								<span style="font-size: 9px; font-weight: 700; color: {TYPE_COLORS[t.training_type ?? 'workout']}; flex-shrink: 0;">{(t.training_type ?? 'WO').slice(0, 2).toUpperCase()}</span>
-								<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{t.title}</span>
-							</SidePanelDraggable>
+					<!-- Sticky column headers -->
+					<div style="
+						display: grid; grid-template-columns: 128px repeat(7, 1fr) 80px;
+						position: sticky; top: 0; z-index: 10;
+						background: var(--bg); padding-bottom: 2px;
+					">
+						<div style="font-size: 11px; color: var(--tx3); font-weight: 600; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
+							WEEK
+							<span style="display: flex; gap: 4px;">
+								<button onclick={expandAll} title="Expand all" style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--pr); padding: 0;">+</button>
+								<button onclick={collapseAll} title="Collapse all" style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--tx3); padding: 0;">-</button>
+							</span>
+						</div>
+						{#each DAY_LABELS as d}
+							<div style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;">{d}</div>
 						{/each}
-						{#if filteredTrainings.length === 0}
-							<p style="font-family: monospace; font-size: 11px; color: #aaa;">No trainings found.</p>
-						{/if}
+						<div style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;" title="Flexible — assigned per week, not pinned to a day">/WK</div>
 					</div>
-				</div>
 
-				<!-- Week rows -->
-				<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
-					{#if weekNumbers().length === 0}
-						<p style="font-family: monospace; font-size: 13px; color: #999; padding: 24px 0;">No weeks defined. Edit the program to set a duration.</p>
-					{/if}
-
+					<!-- Week rows -->
 					{#each weekNumbers() as wn}
 						{@const draft = weekDrafts[wn]}
 						{#if draft}
-							{@const defined = isWeekDefined(wn)}
-							<div style="border: 1px solid {draft.dirty ? '#C6613F' : defined ? '#333' : '#e5e7eb'};">
+							{@const isCurrent = wn === computedCurrentWeek}
+							{@const expanded = expandedWeeks.has(wn)}
+							{@const sessCount = draft.days.reduce((s, d) => s + d.length, 0) + draft.freqSessions.reduce((s, f) => s + f.times_per_week, 0)}
+							<div style="
+								background: var(--panel); border-radius: var(--rl);
+								border: 1px solid {isCurrent ? 'rgba(194,113,79,0.4)' : 'var(--bd)'};
+								box-shadow: {expanded ? 'var(--sh)' : 'none'}; overflow: hidden;
+								transition: all 0.15s;
+							">
+								<!-- Row header (always visible) -->
+								<button
+									onclick={() => toggleWeek(wn)}
+									style="
+										display: grid; grid-template-columns: 128px repeat(7, 1fr) 80px;
+										width: 100%; align-items: center; cursor: pointer;
+										background: {isCurrent && !expanded ? 'var(--pr-fog)' : expanded ? 'var(--panel2)' : 'var(--panel)'};
+										border: none; font-family: var(--font); text-align: left;
+										min-height: {expanded ? '40px' : '48px'}; transition: background 0.1s;
+									"
+								>
+									<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 1px;">
+										<div style="display: flex; align-items: center; gap: 6px;">
+											<span style="
+												display: inline-block; width: 12px;
+												transform: {expanded ? 'rotate(90deg)' : 'rotate(0)'};
+												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr)' : 'var(--tx3)'};
+												font-size: 10px;
+											">&#9654;</span>
+											<span style="font-size: 13px; font-weight: 700; color: {isCurrent ? 'var(--pr)' : 'var(--tx)'};">Wk {wn}</span>
+											{#if isCurrent}
+												<span style="font-size: 8.5px; font-weight: 700; color: #fff; background: var(--pr); padding: 1px 5px; border-radius: 3px; line-height: 14px;">NOW</span>
+											{/if}
+											{#if draft.dirty}
+												<span style="font-size: 9px; color: var(--pr);">*</span>
+											{/if}
+										</div>
+										<div style="font-size: 10px; color: var(--tx3); padding-left: 18px;">{weekDateRange(wn)}</div>
+									</div>
 
-								<!-- Week header -->
-								<div style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-bottom: 1px solid #e5e7eb; background: #fafafa; flex-wrap: wrap;">
-									<span style="font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; flex-shrink: 0;">
-										WK {wn}{#if draft.dirty}<span style="color: #C6613F;"> *</span>{/if}
-									</span>
-									<input
-										type="text"
-										bind:value={draft.notes}
-										oninput={() => (draft.dirty = true)}
-										placeholder="Week notes..."
-										style="font-family: monospace; font-size: 11px; border: none; border-bottom: 1px solid #e5e7eb; padding: 1px 4px; outline: none; flex: 1; min-width: 60px; background: transparent;"
-									/>
-									<div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; margin-left: auto;">
-										<!-- Duplicate -->
-										{#if dupSourceWn === wn}
-											<input
-												type="number"
-												bind:value={dupTargetStr}
-												placeholder="#"
-												min="1"
-												onkeydown={(e) => { if (e.key === 'Enter') executeDuplicate(wn); }}
-												style="font-family: monospace; font-size: 11px; border: 1px solid #333; padding: 2px 4px; width: 40px; outline: none;"
-											/>
-											<button
-												onclick={() => executeDuplicate(wn)}
-												class="border border-gray-700 px-2 py-0.5 transition-colors hover:bg-gray-100"
-												style="font-family: monospace; font-size: 11px;"
-											>COPY</button>
-											<button
-												onclick={() => { dupSourceWn = null; dupTargetStr = ''; }}
-												class="border border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:bg-gray-100"
-												style="font-family: monospace; font-size: 11px;"
-											>X</button>
-										{:else}
-											<button
-												onclick={() => { dupSourceWn = wn; dupTargetStr = ''; }}
-												class="border border-gray-300 px-2 py-0.5 text-gray-500 transition-colors hover:border-black hover:text-black"
-												style="font-family: monospace; font-size: 11px;"
-											>DUP</button>
+									<!-- Collapsed preview: abbreviated training pills -->
+									{#if !expanded}
+										{#each DAY_LABELS as _, di}
+											<div style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;">
+												{#each draft.days[di] as s (s._id)}
+													{@const t = trainingById(s.training_id)}
+													<div style="
+														padding: 2px 5px; border-radius: 4px;
+														background: {trainingTint(s.training_id)};
+														font-size: 9px; color: {trainingColor(s.training_id)};
+														font-weight: 600; max-width: 100%;
+														overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+													">{t?.title?.split(' ')[0] ?? '?'}</div>
+												{/each}
+												{#if draft.days[di].length === 0}
+													<span style="font-size: 10px; color: var(--bd);">-</span>
+												{/if}
+											</div>
+										{/each}
+									{:else}
+										{#each DAY_LABELS as _}<div></div>{/each}
+									{/if}
+
+									<div style="padding: 8px 12px; display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
+										{#if sessCount > 0}
+											<span style="
+												font-size: 11px; color: var(--tx3); font-weight: 500;
+												background: var(--panel2); padding: 2px 7px; border-radius: 999px;
+											">{sessCount}</span>
 										{/if}
+									</div>
+								</button>
 
-										<!-- Delete defined week -->
-										{#if defined}
+								<!-- Expanded body -->
+								{#if expanded}
+									<!-- Actions bar with notes -->
+									<div style="
+										display: flex; align-items: center; gap: 10px;
+										padding: 8px 12px; border-top: 1px solid var(--bd2); border-bottom: 1px solid var(--bd2);
+										background: var(--panel);
+									">
+										<Icon name="edit" size={12} color="var(--tx3)" />
+										<input
+											value={draft.notes}
+											onclick={(e) => e.stopPropagation()}
+											oninput={(e) => { draft.notes = e.currentTarget.value; draft.dirty = true; }}
+											placeholder="Week notes..."
+											style="
+												flex: 1; border: none; outline: none; background: transparent;
+												font-family: var(--font); font-size: 12px; color: var(--tx);
+												font-style: {draft.notes ? 'normal' : 'italic'};
+											"
+										/>
+										<div style="display: flex; gap: 4px; flex-shrink: 0;">
+											<button
+												onclick={(e) => { e.stopPropagation(); dupModalSourceWn = wn; }}
+												style="
+													display: inline-flex; align-items: center; gap: 5px;
+													padding: 4px 10px; border-radius: var(--rs);
+													border: 1px solid var(--bd); background: #fff; color: var(--tx2);
+													font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+												"
+											>
+												<Icon name="copy" size={11} color="var(--tx2)" />
+												Duplicate
+											</button>
+
 											{#if draft.deleteConfirm}
 												<button
-													onclick={() => handleDeleteWeek(wn)}
-													disabled={draft.deleting}
-													class="border border-red-600 px-2 py-0.5 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-													style="font-family: monospace; font-size: 11px;"
-												>{draft.deleting ? '...' : 'CONFIRM'}</button>
+													onclick={(e) => { e.stopPropagation(); clearWeek(wn); draft.deleteConfirm = false; }}
+													style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+												>Confirm clear</button>
 												<button
-													onclick={() => (draft.deleteConfirm = false)}
-													class="border border-gray-300 px-2 py-0.5 text-gray-400 transition-colors hover:bg-gray-100"
-													style="font-family: monospace; font-size: 11px;"
-												>X</button>
+													onclick={(e) => { e.stopPropagation(); draft.deleteConfirm = false; }}
+													style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+												>Cancel</button>
 											{:else}
 												<button
-													onclick={() => (draft.deleteConfirm = true)}
-													class="border border-gray-200 px-2 py-0.5 text-gray-400 transition-colors hover:border-red-500 hover:text-red-500"
-													style="font-family: monospace; font-size: 11px;"
-												>DEL</button>
+													onclick={(e) => { e.stopPropagation(); draft.deleteConfirm = true; }}
+													style="
+														display: inline-flex; align-items: center; gap: 5px;
+														padding: 4px 10px; border-radius: var(--rs);
+														border: 1px solid var(--bd); background: #fff; color: var(--tx3);
+														font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+													"
+												>
+													<Icon name="trash" size={11} color="var(--tx3)" />
+													Clear
+												</button>
 											{/if}
-										{/if}
-
-										<!-- Save -->
-										<button
-											onclick={() => saveWeek(wn)}
-											disabled={!draft.dirty || draft.saving}
-											style="font-family: monospace; font-size: 11px; padding: 2px 10px; font-weight: 700; border: 1px solid {draft.dirty ? '#333' : '#e5e7eb'}; color: {draft.dirty ? 'white' : '#ccc'}; background: {draft.dirty ? '#333' : 'white'}; cursor: {draft.dirty ? 'pointer' : 'default'};"
-											class="disabled:opacity-50"
-										>{draft.saving ? '...' : 'SAVE'}</button>
-									</div>
-								</div>
-
-								{#if draft.saveError}
-									<p style="font-family: monospace; font-size: 11px; color: #B85450; padding: 4px 10px; background: #fef2f2;">{draft.saveError}</p>
-								{/if}
-
-								<!-- Day headers + droppable cells -->
-								<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(70px, 0.8fr);">
-									<!-- Headers -->
-									{#each [...DAY_LABELS, '/wk'] as label, i}
-										<div style="padding: 3px 6px; border-bottom: 1px solid #e5e7eb; {i < 8 ? 'border-right: 1px solid #f0f0f0;' : ''} font-family: monospace; font-size: 10px; color: #999; background: #fafafa; text-align: center; letter-spacing: 0.5px;">
-											{label}
 										</div>
-									{/each}
+									</div>
 
-									<!-- Day cells -->
-									{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex}
-										<DroppableCell id="cell:{wn}:{dayIndex}">
-											<div style="padding: 3px; min-height: 60px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid #f0f0f0;">
-												{#each draft.days[dayIndex] as session (session._id)}
+									{#if draft.saveError}
+										<div style="padding: 6px 12px; background: #fef2f2; color: #b91c1c; font-size: 12px; border-bottom: 1px solid #fca5a5;">{draft.saveError}</div>
+									{/if}
+
+									<!-- Day grid -->
+									<div style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 80px; min-height: 72px;">
+
+										<!-- Left info -->
+										<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 3px;">
+											<div style="display: flex; align-items: baseline; gap: 4px;">
+												<span style="font-size: 20px; font-weight: 700; color: var(--tx);">{sessCount}</span>
+												<span style="font-size: 11px; color: var(--tx3);">sessions</span>
+											</div>
+											{#if draft.notes}
+												<div style="font-size: 10.5px; color: var(--tx2); font-style: italic; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">{draft.notes}</div>
+											{/if}
+										</div>
+
+										<!-- Day cells -->
+										{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex}
+											<DroppableCell id="cell:{wn}:{dayIndex}">
+												<div style="
+													padding: 5px 3px; min-height: 72px;
+													display: flex; flex-direction: column; gap: 3px;
+													border-left: 1px solid var(--bd2);
+												">
+													{#each draft.days[dayIndex] as session (session._id)}
+														{@const color = trainingColor(session.training_id)}
+														{@const tint = trainingTint(session.training_id)}
+														<DraggableSession id={session._id}>
+															<div style="
+																display: flex; align-items: center; gap: 4px;
+																padding: 4px 5px; border-radius: 5px;
+																background: {tint}; border: 1px solid {color}30;
+																cursor: grab; font-size: 10.5px;
+															">
+																<div style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
+																<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;">
+																	{trainingById(session.training_id)?.title ?? '?'}
+																</span>
+																<button
+																	onclick={() => removeSession(wn, session._id)}
+																	style="font-size: 9px; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 1px; line-height: 1; flex-shrink: 0; opacity: 0.5;"
+																	onmouseenter={(e) => (e.currentTarget.style.opacity = '1')}
+																	onmouseleave={(e) => (e.currentTarget.style.opacity = '0.5')}
+																>x</button>
+															</div>
+														</DraggableSession>
+													{/each}
+													{#if draft.days[dayIndex].length === 0}
+														<div style="
+															flex: 1; display: flex; align-items: center; justify-content: center;
+															border-radius: 5px; border: 1px dashed var(--bd);
+															color: var(--tx3); margin: 2px; min-height: 40px;
+															transition: border-color 0.15s, color 0.15s;
+														"
+														onmouseenter={(e) => { e.currentTarget.style.borderColor = 'var(--pr)'; e.currentTarget.style.color = 'var(--pr)'; }}
+														onmouseleave={(e) => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--tx3)'; }}
+														>
+															<Icon name="plus" size={14} color="currentColor" />
+														</div>
+													{/if}
+												</div>
+											</DroppableCell>
+										{/each}
+
+										<!-- Frequency cell -->
+										<DroppableCell id="freq:{wn}">
+											<div style="
+												padding: 5px 4px; min-height: 72px;
+												display: flex; flex-direction: column; gap: 3px;
+												border-left: 1px solid var(--bd2);
+												background: var(--panel2);
+											">
+												{#each draft.freqSessions as session (session._id)}
 													{@const color = trainingColor(session.training_id)}
+													{@const tint = trainingTint(session.training_id)}
 													<DraggableSession id={session._id}>
-														<div style="display: flex; align-items: center; gap: 3px; border: 1px solid {color}44; padding: 2px 4px; background: white; font-family: monospace; font-size: 10px;">
-															<span style="width: 6px; height: 6px; border-radius: 50%; background: {color}; flex-shrink: 0;"></span>
-															<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #333;">
-																{trainingById(session.training_id)?.title ?? '?'}
+														<div style="
+															display: flex; align-items: center; gap: 3px;
+															padding: 3px 4px; border-radius: 5px;
+															background: {tint}; border: 1px solid {color}30;
+															font-size: 9.5px;
+														">
+															<div style="width: 4px; height: 4px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
+															<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500; min-width: 0;">
+																{trainingById(session.training_id)?.title?.split(' ')[0] ?? '?'}
 															</span>
+															<input
+																type="number"
+																value={session.times_per_week}
+																oninput={(e) => { session.times_per_week = parseInt(e.currentTarget.value) || 1; draft.dirty = true; }}
+																min="1"
+																max="14"
+																style="width: 22px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0; outline: none; background: transparent; font-family: var(--font); font-size: 9.5px; color: {color}; font-weight: 700;"
+															/>
+															<span style="font-size: 9px; color: {color}; font-weight: 700;">x</span>
 															<button
 																onclick={() => removeSession(wn, session._id)}
-																style="font-family: monospace; font-size: 9px; color: #ccc; background: none; border: none; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0;"
-																class="hover:text-red-500"
+																style="font-size: 8px; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 1px; line-height: 1; flex-shrink: 0; opacity: 0.5;"
+																onmouseenter={(e) => (e.currentTarget.style.opacity = '1')}
+																onmouseleave={(e) => (e.currentTarget.style.opacity = '0.5')}
 															>x</button>
 														</div>
 													</DraggableSession>
 												{/each}
 											</div>
 										</DroppableCell>
-									{/each}
-
-									<!-- Frequency cell -->
-									<DroppableCell id="freq:{wn}">
-										<div style="padding: 3px; min-height: 60px; display: flex; flex-direction: column; gap: 2px;">
-											{#each draft.freqSessions as session (session._id)}
-												{@const color = trainingColor(session.training_id)}
-												<DraggableSession id={session._id}>
-													<div style="display: flex; align-items: center; gap: 2px; border: 1px solid {color}44; padding: 2px 4px; background: white; font-family: monospace; font-size: 10px;">
-														<span style="width: 6px; height: 6px; border-radius: 50%; background: {color}; flex-shrink: 0;"></span>
-														<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #333; min-width: 0;">
-															{trainingById(session.training_id)?.title ?? '?'}
-														</span>
-														<input
-															type="number"
-															value={session.times_per_week}
-															oninput={(e) => { session.times_per_week = parseInt(e.currentTarget.value) || 1; draft.dirty = true; }}
-															min="1"
-															max="14"
-															style="font-family: monospace; font-size: 10px; width: 22px; border: none; border-bottom: 1px solid #ccc; text-align: center; padding: 0; outline: none; background: transparent; flex-shrink: 0;"
-														/>
-														<span style="font-size: 9px; color: #999; flex-shrink: 0;">x</span>
-														<button
-															onclick={() => removeSession(wn, session._id)}
-															style="font-family: monospace; font-size: 9px; color: #ccc; background: none; border: none; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0;"
-															class="hover:text-red-500"
-														>x</button>
-													</div>
-												</DraggableSession>
-											{/each}
-										</div>
-									</DroppableCell>
-								</div>
+									</div>
+								{/if}
 							</div>
 						{/if}
 					{/each}
+
+					{#if weekNumbers().length === 0}
+						<div style="
+							background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+							padding: 32px 24px; text-align: center; color: var(--tx3); font-size: 13px;
+						">No weeks defined. Use "Edit details" to set a duration.</div>
+					{/if}
 				</div>
 			</div>
+
+			<!-- Right rail: Training library (inside DragDropProvider) -->
+			<div style="
+				width: 240px; flex-shrink: 0;
+				border-left: 1px solid var(--bd);
+				background: var(--panel);
+				display: flex; flex-direction: column;
+				position: sticky; top: 0; align-self: flex-start;
+				max-height: calc(100vh - 65px); overflow: hidden;
+			">
+				<div style="padding: 16px 14px 10px; border-bottom: 1px solid var(--bd2);">
+					<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+						<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Trainings</h3>
+						<span style="font-size: 11px; color: var(--tx3);">{trainings.length}</span>
+					</div>
+					<div style="
+						display: flex; align-items: center; gap: 7px;
+						background: var(--panel2); border: 1px solid var(--bd); border-radius: var(--rs);
+						padding: 7px 10px; margin-bottom: 8px;
+					">
+						<Icon name="search" size={13} color="var(--tx3)" />
+						<input
+							bind:value={trainingSearch}
+							placeholder="Find training..."
+							style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx);"
+						/>
+					</div>
+					<div style="display: flex; gap: 3px; flex-wrap: wrap;">
+						{#each [
+							{ id: 'all', label: 'All' },
+							{ id: 'workout', label: 'Workout' },
+							{ id: 'climbing', label: 'Climb' },
+							{ id: 'stretching', label: 'Stretch' },
+						] as f}
+							<button
+								onclick={() => (trainingTypeFilter = f.id)}
+								style="
+									padding: 3px 9px; font-size: 10.5px; font-weight: 600;
+									border-radius: 999px; border: none; cursor: pointer;
+									background: {trainingTypeFilter === f.id ? 'var(--pr-fog)' : 'transparent'};
+									color: {trainingTypeFilter === f.id ? 'var(--pr)' : 'var(--tx3)'};
+									font-family: var(--font);
+								"
+							>{f.label}</button>
+						{/each}
+					</div>
+				</div>
+
+				<div style="flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+					{#each filteredTrainings as t (t.id)}
+						{@const color = TYPE_COLORS[(t.training_type ?? 'workout') as TrainingType] ?? '#c2714f'}
+						{@const tint = TYPE_TINTS[(t.training_type ?? 'workout') as TrainingType] ?? '#f5e2d7'}
+						{@const label = TYPE_LABELS[t.training_type ?? 'workout'] ?? 'WO'}
+						<SidePanelDraggable
+							id="__new__:{t.id}"
+							style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--rs); background: var(--panel); border: 1px solid var(--bd); cursor: grab; font-size: 12px; color: var(--tx); width: 100%; text-align: left;"
+						>
+							<div style="
+								width: 24px; height: 24px; border-radius: 5px;
+								background: {tint}; color: {color};
+								display: flex; align-items: center; justify-content: center;
+								font-size: 8.5px; font-weight: 700; flex-shrink: 0;
+							">{label}</div>
+							<div style="flex: 1; min-width: 0;">
+								<div style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px;">{t.title}</div>
+							</div>
+						</SidePanelDraggable>
+					{/each}
+					{#if filteredTrainings.length === 0}
+						<div style="padding: 16px; text-align: center; color: var(--tx3); font-size: 12px;">No trainings found.</div>
+					{/if}
+				</div>
+
+				<div style="padding: 12px 14px; border-top: 1px solid var(--bd2); display: flex; gap: 10px;">
+					<div style="flex: 1;">
+						<div style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;">TOTAL</div>
+						<div style="font-size: 16px; font-weight: 700; color: var(--tx);">{totalSessions} <span style="font-size: 11px; color: var(--tx3); font-weight: 500;">sessions</span></div>
+					</div>
+					<div>
+						<div style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;">WEEKS</div>
+						<div style="font-size: 16px; font-weight: 700; color: var(--tx);">{weekNumbers().length}</div>
+					</div>
+			</div>
+		</div>
 		</DragDropProvider>
+
 	{/if}
 
-</div>
-
-<style>
-	:global(.fc-crimpy) { font-family: monospace; font-size: 12px; }
-	:global(.fc-crimpy .fc-toolbar-title) { font-size: 13px; font-weight: 700; letter-spacing: -0.5px; }
-	:global(.fc-crimpy .fc-button) {
-		background-color: white; border: 1px solid black; border-radius: 0;
-		color: black; font-family: monospace; font-size: 11px; font-weight: 600;
-		letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 8px; box-shadow: none;
-	}
-	:global(.fc-crimpy .fc-button:hover) { background-color: #f5f5f5; border-color: black; color: black; }
-	:global(.fc-crimpy .fc-button:focus) { box-shadow: none; }
-	:global(.fc-crimpy .fc-button-active),
-	:global(.fc-crimpy .fc-button-primary:not(:disabled):active) { background-color: black; border-color: black; color: white; }
-	:global(.fc-crimpy .fc-col-header-cell) { border-color: #e5e7eb; padding: 4px 0; }
-	:global(.fc-crimpy .fc-col-header-cell-cushion) { font-weight: 600; color: #333; text-decoration: none; }
-	:global(.fc-crimpy .fc-daygrid-day-number) { font-size: 11px; color: #333; text-decoration: none; padding: 2px 4px; }
-	:global(.fc-crimpy .fc-day-today) { background-color: transparent !important; }
-	:global(.fc-crimpy .fc-day-today .fc-daygrid-day-number) { background-color: #C6613F; color: white; border-radius: 0; }
-	:global(.fc-crimpy .fc-scrollgrid) { border-color: #e5e7eb; }
-	:global(.fc-crimpy td, .fc-crimpy th) { border-color: #e5e7eb; }
-	:global(.fc-crimpy .fc-event) { border-radius: 0; border: none; font-size: 10px; }
-</style>
+	<!-- Duplicate week modal -->
+	{#if dupModalSourceWn !== null}
+		{@const sourceWn = dupModalSourceWn}
+		<div
+			style="position: fixed; inset: 0; z-index: 1000; background: rgba(45,36,29,0.2); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center;"
+			onclick={() => (dupModalSourceWn = null)}
+		>
+			<div
+				onclick={(e) => e.stopPropagation()}
+				style="background: #fff; border-radius: var(--rl); box-shadow: 0 8px 32px rgba(45,36,29,0.18); padding: 22px 26px; width: 380px;"
+			>
+				<h3 style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">Duplicate Week {sourceWn}</h3>
+				<p style="font-size: 12.5px; color: var(--tx2); margin-bottom: 16px;">Choose which week to copy this schedule into. Existing sessions will be replaced.</p>
+				<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px;">
+					{#each weekNumbers() as wn}
+						{@const isSource = wn === sourceWn}
+						{@const hasDraft = weekDrafts[wn]?.days.some(d => d.length > 0)}
+						<button
+							onclick={() => !isSource && executeDuplicate(sourceWn, wn)}
+							disabled={isSource}
+							style="
+								width: 52px; height: 44px; border-radius: var(--rs);
+								border: 1.5px solid {isSource ? 'var(--bd)' : hasDraft ? 'rgba(212,161,94,0.4)' : 'var(--bd)'};
+								background: {isSource ? 'var(--panel2)' : '#fff'};
+								cursor: {isSource ? 'default' : 'pointer'};
+								opacity: {isSource ? 0.5 : 1};
+								display: flex; flex-direction: column; align-items: center; justify-content: center;
+								gap: 2px; font-family: var(--font); transition: border-color 0.15s;
+							"
+							onmouseenter={(e) => { if (!isSource) e.currentTarget.style.borderColor = 'var(--pr)'; }}
+							onmouseleave={(e) => { if (!isSource) e.currentTarget.style.borderColor = hasDraft ? 'rgba(212,161,94,0.4)' : 'var(--bd)'; }}
+						>
+							<span style="font-size: 13px; font-weight: 700; color: {isSource ? 'var(--tx3)' : 'var(--tx)'};">{wn}</span>
+							{#if hasDraft && !isSource}
+								<span style="font-size: 8px; color: var(--gd); font-weight: 600;">data</span>
+							{:else if isSource}
+								<span style="font-size: 8px; color: var(--tx3);">source</span>
+							{/if}
+						</button>
+					{/each}
+				</div>
+				<div style="display: flex; justify-content: flex-end;">
+					<button
+						onclick={() => (dupModalSourceWn = null)}
+						style="padding: 7px 14px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+					>Cancel</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+</AppShell>
