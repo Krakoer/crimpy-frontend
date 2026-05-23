@@ -58,62 +58,88 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<div bind:this={container} class="relative" onkeydown={handleKeydown} role="none">
+<div bind:this={container} style="position: relative;" onkeydown={handleKeydown} role="none">
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		role="button"
 		tabindex="0"
 		onclick={openDropdown}
 		onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDropdown(); } }}
-		class="flex min-h-[38px] w-full cursor-pointer flex-wrap items-center gap-1 border px-3 py-2"
-		style="font-family: monospace; font-size: 13px; border-color: black; border-width: {open ? '2px' : '1px'};"
+		style="
+			display: flex; min-height: 34px; width: 100%; cursor: pointer;
+			flex-wrap: wrap; align-items: center; gap: 4px;
+			border: 1px solid {open ? 'var(--pr)' : 'var(--bd)'};
+			border-radius: var(--rs); padding: 5px 10px;
+			background: var(--panel2); font-family: var(--font); font-size: 13px;
+			transition: border-color 0.15s;
+		"
 	>
 		{#each selectedTags as tag (tag.id)}
 			<span
-				class="inline-flex items-center gap-1 px-2 py-0.5 text-white"
-				style="background-color: {tag.color}; font-family: monospace; font-size: 11px;"
+				style="
+					display: inline-flex; align-items: center; gap: 4px;
+					padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+					color: #fff; background: {tag.color};
+				"
 			>
 				{tag.name}
 				<button
 					type="button"
 					onclick={(e) => removeTag(tag.id, e)}
-					class="leading-none text-white/80 hover:text-white"
-					style="font-size: 14px;"
+					style="
+						background: none; border: none; cursor: pointer; padding: 0;
+						color: rgba(255,255,255,0.8); font-size: 13px; line-height: 1;
+						display: flex; align-items: center;
+					"
 					aria-label="Remove {tag.name}"
 				>&times;</button>
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
-			<span style="color: #999; font-family: monospace; font-size: 13px;">{placeholder}</span>
+			<span style="color: var(--tx3); font-size: 12.5px;">{placeholder}</span>
 		{/if}
 	</div>
 
 	{#if open}
-		<div class="absolute z-50 mt-1 w-full border border-black bg-white shadow-sm">
-			<div class="border-b border-gray-200 px-3 py-2">
+		<div
+			style="
+				position: absolute; z-index: 50; margin-top: 4px; width: 100%;
+				border: 1px solid var(--bd); border-radius: var(--rs);
+				background: #fff; box-shadow: 0 4px 16px rgba(45,36,29,0.1);
+				overflow: hidden;
+			"
+		>
+			<div style="border-bottom: 1px solid var(--bd2); padding: 8px 10px;">
 				<input
 					bind:this={searchInput}
 					type="text"
 					bind:value={search}
 					placeholder="Search tags..."
-					class="w-full outline-none"
-					style="font-family: monospace; font-size: 13px;"
+					style="
+						width: 100%; border: none; outline: none; background: transparent;
+						font-family: var(--font); font-size: 13px; color: var(--tx);
+					"
 				/>
 			</div>
-			<div class="max-h-48 overflow-y-auto">
+			<div style="max-height: 192px; overflow-y: auto;">
 				{#each filtered as tag (tag.id)}
 					<button
 						type="button"
 						onclick={() => addTag(tag)}
-						class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
-						style="font-family: monospace; font-size: 13px;"
+						style="
+							display: flex; width: 100%; align-items: center; gap: 8px;
+							padding: 8px 12px; text-align: left; background: none; border: none;
+							cursor: pointer; font-family: var(--font); font-size: 13px; color: var(--tx);
+						"
+						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
+						onmouseleave={(e) => (e.currentTarget.style.background = 'none')}
 					>
-						<span class="h-3 w-3 flex-shrink-0 rounded-sm" style="background-color: {tag.color};"></span>
+						<span style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 3px; background: {tag.color};"></span>
 						<span>{tag.name}</span>
 					</button>
 				{/each}
 				{#if filtered.length === 0}
-					<p class="px-3 py-2" style="font-family: monospace; font-size: 12px; color: #999;">
+					<p style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);">
 						{search.trim() ? 'No matching tags.' : selectedTags.length > 0 ? 'All tags applied.' : 'No tags yet.'}
 					</p>
 				{/if}
