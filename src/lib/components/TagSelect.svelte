@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { apiClient, type Tag } from '$lib/api/client';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		selectedTags: Tag[];
@@ -82,7 +83,7 @@
 		try {
 			const color = TAG_COLORS[allTags.length % TAG_COLORS.length];
 			const tag = await apiClient.createTag({ name, color });
-			allTags = [tag, ...allTags];
+			allTags = [...allTags, tag];
 			onchange([...selectedTags, tag]);
 			search = '';
 		} finally {
@@ -98,21 +99,16 @@
 		confirmDeleteId = null;
 	}
 
-	function cancelEdit(e?: MouseEvent) {
-		e?.stopPropagation();
+	function cancelEdit() {
 		editingTagId = null;
 		confirmDeleteId = null;
 	}
 
-	async function saveEdit(e: MouseEvent) {
-		e.stopPropagation();
+	async function saveEdit() {
 		if (!editingTagId || !editName.trim() || editSaving) return;
 		editSaving = true;
 		try {
-			const updated = await apiClient.updateTag(editingTagId, {
-				name: editName.trim(),
-				color: editColor
-			});
+			const updated = await apiClient.updateTag(editingTagId, { name: editName.trim(), color: editColor });
 			allTags = allTags.map((t) => (t.id === updated.id ? updated : t));
 			if (selectedTags.some((t) => t.id === updated.id)) {
 				onchange(selectedTags.map((t) => (t.id === updated.id ? updated : t)));
@@ -123,8 +119,7 @@
 		}
 	}
 
-	async function deleteTag(e: MouseEvent) {
-		e.stopPropagation();
+	async function deleteTag() {
 		if (!confirmDeleteId || editDeleting) return;
 		editDeleting = true;
 		try {
@@ -167,141 +162,193 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<div bind:this={container} class="relative" onkeydown={handleKeydown} role="none">
+<div bind:this={container} style="position: relative;" onkeydown={handleKeydown} role="none">
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		role="button"
 		tabindex="0"
 		onclick={openDropdown}
 		onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDropdown(); } }}
-		class="flex min-h-[38px] w-full cursor-pointer flex-wrap items-center gap-1 border px-3 py-2"
-		style="font-family: monospace; font-size: 13px; border-color: black; border-width: {open ? '2px' : '1px'};"
+		style="
+			display: flex; min-height: 36px; width: 100%; cursor: pointer;
+			flex-wrap: wrap; align-items: center; gap: 4px;
+			border: 1px solid {open ? 'var(--pr)' : 'var(--bd)'};
+			border-radius: var(--rs); padding: 5px 10px;
+			background: var(--panel2); font-family: var(--font);
+			transition: border-color 0.15s;
+		"
 	>
 		{#each selectedTags as tag (tag.id)}
 			<span
-				class="inline-flex items-center gap-1 px-2 py-0.5 text-white"
-				style="background-color: {tag.color}; font-family: monospace; font-size: 11px;"
+				style="
+					display: inline-flex; align-items: center; gap: 4px;
+					padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+					color: #fff; background: {tag.color};
+				"
 			>
 				{tag.name}
 				<button
 					type="button"
 					onclick={(e) => removeTag(tag.id, e)}
-					class="leading-none text-white/80 hover:text-white"
-					style="font-size: 14px;"
+					style="
+						background: none; border: none; cursor: pointer; padding: 0;
+						color: rgba(255,255,255,0.8); font-size: 13px; line-height: 1;
+						display: flex; align-items: center;
+					"
 					aria-label="Remove {tag.name}"
 				>&times;</button>
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
-			<span style="color: #999; font-family: monospace; font-size: 13px;">Click to add tags</span>
+			<span style="color: var(--tx3); font-size: 12.5px;">Click to add tags</span>
 		{/if}
 	</div>
 
 	{#if open}
-		<div class="absolute z-50 mt-1 w-full border border-black bg-white shadow-sm">
-			<div class="border-b border-gray-200 px-3 py-2">
+		<div
+			style="
+				position: absolute; z-index: 50; margin-top: 4px; width: 100%;
+				border: 1px solid var(--bd); border-radius: var(--rs);
+				background: #fff; box-shadow: 0 4px 16px rgba(45,36,29,0.1);
+				overflow: hidden;
+			"
+		>
+			<div style="border-bottom: 1px solid var(--bd2); padding: 8px 10px;">
 				<input
 					bind:this={searchInput}
 					type="text"
 					bind:value={search}
 					placeholder="Search tags..."
-					class="w-full outline-none"
-					style="font-family: monospace; font-size: 13px;"
+					style="
+						width: 100%; border: none; outline: none; background: transparent;
+						font-family: var(--font); font-size: 13px; color: var(--tx);
+					"
 				/>
 			</div>
 
-			<div class="max-h-56 overflow-y-auto">
+			<div style="max-height: 224px; overflow-y: auto;">
 				{#each filtered as tag (tag.id)}
 					{#if editingTagId === tag.id}
-						<div class="border-b border-gray-100 px-3 py-2">
-							<div class="flex items-center gap-2">
+						<div style="border-bottom: 1px solid var(--bd2); padding: 10px 12px;">
+							<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
 								<input
 									type="color"
 									bind:value={editColor}
 									onclick={(e) => e.stopPropagation()}
-									class="h-6 w-6 flex-shrink-0 cursor-pointer border-0 p-0"
-									style="background: none;"
+									style="
+										width: 24px; height: 24px; flex-shrink: 0; cursor: pointer;
+										border: 1px solid var(--bd); border-radius: 4px; padding: 1px; background: none;
+									"
 									aria-label="Tag color"
 								/>
 								<input
 									type="text"
 									bind:value={editName}
 									onclick={(e) => e.stopPropagation()}
-									class="flex-1 border-b border-gray-300 outline-none focus:border-black"
-									style="font-family: monospace; font-size: 13px;"
+									style="
+										flex: 1; border: none; border-bottom: 1px solid var(--bd); outline: none;
+										font-family: var(--font); font-size: 13px; color: var(--tx);
+										padding-bottom: 2px; background: transparent;
+									"
 								/>
 								<button
 									type="button"
 									onclick={saveEdit}
 									disabled={editSaving || !editName.trim()}
-									class="px-2 py-0.5 text-white disabled:opacity-50"
-									style="font-family: monospace; font-size: 11px; background-color: #C6613F;"
-								>{editSaving ? '...' : 'save'}</button>
+									style="
+										padding: 4px 10px; border-radius: var(--rs); border: none;
+										background: var(--pr); color: #fff; font-size: 11.5px; font-weight: 600;
+										cursor: pointer; font-family: var(--font);
+										opacity: {editSaving || !editName.trim() ? 0.6 : 1};
+									"
+								>{editSaving ? '...' : 'Save'}</button>
 								<button
 									type="button"
 									onclick={cancelEdit}
-									class="px-2 py-0.5 text-black hover:bg-gray-100"
-									style="font-family: monospace; font-size: 11px; border: 1px solid #ccc;"
-								>cancel</button>
+									style="
+										padding: 4px 10px; border-radius: var(--rs);
+										border: 1px solid var(--bd); background: #fff; color: var(--tx);
+										font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+									"
+								>Cancel</button>
 							</div>
 							{#if confirmDeleteId === tag.id}
-								<div class="mt-2 flex items-center gap-2">
-									<span style="font-family: monospace; font-size: 11px; color: #666;">Delete tag permanently?</span>
+								<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+									<span style="font-size: 11.5px; color: var(--tx2); font-family: var(--font);">Delete tag permanently?</span>
 									<button
 										type="button"
 										onclick={deleteTag}
 										disabled={editDeleting}
-										class="px-2 py-0.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
-										style="font-family: monospace; font-size: 11px; border: 1px solid #dc2626;"
-									>{editDeleting ? '...' : 'confirm'}</button>
+										style="
+											padding: 3px 8px; border-radius: var(--rs);
+											border: 1px solid var(--rd); color: var(--rd); background: #fff5f5;
+											font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
+											opacity: {editDeleting ? 0.6 : 1};
+										"
+									>{editDeleting ? '...' : 'Confirm'}</button>
 									<button
 										type="button"
 										onclick={(e) => { e.stopPropagation(); confirmDeleteId = null; }}
-										class="px-2 py-0.5 hover:bg-gray-100"
-										style="font-family: monospace; font-size: 11px; border: 1px solid #ccc;"
-									>no</button>
+										style="
+											padding: 3px 8px; border-radius: var(--rs);
+											border: 1px solid var(--bd); background: #fff; color: var(--tx);
+											font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
+										"
+									>No</button>
 								</div>
 							{:else}
 								<button
 									type="button"
 									onclick={(e) => { e.stopPropagation(); confirmDeleteId = tag.id; }}
-									class="mt-1.5 text-red-500 hover:underline"
-									style="font-family: monospace; font-size: 11px;"
+									style="
+										background: none; border: none; cursor: pointer; padding: 0;
+										font-size: 11.5px; color: var(--rd); font-family: var(--font);
+										text-decoration: underline; margin-top: 2px;
+									"
 								>Delete tag</button>
 							{/if}
 						</div>
 					{:else}
-						<div class="group flex w-full items-center">
+						<div
+							class="tag-row"
+							style="display: flex; width: 100%; align-items: center;"
+							role="none"
+						>
 							<button
 								type="button"
 								onclick={() => toggleTag(tag)}
-								class="flex flex-1 items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
-								style="font-family: monospace; font-size: 13px;"
+								style="
+									display: flex; flex: 1; align-items: center; gap: 8px;
+									padding: 8px 12px; text-align: left; background: none; border: none;
+									cursor: pointer; font-family: var(--font); font-size: 13px; color: var(--tx);
+								"
 							>
-								<span
-									class="h-3 w-3 flex-shrink-0 rounded-sm"
-									style="background-color: {tag.color};"
-								></span>
-								<span class="flex-1">{tag.name}</span>
+								<span style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 3px; background: {tag.color};"></span>
+								<span style="flex: 1;">{tag.name}</span>
 								{#if isSelected(tag)}
-									<span style="color: #C6613F; font-size: 11px; font-family: monospace;">x</span>
+									<Icon name="check" size={13} color="var(--pr)" />
 								{/if}
 							</button>
 							{#if !tag.is_builtin}
-							<button
-								type="button"
-								onclick={(e) => startEdit(tag, e)}
-								class="px-2 py-2 opacity-0 transition-opacity hover:text-black group-hover:opacity-100"
-								style="font-family: monospace; font-size: 10px; color: #999;"
-								aria-label="Edit {tag.name}"
-							>edit</button>
-						{/if}
+								<button
+									type="button"
+									onclick={(e) => startEdit(tag, e)}
+									class="tag-edit-btn"
+									style="
+										padding: 8px 10px; background: none; border: none; cursor: pointer;
+										color: var(--tx3); opacity: 0; transition: opacity 0.1s;
+									"
+									aria-label="Edit {tag.name}"
+								>
+									<Icon name="edit" size={13} color="var(--tx3)" />
+								</button>
+							{/if}
 						</div>
 					{/if}
 				{/each}
 
 				{#if filtered.length === 0 && !showCreate}
-					<p class="px-3 py-2" style="font-family: monospace; font-size: 12px; color: #999;">
+					<p style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);">
 						{search.trim() ? 'No matching tags.' : 'No tags yet.'}
 					</p>
 				{/if}
@@ -311,8 +358,15 @@
 						type="button"
 						onclick={createAndSelectTag}
 						disabled={creating}
-						class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
-						style="font-family: monospace; font-size: 13px; color: #C6613F; {filtered.length > 0 ? 'border-top: 1px solid #e5e7eb;' : ''}"
+						style="
+							display: flex; width: 100%; align-items: center; gap: 8px;
+							padding: 8px 12px; text-align: left; background: none; border: none;
+							cursor: pointer; font-family: var(--font); font-size: 13px; color: var(--pr);
+							font-weight: 600; border-top: 1px solid var(--bd2);
+							opacity: {creating ? 0.6 : 1};
+						"
+						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--pr-fog)')}
+						onmouseleave={(e) => (e.currentTarget.style.background = '')}
 					>
 						{creating ? 'Creating...' : `+ Create "${search.trim()}"`}
 					</button>
@@ -321,3 +375,12 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.tag-row:hover {
+		background: var(--panel2);
+	}
+	.tag-row:hover .tag-edit-btn {
+		opacity: 1 !important;
+	}
+</style>
