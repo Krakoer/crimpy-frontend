@@ -398,7 +398,7 @@
 									font-size: 12px; font-family: var(--font); font-weight: 600;
 								"
 							>
-								<Icon name="star" size={16} color={exercise.is_favorite ? 'var(--pr)' : 'var(--tx3)'} />
+								<Icon name="star" size={16} color={exercise.is_favorite ? 'var(--pr)' : 'var(--tx3)'} fill={exercise.is_favorite ? 'var(--pr)' : 'none'} />
 							</button>
 						</div>
 					{/each}
