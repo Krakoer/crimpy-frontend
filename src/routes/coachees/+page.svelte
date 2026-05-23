@@ -4,6 +4,8 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { EnrolledUser, EnrollmentTokenResponse } from '$lib/api/client';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let coachees = $state<EnrolledUser[]>([]);
 	let search = $state('');
@@ -56,153 +58,231 @@
 		copyConfirmed = true;
 		setTimeout(() => (copyConfirmed = false), 2000);
 	}
-
-	function handleLogout() {
-		authStore.logout();
-		goto('/');
-	}
 </script>
 
-<div class="min-h-screen bg-white p-6">
-	<div class="mx-auto max-w-6xl">
-		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
-			<h1 class="text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-				COACHEES
-			</h1>
-			<div class="flex gap-3">
-				<button
-					onclick={() => (showEnrollmentPanel = !showEnrollmentPanel)}
-					class="border border-black px-4 py-2 font-medium transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 13px;"
-				>
-					+ GET ENROLLMENT LINK
-				</button>
-				<button
-					onclick={handleLogout}
-					class="border border-black px-4 py-2 font-medium transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 13px;"
-				>
-					LOGOUT
-				</button>
-			</div>
-		</div>
+<AppShell
+	title="Coachees"
+	breadcrumbs={[{ label: 'Studio' }, { label: 'Coachees' }]}
+>
+	{#snippet actions()}
+		<button
+			onclick={() => { showEnrollmentPanel = !showEnrollmentPanel; if (showEnrollmentPanel && !enrollmentToken) handleGenerateToken(); }}
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 6px 12px; border-radius: var(--rs);
+				background: #fff; color: var(--tx);
+				border: 1px solid var(--bd);
+				font-size: 12.5px; font-weight: 600;
+				cursor: pointer; font-family: var(--font);
+			"
+		>
+			<Icon name="link" size={14} color="var(--tx2)" />
+			Invite
+		</button>
+	{/snippet}
 
+	<div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 16px;">
+
+		<!-- Enrollment panel -->
 		{#if showEnrollmentPanel}
-			<div class="mb-6 border-2 border-black bg-white p-6">
-				<h2 class="mb-1 text-base font-bold" style="font-family: monospace;">ENROLLMENT LINK</h2>
-				<p class="mb-4" style="font-family: monospace; font-size: 13px; color: #666;">
-					Generate a one-time link to send to a new coachee. The link expires after 7 days.
-				</p>
+			<div
+				style="
+					background: #fff; border: 1px solid var(--pr-lt); border-radius: var(--rl);
+					padding: 20px; display: flex; gap: 18px; align-items: center;
+					background-image: linear-gradient(135deg, var(--pr-fog) 0%, transparent 50%);
+				"
+			>
+				<div
+					style="
+						width: 44px; height: 44px; border-radius: var(--rs);
+						background: var(--pr); color: #fff;
+						display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+					"
+				>
+					<Icon name="link" size={20} color="#fff" />
+				</div>
+				<div style="flex: 1;">
+					<div style="font-size: 14px; font-weight: 600; color: var(--tx); margin-bottom: 2px;">
+						Enrollment link
+					</div>
+					<div style="font-size: 12.5px; color: var(--tx2);">
+						Share this one-time link with a new coachee. Expires in 7 days.
+					</div>
+				</div>
 
 				{#if tokenError}
+					<div style="font-size: 12px; color: var(--rd);">{tokenError}</div>
+				{:else if generatingToken}
+					<div style="font-size: 12.5px; color: var(--tx3);">Generating...</div>
+				{:else if enrollmentToken}
 					<div
-						class="mb-4 border border-red-600 bg-red-50 p-3"
-						style="font-family: monospace; font-size: 12px; color: #B85450;"
+						style="
+							flex: 1.4; display: flex; gap: 8px; align-items: center;
+							background: var(--panel2); border: 1px solid var(--bd); border-radius: var(--rs);
+							padding: 9px 12px; font-family: ui-monospace, monospace; font-size: 12px; color: var(--tx2);
+							overflow: hidden;
+						"
 					>
-						{tokenError}
-					</div>
-				{/if}
-
-				{#if enrollmentToken}
-					<div class="mb-4">
-						<p
-							class="mb-2 font-medium"
-							style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
+						<span
+							style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 						>
-							LINK (expires {new Date(enrollmentToken.expires_at).toLocaleDateString('en-GB', {
-								year: 'numeric',
-								month: 'short',
-								day: 'numeric'
-							})})
-						</p>
-						<div class="flex gap-2">
-							<input
-								readonly
-								value={`${window.location.origin}/enroll/${enrollmentToken.token}`}
-								class="flex-1 border border-black bg-gray-50 px-3 py-2"
-								style="font-family: monospace; font-size: 12px;"
-							/>
-							<button
-								onclick={handleCopyLink}
-								class="border border-black px-4 py-2 font-medium transition-colors hover:bg-gray-100"
-								style="font-family: monospace; font-size: 12px; min-width: 80px;"
-							>
-								{copyConfirmed ? 'COPIED' : 'COPY'}
-							</button>
-						</div>
+							{window.location.origin}/enroll/{enrollmentToken.token}
+						</span>
+						<button
+							onclick={handleCopyLink}
+							style="background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; color: var(--pr); font-size: 12px; font-family: var(--font); font-weight: 600;"
+						>
+							<Icon name="copy" size={14} color="var(--pr)" />
+							{copyConfirmed ? 'Copied!' : 'Copy'}
+						</button>
 					</div>
 				{/if}
 
 				<button
-					onclick={handleGenerateToken}
-					disabled={generatingToken}
-					class="px-4 py-2 font-medium transition-opacity"
-					style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; opacity: {generatingToken
-						? 0.6
-						: 1};"
+					onclick={() => (showEnrollmentPanel = false)}
+					style="
+						display: inline-flex; align-items: center;
+						padding: 6px 12px; border-radius: var(--rs);
+						background: #fff; color: var(--tx); border: 1px solid var(--bd);
+						font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+					"
 				>
-					{generatingToken
-						? 'GENERATING...'
-						: enrollmentToken
-							? 'GENERATE NEW LINK'
-							: 'GENERATE LINK'}
+					Close
 				</button>
 			</div>
 		{/if}
 
-		<div class="border-2 border-black bg-white">
-			<div class="border-b border-gray-300 p-4">
+		<!-- Toolbar -->
+		<div
+			style="
+				background: #fff; border: 1px solid var(--bd); border-radius: var(--rl);
+				padding: 14px; display: flex; align-items: center; gap: 12px;
+			"
+		>
+			<div
+				style="
+					flex: 1; display: flex; align-items: center; gap: 8px;
+					background: var(--panel2); border: 1px solid var(--bd); border-radius: var(--rs);
+					padding: 9px 12px;
+				"
+			>
+				<Icon name="search" size={15} color="var(--tx3)" />
 				<input
 					bind:value={search}
 					placeholder="Search by name..."
-					class="w-full border border-black bg-white px-3 py-2"
-					style="font-family: monospace; font-size: 13px;"
+					style="
+						flex: 1; border: none; outline: none; background: transparent;
+						font-family: var(--font); font-size: 13.5px; color: var(--tx);
+					"
 				/>
 			</div>
+		</div>
 
-			{#if error}
-				<div
-					class="p-4 border-b border-red-600 bg-red-50"
-					style="font-family: monospace; font-size: 12px; color: #B85450;"
-				>
-					{error}
-				</div>
-			{/if}
-
+		{#if error}
 			<div
-				class="grid border-b border-gray-300 bg-gray-50 px-4 py-2"
-				style="grid-template-columns: 1fr 1fr 2fr;"
+				style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
 			>
-				<span class="font-medium" style="font-family: monospace; font-size: 11px; color: #666; letter-spacing: 0.5px;">FIRST NAME</span>
-				<span class="font-medium" style="font-family: monospace; font-size: 11px; color: #666; letter-spacing: 0.5px;">LAST NAME</span>
-				<span class="font-medium" style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px;">MORE COLUMNS TO COME</span>
+				{error}
+			</div>
+		{/if}
+
+		<!-- Table -->
+		<div
+			style="background: #fff; border: 1px solid var(--bd); border-radius: var(--rl); overflow: hidden; box-shadow: var(--sh);"
+		>
+			<div
+				style="
+					display: grid; grid-template-columns: 2fr 1fr 1fr 32px;
+					padding: 12px 20px; border-bottom: 1px solid var(--bd);
+					background: var(--panel2);
+					font-size: 11px; color: var(--tx3); font-weight: 600;
+					letter-spacing: 0.06em; text-transform: uppercase;
+				"
+			>
+				<div>Coachee</div>
+				<div>Email</div>
+				<div>Status</div>
+				<div></div>
 			</div>
 
 			{#if loading}
-				<div class="flex items-center gap-3 p-6">
+				<div style="display: flex; align-items: center; gap: 12px; padding: 24px 20px; color: var(--tx3); font-size: 13px;">
 					<div
-						class="animate-spin"
-						style="width: 16px; height: 16px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
+						style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 					></div>
-					<span style="font-family: monospace; font-size: 13px; color: #666;">Loading...</span>
+					Loading coachees...
 				</div>
 			{:else if filtered.length === 0}
-				<p class="p-6" style="font-family: monospace; font-size: 13px; color: #666;">
+				<div style="padding: 32px 20px; text-align: center; color: var(--tx3); font-size: 13.5px;">
 					{search ? 'No coachees match your search.' : 'No coachees enrolled yet.'}
-				</p>
+				</div>
 			{:else}
-				{#each filtered as coachee (coachee.user_id)}
+				{#each filtered as coachee, i (coachee.user_id)}
 					<button
 						onclick={() => goto(`/coachees/${coachee.user_id}`)}
-						class="grid w-full border-b border-gray-200 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50"
-						style="grid-template-columns: 1fr 1fr 2fr;"
+						style="
+							display: grid; grid-template-columns: 2fr 1fr 1fr 32px;
+							padding: 14px 20px; align-items: center;
+							border-bottom: {i < filtered.length - 1 ? '1px solid var(--bd2)' : 'none'};
+							border-top: none; border-left: none; border-right: none;
+							cursor: pointer; font-size: 13.5px; color: var(--tx);
+							background: none; width: 100%; text-align: left;
+							font-family: var(--font);
+						"
 					>
-						<span style="font-family: monospace; font-size: 13px;">{coachee.user_firstname}</span>
-						<span style="font-family: monospace; font-size: 13px;">{coachee.user_lastname}</span>
-						<span></span>
+						<div style="display: flex; align-items: center; gap: 12px;">
+							<div
+								style="
+									width: 34px; height: 34px; border-radius: 50%;
+									background: var(--pr); color: #fff;
+									display: flex; align-items: center; justify-content: center;
+									font-size: 12px; font-weight: 600; flex-shrink: 0;
+								"
+							>
+								{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(coachee.user_lastname?.[0] ?? '').toUpperCase()}
+							</div>
+							<div>
+								<div style="font-weight: 600;">
+									{coachee.user_firstname}
+									{coachee.user_lastname}
+								</div>
+							</div>
+						</div>
+						<div style="color: var(--tx2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+							{coachee.user_email ?? ''}
+						</div>
+						<div>
+							<span
+								style="
+									display: inline-flex; align-items: center;
+									background: var(--gn)18; color: var(--gn);
+									font-size: 11px; font-weight: 600;
+									padding: 3px 9px; border-radius: 999px;
+								"
+							>
+								Active
+							</span>
+						</div>
+						<div style="display: flex; justify-content: flex-end;">
+							<Icon name="chevron" size={16} color="var(--tx3)" />
+						</div>
 					</button>
 				{/each}
 			{/if}
 		</div>
+
+		<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px;">
+			<div style="font-size: 12.5px; color: var(--tx3);">
+				{filtered.length} of {coachees.length} coachees
+			</div>
+		</div>
 	</div>
-</div>
+</AppShell>
+
+<style>
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+</style>

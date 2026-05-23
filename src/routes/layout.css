@@ -1,12 +1,54 @@
 @import 'tailwindcss';
 
+:root {
+	--bg: #f5efe6;
+	--panel: #ffffff;
+	--panel2: #faf6ef;
+	--bd: #e8e0d6;
+	--bd2: #f0eadf;
+	--tx: #2d241d;
+	--tx2: #7a6e62;
+	--tx3: #b0a496;
+	--pr: #c2714f;
+	--pr-dk: #a85e40;
+	--pr-lt: #f5e2d7;
+	--pr-fog: #fbf1ea;
+	--gn: #6b8f71;
+	--gd: #d4a15e;
+	--pl: #907b99;
+	--rd: #c26b6b;
+	--r: 10px;
+	--rs: 8px;
+	--rl: 14px;
+	--sh: 0 1px 2px rgba(45, 36, 29, 0.04), 0 4px 14px rgba(45, 36, 29, 0.05);
+	--sh-hi: 0 2px 4px rgba(45, 36, 29, 0.05), 0 14px 30px rgba(45, 36, 29, 0.08);
+	--font: 'Figtree', system-ui, sans-serif;
+}
+
+body {
+	font-family: var(--font);
+	color: var(--tx);
+}
+
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+	-webkit-appearance: none;
+	margin: 0;
 }
 
 input[type='number'] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+::-webkit-scrollbar-thumb {
+	background: #d4cabb;
+	border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
 }

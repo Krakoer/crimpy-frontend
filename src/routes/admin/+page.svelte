@@ -3,6 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient, type CoachResponse } from '$lib/api/client';
+	import AppShell from '$lib/components/AppShell.svelte';
 
 	let pendingCoaches = $state<CoachResponse[]>([]);
 	let loading = $state(true);
@@ -68,28 +69,11 @@
 	}
 </script>
 
-<div class="min-h-screen bg-white p-6">
-	<div class="mx-auto max-w-6xl">
-		<div class="mb-8 flex items-center justify-between border-b-2 border-black pb-4">
-			<div>
-				<h1
-					class="mb-2 text-4xl font-black"
-					style="font-family: monospace; letter-spacing: -0.5px;"
-				>
-					ADMIN DASHBOARD
-				</h1>
-				<p style="font-family: monospace; font-size: 13px; color: #666;">
-					Welcome, {authStore.user?.firstname || 'Admin'}
-				</p>
-			</div>
-			<button
-				onclick={handleLogout}
-				class="border border-black px-4 py-2 font-medium transition-colors hover:bg-gray-100"
-				style="font-family: monospace; font-size: 13px;"
-			>
-				LOGOUT
-			</button>
-		</div>
+<AppShell
+	title="Admin"
+	breadcrumbs={[{ label: 'Studio' }, { label: 'Admin' }]}
+>
+	<div style="padding: 24px 32px 40px; max-width: 1200px; margin: 0 auto;">
 
 		{#if error}
 			<div
@@ -188,4 +172,4 @@
 			</div>
 		{/if}
 	</div>
-</div>
+</AppShell>
