@@ -676,7 +676,7 @@
 
 					<!-- Sticky column headers -->
 					<div style="
-						display: grid; grid-template-columns: 128px repeat(7, 1fr) 80px;
+						display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px;
 						position: sticky; top: 0; z-index: 10;
 						background: var(--bg); padding-bottom: 2px;
 					">
@@ -710,7 +710,7 @@
 								<button
 									onclick={() => toggleWeek(wn)}
 									style="
-										display: grid; grid-template-columns: 128px repeat(7, 1fr) 80px;
+										display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px;
 										width: 100%; align-items: center; cursor: pointer;
 										background: {isCurrent && !expanded ? 'var(--pr-fog)' : expanded ? 'var(--panel2)' : 'var(--panel)'};
 										border: none; font-family: var(--font); text-align: left;
@@ -834,7 +834,7 @@
 									{/if}
 
 									<!-- Day grid -->
-									<div style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 80px; min-height: 72px;">
+									<div style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px; min-height: 72px;">
 
 										<!-- Left info -->
 										<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 3px;">
@@ -871,10 +871,13 @@
 																</span>
 																<button
 																	onclick={() => removeSession(wn, session._id)}
-																	style="font-size: 9px; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 1px; line-height: 1; flex-shrink: 0; opacity: 0.5;"
-																	onmouseenter={(e) => (e.currentTarget.style.opacity = '1')}
-																	onmouseleave={(e) => (e.currentTarget.style.opacity = '0.5')}
-																>x</button>
+																	onpointerdown={(e) => e.stopPropagation()}
+																	style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																	onmouseenter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
+																	onmouseleave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'none'; }}
+																>
+																	<Icon name="x" size={10} color="var(--tx3)" />
+																</button>
 															</div>
 														</DraggableSession>
 													{/each}
@@ -908,30 +911,36 @@
 													{@const tint = trainingTint(session.training_id)}
 													<DraggableSession id={session._id}>
 														<div style="
-															display: flex; align-items: center; gap: 3px;
-															padding: 3px 4px; border-radius: 5px;
+															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
-															font-size: 9.5px;
 														">
-															<div style="width: 4px; height: 4px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
-															<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500; min-width: 0;">
-																{trainingById(session.training_id)?.title?.split(' ')[0] ?? '?'}
-															</span>
-															<input
-																type="number"
-																value={session.times_per_week}
-																oninput={(e) => { session.times_per_week = parseInt(e.currentTarget.value) || 1; draft.dirty = true; }}
-																min="1"
-																max="14"
-																style="width: 22px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0; outline: none; background: transparent; font-family: var(--font); font-size: 9.5px; color: {color}; font-weight: 700;"
-															/>
-															<span style="font-size: 9px; color: {color}; font-weight: 700;">x</span>
-															<button
-																onclick={() => removeSession(wn, session._id)}
-																style="font-size: 8px; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 1px; line-height: 1; flex-shrink: 0; opacity: 0.5;"
-																onmouseenter={(e) => (e.currentTarget.style.opacity = '1')}
-																onmouseleave={(e) => (e.currentTarget.style.opacity = '0.5')}
-															>x</button>
+															<div style="display: flex; align-items: center; gap: 3px; margin-bottom: 2px;">
+																<div style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
+																<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 600; min-width: 0; font-size: 10.5px;">
+																	{trainingById(session.training_id)?.title ?? '?'}
+																</span>
+															</div>
+															<div style="display: flex; align-items: center; gap: 3px; padding-left: 8px;">
+																<input
+																	type="number"
+																	value={session.times_per_week}
+																	oninput={(e) => { session.times_per_week = parseInt(e.currentTarget.value) || 1; draft.dirty = true; }}
+																	min="1"
+																	max="14"
+																	style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700;"
+																/>
+																<span style="font-size: 10px; color: {color}; font-weight: 600;">x/wk</span>
+																<div style="flex: 1;"></div>
+																<button
+																	onclick={() => removeSession(wn, session._id)}
+																	onpointerdown={(e) => e.stopPropagation()}
+																	style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																	onmouseenter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
+																	onmouseleave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'none'; }}
+																>
+																	<Icon name="x" size={10} color="var(--tx3)" />
+																</button>
+															</div>
 														</div>
 													</DraggableSession>
 												{/each}
