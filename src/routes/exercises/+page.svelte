@@ -444,19 +444,31 @@
 			<div
 				style="
 					display: flex; align-items: center; justify-content: space-between;
-					padding: 18px 24px; border-bottom: 1px solid var(--bd);
+					padding: 18px 24px; border-bottom: 1px solid var(--bd); gap: 12px;
 				"
 			>
-				<h2 style="font-size: 16px; font-weight: 700; color: var(--tx);">
-					{viewExercise.name}
-				</h2>
+				<div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+					<button
+						onclick={() => { if (viewExercise) toggleFavorite(viewExercise); }}
+						title={viewExercise?.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+						style="
+							background: none; border: none; cursor: pointer; padding: 0;
+							display: flex; align-items: center; flex-shrink: 0;
+						"
+					>
+						<Icon name="star" size={20} color={viewExercise?.is_favorite ? 'var(--pr)' : 'var(--tx3)'} fill={viewExercise?.is_favorite ? 'var(--pr)' : 'none'} />
+					</button>
+					<h2 style="font-size: 16px; font-weight: 700; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+						{viewExercise.name}
+					</h2>
+				</div>
 				<button
 					onclick={() => (viewExercise = null)}
 					style="
 						display: flex; align-items: center; justify-content: center;
 						width: 28px; height: 28px; border-radius: var(--rs);
 						border: 1px solid var(--bd); background: #fff;
-						cursor: pointer; color: var(--tx2); font-size: 16px;
+						cursor: pointer; color: var(--tx2); font-size: 16px; flex-shrink: 0;
 					"
 					aria-label="Close"
 				>
@@ -524,18 +536,6 @@
 					"
 				>
 					Edit
-				</button>
-				<button
-					onclick={() => { if (viewExercise) toggleFavorite(viewExercise); }}
-					style="
-						padding: 9px 16px; border-radius: var(--rs);
-						background: {viewExercise?.is_favorite ? 'var(--pr-fog)' : '#fff'};
-						color: {viewExercise?.is_favorite ? 'var(--pr)' : 'var(--tx)'};
-						border: 1px solid {viewExercise?.is_favorite ? 'var(--pr-lt)' : 'var(--bd)'};
-						font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
-					"
-				>
-					{viewExercise?.is_favorite ? 'Unfavorite' : 'Favorite'}
 				</button>
 				<button
 					onclick={() => (viewExercise = null)}
