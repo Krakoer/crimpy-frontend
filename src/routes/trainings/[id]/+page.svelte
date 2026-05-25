@@ -615,9 +615,9 @@
 		</div>
 	{:else if draft.training_type !== 'climbing'}
 		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
-			<div class="flex items-start" style="overflow: hidden; height: 100%;">
+			<div class="flex items-start">
 				<!-- Main content -->
-				<div class="flex-1 overflow-auto" style="padding: 20px 28px 40px; min-width: 0;">
+				<div class="flex-1" style="padding: 20px 28px 40px; min-width: 0;">
 					<!-- Meta card -->
 					<div style="
 						background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
