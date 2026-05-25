@@ -4,17 +4,15 @@
 
 {#if snackbar.visible}
 	<div
-		class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 border-2 px-5 py-3"
+		class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
 		style="
-			font-family: monospace;
-			font-size: 13px;
-			font-weight: bold;
-			letter-spacing: 0.5px;
-			background-color: {snackbar.type === 'error' ? '#fff5f5' : '#f5fff8'};
-			border-color: {snackbar.type === 'error' ? '#B85450' : '#2d7a4f'};
-			color: {snackbar.type === 'error' ? '#B85450' : '#2d7a4f'};
-			box-shadow: 3px 3px 0 0 rgba(0,0,0,0.15);
-			white-space: nowrap;
+			display: flex; align-items: center; gap: 12px;
+			font-family: var(--font); font-size: 13px; font-weight: 600;
+			padding: 10px 16px; border-radius: var(--rs); white-space: nowrap;
+			background: {snackbar.type === 'error' ? '#fdf3f3' : '#f3f8f4'};
+			border: 1px solid {snackbar.type === 'error' ? 'var(--rd)' : 'var(--gn)'};
+			color: {snackbar.type === 'error' ? 'var(--rd)' : 'var(--gn)'};
+			box-shadow: var(--sh-hi);
 		"
 		role="status"
 		aria-live="polite"
@@ -22,7 +20,11 @@
 		{snackbar.message}
 		<button
 			onclick={snackbar.dismiss}
-			class="ml-4 opacity-50 transition-opacity hover:opacity-100"
+			style="
+				background: none; border: none; cursor: pointer; padding: 0;
+				font-size: 14px; line-height: 1; opacity: 0.5;
+				color: inherit; font-family: var(--font);
+			"
 			aria-label="Dismiss"
 		>x</button>
 	</div>
