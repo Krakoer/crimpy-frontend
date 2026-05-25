@@ -117,17 +117,24 @@
 		return d;
 	}
 
+	let weekOffset = $state(0);
+	let selectedDay = $state<Date | null>(null);
+
 	const weekStripDays = $derived.by(() => {
 		const today = new Date();
-		const weekStart = getWeekStart(today);
+		const baseStart = getWeekStart(today);
+		const weekStart = new Date(baseStart);
+		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
 		return Array.from({ length: 7 }, (_, i) => {
 			const date = new Date(weekStart);
 			date.setDate(weekStart.getDate() + i);
 			const daySessions = sessions.filter((s) => isSameDay(new Date(s.Date), date));
 			return {
+				date,
 				dayLabel: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
 				day: date.getDate(),
 				isToday: isSameDay(date, today),
+				isSelected: selectedDay !== null && isSameDay(date, selectedDay),
 				dots: daySessions.map((s) => SESSION_TYPES[s.SessionType]?.color ?? '#888')
 			};
 		});
@@ -135,13 +142,29 @@
 
 	const weekStripLabel = $derived.by(() => {
 		const today = new Date();
-		const weekStart = getWeekStart(today);
+		const baseStart = getWeekStart(today);
+		const weekStart = new Date(baseStart);
+		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
 		const weekEnd = new Date(weekStart);
 		weekEnd.setDate(weekStart.getDate() + 6);
 		const fmt = (d: Date) =>
 			d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 		return `${fmt(weekStart)} - ${fmt(weekEnd)}`;
 	});
+
+	function toggleDayFilter(date: Date) {
+		if (selectedDay !== null && isSameDay(date, selectedDay)) {
+			selectedDay = null;
+		} else {
+			selectedDay = date;
+		}
+	}
+
+	const displayedSessions = $derived(
+		selectedDay
+			? sessions.filter((s) => isSameDay(new Date(s.Date), selectedDay!))
+			: sessions
+	);
 
 	type ProgramStatus = { state: 'upcoming' | 'active' | 'completed'; week: number };
 
@@ -282,7 +305,7 @@
 		loadPrograms();
 	});
 
-	const sessionGroups = $derived(groupSessionsByDate(sessions));
+	const sessionGroups = $derived(groupSessionsByDate(displayedSessions));
 
 	const coacheeName = $derived(
 		coachee ? `${coachee.user_firstname} ${coachee.user_lastname}` : loading ? 'Loading...' : 'Coachee'
@@ -437,26 +460,60 @@
 						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
 						padding: 16px; box-shadow: var(--sh);
 					">
-						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-							<div style="font-size: 13.5px; font-weight: 700; color: var(--tx);">{weekStripLabel}</div>
+						<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+							<button
+								onclick={() => { weekOffset -= 1; selectedDay = null; }}
+								style="width: 28px; height: 28px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"
+							>
+								<Icon name="arrow-left" size={13} color="var(--tx2)" />
+							</button>
+							<div style="flex: 1; text-align: center; font-size: 13.5px; font-weight: 700; color: var(--tx);">{weekStripLabel}</div>
+							<button
+								onclick={() => { weekOffset += 1; selectedDay = null; }}
+								style="width: 28px; height: 28px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transform: rotate(180deg);"
+							>
+								<Icon name="arrow-left" size={13} color="var(--tx2)" />
+							</button>
+							{#if weekOffset !== 0}
+								<button
+									onclick={() => { weekOffset = 0; selectedDay = null; }}
+									style="font-size: 11.5px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font); flex-shrink: 0;"
+								>Today</button>
+							{/if}
 						</div>
 						<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
 							{#each weekStripDays as day}
-								<div style="
-									padding: 10px 4px; border-radius: var(--rs); text-align: center;
-									background: {day.isToday ? 'var(--pr-fog)' : 'var(--panel2)'};
-									border: 1px solid {day.isToday ? 'var(--pr-lt)' : 'transparent'};
-								">
-									<div style="font-size: 10px; color: {day.isToday ? 'var(--pr)' : 'var(--tx3)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;">{day.dayLabel}</div>
-									<div style="font-size: 16px; font-weight: 700; color: {day.isToday ? 'var(--pr)' : 'var(--tx)'}; margin-top: 2px;">{day.day}</div>
+								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+								<div
+									onclick={() => toggleDayFilter(day.date)}
+									style="
+										padding: 10px 4px; border-radius: var(--rs); text-align: center; cursor: pointer;
+										background: {day.isSelected ? 'var(--pr)' : day.isToday ? 'var(--pr-fog)' : 'var(--panel2)'};
+										border: 1px solid {day.isSelected ? 'var(--pr)' : day.isToday ? 'var(--pr-lt)' : 'transparent'};
+										transition: background 0.1s;
+									"
+								>
+									<div style="font-size: 10px; color: {day.isSelected ? '#fff' : day.isToday ? 'var(--pr)' : 'var(--tx3)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;">{day.dayLabel}</div>
+									<div style="font-size: 16px; font-weight: 700; color: {day.isSelected ? '#fff' : day.isToday ? 'var(--pr)' : 'var(--tx)'}; margin-top: 2px;">{day.day}</div>
 									<div style="display: flex; justify-content: center; gap: 3px; margin-top: 6px; min-height: 8px;">
 										{#each day.dots as dotColor}
-											<div style="width: 5px; height: 5px; border-radius: 50%; background: {dotColor};"></div>
+											<div style="width: 5px; height: 5px; border-radius: 50%; background: {day.isSelected ? 'rgba(255,255,255,0.7)' : dotColor};"></div>
 										{/each}
 									</div>
 								</div>
 							{/each}
 						</div>
+						{#if selectedDay}
+							<div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+								<span style="font-size: 12px; color: var(--pr); font-weight: 600;">
+									Filtering: {selectedDay.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+								</span>
+								<button
+									onclick={() => (selectedDay = null)}
+									style="font-size: 11.5px; color: var(--tx3); background: none; border: none; cursor: pointer; font-family: var(--font);"
+								>Clear</button>
+							</div>
+						{/if}
 					</div>
 
 					<!-- Sessions list -->
@@ -468,12 +525,15 @@
 							padding: 14px 20px; border-bottom: 1px solid var(--bd2);
 							display: flex; align-items: center; justify-content: space-between;
 						">
-							<h3 style="font-size: 14px; font-weight: 700; color: var(--tx);">Recent sessions</h3>
+							<h3 style="font-size: 14px; font-weight: 700; color: var(--tx);">
+								{selectedDay ? 'Sessions on this day' : 'All sessions'}
+							</h3>
+							<span style="font-size: 12px; color: var(--tx3);">{displayedSessions.length} session{displayedSessions.length !== 1 ? 's' : ''}</span>
 						</div>
 
-						{#if sessions.length === 0}
+						{#if displayedSessions.length === 0}
 							<div style="padding: 32px 20px; text-align: center; color: var(--tx3); font-size: 13px;">
-								No sessions recorded yet.
+								{selectedDay ? 'No sessions on this day.' : 'No sessions recorded yet.'}
 							</div>
 						{:else}
 							<div>
