@@ -2,6 +2,7 @@
 	import type { Exercise, TrainingItem, LoadUnit } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -34,6 +35,22 @@
 		return `${s}s`;
 	}
 
+	let collapsedSummary = $derived.by(() => {
+		const parts: string[] = [];
+		if (isDuration) {
+			parts.push(fmtTime(item.duration ?? 0));
+		} else {
+			parts.push(`${item.reps ?? 1} reps`);
+		}
+		const rest = item.rest_seconds ?? 0;
+		if (rest > 0) parts.push(`${rest}s rest`);
+		const load = item.loads?.[0];
+		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
+			parts.push(`${load.value} ${LOAD_UNIT_LABELS[load.unit]}`);
+		}
+		return parts.join(' · ');
+	});
+
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
 
 	$effect(() => {
@@ -45,62 +62,49 @@
 	});
 </script>
 
-<div
-	class="bg-white"
-	style="border-left: 3px solid #C6613F; border-top: 1px solid #1d1d1d; border-right: 1px solid #1d1d1d; border-bottom: 1px solid #1d1d1d; box-shadow: 2px 2px 0 0 rgba(29,29,29,0.1);"
->
-	<div class="flex items-center gap-2 px-3 py-2">
-		<button
-			onclick={() => (collapsed = !collapsed)}
-			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 13px;"
-			aria-label="Toggle collapse"
-		>
-			{collapsed ? '>' : 'v'}
-		</button>
-		<span class="flex-1 truncate font-bold" style="font-family: monospace; font-size: 14px;">
-			{exerciseName}
+<div style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;">
+	<div
+		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed ? '#fff' : 'var(--panel2)'};"
+		onclick={() => (collapsed = !collapsed)}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === 'Enter' && (collapsed = !collapsed)}
+	>
+		<div style="width: 4px; height: 20px; background: var(--pr); border-radius: 2px; flex-shrink: 0;"></div>
+		<div style="transform: {collapsed ? 'rotate(0deg)' : 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;">
+			<Icon name="chevron" size={12} color="var(--tx3)" />
+		</div>
+		<span style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden;">
+			<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{exerciseName}</span>
+			{#if collapsed && collapsedSummary}
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 500; flex-shrink: 0;">{collapsedSummary}</span>
+			{/if}
 		</span>
 	</div>
 
 	{#if !collapsed}
-		<div class="space-y-3 border-t border-gray-100 px-3 py-3">
-			<div class="grid grid-cols-3">
-				<div class="flex flex-col items-center">
-					<p
-						style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;"
-					>
-						{isDuration ? 'DURATION' : 'REPS'}
-					</p>
-					<span style="font-family: monospace; font-size: 15px;">
-						{isDuration ? fmtTime(item.duration ?? 0) : item.reps ?? 1}
+		<div style="padding: 12px 18px; border-top: 1px solid var(--bd2); display: flex; gap: 24px; flex-wrap: wrap;">
+			<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">{isDuration ? 'DURATION' : 'REPS'}</span>
+				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
+					{isDuration ? fmtTime(item.duration ?? 0) : item.reps ?? 1}
+				</span>
+			</div>
+
+			{#if item.loads && item.loads.length > 0}
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">LOAD</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
+						{item.loads[0].value} {LOAD_UNIT_LABELS[item.loads[0].unit]}
 					</span>
 				</div>
+			{/if}
 
-				{#if item.loads && item.loads.length > 0}
-					<div class="flex flex-col items-center">
-						<p
-							style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;"
-						>
-							Load
-						</p>
-						<span style="font-family: monospace; font-size: 15px;">
-							{item.loads[0].value}
-							{LOAD_UNIT_LABELS[item.loads[0].unit]}
-						</span>
-					</div>
-				{/if}
-
-				<div class="flex flex-col items-center">
-					<p
-						style="font-family: monospace; font-size: 11px; color: #999; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;"
-					>
-						Rest
-					</p>
-					<span style="font-family: monospace; font-size: 15px;">
-						{fmtTime(item.rest_seconds ?? 0)}
-					</span>
-				</div>
+			<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REST</span>
+				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
+					{fmtTime(item.rest_seconds ?? 0)}
+				</span>
 			</div>
 		</div>
 	{/if}
