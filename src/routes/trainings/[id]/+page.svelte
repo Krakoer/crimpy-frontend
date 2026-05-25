@@ -458,7 +458,6 @@
 			});
 			savedSnapshot = JSON.stringify($state.snapshot(draft));
 			snackbar.show('Training saved');
-			isEditing = false;
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save training.';
 		} finally {
@@ -515,6 +514,18 @@
 					Edit
 				</button>
 			{:else}
+				<button
+					onclick={() => (isEditing = false)}
+					style="
+						display: inline-flex; align-items: center; gap: 7px;
+						padding: 8px 14px; border-radius: var(--rs);
+						background: #fff; color: var(--tx); border: 1px solid var(--bd);
+						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+					"
+				>
+					<Icon name="arrow-left" size={13} color="var(--tx2)" />
+					Back
+				</button>
 				{#if confirmDelete}
 					<button
 						onclick={handleDelete}

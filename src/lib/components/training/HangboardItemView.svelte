@@ -2,6 +2,7 @@
 	import type { TrainingItem, LoadUnit } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -10,6 +11,8 @@
 	let { item }: Props = $props();
 
 	let collapsed = $state(false);
+
+	const HB_COLOR = '#4A7C8C';
 
 	const LOAD_UNIT_LABELS: Record<LoadUnit, string> = {
 		bw: 'BW',
@@ -24,6 +27,14 @@
 		return `${value} ${LOAD_UNIT_LABELS[unit]}`;
 	}
 
+	let collapsedSummary = $derived.by(() => {
+		const sets = item.cycles ?? 1;
+		const reps = item.reps ?? 1;
+		const work = item.hb_worktime_seconds ?? 0;
+		const rest = item.rest_seconds ?? 0;
+		return `${sets} sets x ${reps} reps · ${work}s on / ${rest}s off`;
+	});
+
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
 
 	$effect(() => {
@@ -35,225 +46,134 @@
 	});
 </script>
 
-<div
-	class="border border-black bg-white"
-	style="border-left: 3px solid #4A7C8C; border-radius: 4px;"
->
-	<div class="flex items-center gap-2 px-3 py-2">
-		<button
-			onclick={() => (collapsed = !collapsed)}
-			class="w-4 shrink-0 text-center text-gray-400 transition-colors hover:text-black"
-			style="font-family: monospace; font-size: 15px;"
-			aria-label="Toggle collapse"
-		>
-			{collapsed ? '>' : 'V'}
-		</button>
-		<span
-			class="shrink-0 font-bold"
-			style="font-family: monospace; font-size: 14px; color: #4A7C8C; letter-spacing: 0.5px;"
-		>
-			HANGBOARD
+<div style="background: #fff; border-radius: var(--rl); border: 1px solid color-mix(in srgb, {HB_COLOR} 30%, transparent); box-shadow: var(--sh); overflow: hidden;">
+	<div
+		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed ? '#fff' : 'var(--panel2)'};"
+		onclick={() => (collapsed = !collapsed)}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === 'Enter' && (collapsed = !collapsed)}
+	>
+		<div style="width: 4px; height: 20px; background: {HB_COLOR}; border-radius: 2px; flex-shrink: 0;"></div>
+		<div style="transform: {collapsed ? 'rotate(0deg)' : 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;">
+			<Icon name="chevron" size={12} color="var(--tx3)" />
+		</div>
+		<span style="font-size: 13px; font-weight: 700; color: {HB_COLOR}; flex: 1; display: flex; align-items: center; gap: 8px;">
+			Hangboard
+			{#if collapsed}
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
+			{/if}
 		</span>
 	</div>
 
 	{#if !collapsed}
-		<div class="border-t border-gray-100">
-			<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">
-				<div class="flex items-center gap-1.5">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">Sets</span>
-					<span style="font-family: monospace; font-size: 14px;">{item.cycles ?? 1}</span>
+		<div style="border-top: 1px solid var(--bd2);">
+			<div style="display: flex; flex-wrap: wrap; gap: 20px; padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">SETS</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.cycles ?? 1}</span>
 				</div>
-				<span style="color: #ccc; font-size: 15px;">x</span>
-				<div class="flex items-center gap-1.5">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">Reps</span>
-					<span style="font-family: monospace; font-size: 14px;">{item.reps ?? 1}</span>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REPS</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.reps ?? 1}</span>
 				</div>
-				<div class="h-3 w-px bg-gray-200"></div>
-				<div class="flex items-center gap-1.5">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">Work</span>
-					<span style="font-family: monospace; font-size: 14px;">{item.hb_worktime_seconds ?? 0}</span>
-					<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">WORK</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.hb_worktime_seconds ?? 0}s</span>
 				</div>
-				<div class="flex items-center gap-1.5">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">Rep rest</span>
-					<span style="font-family: monospace; font-size: 14px;">{item.rest_seconds ?? 0}</span>
-					<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REP REST</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.rest_seconds ?? 0}s</span>
 				</div>
-				<div class="flex items-center gap-1.5">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">Set rest</span>
-					<span style="font-family: monospace; font-size: 14px;">{item.cycle_rest_seconds ?? 0}</span>
-					<span style="font-family: monospace; font-size: 14px; color: #aaa;">s</span>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">SET REST</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.cycle_rest_seconds ?? 0}s</span>
 				</div>
-				<div class="h-3 w-px bg-gray-200"></div>
-				<div class="flex items-center gap-1.5">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">Both hands</span>
-					<span
-						class="border px-2 py-0.5 text-center"
-						style="font-family: monospace; font-size: 15px; width: 2.6rem; border-color: {item.both_hands
-							? '#C6613F'
-							: '#ddd'}; color: {item.both_hands ? '#C6613F' : '#aaa'};"
-					>
-						{item.both_hands ? 'yes' : 'no'}
-					</span>
+				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">BOTH HANDS</span>
+					<span style="font-size: 13px; font-weight: 700; color: {item.both_hands ? HB_COLOR : 'var(--tx3)'};">{item.both_hands ? 'Yes' : 'No'}</span>
 				</div>
 			</div>
 
-			<div class="border-t border-gray-200 px-3 py-2">
-				<div class="mb-2 flex items-center justify-between">
-					<span style="font-family: monospace; font-size: 14px; color: #999;">REP PARAMETERS</span>
-					<span
-						class="border px-2 py-0.5"
-						style="font-family: monospace; font-size: 15px; border-color: {perRep
-							? '#C6613F'
-							: '#ccc'}; color: {perRep ? '#C6613F' : '#999'};"
-					>
+			<div style="padding: 12px 18px;">
+				<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REP PARAMETERS</span>
+					<span style="font-size: 10px; font-weight: 600; color: {perRep ? HB_COLOR : 'var(--tx3)'}; letter-spacing: 0.04em;">
 						{perRep ? 'PER-REP ON' : 'PER-REP OFF'}
 					</span>
 				</div>
 
 				{#if !perRep}
-					<div class="grid grid-cols-3 gap-2">
-						<div>
-							<p
-								class="mb-0.5"
-								style="font-family: monospace; font-size: 14px; color: #999;"
-							>
-								EDGE (mm)
-							</p>
-							<span style="font-family: monospace; font-size: 14px;"
-								>{item.edge_sizes_mm?.[0] ?? '-'}</span
-							>
+					<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+						<div style="display: flex; flex-direction: column; gap: 2px;">
+							<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">EDGE (mm)</span>
+							<span style="font-size: 14px; font-weight: 700; color: var(--tx);">{item.edge_sizes_mm?.[0] ?? '-'}</span>
 						</div>
-						<div>
-							<p
-								class="mb-0.5"
-								style="font-family: monospace; font-size: 14px; color: #999;"
-							>
-								LOAD
-							</p>
+						<div style="display: flex; flex-direction: column; gap: 2px;">
+							<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">LOAD</span>
 							{#if item.both_hands}
-								<span style="font-family: monospace; font-size: 14px;">
+								<span style="font-size: 14px; font-weight: 700; color: var(--tx);">
 									{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}
 								</span>
 							{:else}
-								<div class="flex flex-col gap-0.5">
-									<div class="flex items-center gap-1">
-										<span
-											style="font-family: monospace; font-size: 11px; color: #999; width: 10px;"
-											>L</span
-										>
-										<span style="font-family: monospace; font-size: 14px;">
-											{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}
-										</span>
+								<div style="display: flex; flex-direction: column; gap: 2px;">
+									<div style="display: flex; align-items: center; gap: 6px;">
+										<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
+										<span style="font-size: 14px; font-weight: 700; color: var(--tx);">{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}</span>
 									</div>
-									<div class="flex items-center gap-1">
-										<span
-											style="font-family: monospace; font-size: 11px; color: #999; width: 10px;"
-											>R</span
-										>
-										<span style="font-family: monospace; font-size: 14px;">
-											{item.loads?.[1] ? fmtLoad(item.loads[1].value, item.loads[1].unit) : '-'}
-										</span>
+									<div style="display: flex; align-items: center; gap: 6px;">
+										<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
+										<span style="font-size: 14px; font-weight: 700; color: var(--tx);">{item.loads?.[1] ? fmtLoad(item.loads[1].value, item.loads[1].unit) : '-'}</span>
 									</div>
 								</div>
 							{/if}
 						</div>
-						<div>
-							<p
-								class="mb-0.5"
-								style="font-family: monospace; font-size: 14px; color: #999;"
-							>
-								GRIP
-							</p>
-							<span style="font-family: monospace; font-size: 14px;"
-								>{item.hand_positions?.[0]?.[0] ?? '-'}</span
-							>
+						<div style="display: flex; flex-direction: column; gap: 2px;">
+							<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">GRIP</span>
+							<span style="font-size: 14px; font-weight: 700; color: var(--tx);">{item.hand_positions?.[0]?.[0] ?? '-'}</span>
 						</div>
 					</div>
 				{:else}
-					<div class="overflow-x-auto">
-						<table
-							class="w-full border-collapse"
-							style="font-family: monospace; font-size: 15px;"
-						>
+					<div style="overflow-x: auto;">
+						<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
 							<thead>
-								<tr class="bg-gray-50">
-									<th
-										class="border border-gray-200 px-2 py-1 text-left font-medium"
-										style="color: #999;">REP</th
-									>
-									<th
-										class="border border-gray-200 px-2 py-1 text-center font-medium"
-										style="color: #999;">EDGE (mm)</th
-									>
+								<tr style="background: var(--panel2);">
+									<th style="padding: 6px 10px; text-align: left; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">REP</th>
+									<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">EDGE (mm)</th>
 									{#if item.both_hands}
-										<th
-											class="border border-gray-200 px-2 py-1 text-center font-medium"
-											style="color: #999;">LOAD</th
-										>
-										<th
-											class="border border-gray-200 px-2 py-1 text-center font-medium"
-											style="color: #999;">GRIP</th
-										>
+										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">LOAD</th>
+										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">GRIP</th>
 									{:else}
-										<th
-											class="border border-gray-200 px-2 py-1 text-center font-medium"
-											style="color: #999;">L LOAD</th
-										>
-										<th
-											class="border border-gray-200 px-2 py-1 text-center font-medium"
-											style="color: #999;">R LOAD</th
-										>
-										<th
-											class="border border-gray-200 px-2 py-1 text-center font-medium"
-											style="color: #999;">L GRIP</th
-										>
-										<th
-											class="border border-gray-200 px-2 py-1 text-center font-medium"
-											style="color: #999;">R GRIP</th
-										>
+										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">L LOAD</th>
+										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">R LOAD</th>
+										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">L GRIP</th>
+										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">R GRIP</th>
 									{/if}
 								</tr>
 							</thead>
 							<tbody>
 								{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as repIdx}
-									<tr>
-										<td class="border border-gray-200 px-2 py-1 text-center font-bold"
-											>{repIdx + 1}</td
-										>
-										<td class="border border-gray-200 px-2 py-1 text-center">
-											{item.edge_sizes_mm?.[repIdx] ?? '-'}
-										</td>
+									<tr style="border-bottom: 1px solid var(--bd2);">
+										<td style="padding: 6px 10px; font-weight: 700; color: var(--tx2); font-size: 12px;">{repIdx + 1}</td>
+										<td style="padding: 6px 10px; text-align: center; color: var(--tx);">{item.edge_sizes_mm?.[repIdx] ?? '-'}</td>
 										{#if item.both_hands}
-											<td class="border border-gray-200 px-2 py-1 text-center">
-												{item.loads?.[repIdx]
-													? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit)
-													: '-'}
+											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
+												{item.loads?.[repIdx] ? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit) : '-'}
 											</td>
-											<td class="border border-gray-200 px-2 py-1 text-center">
+											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.hand_positions?.[0]?.[repIdx] ?? '-'}
 											</td>
 										{:else}
-											<td class="border border-gray-200 px-2 py-1 text-center">
-												{item.loads?.[2 * repIdx]
-													? fmtLoad(
-															item.loads[2 * repIdx].value,
-															item.loads[2 * repIdx].unit
-														)
-													: '-'}
+											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
+												{item.loads?.[2 * repIdx] ? fmtLoad(item.loads[2 * repIdx].value, item.loads[2 * repIdx].unit) : '-'}
 											</td>
-											<td class="border border-gray-200 px-2 py-1 text-center">
-												{item.loads?.[2 * repIdx + 1]
-													? fmtLoad(
-															item.loads[2 * repIdx + 1].value,
-															item.loads[2 * repIdx + 1].unit
-														)
-													: '-'}
+											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
+												{item.loads?.[2 * repIdx + 1] ? fmtLoad(item.loads[2 * repIdx + 1].value, item.loads[2 * repIdx + 1].unit) : '-'}
 											</td>
-											<td class="border border-gray-200 px-2 py-1 text-center">
+											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.hand_positions?.[0]?.[repIdx] ?? '-'}
 											</td>
-											<td class="border border-gray-200 px-2 py-1 text-center">
+											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.hand_positions?.[1]?.[repIdx] ?? '-'}
 											</td>
 										{/if}

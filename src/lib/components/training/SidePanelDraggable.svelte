@@ -15,12 +15,14 @@
 	const draggable = createDraggable({ get id() { return id; } });
 </script>
 
-<button
+<div
 	{@attach draggable.attach}
 	{onclick}
+	role="button"
+	tabindex="0"
 	class={cls}
 	style="{baseStyle}; touch-action: none; cursor: grab;"
 	style:opacity={draggable.isDragging ? '0.5' : undefined}
 >
 	{@render children()}
-</button>
+</div>

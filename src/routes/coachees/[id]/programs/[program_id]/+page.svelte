@@ -163,9 +163,9 @@
 		canceled: boolean;
 		operation: { source: unknown; target: unknown };
 	}) {
-		if (event.canceled || !editMode) return;
 		const source = event.operation.source;
 		const target = event.operation.target;
+		if (event.canceled || !editMode) return;
 		if (!source || !target) return;
 
 		const sourceId = String((source as { id: string }).id);

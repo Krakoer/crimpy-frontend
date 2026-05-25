@@ -24,25 +24,25 @@
 
 <div class="space-y-2">
 	{#if depth === 0}
-		<div class="mb-4 flex gap-2">
+		<div style="display: flex; gap: 6px; margin-bottom: 12px;">
 			<button
-				onclick={() => {
-					collapseSignals.collapse++;
-				}}
-				class="border border-gray-200 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-				style="font-family: monospace; font-size: 15px;"
-			>
-				Collapse all
-			</button>
+				onclick={() => { collapseSignals.collapse++; }}
+				style="
+					padding: 5px 12px; border-radius: var(--rs);
+					border: 1px solid var(--bd); background: #fff;
+					font-size: 12px; font-weight: 600; color: var(--tx2);
+					cursor: pointer; font-family: var(--font);
+				"
+			>Collapse all</button>
 			<button
-				onclick={() => {
-					collapseSignals.expand++;
-				}}
-				class="border border-gray-200 px-3 py-1 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-600"
-				style="font-family: monospace; font-size: 15px;"
-			>
-				Expand all
-			</button>
+				onclick={() => { collapseSignals.expand++; }}
+				style="
+					padding: 5px 12px; border-radius: var(--rs);
+					border: 1px solid var(--bd); background: #fff;
+					font-size: 12px; font-weight: 600; color: var(--tx2);
+					cursor: pointer; font-family: var(--font);
+				"
+			>Expand all</button>
 		</div>
 	{/if}
 
@@ -59,6 +59,6 @@
 	{/each}
 
 	{#if items.length === 0}
-		<p style="font-family: monospace; font-size: 13px; color: #bbb;">No items</p>
+		<p style="font-size: 13px; color: var(--tx3); padding: 8px 0;">No items</p>
 	{/if}
 </div>
