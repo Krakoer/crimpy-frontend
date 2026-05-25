@@ -220,7 +220,7 @@
 	);
 
 	let showCreateExerciseModal = $state(false);
-	let showPreview = $state(false);
+	let isEditing = $state(false);
 	let loading = $state(true);
 	let saving = $state(false);
 	let saveError = $state('');
@@ -458,6 +458,7 @@
 			});
 			savedSnapshot = JSON.stringify($state.snapshot(draft));
 			snackbar.show('Training saved');
+			isEditing = false;
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save training.';
 		} finally {
@@ -500,69 +501,71 @@
 >
 	{#snippet actions()}
 		{#if !loading}
-			<button
-				onclick={() => (showPreview = !showPreview)}
-				style="
-					display: inline-flex; align-items: center; gap: 7px;
-					padding: 8px 14px; border-radius: var(--rs);
-					background: {showPreview ? 'var(--pr-lt)' : '#fff'}; color: {showPreview ? 'var(--pr)' : 'var(--tx)'};
-					border: 1px solid {showPreview ? 'var(--pr)' : 'var(--bd)'};
-					font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-				"
-			>
-				<Icon name="play" size={13} color={showPreview ? 'var(--pr)' : 'var(--tx2)'} />
-				Preview
-			</button>
-			{#if confirmDelete}
+			{#if !isEditing}
 				<button
-					onclick={handleDelete}
-					disabled={deleting}
+					onclick={() => (isEditing = true)}
 					style="
 						display: inline-flex; align-items: center; gap: 7px;
-						padding: 8px 14px; border-radius: var(--rs);
-						background: #fff5f5; color: #c62828; border: 1px solid #e57373;
-						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-						opacity: {deleting ? 0.6 : 1};
-					"
-				>{deleting ? 'Deleting...' : 'Confirm delete'}</button>
-				<button
-					onclick={() => (confirmDelete = false)}
-					style="
-						display: inline-flex; align-items: center;
-						padding: 8px 14px; border-radius: var(--rs);
-						background: #fff; color: var(--tx3); border: 1px solid var(--bd);
+						padding: 8px 16px; border-radius: var(--rs);
+						background: var(--pr); color: #fff; border: 1px solid var(--pr);
 						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 					"
-				>Cancel</button>
-			{:else}
-				<button
-					onclick={() => (confirmDelete = true)}
-					style="
-						display: inline-flex; align-items: center; justify-content: center;
-						width: 34px; height: 34px; border-radius: var(--rs);
-						background: #fff; border: 1px solid var(--bd); cursor: pointer;
-					"
-					title="Delete training"
 				>
-					<Icon name="trash" size={14} color="var(--tx3)" />
+					<Icon name="edit" size={13} color="#fff" />
+					Edit
+				</button>
+			{:else}
+				{#if confirmDelete}
+					<button
+						onclick={handleDelete}
+						disabled={deleting}
+						style="
+							display: inline-flex; align-items: center; gap: 7px;
+							padding: 8px 14px; border-radius: var(--rs);
+							background: #fdf3f3; color: var(--rd); border: 1px solid var(--rd);
+							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+							opacity: {deleting ? 0.6 : 1};
+						"
+					>{deleting ? 'Deleting...' : 'Confirm delete'}</button>
+					<button
+						onclick={() => (confirmDelete = false)}
+						style="
+							display: inline-flex; align-items: center;
+							padding: 8px 14px; border-radius: var(--rs);
+							background: #fff; color: var(--tx3); border: 1px solid var(--bd);
+							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+						"
+					>Cancel</button>
+				{:else}
+					<button
+						onclick={() => (confirmDelete = true)}
+						style="
+							display: inline-flex; align-items: center; justify-content: center;
+							width: 34px; height: 34px; border-radius: var(--rs);
+							background: #fff; border: 1px solid var(--bd); cursor: pointer;
+						"
+						title="Delete training"
+					>
+						<Icon name="trash" size={14} color="var(--tx3)" />
+					</button>
+				{/if}
+				<button
+					onclick={handleSave}
+					disabled={saving || !draft.title.trim()}
+					style="
+						display: inline-flex; align-items: center; gap: 7px;
+						padding: 8px 16px; border-radius: var(--rs);
+						background: {isDirty ? 'var(--pr)' : '#fff'};
+						color: {isDirty ? '#fff' : 'var(--tx2)'};
+						border: 1px solid {isDirty ? 'var(--pr)' : 'var(--bd)'};
+						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
+						opacity: {saving || !draft.title.trim() ? 0.6 : 1};
+					"
+				>
+					<Icon name="check" size={13} color={isDirty ? '#fff' : 'var(--tx3)'} />
+					{saving ? 'Saving...' : isDirty ? 'Save training' : 'Saved'}
 				</button>
 			{/if}
-			<button
-				onclick={handleSave}
-				disabled={saving || !draft.title.trim()}
-				style="
-					display: inline-flex; align-items: center; gap: 7px;
-					padding: 8px 16px; border-radius: var(--rs);
-					background: {isDirty ? 'var(--pr)' : '#fff'};
-					color: {isDirty ? '#fff' : 'var(--tx2)'};
-					border: 1px solid {isDirty ? 'var(--pr)' : 'var(--bd)'};
-					font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-					opacity: {saving || !draft.title.trim() ? 0.6 : 1};
-				"
-			>
-				<Icon name="check" size={13} color={isDirty ? '#fff' : 'var(--tx3)'} />
-				{saving ? 'Saving...' : isDirty ? 'Save training' : 'Saved'}
-			</button>
 		{/if}
 	{/snippet}
 
@@ -571,7 +574,7 @@
 			<div style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
 			Loading...
 		</div>
-	{:else if showPreview}
+	{:else if !isEditing}
 		<div style="padding: 20px 28px 40px;">
 			<div style="
 				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
