@@ -94,6 +94,7 @@
 	let coacheeName = $state('Coachee');
 	let loading = $state(true);
 	let error = $state('');
+	let editMode = $state(false);
 	let editing = $state(false);
 	let editName = $state('');
 	let editObjective = $state('');
@@ -162,7 +163,7 @@
 		canceled: boolean;
 		operation: { source: unknown; target: unknown };
 	}) {
-		if (event.canceled) return;
+		if (event.canceled || !editMode) return;
 		const source = event.operation.source;
 		const target = event.operation.target;
 		if (!source || !target) return;
@@ -502,7 +503,7 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.ctrlKey && e.key === 's' && isDirty && !isSaving) {
+		if (e.ctrlKey && e.key === 's' && editMode && isDirty && !isSaving) {
 			e.preventDefault();
 			saveAllProgram();
 		}
@@ -533,56 +534,71 @@
 			<Icon name="arrow-left" size={14} color="var(--tx2)" />
 			Back to coachee
 		</button>
-		{#if !confirmDelete}
+		{#if editMode}
+			{#if !confirmDelete}
+				<button
+					onclick={() => (confirmDelete = true)}
+					style="
+						display: inline-flex; align-items: center; gap: 6px;
+						padding: 6px 12px; border-radius: var(--rs);
+						background: #fff; color: var(--rd); border: 1px solid rgba(194,107,107,0.3);
+						font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+					"
+				>
+					<Icon name="trash" size={13} color="var(--rd)" />
+					Delete
+				</button>
+			{:else}
+				<button
+					onclick={handleDeleteProgram}
+					disabled={deleting}
+					style="
+						padding: 6px 12px; border-radius: var(--rs);
+						border: 1px solid var(--rd); color: var(--rd);
+						background: #fff5f5; font-size: 12.5px; font-weight: 600;
+						cursor: pointer; font-family: var(--font);
+					"
+				>{deleting ? '...' : 'Confirm delete'}</button>
+				<button
+					onclick={() => (confirmDelete = false)}
+					style="
+						padding: 6px 12px; border-radius: var(--rs);
+						border: 1px solid var(--bd); color: var(--tx);
+						background: #fff; font-size: 12.5px; font-weight: 600;
+						cursor: pointer; font-family: var(--font);
+					"
+				>Cancel</button>
+			{/if}
 			<button
-				onclick={() => (confirmDelete = true)}
+				onclick={saveAllProgram}
+				disabled={!isDirty || isSaving}
 				style="
 					display: inline-flex; align-items: center; gap: 6px;
-					padding: 6px 12px; border-radius: var(--rs);
-					background: #fff; color: var(--rd); border: 1px solid rgba(194,107,107,0.3);
-					font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+					padding: 6px 14px; border-radius: var(--rs);
+					background: {isDirty ? 'var(--pr)' : '#fff'};
+					color: {isDirty ? '#fff' : 'var(--tx3)'};
+					border: 1px solid {isDirty ? 'var(--pr)' : 'var(--bd)'};
+					font-size: 12.5px; font-weight: 600; cursor: {isDirty ? 'pointer' : 'default'};
+					font-family: var(--font); transition: all 0.15s;
 				"
 			>
-				<Icon name="trash" size={13} color="var(--rd)" />
-				Delete
+				<Icon name="check" size={13} color={isDirty ? '#fff' : 'var(--tx3)'} />
+				{isSaving ? 'Saving...' : isDirty ? 'Save program' : 'Saved'}
 			</button>
 		{:else}
 			<button
-				onclick={handleDeleteProgram}
-				disabled={deleting}
+				onclick={() => (editMode = true)}
 				style="
-					padding: 6px 12px; border-radius: var(--rs);
-					border: 1px solid var(--rd); color: var(--rd);
-					background: #fff5f5; font-size: 12.5px; font-weight: 600;
-					cursor: pointer; font-family: var(--font);
+					display: inline-flex; align-items: center; gap: 6px;
+					padding: 6px 14px; border-radius: var(--rs);
+					background: var(--pr); color: #fff; border: 1px solid var(--pr);
+					font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 				"
-			>{deleting ? '...' : 'Confirm delete'}</button>
-			<button
-				onclick={() => (confirmDelete = false)}
-				style="
-					padding: 6px 12px; border-radius: var(--rs);
-					border: 1px solid var(--bd); color: var(--tx);
-					background: #fff; font-size: 12.5px; font-weight: 600;
-					cursor: pointer; font-family: var(--font);
-				"
-			>Cancel</button>
+			>
+				<Icon name="edit" size={13} color="#fff" />
+				Edit
+			</button>
 		{/if}
-		<button
-			onclick={saveAllProgram}
-			disabled={!isDirty || isSaving}
-			style="
-				display: inline-flex; align-items: center; gap: 6px;
-				padding: 6px 14px; border-radius: var(--rs);
-				background: {isDirty ? 'var(--pr)' : '#fff'};
-				color: {isDirty ? '#fff' : 'var(--tx3)'};
-				border: 1px solid {isDirty ? 'var(--pr)' : 'var(--bd)'};
-				font-size: 12.5px; font-weight: 600; cursor: {isDirty ? 'pointer' : 'default'};
-				font-family: var(--font); transition: all 0.15s;
-			"
-		>
-			<Icon name="check" size={13} color={isDirty ? '#fff' : 'var(--tx3)'} />
-			{isSaving ? 'Saving...' : isDirty ? 'Save program' : 'Saved'}
-		</button>
 	{/snippet}
 
 	{#if error}
@@ -660,9 +676,11 @@
 					{/if}
 					<span style="font-size: 12px; color: var(--tx3);">Started {formatDate(program.start_date)}</span>
 					<div style="flex: 1;"></div>
+					{#if editMode}
 					<button onclick={startEdit}
 						style="font-size: 12px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
 					>Edit details</button>
+					{/if}
 				</div>
 			{/if}
 
@@ -778,6 +796,7 @@
 										background: var(--panel);
 									">
 										<Icon name="edit" size={12} color="var(--tx3)" />
+										{#if editMode}
 										<input
 											value={draft.notes}
 											onclick={(e) => e.stopPropagation()}
@@ -789,6 +808,12 @@
 												font-style: {draft.notes ? 'normal' : 'italic'};
 											"
 										/>
+										{:else}
+										<span style="flex: 1; font-family: var(--font); font-size: 12px; color: {draft.notes ? 'var(--tx)' : 'var(--tx3)'}; font-style: {draft.notes ? 'normal' : 'italic'};">
+											{draft.notes || 'No notes'}
+										</span>
+										{/if}
+										{#if editMode}
 										<div style="display: flex; gap: 4px; flex-shrink: 0;">
 											<button
 												onclick={(e) => { e.stopPropagation(); dupModalSourceWn = wn; }}
@@ -827,6 +852,7 @@
 												</button>
 											{/if}
 										</div>
+										{/if}
 									</div>
 
 									{#if draft.saveError}
@@ -849,7 +875,7 @@
 
 										<!-- Day cells -->
 										{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex}
-											<DroppableCell id="cell:{wn}:{dayIndex}">
+											<DroppableCell id="cell:{wn}:{dayIndex}" disabled={!editMode}>
 												<div style="
 													padding: 5px 3px; min-height: 72px;
 													display: flex; flex-direction: column; gap: 3px;
@@ -858,17 +884,18 @@
 													{#each draft.days[dayIndex] as session (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession id={session._id}>
+														<DraggableSession id={session._id} disabled={!editMode}>
 															<div style="
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
 																background: {tint}; border: 1px solid {color}30;
-																cursor: grab; font-size: 10.5px;
+																cursor: {editMode ? "grab" : "default"}; font-size: 10.5px;
 															">
 																<div style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
 																<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;">
 																	{trainingById(session.training_id)?.title ?? '?'}
 																</span>
+																{#if editMode}
 																<button
 																	onclick={() => removeSession(wn, session._id)}
 																	onpointerdown={(e) => e.stopPropagation()}
@@ -878,10 +905,12 @@
 																>
 																	<Icon name="x" size={10} color="var(--tx3)" />
 																</button>
+																{/if}
 															</div>
 														</DraggableSession>
 													{/each}
 													{#if draft.days[dayIndex].length === 0}
+														{#if editMode}
 														<div style="
 															flex: 1; display: flex; align-items: center; justify-content: center;
 															border-radius: 5px; border: 1px dashed var(--bd);
@@ -893,13 +922,16 @@
 														>
 															<Icon name="plus" size={14} color="currentColor" />
 														</div>
+														{:else}
+														<div style="flex: 1; display: flex; align-items: center; justify-content: center; color: var(--bd); margin: 2px; min-height: 40px; font-size: 16px;">-</div>
+														{/if}
 													{/if}
 												</div>
 											</DroppableCell>
 										{/each}
 
 										<!-- Frequency cell -->
-										<DroppableCell id="freq:{wn}">
+										<DroppableCell id="freq:{wn}" disabled={!editMode}>
 											<div style="
 												padding: 5px 4px; min-height: 72px;
 												display: flex; flex-direction: column; gap: 3px;
@@ -909,7 +941,7 @@
 												{#each draft.freqSessions as session (session._id)}
 													{@const color = trainingColor(session.training_id)}
 													{@const tint = trainingTint(session.training_id)}
-													<DraggableSession id={session._id}>
+													<DraggableSession id={session._id} disabled={!editMode}>
 														<div style="
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
@@ -931,6 +963,7 @@
 																/>
 																<span style="font-size: 10px; color: {color}; font-weight: 600;">x/wk</span>
 																<div style="flex: 1;"></div>
+																{#if editMode}
 																<button
 																	onclick={() => removeSession(wn, session._id)}
 																	onpointerdown={(e) => e.stopPropagation()}
@@ -940,6 +973,7 @@
 																>
 																	<Icon name="x" size={10} color="var(--tx3)" />
 																</button>
+																{/if}
 															</div>
 														</div>
 													</DraggableSession>
@@ -962,6 +996,7 @@
 			</div>
 
 			<!-- Right rail: Training library (inside DragDropProvider) -->
+			{#if editMode}
 			<div style="
 				width: 240px; flex-shrink: 0;
 				border-left: 1px solid var(--bd);
@@ -1044,6 +1079,7 @@
 					</div>
 			</div>
 		</div>
+		{/if}
 		</DragDropProvider>
 
 	{/if}
