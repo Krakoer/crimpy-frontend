@@ -57,91 +57,132 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center"
-	style="background: rgba(0,0,0,0.4);"
+	style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.4);"
 	role="dialog"
 	aria-modal="true"
 >
-	<div class="w-full max-w-md border-2 border-black bg-white">
-		<div class="flex items-center justify-between border-b border-black px-6 py-4">
-			<h2 class="font-black" style="font-family: monospace; font-size: 16px; letter-spacing: -0.5px;">
-				New exercise
-			</h2>
+	<div
+		style="
+			width: 100%; max-width: 460px;
+			background: #fff; border-radius: var(--rl);
+			box-shadow: var(--sh-hi); border: 1px solid var(--bd);
+		"
+	>
+		<div
+			style="
+				display: flex; align-items: center; justify-content: space-between;
+				padding: 18px 24px; border-bottom: 1px solid var(--bd);
+				border-radius: var(--rl) var(--rl) 0 0;
+			"
+		>
+			<h2 style="font-size: 15px; font-weight: 700; color: var(--tx);">New exercise</h2>
 			<button
 				onclick={onClose}
-				class="text-gray-400 transition-colors hover:text-black"
-				style="font-family: monospace; font-size: 18px; line-height: 1;"
+				style="
+					display: flex; align-items: center; justify-content: center;
+					width: 28px; height: 28px; border-radius: var(--rs);
+					border: 1px solid var(--bd); background: #fff;
+					cursor: pointer; font-size: 16px; color: var(--tx2);
+				"
 				aria-label="Close"
-			>
-				x
-			</button>
+			>x</button>
 		</div>
 
-		<div class="space-y-4 px-6 py-5">
+		<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;">
 			{#if error}
-				<p style="font-family: monospace; font-size: 13px; color: #B85450;">{error}</p>
+				<div
+					style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+				>
+					{error}
+				</div>
 			{/if}
 
 			<div>
-				<label for="cem-name" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
-					NAME *
+				<label
+					for="cem-name"
+					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+				>
+					Name *
 				</label>
 				<input
 					id="cem-name"
 					type="text"
 					bind:value={name}
-					class="w-full border border-black px-3 py-2 outline-none focus:border-2"
-					style="font-family: monospace; font-size: 13px;"
 					placeholder="Exercise name"
+					style="
+						width: 100%; border: 1px solid var(--bd); border-radius: var(--rs);
+						padding: 9px 12px; font-family: var(--font); font-size: 13.5px; color: var(--tx);
+						outline: none; background: #fff;
+					"
 					use:focusOnMount
 				/>
 			</div>
 
 			<div>
-				<label for="cem-description" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
-					DESCRIPTION
+				<label
+					for="cem-description"
+					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+				>
+					Description
 				</label>
 				<textarea
 					id="cem-description"
 					bind:value={description}
 					rows="2"
-					class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-					style="font-family: monospace; font-size: 13px;"
 					placeholder="What this exercise is"
+					style="
+						width: 100%; resize: none; border: 1px solid var(--bd); border-radius: var(--rs);
+						padding: 9px 12px; font-family: var(--font); font-size: 13.5px; color: var(--tx);
+						outline: none; background: #fff;
+					"
 				></textarea>
 			</div>
 
 			<div>
-				<label for="cem-comment" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
-					EXECUTION NOTES
+				<label
+					for="cem-comment"
+					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+				>
+					Execution notes
 				</label>
 				<textarea
 					id="cem-comment"
 					bind:value={comment}
 					rows="2"
-					class="w-full resize-none border border-black px-3 py-2 outline-none focus:border-2"
-					style="font-family: monospace; font-size: 13px;"
 					placeholder="How to perform it correctly"
+					style="
+						width: 100%; resize: none; border: 1px solid var(--bd); border-radius: var(--rs);
+						padding: 9px 12px; font-family: var(--font); font-size: 13.5px; color: var(--tx);
+						outline: none; background: #fff;
+					"
 				></textarea>
 			</div>
 
 			<div>
-				<label for="cem-video" class="mb-1 block font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
-					VIDEO LINK
+				<label
+					for="cem-video"
+					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+				>
+					Video link
 				</label>
 				<input
 					id="cem-video"
 					type="url"
 					bind:value={videoLink}
-					class="w-full border border-black px-3 py-2 outline-none focus:border-2"
-					style="font-family: monospace; font-size: 13px;"
 					placeholder="https://..."
+					style="
+						width: 100%; border: 1px solid var(--bd); border-radius: var(--rs);
+						padding: 9px 12px; font-family: var(--font); font-size: 13.5px; color: var(--tx);
+						outline: none; background: #fff;
+					"
 				/>
 			</div>
 
 			<div>
-				<p class="mb-1 font-medium" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: #666;">
-					TAGS
+				<p
+					style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+				>
+					Tags
 				</p>
 				<TagSelect
 					selectedTags={selectedTags}
@@ -150,21 +191,28 @@
 			</div>
 		</div>
 
-		<div class="flex gap-3 border-t border-black px-6 py-4">
+		<div style="display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--bd); border-radius: 0 0 var(--rl) var(--rl);">
 			<button
 				onclick={handleSave}
 				disabled={saving || !name.trim()}
-				class="flex-1 border-2 px-4 py-2 font-bold transition-colors disabled:opacity-50"
-				style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; border-color: #C6613F;"
+				style="
+					flex: 1; padding: 9px 16px; border-radius: var(--rs);
+					background: var(--pr); color: #fff; border: 1px solid var(--pr);
+					font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+					opacity: {saving || !name.trim() ? 0.5 : 1};
+				"
 			>
-				{saving ? 'SAVING...' : 'CREATE'}
+				{saving ? 'Creating...' : 'Create'}
 			</button>
 			<button
 				onclick={onClose}
-				class="border border-black px-4 py-2 transition-colors hover:bg-gray-100"
-				style="font-family: monospace; font-size: 13px;"
+				style="
+					padding: 9px 16px; border-radius: var(--rs);
+					background: #fff; color: var(--tx); border: 1px solid var(--bd);
+					font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+				"
 			>
-				CANCEL
+				Cancel
 			</button>
 		</div>
 	</div>

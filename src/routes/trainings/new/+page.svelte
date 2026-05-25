@@ -482,7 +482,7 @@
 				<!-- Right rail -->
 				<div style="
 					width: 260px; flex-shrink: 0; border-left: 1px solid var(--bd);
-					background: var(--panel); display: flex; flex-direction: column; overflow: hidden;
+					background: var(--panel); display: flex; flex-direction: column;
 					position: sticky; top: 0; align-self: flex-start; max-height: calc(100vh - 65px);
 				">
 					<!-- Structure buttons -->

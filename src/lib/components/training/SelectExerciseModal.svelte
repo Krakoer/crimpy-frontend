@@ -3,6 +3,7 @@
 	import type { Exercise, Tag } from '$lib/api/client';
 	import { apiClient } from '$lib/api/client';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		onSelect: (exercise: Exercise) => void;
@@ -107,72 +108,116 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center"
-	style="background: rgba(0,0,0,0.4);"
+	style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.4);"
 	role="dialog"
 	aria-modal="true"
 >
-	<div class="flex w-full max-w-sm flex-col border-2 border-black bg-white" style="max-height: 80vh;">
-		<div class="flex items-center justify-between border-b border-black px-5 py-3">
-			<h2 class="font-black" style="font-family: monospace; font-size: 15px; letter-spacing: -0.5px;">
-				Select exercise
-			</h2>
+	<div
+		style="
+			display: flex; flex-direction: column; width: 100%; max-width: 420px; max-height: 80vh;
+			background: #fff; border-radius: var(--rl);
+			box-shadow: var(--sh-hi); border: 1px solid var(--bd);
+			overflow: hidden;
+		"
+	>
+		<div
+			style="
+				display: flex; align-items: center; justify-content: space-between;
+				padding: 18px 24px; border-bottom: 1px solid var(--bd); flex-shrink: 0;
+			"
+		>
+			<h2 style="font-size: 15px; font-weight: 700; color: var(--tx);">Select exercise</h2>
 			<button
 				onclick={onClose}
-				class="text-gray-400 transition-colors hover:text-black"
-				style="font-family: monospace; font-size: 18px; line-height: 1;"
+				style="
+					display: flex; align-items: center; justify-content: center;
+					width: 28px; height: 28px; border-radius: var(--rs);
+					border: 1px solid var(--bd); background: #fff;
+					cursor: pointer; font-size: 16px; color: var(--tx2);
+				"
 				aria-label="Close"
-			>
-				x
-			</button>
+			>x</button>
 		</div>
 
-		<div class="flex gap-2 border-b border-gray-100 px-5 py-3">
-			<input
-				type="text"
-				value={search}
-				oninput={(e) => handleSearchInput(e.currentTarget.value)}
-				placeholder="Search..."
-				class="flex-1 border border-gray-200 px-2 py-1 outline-none focus:border-gray-400"
-				style="font-family: monospace; font-size: 14px;"
-				use:focusOnMount
-			/>
+		<div
+			style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--bd2); flex-shrink: 0;"
+		>
+			<div
+				style="
+					display: flex; flex: 1; align-items: center; gap: 8px;
+					background: #fff; border: 1px solid var(--bd); border-radius: var(--rs);
+					padding: 7px 10px;
+				"
+			>
+				<Icon name="search" size={14} color="var(--tx3)" />
+				<input
+					type="text"
+					value={search}
+					oninput={(e) => handleSearchInput(e.currentTarget.value)}
+					placeholder="Search exercises..."
+					style="
+						flex: 1; border: none; outline: none; background: transparent;
+						font-family: var(--font); font-size: 13px; color: var(--tx);
+					"
+					use:focusOnMount
+				/>
+			</div>
 			<button
 				onclick={toggleFavoritesOnly}
-				class="border px-2 py-1 transition-colors"
-				style="font-family: monospace; font-size: 12px; {favoritesOnly ? 'background-color: #C6613F; color: white; border-color: #C6613F;' : 'border-color: #ccc; color: #999;'}"
 				title="Show favorites only"
+				style="
+					display: flex; align-items: center; justify-content: center;
+					width: 34px; height: 34px; border-radius: var(--rs); flex-shrink: 0;
+					border: 1px solid {favoritesOnly ? 'var(--pr)' : 'var(--bd)'};
+					background: {favoritesOnly ? 'var(--pr-fog)' : '#fff'};
+					cursor: pointer;
+				"
 			>
-				fav
+				<Icon name="star" size={15} color={favoritesOnly ? 'var(--pr)' : 'var(--tx3)'} fill={favoritesOnly ? 'var(--pr)' : 'none'} />
 			</button>
 		</div>
 
-		<div class="border-b border-gray-100 px-5 py-3">
+		<div style="padding: 10px 16px; border-bottom: 1px solid var(--bd2); flex-shrink: 0;">
 			<TagFilterSelect
 				selectedTags={filterTags}
 				onchange={handleTagsChange}
 			/>
 		</div>
 
-		<div class="flex-1 overflow-y-auto px-5 py-2">
+		<div style="flex: 1; overflow-y: auto;">
 			{#if loading}
-				<p style="font-family: monospace; font-size: 13px; color: #bbb; padding: 8px 0;">
+				<div style="display: flex; align-items: center; gap: 10px; padding: 24px 16px; color: var(--tx3); font-size: 13px; font-family: var(--font);">
+					<div
+						style="width: 14px; height: 14px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"
+					></div>
 					Loading...
-				</p>
+				</div>
 			{:else if exercises.length === 0}
-				<p style="font-family: monospace; font-size: 13px; color: #bbb; padding: 8px 0;">
-					No exercises found
+				<p style="padding: 24px 16px; font-size: 13px; color: var(--tx3); font-family: var(--font);">
+					No exercises found.
 				</p>
 			{:else}
 				{#each exercises as ex (ex.id)}
 					<button
 						onclick={() => onSelect(ex)}
-						class="w-full border-b border-gray-50 px-2 py-2 text-left transition-colors hover:bg-gray-50"
-						style="font-family: monospace; font-size: 14px;"
+						style="
+							display: block; width: 100%; padding: 11px 16px; text-align: left;
+							background: none; border: none; border-bottom: 1px solid var(--bd2);
+							cursor: pointer; font-family: var(--font);
+						"
+						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
+						onmouseleave={(e) => (e.currentTarget.style.background = '')}
 					>
-						{ex.name}
+						<div style="font-size: 13.5px; font-weight: 600; color: var(--tx);">{ex.name}</div>
 						{#if ex.description}
-							<span style="font-size: 12px; color: #999; margin-left: 8px;">{ex.description}</span>
+							<div style="font-size: 12px; color: var(--tx3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ex.description}</div>
+						{/if}
+						{#if ex.tags?.length}
+							<div style="margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px;">
+								{#each ex.tags as tag (tag.id)}
+									<span style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: #fff; background: {tag.color};">{tag.name}</span>
+								{/each}
+							</div>
 						{/if}
 					</button>
 				{/each}
@@ -180,13 +225,25 @@
 					<button
 						onclick={loadMore}
 						disabled={loadingMore}
-						class="w-full py-2 text-center transition-colors hover:bg-gray-50 disabled:opacity-50"
-						style="font-family: monospace; font-size: 12px; color: #999;"
+						style="
+							display: block; width: 100%; padding: 12px 16px; text-align: center;
+							background: none; border: none; cursor: pointer;
+							font-size: 12.5px; font-weight: 600; color: var(--tx2); font-family: var(--font);
+							opacity: {loadingMore ? 0.6 : 1};
+						"
+						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
+						onmouseleave={(e) => (e.currentTarget.style.background = '')}
 					>
-						{loadingMore ? 'Loading...' : 'Load more'}
+						{loadingMore ? 'Loading...' : `Load more (${exercises.length} / ${total})`}
 					</button>
 				{/if}
 			{/if}
 		</div>
 	</div>
 </div>
+
+<style>
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+</style>
