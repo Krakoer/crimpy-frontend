@@ -3,11 +3,25 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { EnrolledUser, EnrollmentTokenResponse } from '$lib/api/client';
+	import type { EnrolledUser, EnrollmentTokenResponse, SessionResponse, Program } from '$lib/api/client';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
+	type CoacheeExtra = {
+		lastActivity: string | null;
+		activeProgram: string | null;
+	};
+
+	function programStatus(startDate: string, durationWeeks?: number): 'upcoming' | 'active' | 'completed' {
+		const diffMs = Date.now() - new Date(startDate).getTime();
+		if (diffMs < 0) return 'upcoming';
+		const week = Math.ceil(diffMs / (7 * 86400000));
+		if (durationWeeks && week > durationWeeks) return 'completed';
+		return 'active';
+	}
+
 	let coachees = $state<EnrolledUser[]>([]);
+	let extras = $state<Record<string, CoacheeExtra>>({});
 	let search = $state('');
 	let loading = $state(false);
 	let error = $state('');
@@ -28,6 +42,10 @@
 			: coachees
 	);
 
+	function formatDateShort(iso: string): string {
+		return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+	}
+
 	onMount(async () => {
 		authStore.initialize();
 		loading = true;
@@ -37,6 +55,19 @@
 			error = e instanceof Error ? e.message : 'Failed to load coachees.';
 		} finally {
 			loading = false;
+		}
+		if (coachees.length > 0) {
+			await Promise.all(coachees.map(async (c) => {
+				const [sessions, programs] = await Promise.all([
+					apiClient.getClientSessions(c.user_id).catch(() => [] as SessionResponse[]),
+					apiClient.listPrograms(c.user_id).catch(() => [] as Program[])
+				]);
+				const sorted = sessions.filter((s) => !s.DeletedAt).sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+				const lastActivity = sorted[0]?.Date ?? null;
+				const active = programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active')
+					?? programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');
+				extras[c.user_id] = { lastActivity, activeProgram: active?.name ?? null };
+			}));
 		}
 	});
 
@@ -192,7 +223,7 @@
 		>
 			<div
 				style="
-					display: grid; grid-template-columns: 2fr 1fr 1fr 32px;
+					display: grid; grid-template-columns: 1.6fr 1.2fr 1fr 1fr 32px;
 					padding: 12px 20px; border-bottom: 1px solid var(--bd);
 					background: var(--panel2);
 					font-size: 11px; color: var(--tx3); font-weight: 600;
@@ -201,7 +232,8 @@
 			>
 				<div>Coachee</div>
 				<div>Email</div>
-				<div>Status</div>
+				<div>Last activity</div>
+				<div>Current program</div>
 				<div></div>
 			</div>
 
@@ -218,17 +250,20 @@
 				</div>
 			{:else}
 				{#each filtered as coachee, i (coachee.user_id)}
+					{@const extra = extras[coachee.user_id]}
 					<button
 						onclick={() => goto(`/coachees/${coachee.user_id}`)}
 						style="
-							display: grid; grid-template-columns: 2fr 1fr 1fr 32px;
-							padding: 14px 20px; align-items: center;
+							display: grid; grid-template-columns: 1.6fr 1.2fr 1fr 1fr 32px;
+							padding: 13px 20px; align-items: center;
 							border-bottom: {i < filtered.length - 1 ? '1px solid var(--bd2)' : 'none'};
 							border-top: none; border-left: none; border-right: none;
 							cursor: pointer; font-size: 13.5px; color: var(--tx);
 							background: none; width: 100%; text-align: left;
 							font-family: var(--font);
 						"
+						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
+						onmouseleave={(e) => (e.currentTarget.style.background = '')}
 					>
 						<div style="display: flex; align-items: center; gap: 12px;">
 							<div
@@ -241,27 +276,16 @@
 							>
 								{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(coachee.user_lastname?.[0] ?? '').toUpperCase()}
 							</div>
-							<div>
-								<div style="font-weight: 600;">
-									{coachee.user_firstname}
-									{coachee.user_lastname}
-								</div>
-							</div>
+							<div style="font-weight: 600; font-size: 13.5px;">{coachee.user_firstname} {coachee.user_lastname}</div>
 						</div>
 						<div style="color: var(--tx2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
 							{coachee.user_email ?? ''}
 						</div>
-						<div>
-							<span
-								style="
-									display: inline-flex; align-items: center;
-									background: var(--gn)18; color: var(--gn);
-									font-size: 11px; font-weight: 600;
-									padding: 3px 9px; border-radius: 999px;
-								"
-							>
-								Active
-							</span>
+						<div style="font-size: 12.5px; color: {extra?.lastActivity ? 'var(--tx2)' : 'var(--tx3)'};">
+							{extra === undefined ? '...' : (extra.lastActivity ? formatDateShort(extra.lastActivity) : '-')}
+						</div>
+						<div style="font-size: 12.5px; color: {extra?.activeProgram ? 'var(--tx)' : 'var(--tx3)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+							{extra === undefined ? '...' : (extra.activeProgram ?? '-')}
 						</div>
 						<div style="display: flex; justify-content: flex-end;">
 							<Icon name="chevron" size={16} color="var(--tx3)" />
