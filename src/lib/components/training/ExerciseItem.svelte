@@ -9,9 +9,10 @@
 		item: TrainingItem;
 		exercises: Exercise[];
 		onRemove: () => void;
+		onDuplicate: () => void;
 	}
 
-	let { item = $bindable(), exercises, onRemove }: Props = $props();
+	let { item = $bindable(), exercises, onRemove, onDuplicate }: Props = $props();
 
 	let collapsed = $state(false);
 	let showEditModal = $state(false);
@@ -127,6 +128,13 @@
 					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
 				>
 					<Icon name="edit" size={11} color="var(--tx3)" />
+				</button>
+				<button
+					onclick={onDuplicate}
+					title="Duplicate"
+					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+				>
+					<Icon name="copy" size={11} color="var(--tx3)" />
 				</button>
 				<button
 					onclick={() => (confirmDelete = true)}

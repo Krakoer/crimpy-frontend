@@ -63,6 +63,17 @@
 	function removeItem(index: number) {
 		items.splice(index, 1);
 	}
+
+	function duplicateItem(index: number) {
+		const clone = structuredClone($state.snapshot(items[index]));
+		function freshenIds(node: TrainingItem) {
+			delete node.id;
+			node._id = crypto.randomUUID();
+			if (node.items) node.items.forEach(freshenIds);
+		}
+		freshenIds(clone);
+		items.splice(index + 1, 0, clone);
+	}
 </script>
 
 <div class="flex flex-col gap-2">
@@ -91,14 +102,15 @@
 	{#each items as item, i (item._id)}
 		<SortableWrapper id={item._id!} group={containerId} index={i}>
 			{#if item.type === 'exercise'}
-				<ExerciseItem bind:item={items[i]} {exercises} onRemove={() => removeItem(i)} />
+				<ExerciseItem bind:item={items[i]} {exercises} onRemove={() => removeItem(i)} onDuplicate={() => duplicateItem(i)} />
 			{:else if item.type === 'hangboard'}
-				<HangboardItem bind:item={items[i]} onRemove={() => removeItem(i)} />
+				<HangboardItem bind:item={items[i]} onRemove={() => removeItem(i)} onDuplicate={() => duplicateItem(i)} />
 			{:else if item.type === 'circuit'}
 				<CircuitItem
 					bind:item={items[i]}
 					{exercises}
 					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
 					{depth}
 					innerAllowedTypes={circuitInnerAllowedTypes}
 				/>
@@ -107,6 +119,7 @@
 					bind:item={items[i]}
 					{exercises}
 					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
 					{depth}
 				/>
 			{/if}
