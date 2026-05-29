@@ -82,7 +82,6 @@
 				});
 				thisWeekCount = weekSessions.length;
 				recentSessions = flat
-					.filter((s) => !s.DeletedAt)
 					.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime())
 					.slice(0, 8);
 			} else {

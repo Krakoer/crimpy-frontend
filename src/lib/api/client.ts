@@ -67,7 +67,7 @@ export interface SessionResponse {
 	Notes: string;
 	SessionType: number;
 	IsAssessment: boolean;
-	DeletedAt: string | null;
+	UpdatedAt: string;
 }
 
 export interface EnrolledUser {
@@ -97,9 +97,7 @@ export interface AssessmentResponse {
 	SessionID: string;
 	GripPosition: number;
 	UpdatedAt: string;
-	DeletedAt: string | null;
-	SyncVersion: number;
-	ServerUpdatedAt: string;
+	SessionDate: string;
 }
 
 export interface Tag {

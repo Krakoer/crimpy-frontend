@@ -68,11 +68,9 @@
 	}
 
 	let itemsSnapshot: TrainingItem[] | null = null;
-	let dragOverTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function clearDragOverTimer() {
-		if (dragOverTimer) { clearTimeout(dragOverTimer); dragOverTimer = null; }
-	}
+	let lastSwapKey = '';
+	let lastSwapTime = 0;
+	const SWAP_COOLDOWN_MS = 150;
 
 	function moveCrossContainer(sourceId: string, targetContainerId: string, insertIndex: number) {
 		const activeResult = findItemInTree(draft.items, sourceId);
@@ -88,7 +86,8 @@
 	}
 
 	function onDragStart() {
-		clearDragOverTimer();
+		lastSwapKey = '';
+		lastSwapTime = 0;
 		itemsSnapshot = structuredClone($state.snapshot(draft.items) as TrainingItem[]);
 	}
 
@@ -98,38 +97,42 @@
 		if (!isSortable(source as never)) return;
 
 		const srcId = String((source as { id: string }).id);
-		let op: () => void;
+		let swapKey: string;
 
 		if (isSortable(target as never)) {
 			const tgt = target as { id: string; group?: string; index: number };
 			const tgtId = String(tgt.id);
 			const tgtContainerId = tgt.group ?? 'root';
 			const tgtIndex = tgt.index;
-			op = () => {
-				const activeResult = findItemInTree(draft.items, srcId);
-				if (!activeResult) return;
-				if (activeResult.containerId === tgtContainerId) {
-					const overResult = findItemInTree(draft.items, tgtId);
-					if (!overResult || activeResult.index === overResult.index) return;
-					const [item] = activeResult.container.splice(activeResult.index, 1);
-					const newOverResult = findItemInTree(draft.items, tgtId);
-					const insertAt = newOverResult ? newOverResult.index : overResult.index;
-					activeResult.container.splice(insertAt, 0, item);
-				} else {
-					moveCrossContainer(srcId, tgtContainerId, tgtIndex);
-				}
-			};
+			swapKey = `${srcId}:${tgtId}`;
+			const now = Date.now();
+			if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
+			const activeResult = findItemInTree(draft.items, srcId);
+			if (!activeResult) return;
+			if (activeResult.containerId === tgtContainerId) {
+				const overResult = findItemInTree(draft.items, tgtId);
+				if (!overResult || activeResult.index === overResult.index) return;
+				const [item] = activeResult.container.splice(activeResult.index, 1);
+				const newOverResult = findItemInTree(draft.items, tgtId);
+				const insertAt = newOverResult ? newOverResult.index : overResult.index;
+				activeResult.container.splice(insertAt, 0, item);
+			} else {
+				moveCrossContainer(srcId, tgtContainerId, tgtIndex);
+			}
+			lastSwapKey = swapKey;
+			lastSwapTime = now;
 		} else {
 			const tgtId = String((target as { id: string }).id);
-			op = () => moveCrossContainer(srcId, tgtId, Infinity);
+			swapKey = `${srcId}:container:${tgtId}`;
+			const now = Date.now();
+			if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
+			moveCrossContainer(srcId, tgtId, Infinity);
+			lastSwapKey = swapKey;
+			lastSwapTime = now;
 		}
-
-		clearDragOverTimer();
-		dragOverTimer = setTimeout(op, 200);
 	}
 
 	function onDragEnd(event: { canceled: boolean; operation: { source: unknown; target: unknown } }) {
-		clearDragOverTimer();
 		if (event.canceled) {
 			if (itemsSnapshot) draft.items = itemsSnapshot as typeof draft.items;
 			itemsSnapshot = null;

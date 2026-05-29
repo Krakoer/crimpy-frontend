@@ -62,7 +62,7 @@
 					apiClient.getClientSessions(c.user_id).catch(() => [] as SessionResponse[]),
 					apiClient.listPrograms(c.user_id).catch(() => [] as Program[])
 				]);
-				const sorted = sessions.filter((s) => !s.DeletedAt).sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+				const sorted = sessions.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
 				const lastActivity = sorted[0]?.Date ?? null;
 				const active = programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active')
 					?? programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');

@@ -52,13 +52,13 @@
 
 	function availableGrips(type: number): number[] {
 		return [0, 1, 2, 3].filter((g) =>
-			assessments.some((a) => a.DeletedAt === null && a.Type === type && a.GripPosition === g)
+			assessments.some((a) => a.Type === type && a.GripPosition === g)
 		);
 	}
 
 	function historyForGrip(type: number, grip: number): AssessmentResponse[] {
 		return assessments
-			.filter((a) => a.DeletedAt === null && a.Type === type && a.GripPosition === grip)
+			.filter((a) => a.Type === type && a.GripPosition === grip)
 			.sort((a, b) => new Date(a.UpdatedAt).getTime() - new Date(b.UpdatedAt).getTime());
 	}
 
@@ -67,7 +67,7 @@
 	}
 
 	function hasAnyAssessment(type: number): boolean {
-		return assessments.some((a) => a.DeletedAt === null && a.Type === type);
+		return assessments.some((a) => a.Type === type);
 	}
 
 	let selectedGrip = $state<Record<number, number>>({ 0: 0, 1: 0, 2: 0 });
@@ -295,7 +295,7 @@
 				apiClient.getClientAssessments(data.id!)
 			]);
 			coachee = enrollments.find((e) => e.user_id === data.id!) ?? null;
-			sessions = clientSessions.filter((s) => s.DeletedAt === null);
+			sessions = clientSessions;
 			assessments = clientAssessments ?? [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data.';
@@ -317,13 +317,10 @@
 			: '?'
 	);
 
-	const totalAssessmentCount = $derived(
-		assessments.filter((a) => a.DeletedAt === null).length
-	);
+	const totalAssessmentCount = $derived(assessments.length);
 
 	const assessmentHistory = $derived(
 		[...assessments]
-			.filter((a) => a.DeletedAt === null)
 			.sort((a, b) => new Date(b.UpdatedAt).getTime() - new Date(a.UpdatedAt).getTime())
 			.slice(0, 8)
 	);
