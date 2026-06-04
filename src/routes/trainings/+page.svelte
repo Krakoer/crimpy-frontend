@@ -3,7 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachTrainingSummary, TrainingType } from '$lib/api/client';
+	import type { TrainingSummary, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -19,7 +19,7 @@
 
 	const ALL_TYPES: TrainingType[] = ['workout', 'stretching', 'climbing'];
 
-	let trainings = $state<CoachTrainingSummary[]>([]);
+	let trainings = $state<TrainingSummary[]>([]);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
 	let deleting = $state(false);
@@ -51,7 +51,7 @@
 	async function loadTrainings() {
 		loading = true;
 		try {
-			trainings = await apiClient.getCoachTrainings();
+			trainings = await apiClient.getTrainings();
 		} finally {
 			loading = false;
 		}
@@ -61,7 +61,7 @@
 		deleting = true;
 		deleteError = '';
 		try {
-			await apiClient.deleteCoachTraining(id);
+			await apiClient.deleteTraining(id);
 			trainings = trainings.filter((s) => s.id !== id);
 			confirmDeleteId = null;
 			snackbar.show('Training deleted');
@@ -76,7 +76,7 @@
 		return new Date(iso).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
 	}
 
-	function typeInfo(t: CoachTrainingSummary): TypeInfo {
+	function typeInfo(t: TrainingSummary): TypeInfo {
 		return TYPE_INFO[t.training_type ?? 'workout'] ?? TYPE_INFO.workout;
 	}
 </script>

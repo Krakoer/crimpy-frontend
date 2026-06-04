@@ -3,7 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
+	import type { TrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
@@ -54,7 +54,7 @@
 
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (draft.training_type === 'stretching') {
-			if (movedItem.type === 'section' || movedItem.type === 'hangboard') return false;
+			if (movedItem.type === 'section' || movedItem.type === 'repeater') return false;
 			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return false;
 		}
 		if (targetContainerId === 'root') return true;
@@ -187,7 +187,7 @@
 	};
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
+	let draft = $state<TrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
 	let saving = $state(false);
 	let saveError = $state('');
 	let showCreateExerciseModal = $state(false);
@@ -316,13 +316,13 @@
 		} else if (type === 'section') {
 			base.section_title = 'Section';
 			base.items = [];
-		} else if (type === 'hangboard') {
+		} else if (type === 'repeater') {
 			base.cycles = 3;
 			base.cycle_rest_seconds = 180;
 			base.reps = 6;
-			base.hb_worktime_seconds = 7;
+			base.worktime_seconds = 7;
 			base.rest_seconds = 3;
-			base.both_hands = true;
+			base.hand = 'both';
 			base.edge_sizes_mm = [20];
 			base.loads = [{ value: 100, unit: 'percent_bw' }];
 			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
@@ -332,7 +332,7 @@
 
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		if (draft.training_type === 'stretching') {
-			if (type === 'section' || type === 'hangboard') return;
+			if (type === 'section' || type === 'repeater') return;
 			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
 		}
 		draft.items.push(createNewItem(type, exerciseId));
@@ -353,7 +353,7 @@
 		saving = true;
 		saveError = '';
 		try {
-			const training = await apiClient.createCoachTraining({
+			const training = await apiClient.createTraining({
 				title: draft.title.trim(),
 				description: draft.description?.trim() || undefined,
 				training_type: draft.training_type,
@@ -372,7 +372,7 @@
 	const structureButtons = [
 		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
 		{ type: 'section' as TrainingItemType, label: 'Section', icon: 'filter', color: 'var(--tx2)' },
-		{ type: 'hangboard' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' },
+		{ type: 'repeater' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' },
 	];
 
 	let allowedStructureButtons = $derived(
@@ -477,7 +477,7 @@
 						{exercises}
 						allowedTypes={draft.training_type === 'stretching'
 							? (draft.items.some((i) => i.type === 'circuit') ? ['exercise'] : ['exercise', 'circuit'])
-							: ['exercise', 'circuit', 'section', 'hangboard']}
+							: ['exercise', 'circuit', 'section', 'repeater']}
 						circuitInnerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
 					/>
 				</div>

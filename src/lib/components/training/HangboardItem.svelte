@@ -44,10 +44,10 @@
 	let uniformLoadUnitR = $state<LoadUnit>(item.loads?.[1]?.unit ?? item.loads?.[0]?.unit ?? 'percent_bw');
 	let uniformHandPos = $state(item.hand_positions?.[0]?.[0] ?? 'HC');
 
-	if (item.both_hands === undefined) item.both_hands = true;
+	if (!item.hand) item.hand = 'both';
 	if (!item.reps) item.reps = 6;
 	if (!item.cycles) item.cycles = 3;
-	if (!item.hb_worktime_seconds) item.hb_worktime_seconds = 7;
+	if (!item.worktime_seconds) item.worktime_seconds = 7;
 	if (!item.rest_seconds) item.rest_seconds = 3;
 	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
 	untrack(() => {
@@ -62,7 +62,7 @@
 		const n = item.reps ?? 1;
 		if (!perRep) {
 			item.edge_sizes_mm = [uniformEdge];
-			if (item.both_hands) {
+			if (item.hand !== 'split') {
 				item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
 			} else {
 				item.loads = [
@@ -70,7 +70,7 @@
 					{ value: uniformLoadValueR, unit: uniformLoadUnitR }
 				];
 			}
-			if (item.both_hands) {
+			if (item.hand !== 'split') {
 				item.hand_positions = [Array.from({ length: n }, () => uniformHandPos)];
 			} else {
 				item.hand_positions = [
@@ -83,7 +83,7 @@
 			const prev_load = item.loads ?? [];
 			const prev_hp = item.hand_positions ?? [];
 			item.edge_sizes_mm = Array.from({ length: n }, (_, i) => prev_edge[i] ?? uniformEdge);
-			if (item.both_hands) {
+			if (item.hand !== 'split') {
 				item.loads = Array.from({ length: n }, (_, i) => prev_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit });
 				item.hand_positions = [Array.from({ length: n }, (_, i) => prev_hp[0]?.[i] ?? uniformHandPos)];
 			} else {
@@ -112,7 +112,7 @@
 		const n = item.reps ?? 1;
 		if (perRep) {
 			const prev_load = item.loads ?? [];
-			if (item.both_hands) {
+			if (item.hand !== 'split') {
 				item.loads = Array.from({ length: n }, (_, i) => {
 					const load = prev_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit };
 					return [load, { ...load }];
@@ -123,7 +123,7 @@
 				);
 			}
 		}
-		item.both_hands = !item.both_hands;
+		item.hand = item.hand === 'split' ? 'both' : 'split';
 		resizeArraysToReps();
 	}
 
@@ -134,7 +134,7 @@
 	let collapsedSummary = $derived.by(() => {
 		const edge = item.edge_sizes_mm?.[0] ?? 20;
 		const grip = item.hand_positions?.[0]?.[0] ?? 'HC';
-		return `${item.cycles}x${item.reps} · ${item.hb_worktime_seconds}s on / ${item.rest_seconds}s off · ${edge}mm ${grip}`;
+		return `${item.cycles}x${item.reps} · ${item.worktime_seconds}s on / ${item.rest_seconds}s off · ${edge}mm ${grip}`;
 	});
 
 	const inputStyle = 'width: 44px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;';
@@ -203,7 +203,7 @@
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span style={labelStyle}>WORK</span>
 					<div style="display: flex; align-items: center; gap: 2px;">
-						<input type="number" min="1" bind:value={item.hb_worktime_seconds} onclick={(e) => e.stopPropagation()} style={inputStyle} />
+						<input type="number" min="1" bind:value={item.worktime_seconds} onclick={(e) => e.stopPropagation()} style={inputStyle} />
 						<span style="font-size: 10px; color: var(--tx3);">s</span>
 					</div>
 				</div>
@@ -228,12 +228,12 @@
 						onclick={onBothHandsToggle}
 						style="
 							padding: 5px 10px; border-radius: 5px;
-							border: 1px solid {item.both_hands ? HB_COLOR : 'var(--bd)'};
-							background: {item.both_hands ? HB_COLOR + '18' : '#fff'};
-							color: {item.both_hands ? HB_COLOR : 'var(--tx3)'};
+							border: 1px solid {item.hand !== 'split' ? HB_COLOR : 'var(--bd)'};
+							background: {item.hand !== 'split' ? HB_COLOR + '18' : '#fff'};
+							color: {item.hand !== 'split' ? HB_COLOR : 'var(--tx3)'};
 							font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);
 						"
-					>{item.both_hands ? 'Both' : 'L / R'}</button>
+					>{item.hand !== 'split' ? 'Both' : 'L / R'}</button>
 				</div>
 			</div>
 
@@ -261,7 +261,7 @@
 					</div>
 					<div style="display: flex; flex-direction: column; gap: 2px;">
 						<span style={labelStyle}>LOAD</span>
-						{#if item.both_hands}
+						{#if item.hand !== 'split'}
 							<div style="display: flex; gap: 4px;">
 								<input type="number" min="0" bind:value={uniformLoadValue} oninput={onUniformChange}
 									style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
@@ -306,7 +306,7 @@
 					<table style="border-collapse: collapse; font-family: var(--font); font-size: 12px; min-width: 350px;">
 						<thead>
 							<tr>
-								{#each (item.both_hands ? ['Rep', 'Edge (mm)', 'Load', 'Unit', 'Grip'] : ['Rep', 'Edge (mm)', 'L Load', 'L Unit', 'R Load', 'R Unit', 'L Grip', 'R Grip']) as h}
+								{#each (item.hand !== 'split' ? ['Rep', 'Edge (mm)', 'Load', 'Unit', 'Grip'] : ['Rep', 'Edge (mm)', 'L Load', 'L Unit', 'R Load', 'R Unit', 'L Grip', 'R Grip']) as h}
 									<th style="padding: 5px 8px; background: var(--panel2); font-weight: 600; color: var(--tx3); text-align: center; font-size: 10px; letter-spacing: 0.04em; border: 1px solid var(--bd2);">{h}</th>
 								{/each}
 							</tr>
@@ -319,7 +319,7 @@
 										<input type="number" min="1" bind:value={item.edge_sizes_mm![ri]}
 											style="width: 100%; padding: 4px 2px; text-align: center; border: none; outline: none; font-family: var(--font); font-size: 12px;" />
 									</td>
-									{#if item.both_hands}
+									{#if item.hand !== 'split'}
 										<td style="padding: 2px; border: 1px solid var(--bd2);">
 											<input type="number" min="0" bind:value={item.loads![ri].value}
 												style="width: 100%; padding: 4px 2px; text-align: center; border: none; outline: none; font-family: var(--font); font-size: 12px;" />

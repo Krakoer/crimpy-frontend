@@ -21,7 +21,7 @@
 	let {
 		items = $bindable(),
 		exercises,
-		allowedTypes = ['exercise', 'circuit', 'section', 'hangboard'],
+		allowedTypes = ['exercise', 'circuit', 'section', 'repeater'],
 		circuitInnerAllowedTypes,
 		depth = 0,
 		containerId = 'root'
@@ -46,13 +46,13 @@
 		} else if (type === 'section') {
 			base.section_title = 'Section';
 			base.items = [];
-		} else if (type === 'hangboard') {
+		} else if (type === 'repeater') {
 			base.cycles = 3;
 			base.cycle_rest_seconds = 180;
 			base.reps = 6;
-			base.hb_worktime_seconds = 7;
+			base.worktime_seconds = 7;
 			base.rest_seconds = 3;
-			base.both_hands = true;
+			base.hand = 'both';
 			base.edge_sizes_mm = [20];
 			base.loads = [{ value: 0, unit: 'percent_bw' }];
 			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
@@ -103,7 +103,7 @@
 		<SortableWrapper id={item._id!} group={containerId} index={i}>
 			{#if item.type === 'exercise'}
 				<ExerciseItem bind:item={items[i]} {exercises} onRemove={() => removeItem(i)} onDuplicate={() => duplicateItem(i)} />
-			{:else if item.type === 'hangboard'}
+			{:else if item.type === 'repeater'}
 				<HangboardItem bind:item={items[i]} onRemove={() => removeItem(i)} onDuplicate={() => duplicateItem(i)} />
 			{:else if item.type === 'circuit'}
 				<CircuitItem

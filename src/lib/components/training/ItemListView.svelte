@@ -49,7 +49,7 @@
 	{#each items as item (item._id ?? item.id)}
 		{#if item.type === 'exercise'}
 			<ExerciseItemView {item} {exercises} />
-		{:else if item.type === 'hangboard'}
+		{:else if item.type === 'repeater'}
 			<HangboardItemView {item} />
 		{:else if item.type === 'circuit'}
 			<CircuitItemView {item} {exercises} {depth} />

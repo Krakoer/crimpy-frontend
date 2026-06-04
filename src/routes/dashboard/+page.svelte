@@ -58,7 +58,7 @@
 			const [users, exPage, trainings] = await Promise.all([
 				apiClient.getEnrollments().catch(() => []),
 				apiClient.getExercises({ limit: 1, offset: 0 }).catch(() => null),
-				apiClient.getCoachTrainings().catch(() => [])
+				apiClient.getTrainings().catch(() => [])
 			]);
 			coachees = users;
 			coacheesCount = users.length;

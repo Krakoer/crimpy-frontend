@@ -156,7 +156,7 @@ export interface Load {
 	unit: LoadUnit;
 }
 
-export type TrainingItemType = 'exercise' | 'circuit' | 'section' | 'hangboard';
+export type TrainingItemType = 'repeater' | 'hangboard_rep' | 'free' | 'exercise' | 'circuit' | 'section';
 
 export interface TrainingItem {
 	id?: string;
@@ -171,8 +171,10 @@ export interface TrainingItem {
 	duration?: number;
 	rest_seconds?: number;
 	loads?: Load[];
-	hb_worktime_seconds?: number;
-	both_hands?: boolean;
+	worktime_seconds?: number;
+	hand?: string;
+	free_text?: string;
+	load_is_max?: boolean;
 	edge_sizes_mm?: number[];
 	hand_positions?: string[][];
 	items?: TrainingItem[];
@@ -180,28 +182,30 @@ export interface TrainingItem {
 
 export type TrainingType = 'workout' | 'stretching' | 'climbing';
 
-export interface CoachTrainingSummary {
+export interface TrainingSummary {
 	id: string;
-	coach_id: string;
+	user_id: string;
 	title: string;
 	description?: string | null;
 	training_type?: TrainingType;
 	goal?: string;
 	comment?: string;
+	is_favorite?: boolean;
 	created_at: string;
 	updated_at: string;
 }
 
-export interface CoachTraining extends CoachTrainingSummary {
+export interface Training extends TrainingSummary {
 	items: TrainingItem[];
 }
 
-export interface CoachTrainingRequest {
+export interface TrainingRequest {
 	title: string;
 	description?: string;
 	training_type?: TrainingType;
 	goal?: string;
 	comment?: string;
+	is_favorite?: boolean;
 	items: TrainingItem[];
 }
 
@@ -454,30 +458,30 @@ class ApiClient {
 		return this.request<Exercise[]>('/api/coach/exercises/favorites');
 	}
 
-	async getCoachTrainings(): Promise<CoachTrainingSummary[]> {
-		return this.request<CoachTrainingSummary[]>('/api/coach/trainings');
+	async getTrainings(): Promise<TrainingSummary[]> {
+		return this.request<TrainingSummary[]>('/api/trainings');
 	}
 
-	async getCoachTraining(id: string): Promise<CoachTraining> {
-		return this.request<CoachTraining>(`/api/coach/trainings/${id}`);
+	async getTraining(id: string): Promise<Training> {
+		return this.request<Training>(`/api/trainings/${id}`);
 	}
 
-	async createCoachTraining(data: CoachTrainingRequest): Promise<CoachTraining> {
-		return this.request<CoachTraining>('/api/coach/trainings', {
+	async createTraining(data: TrainingRequest): Promise<Training> {
+		return this.request<Training>('/api/trainings', {
 			method: 'POST',
 			body: JSON.stringify(data)
 		});
 	}
 
-	async updateCoachTraining(id: string, data: CoachTrainingRequest): Promise<CoachTraining> {
-		return this.request<CoachTraining>(`/api/coach/trainings/${id}`, {
+	async updateTraining(id: string, data: TrainingRequest): Promise<Training> {
+		return this.request<Training>(`/api/trainings/${id}`, {
 			method: 'PUT',
 			body: JSON.stringify(data)
 		});
 	}
 
-	async deleteCoachTraining(id: string): Promise<{ message: string }> {
-		return this.request<{ message: string }>(`/api/coach/trainings/${id}`, {
+	async deleteTraining(id: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>(`/api/trainings/${id}`, {
 			method: 'DELETE'
 		});
 	}

@@ -30,7 +30,7 @@
 	let collapsedSummary = $derived.by(() => {
 		const sets = item.cycles ?? 1;
 		const reps = item.reps ?? 1;
-		const work = item.hb_worktime_seconds ?? 0;
+		const work = item.worktime_seconds ?? 0;
 		const rest = item.rest_seconds ?? 0;
 		return `${sets} sets x ${reps} reps · ${work}s on / ${rest}s off`;
 	});
@@ -79,7 +79,7 @@
 				</div>
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">WORK</span>
-					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.hb_worktime_seconds ?? 0}s</span>
+					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.worktime_seconds ?? 0}s</span>
 				</div>
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REP REST</span>
@@ -90,8 +90,8 @@
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">{item.cycle_rest_seconds ?? 0}s</span>
 				</div>
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">BOTH HANDS</span>
-					<span style="font-size: 13px; font-weight: 700; color: {item.both_hands ? HB_COLOR : 'var(--tx3)'};">{item.both_hands ? 'Yes' : 'No'}</span>
+					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">HAND</span>
+					<span style="font-size: 13px; font-weight: 700; color: var(--tx);">{item.hand ?? 'both'}</span>
 				</div>
 			</div>
 
@@ -111,7 +111,7 @@
 						</div>
 						<div style="display: flex; flex-direction: column; gap: 2px;">
 							<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">LOAD</span>
-							{#if item.both_hands}
+							{#if item.hand !== 'split'}
 								<span style="font-size: 14px; font-weight: 700; color: var(--tx);">
 									{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}
 								</span>
@@ -140,7 +140,7 @@
 								<tr style="background: var(--panel2);">
 									<th style="padding: 6px 10px; text-align: left; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">REP</th>
 									<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">EDGE (mm)</th>
-									{#if item.both_hands}
+									{#if item.hand !== 'split'}
 										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">LOAD</th>
 										<th style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);">GRIP</th>
 									{:else}
@@ -156,7 +156,7 @@
 									<tr style="border-bottom: 1px solid var(--bd2);">
 										<td style="padding: 6px 10px; font-weight: 700; color: var(--tx2); font-size: 12px;">{repIdx + 1}</td>
 										<td style="padding: 6px 10px; text-align: center; color: var(--tx);">{item.edge_sizes_mm?.[repIdx] ?? '-'}</td>
-										{#if item.both_hands}
+										{#if item.hand !== 'split'}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.loads?.[repIdx] ? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit) : '-'}
 											</td>

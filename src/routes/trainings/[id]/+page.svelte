@@ -4,7 +4,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import type { CoachTrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
+	import type { TrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import TrainingPreview from '$lib/components/training/TrainingPreview.svelte';
@@ -79,7 +79,7 @@
 
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (draft.training_type === 'stretching') {
-			if (movedItem.type === 'section' || movedItem.type === 'hangboard') return false;
+			if (movedItem.type === 'section' || movedItem.type === 'repeater') return false;
 			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return false;
 		}
 		if (targetContainerId === 'root') return true;
@@ -214,7 +214,7 @@
 	};
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<CoachTrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
+	let draft = $state<TrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
 	let savedSnapshot = $state<string | null>(null);
 
 	let isDirty = $derived(
@@ -388,13 +388,13 @@
 		} else if (type === 'section') {
 			base.section_title = 'Section';
 			base.items = [];
-		} else if (type === 'hangboard') {
+		} else if (type === 'repeater') {
 			base.cycles = 3;
 			base.cycle_rest_seconds = 180;
 			base.reps = 6;
-			base.hb_worktime_seconds = 7;
+			base.worktime_seconds = 7;
 			base.rest_seconds = 3;
-			base.both_hands = true;
+			base.hand = 'both';
 			base.edge_sizes_mm = [20];
 			base.loads = [{ value: 100, unit: 'percent_bw' }];
 			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
@@ -404,7 +404,7 @@
 
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		if (draft.training_type === 'stretching') {
-			if (type === 'section' || type === 'hangboard') return;
+			if (type === 'section' || type === 'repeater') return;
 			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
 		}
 		draft.items.push(createNewItem(type, exerciseId));
@@ -417,7 +417,7 @@
 		if (!authStore.isEmailVerified) { goto('/verify-email'); return; }
 		if (!authStore.isValidatedCoach) { goto('/dashboard'); return; }
 
-		apiClient.getCoachTraining(trainingId).then(async (training) => {
+		apiClient.getTraining(trainingId).then(async (training) => {
 			const items = training.items ?? [];
 			ensureClientIds(items);
 			draft = {
@@ -451,7 +451,7 @@
 		saving = true;
 		saveError = '';
 		try {
-			await apiClient.updateCoachTraining(trainingId, {
+			await apiClient.updateTraining(trainingId, {
 				title,
 				description: draft.description?.trim() || undefined,
 				training_type: draft.training_type,
@@ -471,7 +471,7 @@
 	async function handleDelete() {
 		deleting = true;
 		try {
-			await apiClient.deleteCoachTraining(trainingId);
+			await apiClient.deleteTraining(trainingId);
 			snackbar.show('Training deleted');
 			goto('/trainings');
 		} catch (e) {
@@ -483,7 +483,7 @@
 	const structureButtons = [
 		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
 		{ type: 'section' as TrainingItemType, label: 'Section', icon: 'filter', color: 'var(--tx2)' },
-		{ type: 'hangboard' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' },
+		{ type: 'repeater' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' },
 	];
 
 	let allowedStructureButtons = $derived(
@@ -686,7 +686,7 @@
 						{exercises}
 						allowedTypes={draft.training_type === 'stretching'
 							? (draft.items.some((i) => i.type === 'circuit') ? ['exercise'] : ['exercise', 'circuit'])
-							: ['exercise', 'circuit', 'section', 'hangboard']}
+							: ['exercise', 'circuit', 'section', 'repeater']}
 						circuitInnerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
 					/>
 				</div>

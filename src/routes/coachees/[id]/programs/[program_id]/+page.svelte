@@ -17,7 +17,7 @@
 		WeekSummary,
 		WeekDetail,
 		SessionRequest,
-		CoachTrainingSummary,
+		TrainingSummary,
 		TrainingType
 	} from '$lib/api/client';
 
@@ -115,7 +115,7 @@
 		}
 	});
 
-	let trainings = $state<CoachTrainingSummary[]>([]);
+	let trainings = $state<TrainingSummary[]>([]);
 	let trainingSearch = $state('');
 	let trainingTypeFilter = $state<string>('all');
 	let filteredTrainings = $derived(
@@ -323,7 +323,7 @@
 
 	const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-	function trainingById(id: string): CoachTrainingSummary | undefined {
+	function trainingById(id: string): TrainingSummary | undefined {
 		return trainings.find((t) => t.id === id);
 	}
 
@@ -471,7 +471,7 @@
 			const [p, w, t] = await Promise.all([
 				apiClient.getProgram(userId, programId),
 				apiClient.listWeeks(userId, programId),
-				apiClient.getCoachTrainings()
+				apiClient.getTrainings()
 			]);
 			program = p;
 			weeks = w;
