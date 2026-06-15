@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
+	import { mondayOf } from '$lib/date';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
@@ -27,10 +28,12 @@
 
 	type DaySession = { _id: string; training_id: string };
 	type FreqSession = { _id: string; training_id: string; times_per_week: number };
+	type EverydaySession = { _id: string; training_id: string };
 	type WeekDraft = {
 		notes: string;
 		days: DaySession[][];
 		freqSessions: FreqSession[];
+		everydaySessions: EverydaySession[];
 		dirty: boolean;
 		saving: boolean;
 		saveError: string;
@@ -43,6 +46,7 @@
 			notes: '',
 			days: Array.from({ length: 7 }, () => []),
 			freqSessions: [],
+			everydaySessions: [],
 			dirty: false,
 			saving: false,
 			saveError: '',
@@ -54,8 +58,11 @@
 	function weekDetailToDraft(detail: WeekDetail): WeekDraft {
 		const days: DaySession[][] = Array.from({ length: 7 }, () => []);
 		const freqSessions: FreqSession[] = [];
+		const everydaySessions: EverydaySession[] = [];
 		for (const s of detail.sessions) {
-			if (s.day_of_week !== undefined) {
+			if (s.is_everyday) {
+				everydaySessions.push({ _id: crypto.randomUUID(), training_id: s.training_id });
+			} else if (s.day_of_week !== undefined) {
 				days[s.day_of_week].push({ _id: crypto.randomUUID(), training_id: s.training_id });
 			} else if (s.times_per_week !== undefined) {
 				freqSessions.push({
@@ -69,6 +76,7 @@
 			notes: detail.notes ?? '',
 			days,
 			freqSessions,
+			everydaySessions,
 			dirty: false,
 			saving: false,
 			saveError: '',
@@ -86,6 +94,9 @@
 		}
 		for (const s of draft.freqSessions) {
 			reqs.push({ training_id: s.training_id, times_per_week: s.times_per_week, overrides: [] });
+		}
+		for (const s of draft.everydaySessions) {
+			reqs.push({ training_id: s.training_id, is_everyday: true, overrides: [] });
 		}
 		return reqs;
 	}
@@ -137,7 +148,9 @@
 		})
 	];
 
-	function findAndRemoveSession(sessionId: string): DaySession | FreqSession | null {
+	function findAndRemoveSession(
+		sessionId: string
+	): DaySession | FreqSession | EverydaySession | null {
 		for (const wnStr of Object.keys(weekDrafts)) {
 			const wn = parseInt(wnStr);
 			const draft = weekDrafts[wn];
@@ -149,9 +162,15 @@
 					return session;
 				}
 			}
-			const idx = draft.freqSessions.findIndex((s) => s._id === sessionId);
-			if (idx !== -1) {
-				const [session] = draft.freqSessions.splice(idx, 1);
+			const freqIdx = draft.freqSessions.findIndex((s) => s._id === sessionId);
+			if (freqIdx !== -1) {
+				const [session] = draft.freqSessions.splice(freqIdx, 1);
+				draft.dirty = true;
+				return session;
+			}
+			const everydayIdx = draft.everydaySessions.findIndex((s) => s._id === sessionId);
+			if (everydayIdx !== -1) {
+				const [session] = draft.everydaySessions.splice(everydayIdx, 1);
 				draft.dirty = true;
 				return session;
 			}
@@ -189,9 +208,19 @@
 					times_per_week: 1
 				});
 				weekDrafts[wn].dirty = true;
+			} else if (targetId.startsWith('everyday:')) {
+				const wn = parseInt(targetId.slice(9));
+				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
+				weekDrafts[wn].everydaySessions.push({ _id: crypto.randomUUID(), training_id: trainingId });
+				weekDrafts[wn].dirty = true;
 			}
 		} else {
-			if (!targetId.startsWith('cell:') && !targetId.startsWith('freq:')) return;
+			if (
+				!targetId.startsWith('cell:') &&
+				!targetId.startsWith('freq:') &&
+				!targetId.startsWith('everyday:')
+			)
+				return;
 			const session = findAndRemoveSession(sourceId);
 			if (!session) return;
 			if (targetId.startsWith('cell:')) {
@@ -211,6 +240,14 @@
 					times_per_week: times
 				});
 				weekDrafts[wn].dirty = true;
+			} else if (targetId.startsWith('everyday:')) {
+				const wn = parseInt(targetId.slice(9));
+				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
+				weekDrafts[wn].everydaySessions.push({
+					_id: session._id,
+					training_id: session.training_id
+				});
+				weekDrafts[wn].dirty = true;
 			}
 		}
 	}
@@ -226,9 +263,15 @@
 				return;
 			}
 		}
-		const idx = draft.freqSessions.findIndex((s) => s._id === sessionId);
-		if (idx !== -1) {
-			draft.freqSessions.splice(idx, 1);
+		const freqIdx = draft.freqSessions.findIndex((s) => s._id === sessionId);
+		if (freqIdx !== -1) {
+			draft.freqSessions.splice(freqIdx, 1);
+			draft.dirty = true;
+			return;
+		}
+		const everydayIdx = draft.everydaySessions.findIndex((s) => s._id === sessionId);
+		if (everydayIdx !== -1) {
+			draft.everydaySessions.splice(everydayIdx, 1);
 			draft.dirty = true;
 		}
 	}
@@ -297,6 +340,7 @@
 			notes: src.notes,
 			days: src.days.map((d) => d.map((s) => ({ ...s, _id: crypto.randomUUID() }))),
 			freqSessions: src.freqSessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
+			everydaySessions: src.everydaySessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
 			dirty: true
 		};
 		dupModalSourceWn = null;
@@ -380,7 +424,7 @@
 		try {
 			const req: ProgramRequest = {
 				name: editName.trim(),
-				start_date: editStartDate,
+				start_date: mondayOf(editStartDate),
 				objective: editObjective.trim() || undefined,
 				duration_weeks: editDurationWeeks ? parseInt(editDurationWeeks) : undefined
 			};
@@ -428,6 +472,7 @@
 			...weekDrafts[wn],
 			days: Array.from({ length: 7 }, () => []),
 			freqSessions: [],
+			everydaySessions: [],
 			notes: '',
 			dirty: true,
 			deleteConfirm: false
@@ -447,7 +492,10 @@
 	);
 
 	const isProgramCompleted = $derived(
-		program?.duration_weeks ? computedCurrentWeek >= program.duration_weeks && Date.now() > new Date(program.start_date).getTime() : false
+		program?.duration_weeks
+			? computedCurrentWeek >= program.duration_weeks &&
+					Date.now() > new Date(program.start_date).getTime()
+			: false
 	);
 
 	const totalSessions = $derived(
@@ -455,17 +503,21 @@
 			(sum, d) =>
 				sum +
 				d.days.reduce((s, day) => s + day.length, 0) +
-				d.freqSessions.reduce((s, f) => s + f.times_per_week, 0),
+				d.freqSessions.reduce((s, f) => s + f.times_per_week, 0) +
+				d.everydaySessions.length * 7,
 			0
 		)
 	);
 
 	onMount(async () => {
 		authStore.initialize();
-		apiClient.getEnrollments().then((enrollments) => {
-			const found = enrollments.find((e) => e.user_id === userId);
-			if (found) coacheeName = `${found.user_firstname} ${found.user_lastname}`;
-		}).catch(() => {});
+		apiClient
+			.getEnrollments()
+			.then((enrollments) => {
+				const found = enrollments.find((e) => e.user_id === userId);
+				if (found) coacheeName = `${found.user_firstname} ${found.user_lastname}`;
+			})
+			.catch(() => {});
 		loading = true;
 		try {
 			const [p, w, t] = await Promise.all([
@@ -490,10 +542,13 @@
 			weekDrafts = allDrafts;
 
 			// Open the current week by default
-			const currentWn = Math.max(1, Math.min(
-				Math.ceil((Date.now() - new Date(p.start_date).getTime()) / (7 * 86400000)),
-				p.duration_weeks ?? 999
-			));
+			const currentWn = Math.max(
+				1,
+				Math.min(
+					Math.ceil((Date.now() - new Date(p.start_date).getTime()) / (7 * 86400000)),
+					p.duration_weeks ?? 999
+				)
+			);
 			expandedWeeks = new Set([currentWn]);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load program.';
@@ -557,8 +612,8 @@
 						border: 1px solid var(--rd); color: var(--rd);
 						background: #fff5f5; font-size: 12.5px; font-weight: 600;
 						cursor: pointer; font-family: var(--font);
-					"
-				>{deleting ? '...' : 'Confirm delete'}</button>
+					">{deleting ? '...' : 'Confirm delete'}</button
+				>
 				<button
 					onclick={() => (confirmDelete = false)}
 					style="
@@ -566,8 +621,8 @@
 						border: 1px solid var(--bd); color: var(--tx);
 						background: #fff; font-size: 12.5px; font-weight: 600;
 						cursor: pointer; font-family: var(--font);
-					"
-				>Cancel</button>
+					">Cancel</button
+				>
 			{/if}
 			<button
 				onclick={saveAllProgram}
@@ -603,485 +658,826 @@
 
 	{#if error}
 		<div style="padding: 16px 24px;">
-			<div style="padding: 14px 18px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;">{error}</div>
+			<div
+				style="padding: 14px 18px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
+			>
+				{error}
+			</div>
 		</div>
 	{/if}
 
 	{#if loading}
 		<div style="display: flex; align-items: center; gap: 10px; padding: 40px 24px;">
-			<div class="animate-spin" style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%;"></div>
+			<div
+				class="animate-spin"
+				style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%;"
+			></div>
 			<span style="font-size: 13px; color: var(--tx2);">Loading...</span>
 		</div>
 	{:else if program}
-
 		<!-- Compact meta bar -->
 		<div style="padding: 0 24px;">
-		{#if editing}
-				<div style="
+			{#if editing}
+				<div
+					style="
 					background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
 					box-shadow: var(--sh); padding: 18px 20px; margin-bottom: 14px;
-				">
-					<div style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;">Edit program</div>
-					<div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 0.7fr; gap: 12px; margin-bottom: 14px;">
+				"
+				>
+					<div
+						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;"
+					>
+						Edit program
+					</div>
+					<div
+						style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 0.7fr; gap: 12px; margin-bottom: 14px;"
+					>
 						<div>
-							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Name</label>
-							<input bind:value={editName} style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--tx); outline: none; background: #fff;" />
+							<label
+								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
+								>Name</label
+							>
+							<input
+								bind:value={editName}
+								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--tx); outline: none; background: #fff;"
+							/>
 						</div>
 						<div>
-							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Objective</label>
-							<input bind:value={editObjective} placeholder="Goal..." style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+							<label
+								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
+								>Objective</label
+							>
+							<input
+								bind:value={editObjective}
+								placeholder="Goal..."
+								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+							/>
 						</div>
 						<div>
-							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Start date</label>
-							<input type="date" bind:value={editStartDate} style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+							<label
+								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
+								>Start date</label
+							>
+							<input
+								type="date"
+								bind:value={editStartDate}
+								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+							/>
 						</div>
 						<div>
-							<label style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;">Weeks</label>
-							<input type="number" bind:value={editDurationWeeks} min="1" style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;" />
+							<label
+								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
+								>Weeks</label
+							>
+							<input
+								type="number"
+								bind:value={editDurationWeeks}
+								min="1"
+								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+							/>
 						</div>
 					</div>
 					<div style="display: flex; gap: 8px;">
-						<button onclick={saveEdit} disabled={saving}
-							style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--rs); background: var(--pr); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving ? 0.7 : 1};"
+						<button
+							onclick={saveEdit}
+							disabled={saving}
+							style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--rs); background: var(--pr); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving
+								? 0.7
+								: 1};"
 						>
 							<Icon name="check" size={13} color="#fff" />
 							{saving ? 'Saving...' : 'Done'}
 						</button>
-						<button onclick={() => (editing = false)}
+						<button
+							onclick={() => (editing = false)}
 							style="padding: 7px 14px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-						>Cancel</button>
+							>Cancel</button
+						>
 					</div>
 				</div>
 			{:else}
-				<div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; margin-bottom: 10px;">
+				<div
+					style="display: flex; align-items: center; gap: 12px; padding: 8px 0; margin-bottom: 10px;"
+				>
 					{#if isProgramUpcoming}
-						<span style="
+						<span
+							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
 							font-size: 11.5px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
-						">Upcoming</span>
+						">Upcoming</span
+						>
 					{:else if isProgramCompleted}
-						<span style="
+						<span
+							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
 							font-size: 11.5px; font-weight: 600; background: var(--bd2); color: var(--tx3);
-						">Completed · {program.duration_weeks} weeks</span>
+						">Completed · {program.duration_weeks} weeks</span
+						>
 					{:else}
-						<span style="
+						<span
+							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
 							font-size: 11.5px; font-weight: 600; background: #e3ede4; color: var(--gn);
-						">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span>
+						">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span
+						>
 					{/if}
 					{#if program.objective}
 						<span style="font-size: 12.5px; color: var(--tx2);">{program.objective}</span>
 						<span style="font-size: 12px; color: var(--tx3);">·</span>
 					{/if}
-					<span style="font-size: 12px; color: var(--tx3);">Started {formatDate(program.start_date)}</span>
+					<span style="font-size: 12px; color: var(--tx3);"
+						>Started {formatDate(program.start_date)}</span
+					>
 					<div style="flex: 1;"></div>
 					{#if editMode}
-					<button onclick={startEdit}
-						style="font-size: 12px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
-					>Edit details</button>
+						<button
+							onclick={startEdit}
+							style="font-size: 12px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
+							>Edit details</button
+						>
 					{/if}
 				</div>
 			{/if}
-
 		</div>
 
 		<!-- DragDropProvider wraps week grid + right rail so SidePanelDraggable has context -->
 		<DragDropProvider sensors={dndSensors} {onDragEnd}>
-		<div style="display: flex; align-items: flex-start;">
-			<div style="flex: 1; min-width: 0; padding: 16px 24px 40px;">
-				<div style="display: flex; flex-direction: column; gap: 6px;">
-
-					<!-- Sticky column headers -->
-					<div style="
-						display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px;
+			<div style="display: flex; align-items: flex-start;">
+				<div style="flex: 1; min-width: 0; padding: 16px 24px 40px;">
+					<div style="display: flex; flex-direction: column; gap: 6px;">
+						<!-- Sticky column headers -->
+						<div
+							style="
+						display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
 						position: sticky; top: 0; z-index: 10;
 						background: var(--bg); padding-bottom: 2px;
-					">
-						<div style="font-size: 11px; color: var(--tx3); font-weight: 600; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
-							WEEK
-							<span style="display: flex; gap: 4px;">
-								<button onclick={expandAll} title="Expand all" style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--pr); padding: 0;">+</button>
-								<button onclick={collapseAll} title="Collapse all" style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--tx3); padding: 0;">-</button>
-							</span>
+					"
+						>
+							<div
+								style="font-size: 11px; color: var(--tx3); font-weight: 600; padding: 8px 10px; display: flex; align-items: center; gap: 8px;"
+							>
+								WEEK
+								<span style="display: flex; gap: 4px;">
+									<button
+										onclick={expandAll}
+										title="Expand all"
+										style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--pr); padding: 0;"
+										>+</button
+									>
+									<button
+										onclick={collapseAll}
+										title="Collapse all"
+										style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--tx3); padding: 0;"
+										>-</button
+									>
+								</span>
+							</div>
+							{#each DAY_LABELS as d}
+								<div
+									style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
+								>
+									{d}
+								</div>
+							{/each}
+							<div
+								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
+								title="Flexible -- assigned per week, not pinned to a day"
+							>
+								/WK
+							</div>
+							<div
+								style="font-size: 10.5px; color: var(--pl); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
+								title="Every day of the week"
+							>
+								DAILY
+							</div>
 						</div>
-						{#each DAY_LABELS as d}
-							<div style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;">{d}</div>
-						{/each}
-						<div style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;" title="Flexible — assigned per week, not pinned to a day">/WK</div>
-					</div>
 
-					<!-- Week rows -->
-					{#each weekNumbers() as wn}
-						{@const draft = weekDrafts[wn]}
-						{#if draft}
-							{@const isCurrent = wn === computedCurrentWeek}
-							{@const expanded = expandedWeeks.has(wn)}
-							{@const sessCount = draft.days.reduce((s, d) => s + d.length, 0) + draft.freqSessions.reduce((s, f) => s + f.times_per_week, 0)}
-							<div style="
+						<!-- Week rows -->
+						{#each weekNumbers() as wn}
+							{@const draft = weekDrafts[wn]}
+							{#if draft}
+								{@const isCurrent = wn === computedCurrentWeek}
+								{@const expanded = expandedWeeks.has(wn)}
+								{@const sessCount =
+									draft.days.reduce((s, d) => s + d.length, 0) +
+									draft.freqSessions.reduce((s, f) => s + f.times_per_week, 0) +
+									draft.everydaySessions.length * 7}
+								<div
+									style="
 								background: var(--panel); border-radius: var(--rl);
 								border: 1px solid {isCurrent ? 'rgba(194,113,79,0.4)' : 'var(--bd)'};
 								box-shadow: {expanded ? 'var(--sh)' : 'none'}; overflow: hidden;
 								transition: all 0.15s;
-							">
-								<!-- Row header (always visible) -->
-								<button
-									onclick={() => toggleWeek(wn)}
-									style="
-										display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px;
+							"
+								>
+									<!-- Row header (always visible) -->
+									<button
+										onclick={() => toggleWeek(wn)}
+										style="
+										display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
 										width: 100%; align-items: center; cursor: pointer;
-										background: {isCurrent && !expanded ? 'var(--pr-fog)' : expanded ? 'var(--panel2)' : 'var(--panel)'};
+										background: {isCurrent && !expanded
+											? 'var(--pr-fog)'
+											: expanded
+												? 'var(--panel2)'
+												: 'var(--panel)'};
 										border: none; font-family: var(--font); text-align: left;
 										min-height: {expanded ? '40px' : '48px'}; transition: background 0.1s;
 									"
-								>
-									<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 1px;">
-										<div style="display: flex; align-items: center; gap: 6px;">
-											<span style="
+									>
+										<div
+											style="padding: 8px 12px; display: flex; flex-direction: column; gap: 1px;"
+										>
+											<div style="display: flex; align-items: center; gap: 6px;">
+												<span
+													style="
 												display: inline-block; width: 12px;
 												transform: {expanded ? 'rotate(90deg)' : 'rotate(0)'};
 												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr)' : 'var(--tx3)'};
 												font-size: 10px;
-											">&#9654;</span>
-											<span style="font-size: 13px; font-weight: 700; color: {isCurrent ? 'var(--pr)' : 'var(--tx)'};">Wk {wn}</span>
-											{#if isCurrent}
-												<span style="font-size: 8.5px; font-weight: 700; color: #fff; background: var(--pr); padding: 1px 5px; border-radius: 3px; line-height: 14px;">NOW</span>
-											{/if}
-											{#if draft.dirty}
-												<span style="font-size: 9px; color: var(--pr);">*</span>
-											{/if}
+											">&#9654;</span
+												>
+												<span
+													style="font-size: 13px; font-weight: 700; color: {isCurrent
+														? 'var(--pr)'
+														: 'var(--tx)'};">Wk {wn}</span
+												>
+												{#if isCurrent}
+													<span
+														style="font-size: 8.5px; font-weight: 700; color: #fff; background: var(--pr); padding: 1px 5px; border-radius: 3px; line-height: 14px;"
+														>NOW</span
+													>
+												{/if}
+												{#if draft.dirty}
+													<span style="font-size: 9px; color: var(--pr);">*</span>
+												{/if}
+											</div>
+											<div style="font-size: 10px; color: var(--tx3); padding-left: 18px;">
+												{weekDateRange(wn)}
+											</div>
 										</div>
-										<div style="font-size: 10px; color: var(--tx3); padding-left: 18px;">{weekDateRange(wn)}</div>
-									</div>
 
-									<!-- Collapsed preview: abbreviated training pills -->
-									{#if !expanded}
-										{#each DAY_LABELS as _, di}
-											<div style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;">
-												{#each draft.days[di] as s (s._id)}
-													{@const t = trainingById(s.training_id)}
-													<div style="
+										<!-- Collapsed preview: abbreviated training pills -->
+										{#if !expanded}
+											{#each DAY_LABELS as _, di}
+												<div
+													style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
+												>
+													{#each draft.days[di] as s (s._id)}
+														{@const t = trainingById(s.training_id)}
+														<div
+															style="
 														padding: 2px 5px; border-radius: 4px;
 														background: {trainingTint(s.training_id)};
 														font-size: 9px; color: {trainingColor(s.training_id)};
 														font-weight: 600; max-width: 100%;
 														overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-													">{t?.title?.split(' ')[0] ?? '?'}</div>
+													"
+														>
+															{t?.title?.split(' ')[0] ?? '?'}
+														</div>
+													{/each}
+													{#if draft.days[di].length === 0}
+														<span style="font-size: 10px; color: var(--bd);">-</span>
+													{/if}
+												</div>
+											{/each}
+											<!-- /WK column placeholder in collapsed row -->
+											<div></div>
+											<!-- DAILY collapsed preview -->
+											<div
+												style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
+											>
+												{#each draft.everydaySessions as s (s._id)}
+													{@const t = trainingById(s.training_id)}
+													<div
+														style="
+													padding: 2px 5px; border-radius: 4px;
+													background: #ede8f5; font-size: 9px; color: var(--pl);
+													font-weight: 600; max-width: 100%;
+													overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+												"
+													>
+														{t?.title?.split(' ')[0] ?? '?'}
+													</div>
 												{/each}
-												{#if draft.days[di].length === 0}
+												{#if draft.everydaySessions.length === 0}
 													<span style="font-size: 10px; color: var(--bd);">-</span>
 												{/if}
 											</div>
-										{/each}
-									{:else}
-										{#each DAY_LABELS as _}<div></div>{/each}
-									{/if}
+										{:else}
+											{#each DAY_LABELS as _}<div></div>{/each}
+											<div></div>
+											<div></div>
+										{/if}
 
-									<div style="padding: 8px 12px; display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
-										{#if sessCount > 0}
-											<span style="
+										<div
+											style="padding: 8px 12px; display: flex; align-items: center; justify-content: flex-end; gap: 6px;"
+										>
+											{#if sessCount > 0}
+												<span
+													style="
 												font-size: 11px; color: var(--tx3); font-weight: 500;
 												background: var(--panel2); padding: 2px 7px; border-radius: 999px;
-											">{sessCount}</span>
-										{/if}
-									</div>
-								</button>
+											">{sessCount}</span
+												>
+											{/if}
+										</div>
+									</button>
 
-								<!-- Expanded body -->
-								{#if expanded}
-									<!-- Actions bar with notes -->
-									<div style="
+									<!-- Expanded body -->
+									{#if expanded}
+										<!-- Actions bar with notes -->
+										<div
+											style="
 										display: flex; align-items: center; gap: 10px;
 										padding: 8px 12px; border-top: 1px solid var(--bd2); border-bottom: 1px solid var(--bd2);
 										background: var(--panel);
-									">
-										<Icon name="edit" size={12} color="var(--tx3)" />
-										{#if editMode}
-										<input
-											value={draft.notes}
-											onclick={(e) => e.stopPropagation()}
-											oninput={(e) => { draft.notes = e.currentTarget.value; draft.dirty = true; }}
-											placeholder="Week notes..."
-											style="
+									"
+										>
+											<Icon name="edit" size={12} color="var(--tx3)" />
+											{#if editMode}
+												<input
+													value={draft.notes}
+													onclick={(e) => e.stopPropagation()}
+													oninput={(e) => {
+														draft.notes = e.currentTarget.value;
+														draft.dirty = true;
+													}}
+													placeholder="Week notes..."
+													style="
 												flex: 1; border: none; outline: none; background: transparent;
 												font-family: var(--font); font-size: 12px; color: var(--tx);
 												font-style: {draft.notes ? 'normal' : 'italic'};
 											"
-										/>
-										{:else}
-										<span style="flex: 1; font-family: var(--font); font-size: 12px; color: {draft.notes ? 'var(--tx)' : 'var(--tx3)'}; font-style: {draft.notes ? 'normal' : 'italic'};">
-											{draft.notes || 'No notes'}
-										</span>
-										{/if}
-										{#if editMode}
-										<div style="display: flex; gap: 4px; flex-shrink: 0;">
-											<button
-												onclick={(e) => { e.stopPropagation(); dupModalSourceWn = wn; }}
-												style="
+												/>
+											{:else}
+												<span
+													style="flex: 1; font-family: var(--font); font-size: 12px; color: {draft.notes
+														? 'var(--tx)'
+														: 'var(--tx3)'}; font-style: {draft.notes ? 'normal' : 'italic'};"
+												>
+													{draft.notes || 'No notes'}
+												</span>
+											{/if}
+											{#if editMode}
+												<div style="display: flex; gap: 4px; flex-shrink: 0;">
+													<button
+														onclick={(e) => {
+															e.stopPropagation();
+															dupModalSourceWn = wn;
+														}}
+														style="
 													display: inline-flex; align-items: center; gap: 5px;
 													padding: 4px 10px; border-radius: var(--rs);
 													border: 1px solid var(--bd); background: #fff; color: var(--tx2);
 													font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 												"
-											>
-												<Icon name="copy" size={11} color="var(--tx2)" />
-												Duplicate
-											</button>
+													>
+														<Icon name="copy" size={11} color="var(--tx2)" />
+														Duplicate
+													</button>
 
-											{#if draft.deleteConfirm}
-												<button
-													onclick={(e) => { e.stopPropagation(); clearWeek(wn); draft.deleteConfirm = false; }}
-													style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-												>Confirm clear</button>
-												<button
-													onclick={(e) => { e.stopPropagation(); draft.deleteConfirm = false; }}
-													style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-												>Cancel</button>
-											{:else}
-												<button
-													onclick={(e) => { e.stopPropagation(); draft.deleteConfirm = true; }}
-													style="
+													{#if draft.deleteConfirm}
+														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																clearWeek(wn);
+																draft.deleteConfirm = false;
+															}}
+															style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+															>Confirm clear</button
+														>
+														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																draft.deleteConfirm = false;
+															}}
+															style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+															>Cancel</button
+														>
+													{:else}
+														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																draft.deleteConfirm = true;
+															}}
+															style="
 														display: inline-flex; align-items: center; gap: 5px;
 														padding: 4px 10px; border-radius: var(--rs);
 														border: 1px solid var(--bd); background: #fff; color: var(--tx3);
 														font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 													"
-												>
-													<Icon name="trash" size={11} color="var(--tx3)" />
-													Clear
-												</button>
+														>
+															<Icon name="trash" size={11} color="var(--tx3)" />
+															Clear
+														</button>
+													{/if}
+												</div>
 											{/if}
 										</div>
-										{/if}
-									</div>
 
-									{#if draft.saveError}
-										<div style="padding: 6px 12px; background: #fef2f2; color: #b91c1c; font-size: 12px; border-bottom: 1px solid #fca5a5;">{draft.saveError}</div>
-									{/if}
-
-									<!-- Day grid -->
-									<div style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px; min-height: 72px;">
-
-										<!-- Left info -->
-										<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 3px;">
-											<div style="display: flex; align-items: baseline; gap: 4px;">
-												<span style="font-size: 20px; font-weight: 700; color: var(--tx);">{sessCount}</span>
-												<span style="font-size: 11px; color: var(--tx3);">sessions</span>
+										{#if draft.saveError}
+											<div
+												style="padding: 6px 12px; background: #fef2f2; color: #b91c1c; font-size: 12px; border-bottom: 1px solid #fca5a5;"
+											>
+												{draft.saveError}
 											</div>
-											{#if draft.notes}
-												<div style="font-size: 10.5px; color: var(--tx2); font-style: italic; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">{draft.notes}</div>
-											{/if}
-										</div>
+										{/if}
 
-										<!-- Day cells -->
-										{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex}
-											<DroppableCell id="cell:{wn}:{dayIndex}" disabled={!editMode}>
-												<div style="
+										<!-- Day grid -->
+										<div
+											style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px; min-height: 72px;"
+										>
+											<!-- Left info -->
+											<div
+												style="padding: 8px 12px; display: flex; flex-direction: column; gap: 3px;"
+											>
+												<div style="display: flex; align-items: baseline; gap: 4px;">
+													<span style="font-size: 20px; font-weight: 700; color: var(--tx);"
+														>{sessCount}</span
+													>
+													<span style="font-size: 11px; color: var(--tx3);">sessions</span>
+												</div>
+												{#if draft.notes}
+													<div
+														style="font-size: 10.5px; color: var(--tx2); font-style: italic; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+													>
+														{draft.notes}
+													</div>
+												{/if}
+											</div>
+
+											<!-- Day cells -->
+											{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex}
+												<DroppableCell id="cell:{wn}:{dayIndex}" disabled={!editMode}>
+													<div
+														style="
 													padding: 5px 3px; min-height: 72px;
 													display: flex; flex-direction: column; gap: 3px;
 													border-left: 1px solid var(--bd2);
-												">
-													{#each draft.days[dayIndex] as session (session._id)}
-														{@const color = trainingColor(session.training_id)}
-														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession id={session._id} disabled={!editMode}>
-															<div style="
+												"
+													>
+														{#each draft.days[dayIndex] as session (session._id)}
+															{@const color = trainingColor(session.training_id)}
+															{@const tint = trainingTint(session.training_id)}
+															<DraggableSession id={session._id} disabled={!editMode}>
+																<div
+																	style="
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
 																background: {tint}; border: 1px solid {color}30;
-																cursor: {editMode ? "grab" : "default"}; font-size: 10.5px;
-															">
-																<div style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
-																<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;">
-																	{trainingById(session.training_id)?.title ?? '?'}
-																</span>
-																{#if editMode}
-																<button
-																	onclick={() => removeSession(wn, session._id)}
-																	onpointerdown={(e) => e.stopPropagation()}
-																	style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
-																	onmouseenter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
-																	onmouseleave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'none'; }}
+																cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
+															"
 																>
-																	<Icon name="x" size={10} color="var(--tx3)" />
-																</button>
-																{/if}
-															</div>
-														</DraggableSession>
-													{/each}
-													{#if draft.days[dayIndex].length === 0}
-														{#if editMode}
-														<div style="
+																	<div
+																		style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"
+																	></div>
+																	<span
+																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
+																	>
+																		{trainingById(session.training_id)?.title ?? '?'}
+																	</span>
+																	{#if editMode}
+																		<button
+																			onclick={() => removeSession(wn, session._id)}
+																			onpointerdown={(e) => e.stopPropagation()}
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																			onmouseenter={(e) => {
+																				e.currentTarget.style.opacity = '1';
+																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
+																			}}
+																			onmouseleave={(e) => {
+																				e.currentTarget.style.opacity = '0.6';
+																				e.currentTarget.style.background = 'none';
+																			}}
+																		>
+																			<Icon name="x" size={10} color="var(--tx3)" />
+																		</button>
+																	{/if}
+																</div>
+															</DraggableSession>
+														{/each}
+														{#if draft.days[dayIndex].length === 0}
+															{#if editMode}
+																<div
+																	style="
 															flex: 1; display: flex; align-items: center; justify-content: center;
 															border-radius: 5px; border: 1px dashed var(--bd);
 															color: var(--tx3); margin: 2px; min-height: 40px;
 															transition: border-color 0.15s, color 0.15s;
 														"
-														onmouseenter={(e) => { e.currentTarget.style.borderColor = 'var(--pr)'; e.currentTarget.style.color = 'var(--pr)'; }}
-														onmouseleave={(e) => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--tx3)'; }}
-														>
-															<Icon name="plus" size={14} color="currentColor" />
-														</div>
-														{:else}
-														<div style="flex: 1; display: flex; align-items: center; justify-content: center; color: var(--bd); margin: 2px; min-height: 40px; font-size: 16px;">-</div>
+																	onmouseenter={(e) => {
+																		e.currentTarget.style.borderColor = 'var(--pr)';
+																		e.currentTarget.style.color = 'var(--pr)';
+																	}}
+																	onmouseleave={(e) => {
+																		e.currentTarget.style.borderColor = 'var(--bd)';
+																		e.currentTarget.style.color = 'var(--tx3)';
+																	}}
+																>
+																	<Icon name="plus" size={14} color="currentColor" />
+																</div>
+															{:else}
+																<div
+																	style="flex: 1; display: flex; align-items: center; justify-content: center; color: var(--bd); margin: 2px; min-height: 40px; font-size: 16px;"
+																>
+																	-
+																</div>
+															{/if}
 														{/if}
-													{/if}
-												</div>
-											</DroppableCell>
-										{/each}
+													</div>
+												</DroppableCell>
+											{/each}
 
-										<!-- Frequency cell -->
-										<DroppableCell id="freq:{wn}" disabled={!editMode}>
-											<div style="
+											<!-- Frequency cell -->
+											<DroppableCell id="freq:{wn}" disabled={!editMode}>
+												<div
+													style="
 												padding: 5px 4px; min-height: 72px;
 												display: flex; flex-direction: column; gap: 3px;
 												border-left: 1px solid var(--bd2);
 												background: var(--panel2);
-											">
-												{#each draft.freqSessions as session (session._id)}
-													{@const color = trainingColor(session.training_id)}
-													{@const tint = trainingTint(session.training_id)}
-													<DraggableSession id={session._id} disabled={!editMode}>
-														<div style="
+											"
+												>
+													{#each draft.freqSessions as session (session._id)}
+														{@const color = trainingColor(session.training_id)}
+														{@const tint = trainingTint(session.training_id)}
+														<DraggableSession id={session._id} disabled={!editMode}>
+															<div
+																style="
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
-														">
-															<div style="display: flex; align-items: center; gap: 3px; margin-bottom: 2px;">
-																<div style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"></div>
-																<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 600; min-width: 0; font-size: 10.5px;">
+														"
+															>
+																<div
+																	style="display: flex; align-items: center; gap: 3px; margin-bottom: 2px;"
+																>
+																	<div
+																		style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"
+																	></div>
+																	<span
+																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 600; min-width: 0; font-size: 10.5px;"
+																	>
+																		{trainingById(session.training_id)?.title ?? '?'}
+																	</span>
+																</div>
+																<div
+																	style="display: flex; align-items: center; gap: 3px; padding-left: 8px;"
+																>
+																	<input
+																		type="number"
+																		value={session.times_per_week}
+																		oninput={(e) => {
+																			session.times_per_week = parseInt(e.currentTarget.value) || 1;
+																			draft.dirty = true;
+																		}}
+																		min="1"
+																		max="14"
+																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700;"
+																	/>
+																	<span style="font-size: 10px; color: {color}; font-weight: 600;"
+																		>x/wk</span
+																	>
+																	<div style="flex: 1;"></div>
+																	{#if editMode}
+																		<button
+																			onclick={() => removeSession(wn, session._id)}
+																			onpointerdown={(e) => e.stopPropagation()}
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																			onmouseenter={(e) => {
+																				e.currentTarget.style.opacity = '1';
+																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
+																			}}
+																			onmouseleave={(e) => {
+																				e.currentTarget.style.opacity = '0.6';
+																				e.currentTarget.style.background = 'none';
+																			}}
+																		>
+																			<Icon name="x" size={10} color="var(--tx3)" />
+																		</button>
+																	{/if}
+																</div>
+															</div>
+														</DraggableSession>
+													{/each}
+												</div>
+											</DroppableCell>
+
+											<!-- Everyday cell -->
+											<DroppableCell id="everyday:{wn}" disabled={!editMode}>
+												<div
+													style="
+												padding: 5px 4px; min-height: 72px;
+												display: flex; flex-direction: column; gap: 3px;
+												border-left: 1px solid var(--bd2);
+												background: #faf7fe;
+											"
+												>
+													{#each draft.everydaySessions as session (session._id)}
+														{@const color = trainingColor(session.training_id)}
+														{@const tint = trainingTint(session.training_id)}
+														<DraggableSession id={session._id} disabled={!editMode}>
+															<div
+																style="
+															display: flex; align-items: center; gap: 4px;
+															padding: 4px 5px; border-radius: 5px;
+															background: {tint}; border: 1px solid {color}30;
+															cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
+														"
+															>
+																<div
+																	style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"
+																></div>
+																<span
+																	style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
+																>
 																	{trainingById(session.training_id)?.title ?? '?'}
 																</span>
-															</div>
-															<div style="display: flex; align-items: center; gap: 3px; padding-left: 8px;">
-																<input
-																	type="number"
-																	value={session.times_per_week}
-																	oninput={(e) => { session.times_per_week = parseInt(e.currentTarget.value) || 1; draft.dirty = true; }}
-																	min="1"
-																	max="14"
-																	style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700;"
-																/>
-																<span style="font-size: 10px; color: {color}; font-weight: 600;">x/wk</span>
-																<div style="flex: 1;"></div>
 																{#if editMode}
-																<button
-																	onclick={() => removeSession(wn, session._id)}
-																	onpointerdown={(e) => e.stopPropagation()}
-																	style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
-																	onmouseenter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
-																	onmouseleave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'none'; }}
-																>
-																	<Icon name="x" size={10} color="var(--tx3)" />
-																</button>
+																	<button
+																		onclick={() => removeSession(wn, session._id)}
+																		onpointerdown={(e) => e.stopPropagation()}
+																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																		onmouseenter={(e) => {
+																			e.currentTarget.style.opacity = '1';
+																			e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
+																		}}
+																		onmouseleave={(e) => {
+																			e.currentTarget.style.opacity = '0.6';
+																			e.currentTarget.style.background = 'none';
+																		}}
+																	>
+																		<Icon name="x" size={10} color="var(--tx3)" />
+																	</button>
 																{/if}
 															</div>
+														</DraggableSession>
+													{/each}
+													{#if draft.everydaySessions.length === 0 && editMode}
+														<div
+															style="
+														flex: 1; display: flex; align-items: center; justify-content: center;
+														border-radius: 5px; border: 1px dashed rgba(144,123,153,0.4);
+														color: var(--pl); margin: 2px; min-height: 40px; opacity: 0.6;
+														transition: opacity 0.15s;
+													"
+															onmouseenter={(e) => {
+																e.currentTarget.style.opacity = '1';
+															}}
+															onmouseleave={(e) => {
+																e.currentTarget.style.opacity = '0.6';
+															}}
+														>
+															<Icon name="plus" size={14} color="currentColor" />
 														</div>
-													</DraggableSession>
-												{/each}
-											</div>
-										</DroppableCell>
-									</div>
-								{/if}
-							</div>
-						{/if}
-					{/each}
+													{:else if draft.everydaySessions.length === 0}
+														<div
+															style="flex: 1; display: flex; align-items: center; justify-content: center; color: var(--bd); margin: 2px; min-height: 40px; font-size: 16px;"
+														>
+															-
+														</div>
+													{/if}
+												</div>
+											</DroppableCell>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/each}
 
-					{#if weekNumbers().length === 0}
-						<div style="
+						{#if weekNumbers().length === 0}
+							<div
+								style="
 							background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
 							padding: 32px 24px; text-align: center; color: var(--tx3); font-size: 13px;
-						">No weeks defined. Use "Edit details" to set a duration.</div>
-					{/if}
+						"
+							>
+								No weeks defined. Use "Edit details" to set a duration.
+							</div>
+						{/if}
+					</div>
 				</div>
-			</div>
 
-			<!-- Right rail: Training library (inside DragDropProvider) -->
-			{#if editMode}
-			<div style="
+				<!-- Right rail: Training library (inside DragDropProvider) -->
+				{#if editMode}
+					<div
+						style="
 				width: 240px; flex-shrink: 0;
 				border-left: 1px solid var(--bd);
 				background: var(--panel);
 				display: flex; flex-direction: column;
 				position: sticky; top: 0; align-self: flex-start;
 				max-height: calc(100vh - 65px); overflow: hidden;
-			">
-				<div style="padding: 16px 14px 10px; border-bottom: 1px solid var(--bd2);">
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-						<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Trainings</h3>
-						<span style="font-size: 11px; color: var(--tx3);">{trainings.length}</span>
-					</div>
-					<div style="
+			"
+					>
+						<div style="padding: 16px 14px 10px; border-bottom: 1px solid var(--bd2);">
+							<div
+								style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;"
+							>
+								<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Trainings</h3>
+								<span style="font-size: 11px; color: var(--tx3);">{trainings.length}</span>
+							</div>
+							<div
+								style="
 						display: flex; align-items: center; gap: 7px;
 						background: var(--panel2); border: 1px solid var(--bd); border-radius: var(--rs);
 						padding: 7px 10px; margin-bottom: 8px;
-					">
-						<Icon name="search" size={13} color="var(--tx3)" />
-						<input
-							bind:value={trainingSearch}
-							placeholder="Find training..."
-							style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx);"
-						/>
-					</div>
-					<div style="display: flex; gap: 3px; flex-wrap: wrap;">
-						{#each [
-							{ id: 'all', label: 'All' },
-							{ id: 'workout', label: 'Workout' },
-							{ id: 'climbing', label: 'Climb' },
-							{ id: 'stretching', label: 'Stretch' },
-						] as f}
-							<button
-								onclick={() => (trainingTypeFilter = f.id)}
-								style="
+					"
+							>
+								<Icon name="search" size={13} color="var(--tx3)" />
+								<input
+									bind:value={trainingSearch}
+									placeholder="Find training..."
+									style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx);"
+								/>
+							</div>
+							<div style="display: flex; gap: 3px; flex-wrap: wrap;">
+								{#each [{ id: 'all', label: 'All' }, { id: 'workout', label: 'Workout' }, { id: 'climbing', label: 'Climb' }, { id: 'stretching', label: 'Stretch' }] as f}
+									<button
+										onclick={() => (trainingTypeFilter = f.id)}
+										style="
 									padding: 3px 9px; font-size: 10.5px; font-weight: 600;
 									border-radius: 999px; border: none; cursor: pointer;
 									background: {trainingTypeFilter === f.id ? 'var(--pr-fog)' : 'transparent'};
 									color: {trainingTypeFilter === f.id ? 'var(--pr)' : 'var(--tx3)'};
 									font-family: var(--font);
-								"
-							>{f.label}</button>
-						{/each}
-					</div>
-				</div>
+								">{f.label}</button
+									>
+								{/each}
+							</div>
+						</div>
 
-				<div style="flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
-					{#each filteredTrainings as t (t.id)}
-						{@const color = TYPE_COLORS[(t.training_type ?? 'workout') as TrainingType] ?? '#c2714f'}
-						{@const tint = TYPE_TINTS[(t.training_type ?? 'workout') as TrainingType] ?? '#f5e2d7'}
-						{@const label = TYPE_LABELS[t.training_type ?? 'workout'] ?? 'WO'}
-						<SidePanelDraggable
-							id="__new__:{t.id}"
-							style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--rs); background: var(--panel); border: 1px solid var(--bd); cursor: grab; font-size: 12px; color: var(--tx); width: 100%; text-align: left;"
+						<div
+							style="flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;"
 						>
-							<div style="
+							{#each filteredTrainings as t (t.id)}
+								{@const color =
+									TYPE_COLORS[(t.training_type ?? 'workout') as TrainingType] ?? '#c2714f'}
+								{@const tint =
+									TYPE_TINTS[(t.training_type ?? 'workout') as TrainingType] ?? '#f5e2d7'}
+								{@const label = TYPE_LABELS[t.training_type ?? 'workout'] ?? 'WO'}
+								<SidePanelDraggable
+									id="__new__:{t.id}"
+									style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--rs); background: var(--panel); border: 1px solid var(--bd); cursor: grab; font-size: 12px; color: var(--tx); width: 100%; text-align: left;"
+								>
+									<div
+										style="
 								width: 24px; height: 24px; border-radius: 5px;
 								background: {tint}; color: {color};
 								display: flex; align-items: center; justify-content: center;
 								font-size: 8.5px; font-weight: 700; flex-shrink: 0;
-							">{label}</div>
-							<div style="flex: 1; min-width: 0;">
-								<div style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px;">{t.title}</div>
+							"
+									>
+										{label}
+									</div>
+									<div style="flex: 1; min-width: 0;">
+										<div
+											style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px;"
+										>
+											{t.title}
+										</div>
+									</div>
+								</SidePanelDraggable>
+							{/each}
+							{#if filteredTrainings.length === 0}
+								<div style="padding: 16px; text-align: center; color: var(--tx3); font-size: 12px;">
+									No trainings found.
+								</div>
+							{/if}
+						</div>
+
+						<div
+							style="padding: 12px 14px; border-top: 1px solid var(--bd2); display: flex; gap: 10px;"
+						>
+							<div style="flex: 1;">
+								<div
+									style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;"
+								>
+									TOTAL
+								</div>
+								<div style="font-size: 16px; font-weight: 700; color: var(--tx);">
+									{totalSessions}
+									<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">sessions</span
+									>
+								</div>
 							</div>
-						</SidePanelDraggable>
-					{/each}
-					{#if filteredTrainings.length === 0}
-						<div style="padding: 16px; text-align: center; color: var(--tx3); font-size: 12px;">No trainings found.</div>
-					{/if}
-				</div>
-
-				<div style="padding: 12px 14px; border-top: 1px solid var(--bd2); display: flex; gap: 10px;">
-					<div style="flex: 1;">
-						<div style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;">TOTAL</div>
-						<div style="font-size: 16px; font-weight: 700; color: var(--tx);">{totalSessions} <span style="font-size: 11px; color: var(--tx3); font-weight: 500;">sessions</span></div>
+							<div>
+								<div
+									style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;"
+								>
+									WEEKS
+								</div>
+								<div style="font-size: 16px; font-weight: 700; color: var(--tx);">
+									{weekNumbers().length}
+								</div>
+							</div>
+						</div>
 					</div>
-					<div>
-						<div style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;">WEEKS</div>
-						<div style="font-size: 16px; font-weight: 700; color: var(--tx);">{weekNumbers().length}</div>
-					</div>
-			</div>
-		</div>
-		{/if}
-		</DragDropProvider>
-
+				{/if}
+			</div></DragDropProvider
+		>
 	{/if}
 
 	<!-- Duplicate week modal -->
@@ -1095,12 +1491,16 @@
 				onclick={(e) => e.stopPropagation()}
 				style="background: #fff; border-radius: var(--rl); box-shadow: 0 8px 32px rgba(45,36,29,0.18); padding: 22px 26px; width: 380px;"
 			>
-				<h3 style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">Duplicate Week {sourceWn}</h3>
-				<p style="font-size: 12.5px; color: var(--tx2); margin-bottom: 16px;">Choose which week to copy this schedule into. Existing sessions will be replaced.</p>
+				<h3 style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">
+					Duplicate Week {sourceWn}
+				</h3>
+				<p style="font-size: 12.5px; color: var(--tx2); margin-bottom: 16px;">
+					Choose which week to copy this schedule into. Existing sessions will be replaced.
+				</p>
 				<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px;">
 					{#each weekNumbers() as wn}
 						{@const isSource = wn === sourceWn}
-						{@const hasDraft = weekDrafts[wn]?.days.some(d => d.length > 0)}
+						{@const hasDraft = weekDrafts[wn]?.days.some((d) => d.length > 0)}
 						<button
 							onclick={() => !isSource && executeDuplicate(sourceWn, wn)}
 							disabled={isSource}
@@ -1113,10 +1513,21 @@
 								display: flex; flex-direction: column; align-items: center; justify-content: center;
 								gap: 2px; font-family: var(--font); transition: border-color 0.15s;
 							"
-							onmouseenter={(e) => { if (!isSource) e.currentTarget.style.borderColor = 'var(--pr)'; }}
-							onmouseleave={(e) => { if (!isSource) e.currentTarget.style.borderColor = hasDraft ? 'rgba(212,161,94,0.4)' : 'var(--bd)'; }}
+							onmouseenter={(e) => {
+								if (!isSource) e.currentTarget.style.borderColor = 'var(--pr)';
+							}}
+							onmouseleave={(e) => {
+								if (!isSource)
+									e.currentTarget.style.borderColor = hasDraft
+										? 'rgba(212,161,94,0.4)'
+										: 'var(--bd)';
+							}}
 						>
-							<span style="font-size: 13px; font-weight: 700; color: {isSource ? 'var(--tx3)' : 'var(--tx)'};">{wn}</span>
+							<span
+								style="font-size: 13px; font-weight: 700; color: {isSource
+									? 'var(--tx3)'
+									: 'var(--tx)'};">{wn}</span
+							>
 							{#if hasDraft && !isSource}
 								<span style="font-size: 8px; color: var(--gd); font-weight: 600;">data</span>
 							{:else if isSource}
@@ -1129,7 +1540,8 @@
 					<button
 						onclick={() => (dupModalSourceWn = null)}
 						style="padding: 7px 14px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-					>Cancel</button>
+						>Cancel</button
+					>
 				</div>
 			</div>
 		</div>
