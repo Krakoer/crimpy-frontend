@@ -244,6 +244,7 @@ export interface WeekSession {
 	training_type: TrainingType;
 	day_of_week?: number;
 	times_per_week?: number;
+	is_everyday: boolean;
 	position: number;
 	notes?: string;
 	overrides: [];
@@ -257,6 +258,7 @@ export interface SessionRequest {
 	training_id: string;
 	day_of_week?: number;
 	times_per_week?: number;
+	is_everyday?: boolean;
 	notes?: string;
 	overrides: [];
 }
