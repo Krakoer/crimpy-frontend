@@ -174,6 +174,7 @@ export interface TrainingItem {
 	worktime_seconds?: number;
 	hand?: string;
 	free_text?: string;
+	comment?: string;
 	load_is_max?: boolean;
 	edge_sizes_mm?: number[];
 	hand_positions?: string[][];

@@ -107,5 +107,13 @@
 				</span>
 			</div>
 		</div>
+
+		{#if item.comment?.trim()}
+			<div style="padding: 0 18px 12px;">
+				<div style="padding: 8px 12px; background: var(--pr-fog); border-left: 3px solid var(--pr); border-radius: 0 var(--rs) var(--rs) 0;">
+					<span style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;">{item.comment}</span>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>

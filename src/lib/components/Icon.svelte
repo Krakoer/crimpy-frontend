@@ -77,13 +77,17 @@
 			r="1.2"
 		/>
 	{:else if name === 'link'}
-		<path
-			d="M9 15a3 3 0 0 0 4.2 0l3-3a3 3 0 0 0-4.2-4.2l-1 1"
-		/><path d="M15 9a3 3 0 0 0-4.2 0l-3 3a3 3 0 0 0 4.2 4.2l1-1" />
+		<path d="M9 15a3 3 0 0 0 4.2 0l3-3a3 3 0 0 0-4.2-4.2l-1 1" /><path
+			d="M15 9a3 3 0 0 0-4.2 0l-3 3a3 3 0 0 0 4.2 4.2l1-1"
+		/>
 	{:else if name === 'copy'}
 		<rect x="8" y="8" width="12" height="12" rx="2" /><path
 			d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"
 		/>
+	{:else if name === 'paste'}
+		<rect x="7" y="4" width="10" height="16" rx="2" /><path
+			d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"
+		/><path d="M10 11h4M10 15h3" />
 	{:else if name === 'play'}
 		<path d="M7 5v14l12-7z" fill={color} stroke="none" />
 	{:else if name === 'trash'}
@@ -97,7 +101,10 @@
 	{:else if name === 'clock'}
 		<circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" />
 	{:else if name === 'star'}
-		<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill={fill} />
+		<path
+			d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+			{fill}
+		/>
 	{:else if name === 'x'}
 		<path d="M18 6L6 18M6 6l12 12" />
 	{:else}
