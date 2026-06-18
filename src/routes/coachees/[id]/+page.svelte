@@ -99,13 +99,6 @@
 		3: { label: 'WO', color: '#907b99', tint: '#ede8f0' }
 	};
 
-	const SESSION_NAMES: Record<number, string> = {
-		0: 'Crimpy Session',
-		1: 'Climbing',
-		2: 'Stretching',
-		3: 'Workout'
-	};
-
 	function sessionType(type: number) {
 		return SESSION_TYPES[type] ?? { label: '??', color: '#888', tint: '#eee' };
 	}
@@ -422,7 +415,7 @@
 				</div>
 
 				<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd)' }] as stat}
+					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd)' }] as stat (stat.k)}
 						<div
 							style="
 						padding: 10px 14px; border: 1px solid var(--bd);
@@ -446,7 +439,7 @@
 			<div
 				style="display: flex; gap: 4px; border-bottom: 1px solid var(--bd); padding: 0 4px; margin-bottom: 20px;"
 			>
-				{#each [{ id: 'sessions', label: 'Sessions', n: sessions.length }, { id: 'programs', label: 'Programs', n: programs.length }, { id: 'assess', label: 'Assessments', n: totalAssessmentCount }, { id: 'notes', label: 'Notes', n: 0 }] as tab}
+				{#each [{ id: 'sessions', label: 'Sessions', n: sessions.length }, { id: 'programs', label: 'Programs', n: programs.length }, { id: 'assess', label: 'Assessments', n: totalAssessmentCount }, { id: 'notes', label: 'Notes', n: 0 }] as tab (tab.id)}
 					<button
 						onclick={() => (activeTab = tab.id as typeof activeTab)}
 						style="
@@ -520,7 +513,7 @@
 								{/if}
 							</div>
 							<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
-								{#each weekStripDays as day}
+								{#each weekStripDays as day (day.date.getTime())}
 									<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 									<div
 										onclick={() => toggleDayFilter(day.date)}
@@ -552,7 +545,7 @@
 										<div
 											style="display: flex; justify-content: center; gap: 3px; margin-top: 6px; min-height: 8px;"
 										>
-											{#each day.dots as dotColor}
+											{#each day.dots as dotColor, i (i)}
 												<div
 													style="width: 5px; height: 5px; border-radius: 50%; background: {day.isSelected
 														? 'rgba(255,255,255,0.7)'
@@ -612,13 +605,13 @@
 								</div>
 							{:else}
 								<div>
-									{#each sessionGroups as group, gi}
+									{#each sessionGroups as group (group.label)}
 										<div
 											style="padding: 10px 20px 0; font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 										>
 											{group.label}
 										</div>
-										{#each group.items as session, si (session.ID)}
+										{#each group.items as session (session.ID)}
 											{@const type = sessionType(session.SessionType)}
 											<div
 												style="
@@ -680,7 +673,7 @@
 							>
 						</div>
 
-						{#each [0, 1, 2] as type}
+						{#each [0, 1, 2] as type (type)}
 							{#if hasAnyAssessment(type)}
 								{@const typeInfo = ASSESSMENT_TYPES[type]}
 								{@const grip = selectedGrip[type]}
@@ -1143,15 +1136,13 @@
 						</div>
 					{:else}
 						<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-							{#each [0, 1, 2] as type}
+							{#each [0, 1, 2] as type (type)}
 								{#if hasAnyAssessment(type)}
 									{@const typeInfo = ASSESSMENT_TYPES[type]}
 									{@const grips = availableGrips(type)}
 									{@const grip = selectedGrip[type]}
 									{@const latest = latestForGrip(type, grip)}
 									{@const history = historyForGrip(type, grip)}
-									{@const typeColor =
-										type === 0 ? 'var(--pr)' : type === 1 ? 'var(--gd)' : 'var(--gn)'}
 									<div
 										style="
 									background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
@@ -1169,7 +1160,7 @@
 
 										{#if grips.length > 1}
 											<div style="display: flex; gap: 4px; margin-bottom: 8px; overflow-x: auto;">
-												{#each grips as g}
+												{#each grips as g (g)}
 													<button
 														onclick={() => (selectedGrip[type] = g)}
 														style="
@@ -1293,7 +1284,7 @@
 								<div style="text-align: right;">Left</div>
 								<div style="text-align: right;">Right</div>
 							</div>
-							{#each assessmentHistory as a, i}
+							{#each assessmentHistory as a, i (a.ID)}
 								{@const typeInfo = ASSESSMENT_TYPES[a.Type]}
 								<div
 									style="

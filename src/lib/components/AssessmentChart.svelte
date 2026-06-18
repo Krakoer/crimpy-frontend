@@ -32,13 +32,15 @@
 				borderColor: '#e5e7eb',
 				borderWidth: 1,
 				textStyle: { fontFamily: 'monospace', fontSize: 11, color: '#333' },
-				formatter: (params: any[]) => {
+				formatter: (
+					params: Array<{ axisValue: string | number; seriesName: string; value: [number, number] }>
+				) => {
 					const date = new Date(params[0].axisValue).toLocaleDateString('en-GB', {
 						day: 'numeric',
 						month: 'short',
 						year: 'numeric'
 					});
-					const lines = params.map((p: any) => {
+					const lines = params.map((p) => {
 						const color = p.seriesName === 'Left' ? '#5A8C5A' : '#C6613F';
 						const val = formatValue(p.value[1]);
 						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${val} ${unit}`;

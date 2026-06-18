@@ -82,7 +82,7 @@
 			display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 		"
 		>
-			{#each allowedTypes as type}
+			{#each allowedTypes as type (type)}
 				<button
 					onclick={() => handleTypeClick(type)}
 					style="

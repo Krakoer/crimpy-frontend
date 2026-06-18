@@ -257,7 +257,7 @@
 							onclick={(e) => e.stopPropagation()}
 							style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 						>
-							{#each LOAD_UNITS as u}
+							{#each LOAD_UNITS as u (u.value)}
 								<option value={u.value}>{u.label}</option>
 							{/each}
 						</select>

@@ -412,7 +412,7 @@
 									onchange={onUniformChange}
 									style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 								>
-									{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+									{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option>{/each}
 								</select>
 							</div>
 						{:else}
@@ -433,7 +433,8 @@
 										onchange={onUniformChange}
 										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 									>
-										{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+										{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+											>{/each}
 									</select>
 								</div>
 								<div style="display: flex; align-items: center; gap: 4px;">
@@ -452,7 +453,8 @@
 										onchange={onUniformChange}
 										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 									>
-										{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+										{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+											>{/each}
 									</select>
 								</div>
 							</div>
@@ -466,7 +468,7 @@
 							onchange={onUniformChange}
 							style="padding: 5px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 						>
-							{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+							{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 						</select>
 					</div>
 				</div>
@@ -496,7 +498,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as ri}
+							{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as ri (ri)}
 								<tr class:hb-copied={copiedRow === ri}>
 									<td class="hb-rep">{ri + 1}</td>
 									<td>
@@ -522,12 +524,13 @@
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![ri].unit}>
-												{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+													>{/each}
 											</select>
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.hand_positions![0][ri]}>
-												{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 											</select>
 										</td>
 									{:else}
@@ -545,7 +548,8 @@
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![2 * ri].unit}>
-												{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+													>{/each}
 											</select>
 										</td>
 										<td>
@@ -562,17 +566,18 @@
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![2 * ri + 1].unit}>
-												{#each LOAD_UNITS as u}<option value={u.value}>{u.label}</option>{/each}
+												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+													>{/each}
 											</select>
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.hand_positions![0][ri]}>
-												{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 											</select>
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.hand_positions![1][ri]}>
-												{#each HAND_POSITIONS as p}<option value={p}>{p}</option>{/each}
+												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 											</select>
 										</td>
 									{/if}

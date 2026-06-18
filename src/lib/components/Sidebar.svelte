@@ -115,7 +115,7 @@
 
 	<!-- Primary nav -->
 	<nav style="display: flex; flex-direction: column; gap: 2px; padding: 0 12px;">
-		{#each primary as item}
+		{#each primary as item (item.id)}
 			{@const active = activeId($page.url.pathname) === item.id}
 			<button
 				onclick={() => goto(item.href)}
@@ -170,7 +170,7 @@
 				<span>Admin</span>
 			</button>
 		{/if}
-		{#each secondary as item}
+		{#each secondary as item (item.id)}
 			{@const active = activeId($page.url.pathname) === item.id}
 			<button
 				onclick={() => goto(item.href)}

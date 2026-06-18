@@ -197,8 +197,8 @@
 
 			if (!target) return;
 
-			let targetContainerId = 'root';
-			let insertIndex = draft.items.length;
+			let targetContainerId: string;
+			let insertIndex: number;
 
 			if (isSortable(target as never)) {
 				const tgt = target as { group?: string; index: number };
@@ -720,7 +720,7 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 4px; align-self: flex-start;">
-								{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t}
+								{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t (t)}
 									<button
 										onclick={() => handleTypeChange(t)}
 										style="
@@ -787,7 +787,7 @@
 								ADD BLOCK
 							</div>
 							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
-								{#each allowedStructureButtons as btn}
+								{#each allowedStructureButtons as btn (btn.type)}
 									<SidePanelDraggable
 										id={'__new__:' + btn.type}
 										onclick={() => addRootItem(btn.type)}
@@ -971,7 +971,7 @@
 						/>
 					</div>
 					<div style="display: flex; gap: 4px; align-self: flex-start;">
-						{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t}
+						{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t (t)}
 							<button
 								onclick={() => handleTypeChange(t)}
 								style="

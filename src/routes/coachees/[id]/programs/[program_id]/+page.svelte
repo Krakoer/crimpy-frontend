@@ -317,20 +317,6 @@
 		}
 	}
 
-	async function handleDeleteWeek(wn: number) {
-		weekDrafts[wn].deleting = true;
-		try {
-			await apiClient.deleteWeek(userId, programId, wn);
-			const idx = weeks.findIndex((w) => w.week_number === wn);
-			if (idx !== -1) weeks.splice(idx, 1);
-			weekDrafts[wn] = emptyDraft();
-			snackbar.show(`Week ${wn} cleared`);
-		} catch (e) {
-			weekDrafts[wn].deleting = false;
-			weekDrafts[wn].saveError = e instanceof Error ? e.message : 'Failed to delete.';
-		}
-	}
-
 	function executeDuplicate(sourceWn: number, targetWn: number) {
 		const src = weekDrafts[sourceWn];
 		if (!src) return;
@@ -403,10 +389,6 @@
 		end.setDate(end.getDate() + 6);
 		const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 		return `${fmt(start)} - ${fmt(end)}`;
-	}
-
-	function isWeekDefined(n: number): boolean {
-		return weeks.some((w) => w.week_number === n);
 	}
 
 	function startEdit() {
@@ -832,7 +814,7 @@
 									>
 								</span>
 							</div>
-							{#each DAY_LABELS as d}
+							{#each DAY_LABELS as d (d)}
 								<div
 									style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
 								>
@@ -854,7 +836,7 @@
 						</div>
 
 						<!-- Week rows -->
-						{#each weekNumbers() as wn}
+						{#each weekNumbers() as wn (wn)}
 							{@const draft = weekDrafts[wn]}
 							{#if draft}
 								{@const isCurrent = wn === computedCurrentWeek}
@@ -920,7 +902,7 @@
 
 										<!-- Collapsed preview: abbreviated training pills -->
 										{#if !expanded}
-											{#each DAY_LABELS as _, di}
+											{#each DAY_LABELS as _, di (di)}
 												<div
 													style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
 												>
@@ -967,7 +949,7 @@
 												{/if}
 											</div>
 										{:else}
-											{#each DAY_LABELS as _}<div></div>{/each}
+											{#each DAY_LABELS as _, i (i)}<div></div>{/each}
 											<div></div>
 											<div></div>
 										{/if}
@@ -1110,7 +1092,7 @@
 											</div>
 
 											<!-- Day cells -->
-											{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex}
+											{#each [0, 1, 2, 3, 4, 5, 6] as dayIndex (dayIndex)}
 												<DroppableCell id="cell:{wn}:{dayIndex}" disabled={!editMode}>
 													<div
 														style="
@@ -1394,7 +1376,7 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 3px; flex-wrap: wrap;">
-								{#each [{ id: 'all', label: 'All' }, { id: 'workout', label: 'Workout' }, { id: 'climbing', label: 'Climb' }, { id: 'stretching', label: 'Stretch' }] as f}
+								{#each [{ id: 'all', label: 'All' }, { id: 'workout', label: 'Workout' }, { id: 'climbing', label: 'Climb' }, { id: 'stretching', label: 'Stretch' }] as f (f.id)}
 									<button
 										onclick={() => (trainingTypeFilter = f.id)}
 										style="
@@ -1498,7 +1480,7 @@
 					Choose which week to copy this schedule into. Existing sessions will be replaced.
 				</p>
 				<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px;">
-					{#each weekNumbers() as wn}
+					{#each weekNumbers() as wn (wn)}
 						{@const isSource = wn === sourceWn}
 						{@const hasDraft = weekDrafts[wn]?.days.some((d) => d.length > 0)}
 						<button

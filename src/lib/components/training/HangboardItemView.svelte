@@ -253,7 +253,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as repIdx}
+								{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as repIdx (repIdx)}
 									<tr style="border-bottom: 1px solid var(--bd2);">
 										<td
 											style="padding: 6px 10px; font-weight: 700; color: var(--tx2); font-size: 12px;"

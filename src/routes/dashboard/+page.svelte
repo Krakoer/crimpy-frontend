@@ -223,7 +223,7 @@
 
 			<!-- Stat cards -->
 			<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-				{#each stats as s}
+				{#each stats as s (s.id)}
 					<button
 						onclick={() => goto(s.href)}
 						style="
@@ -268,7 +268,7 @@
 									Recent sessions
 								</h3>
 							</div>
-							{#each recentSessions as s, i}
+							{#each recentSessions as s, i (s.ID)}
 								<button
 									onclick={() => goto(`/coachees/${s.coachee.user_id}`)}
 									style="
@@ -328,7 +328,7 @@
 									All coachees
 								</button>
 							</div>
-							{#each coachees.slice(0, 8) as coachee, i}
+							{#each coachees.slice(0, 8) as coachee, i (coachee.user_id)}
 								<button
 									onclick={() => goto(`/coachees/${coachee.user_id}`)}
 									style="

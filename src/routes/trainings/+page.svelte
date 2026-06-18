@@ -136,7 +136,7 @@
 				>
 					All
 				</button>
-				{#each ALL_TYPES as t}
+				{#each ALL_TYPES as t (t)}
 					<button
 						onclick={() => (typeFilter = typeFilter === t ? null : t)}
 						style="

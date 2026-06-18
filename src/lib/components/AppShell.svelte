@@ -52,7 +52,7 @@
 							font-size: 11.5px; color: var(--tx3); margin-bottom: 4px;
 						"
 					>
-						{#each breadcrumbs as crumb, i}
+						{#each breadcrumbs as crumb, i (i)}
 							{#if i > 0}
 								<Icon name="chevron" size={11} color="var(--tx3)" />
 							{/if}

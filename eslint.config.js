@@ -37,8 +37,18 @@ export default defineConfig(
 		}
 	},
 	{
-		// Override or add rule settings here, such as:
-		// 'svelte/button-has-type': 'error'
-		rules: {}
+		rules: {
+			// Allow intentional placeholders (e.g. `(_, i)`) and unused catch bindings.
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }
+			],
+			// This SPA is served at its own domain with no base path, so the extra
+			// resolve() ceremony around goto()/href adds churn without benefit.
+			'svelte/no-navigation-without-resolve': 'off',
+			// Date/Map/Set here are local formatting helpers, not reactive state, so
+			// the Svelte* reactive variants are unnecessary.
+			'svelte/prefer-svelte-reactivity': 'off'
+		}
 	}
 );

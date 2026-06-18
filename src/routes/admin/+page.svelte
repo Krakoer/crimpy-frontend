@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { authStore } from '$lib/stores/auth.svelte';
-	import { goto } from '$app/navigation';
 	import { apiClient, type CoachResponse } from '$lib/api/client';
 	import AppShell from '$lib/components/AppShell.svelte';
 
@@ -51,11 +49,6 @@
 		} finally {
 			processingId = null;
 		}
-	}
-
-	function handleLogout() {
-		authStore.logout();
-		goto('/');
 	}
 
 	function formatDate(dateString: string): string {
