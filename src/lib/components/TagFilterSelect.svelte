@@ -64,7 +64,12 @@
 		role="button"
 		tabindex="0"
 		onclick={openDropdown}
-		onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDropdown(); } }}
+		onkeydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				openDropdown();
+			}
+		}}
 		style="
 			display: flex; min-height: 34px; width: 100%; cursor: pointer;
 			flex-wrap: wrap; align-items: center; gap: 4px;
@@ -91,8 +96,8 @@
 						color: rgba(255,255,255,0.8); font-size: 13px; line-height: 1;
 						display: flex; align-items: center;
 					"
-					aria-label="Remove {tag.name}"
-				>&times;</button>
+					aria-label="Remove {tag.name}">&times;</button
+				>
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
@@ -134,13 +139,21 @@
 						onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
 						onmouseleave={(e) => (e.currentTarget.style.background = 'none')}
 					>
-						<span style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 3px; background: {tag.color};"></span>
+						<span
+							style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 3px; background: {tag.color};"
+						></span>
 						<span>{tag.name}</span>
 					</button>
 				{/each}
 				{#if filtered.length === 0}
-					<p style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);">
-						{search.trim() ? 'No matching tags.' : selectedTags.length > 0 ? 'All tags applied.' : 'No tags yet.'}
+					<p
+						style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);"
+					>
+						{search.trim()
+							? 'No matching tags.'
+							: selectedTags.length > 0
+								? 'All tags applied.'
+								: 'No tags yet.'}
 					</p>
 				{/if}
 			</div>

@@ -10,7 +10,11 @@
 
 	let { id, disabled = false, children }: Props = $props();
 
-	const draggable = createDraggable({ get id() { return id; } });
+	const draggable = createDraggable({
+		get id() {
+			return id;
+		}
+	});
 </script>
 
 <div

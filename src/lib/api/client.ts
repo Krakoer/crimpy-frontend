@@ -156,7 +156,13 @@ export interface Load {
 	unit: LoadUnit;
 }
 
-export type TrainingItemType = 'repeater' | 'hangboard_rep' | 'free' | 'exercise' | 'circuit' | 'section';
+export type TrainingItemType =
+	| 'repeater'
+	| 'hangboard_rep'
+	| 'free'
+	| 'exercise'
+	| 'circuit'
+	| 'section';
 
 export interface TrainingItem {
 	id?: string;
@@ -554,9 +560,7 @@ class ApiClient {
 	}
 
 	async listWeeks(userId: string, programId: string): Promise<WeekSummary[]> {
-		return this.request<WeekSummary[]>(
-			`/api/coach/clients/${userId}/programs/${programId}/weeks`
-		);
+		return this.request<WeekSummary[]>(`/api/coach/clients/${userId}/programs/${programId}/weeks`);
 	}
 
 	async getWeek(userId: string, programId: string, weekNumber: number): Promise<WeekDetail> {

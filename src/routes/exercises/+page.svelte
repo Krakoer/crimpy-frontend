@@ -38,11 +38,23 @@
 
 	onMount(() => {
 		authStore.initialize();
-		if (!authStore.isAuthenticated) { goto('/'); return; }
-		if (!authStore.isEmailVerified) { goto('/verify-email'); return; }
-		if (!authStore.isValidatedCoach) { goto('/dashboard'); return; }
+		if (!authStore.isAuthenticated) {
+			goto('/');
+			return;
+		}
+		if (!authStore.isEmailVerified) {
+			goto('/verify-email');
+			return;
+		}
+		if (!authStore.isValidatedCoach) {
+			goto('/dashboard');
+			return;
+		}
 		loadExercises();
-		apiClient.getTags().then((tags) => (allTags = tags)).catch(() => {});
+		apiClient
+			.getTags()
+			.then((tags) => (allTags = tags))
+			.catch(() => {});
 	});
 
 	async function loadExercises() {
@@ -146,7 +158,9 @@
 		}
 	}
 
-	function closePanel() { panel = null; }
+	function closePanel() {
+		panel = null;
+	}
 
 	async function handleSave() {
 		if (!form.name.trim()) return;
@@ -161,7 +175,9 @@
 			};
 			if (panel === 'new') {
 				const exercise = await apiClient.createExercise(data);
-				await Promise.all(selectedTags.map((t) => apiClient.assignTagToExercise(exercise.id, t.id)));
+				await Promise.all(
+					selectedTags.map((t) => apiClient.assignTagToExercise(exercise.id, t.id))
+				);
 				snackbar.show('Exercise created');
 			} else if (panel && typeof panel === 'object') {
 				const exerciseId = panel.id;
@@ -170,13 +186,20 @@
 				const prevIds = new Set(prevTags.map((t) => t.id));
 				const newIds = new Set(selectedTags.map((t) => t.id));
 				await Promise.all([
-					...selectedTags.filter((t) => !prevIds.has(t.id)).map((t) => apiClient.assignTagToExercise(exerciseId, t.id)),
-					...prevTags.filter((t) => !newIds.has(t.id)).map((t) => apiClient.unassignTagFromExercise(exerciseId, t.id))
+					...selectedTags
+						.filter((t) => !prevIds.has(t.id))
+						.map((t) => apiClient.assignTagToExercise(exerciseId, t.id)),
+					...prevTags
+						.filter((t) => !newIds.has(t.id))
+						.map((t) => apiClient.unassignTagFromExercise(exerciseId, t.id))
 				]);
 				snackbar.show('Exercise saved');
 			}
 			await loadExercises();
-			apiClient.getTags().then((tags) => (allTags = tags)).catch(() => {});
+			apiClient
+				.getTags()
+				.then((tags) => (allTags = tags))
+				.catch(() => {});
 			closePanel();
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save exercise.';
@@ -224,10 +247,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<AppShell
-	title="Exercise library"
-	breadcrumbs={[{ label: 'Studio' }, { label: 'Exercises' }]}
->
+<AppShell title="Exercise library" breadcrumbs={[{ label: 'Studio' }, { label: 'Exercises' }]}>
 	{#snippet actions()}
 		<button
 			onclick={openCreate}
@@ -247,9 +267,7 @@
 		style="padding: 24px 32px 40px; display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: flex-start;"
 	>
 		<!-- Sidebar filter -->
-		<aside
-			style="position: sticky; top: 24px; display: flex; flex-direction: column; gap: 14px;"
-		>
+		<aside style="position: sticky; top: 24px; display: flex; flex-direction: column; gap: 14px;">
 			<!-- Category filters -->
 			<div
 				style="background: #fff; border: 1px solid var(--bd); border-radius: var(--rl); padding: 14px; box-shadow: var(--sh);"
@@ -340,7 +358,9 @@
 			</div>
 
 			{#if loading}
-				<div style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;">
+				<div
+					style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;"
+				>
 					<div
 						style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 					></div>
@@ -348,7 +368,13 @@
 				</div>
 			{:else if exercises.length === 0}
 				<div style="padding: 48px 0; text-align: center; color: var(--tx3); font-size: 13.5px;">
-					{favoritesOnly ? (search ? 'No favorites match your search.' : 'No favorites yet.') : (search ? 'No exercises match your search.' : 'No exercises yet. Create your first one.')}
+					{favoritesOnly
+						? search
+							? 'No favorites match your search.'
+							: 'No favorites yet.'
+						: search
+							? 'No exercises match your search.'
+							: 'No exercises yet. Create your first one.'}
 				</div>
 			{:else}
 				<div
@@ -369,7 +395,9 @@
 									font-family: var(--font);
 								"
 							>
-								<div style="font-size: 14px; font-weight: 600; color: var(--tx); margin-bottom: 2px;">
+								<div
+									style="font-size: 14px; font-weight: 600; color: var(--tx); margin-bottom: 2px;"
+								>
 									{exercise.name}
 								</div>
 								{#if exercise.description}
@@ -401,7 +429,12 @@
 									font-size: 12px; font-family: var(--font); font-weight: 600;
 								"
 							>
-								<Icon name="star" size={16} color={exercise.is_favorite ? 'var(--pr)' : 'var(--tx3)'} fill={exercise.is_favorite ? 'var(--pr)' : 'none'} />
+								<Icon
+									name="star"
+									size={16}
+									color={exercise.is_favorite ? 'var(--pr)' : 'var(--tx3)'}
+									fill={exercise.is_favorite ? 'var(--pr)' : 'none'}
+								/>
 							</button>
 						</div>
 					{/each}
@@ -452,16 +485,25 @@
 			>
 				<div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
 					<button
-						onclick={() => { if (viewExercise) toggleFavorite(viewExercise); }}
+						onclick={() => {
+							if (viewExercise) toggleFavorite(viewExercise);
+						}}
 						title={viewExercise?.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
 						style="
 							background: none; border: none; cursor: pointer; padding: 0;
 							display: flex; align-items: center; flex-shrink: 0;
 						"
 					>
-						<Icon name="star" size={20} color={viewExercise?.is_favorite ? 'var(--pr)' : 'var(--tx3)'} fill={viewExercise?.is_favorite ? 'var(--pr)' : 'none'} />
+						<Icon
+							name="star"
+							size={20}
+							color={viewExercise?.is_favorite ? 'var(--pr)' : 'var(--tx3)'}
+							fill={viewExercise?.is_favorite ? 'var(--pr)' : 'none'}
+						/>
 					</button>
-					<h2 style="font-size: 16px; font-weight: 700; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+					<h2
+						style="font-size: 16px; font-weight: 700; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+					>
 						{viewExercise.name}
 					</h2>
 				</div>
@@ -499,7 +541,9 @@
 						>
 							Execution notes
 						</div>
-						<p style="font-size: 13.5px; color: var(--tx); line-height: 1.5;">{viewExercise.comment}</p>
+						<p style="font-size: 13.5px; color: var(--tx); line-height: 1.5;">
+							{viewExercise.comment}
+						</p>
 					</div>
 				{/if}
 				{#if viewExercise.video_link}
@@ -531,7 +575,11 @@
 				"
 			>
 				<button
-					onclick={() => { const ex = viewExercise; viewExercise = null; if (ex) openEdit(ex); }}
+					onclick={() => {
+						const ex = viewExercise;
+						viewExercise = null;
+						if (ex) openEdit(ex);
+					}}
 					style="
 						flex: 1; padding: 9px 16px; border-radius: var(--rs);
 						background: var(--pr); color: #fff; border: 1px solid var(--pr);
@@ -595,7 +643,9 @@
 				</button>
 			</div>
 
-			<div style="flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;">
+			<div
+				style="flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;"
+			>
 				{#if saveError}
 					<div
 						style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
@@ -769,6 +819,8 @@
 
 <style>
 	@keyframes spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

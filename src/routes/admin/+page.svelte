@@ -69,12 +69,8 @@
 	}
 </script>
 
-<AppShell
-	title="Admin"
-	breadcrumbs={[{ label: 'Studio' }, { label: 'Admin' }]}
->
+<AppShell title="Admin" breadcrumbs={[{ label: 'Studio' }, { label: 'Admin' }]}>
 	<div style="padding: 24px 32px 40px; max-width: 1200px; margin: 0 auto;">
-
 		{#if error}
 			<div
 				class="mb-6 border-2 border-red-600 bg-red-50 p-4"

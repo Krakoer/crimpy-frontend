@@ -12,19 +12,32 @@
 
 	let { containerId, allowedTypes, onAdd }: Props = $props();
 
-	const droppable = createDroppable({ get id() { return containerId; } });
+	const droppable = createDroppable({
+		get id() {
+			return containerId;
+		}
+	});
 
 	let expanded = $state(false);
 	let showExerciseModal = $state(false);
 
 	const typeLabels: Record<string, string> = {
-		circuit: 'Circuit', section: 'Section', hangboard: 'Hangboard', exercise: 'Exercise'
+		circuit: 'Circuit',
+		section: 'Section',
+		hangboard: 'Hangboard',
+		exercise: 'Exercise'
 	};
 	const typeIcons: Record<string, string> = {
-		circuit: 'link', section: 'filter', hangboard: 'grip', exercise: 'dumbbell'
+		circuit: 'link',
+		section: 'filter',
+		hangboard: 'grip',
+		exercise: 'dumbbell'
 	};
 	const typeColors: Record<string, string> = {
-		exercise: 'var(--pr)', circuit: 'var(--pr)', section: 'var(--tx2)', hangboard: '#4A7C8C'
+		exercise: 'var(--pr)',
+		circuit: 'var(--pr)',
+		section: 'var(--tx2)',
+		hangboard: '#4A7C8C'
 	};
 
 	function handleTypeClick(type: TrainingItemType) {
@@ -62,11 +75,13 @@
 			Add item
 		</button>
 	{:else}
-		<div style="
+		<div
+			style="
 			padding: 10px 14px; border-radius: var(--rl);
 			border: 1px solid var(--bd); background: var(--panel2);
 			display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-		">
+		"
+		>
 			{#each allowedTypes as type}
 				<button
 					onclick={() => handleTypeClick(type)}
@@ -87,8 +102,8 @@
 				style="font-size: 11px; color: var(--tx3); cursor: pointer; margin-left: 4px;"
 				role="button"
 				tabindex="0"
-				onkeydown={(e) => e.key === 'Enter' && (expanded = false)}
-			>Cancel</span>
+				onkeydown={(e) => e.key === 'Enter' && (expanded = false)}>Cancel</span
+			>
 		</div>
 	{/if}
 </div>
@@ -96,6 +111,9 @@
 {#if showExerciseModal}
 	<SelectExerciseModal
 		onSelect={handleExerciseSelect}
-		onClose={() => { showExerciseModal = false; expanded = false; }}
+		onClose={() => {
+			showExerciseModal = false;
+			expanded = false;
+		}}
 	/>
 {/if}

@@ -10,7 +10,11 @@
 
 	let { id, disabled = false, children }: Props = $props();
 
-	const droppable = createDroppable({ get id() { return id; } });
+	const droppable = createDroppable({
+		get id() {
+			return id;
+		}
+	});
 </script>
 
 <div

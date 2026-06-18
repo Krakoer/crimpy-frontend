@@ -80,20 +80,24 @@
 	{#if depth === 0}
 		<div style="display: flex; gap: 8px; margin-bottom: 4px; padding: 0 4px; align-items: center;">
 			<span
-				onclick={() => { collapseSignals.expand++; }}
+				onclick={() => {
+					collapseSignals.expand++;
+				}}
 				style="font-size: 12px; color: var(--pr); font-weight: 600; cursor: pointer;"
 				role="button"
 				tabindex="0"
-				onkeydown={(e) => e.key === 'Enter' && collapseSignals.expand++}
-			>Expand all</span>
+				onkeydown={(e) => e.key === 'Enter' && collapseSignals.expand++}>Expand all</span
+			>
 			<span style="color: var(--tx3);">·</span>
 			<span
-				onclick={() => { collapseSignals.collapse++; }}
+				onclick={() => {
+					collapseSignals.collapse++;
+				}}
 				style="font-size: 12px; color: var(--tx3); font-weight: 600; cursor: pointer;"
 				role="button"
 				tabindex="0"
-				onkeydown={(e) => e.key === 'Enter' && collapseSignals.collapse++}
-			>Collapse all</span>
+				onkeydown={(e) => e.key === 'Enter' && collapseSignals.collapse++}>Collapse all</span
+			>
 			<div style="flex: 1;"></div>
 			<span style="font-size: 12px; color: var(--tx3);">{items.length} blocks</span>
 		</div>
@@ -102,9 +106,18 @@
 	{#each items as item, i (item._id)}
 		<SortableWrapper id={item._id!} group={containerId} index={i}>
 			{#if item.type === 'exercise'}
-				<ExerciseItem bind:item={items[i]} {exercises} onRemove={() => removeItem(i)} onDuplicate={() => duplicateItem(i)} />
+				<ExerciseItem
+					bind:item={items[i]}
+					{exercises}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
 			{:else if item.type === 'repeater'}
-				<HangboardItem bind:item={items[i]} onRemove={() => removeItem(i)} onDuplicate={() => duplicateItem(i)} />
+				<HangboardItem
+					bind:item={items[i]}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
 			{:else if item.type === 'circuit'}
 				<CircuitItem
 					bind:item={items[i]}

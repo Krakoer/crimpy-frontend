@@ -67,7 +67,12 @@
 
 			if (users.length > 0) {
 				const allSessions = await Promise.all(
-					users.map((u) => apiClient.getClientSessions(u.user_id).then((ss) => ss.map((s) => ({ ...s, coachee: u }))).catch(() => []))
+					users.map((u) =>
+						apiClient
+							.getClientSessions(u.user_id)
+							.then((ss) => ss.map((s) => ({ ...s, coachee: u })))
+							.catch(() => [])
+					)
 				);
 				const flat = allSessions.flat();
 				const now = new Date();
@@ -127,9 +132,30 @@
 	}
 
 	const stats = $derived([
-		{ id: 'coachees', label: 'Active coachees', value: coacheesCount, icon: 'users', color: 'var(--pr)', href: '/coachees' },
-		{ id: 'trainings', label: 'Trainings built', value: trainingsCount, icon: 'calendar', color: 'var(--gd)', href: '/trainings' },
-		{ id: 'exercises', label: 'Exercise library', value: exercisesCount, icon: 'dumbbell', color: 'var(--gn)', href: '/exercises' }
+		{
+			id: 'coachees',
+			label: 'Active coachees',
+			value: coacheesCount,
+			icon: 'users',
+			color: 'var(--pr)',
+			href: '/coachees'
+		},
+		{
+			id: 'trainings',
+			label: 'Trainings built',
+			value: trainingsCount,
+			icon: 'calendar',
+			color: 'var(--gd)',
+			href: '/trainings'
+		},
+		{
+			id: 'exercises',
+			label: 'Exercise library',
+			value: exercisesCount,
+			icon: 'dumbbell',
+			color: 'var(--gn)',
+			href: '/exercises'
+		}
 	]);
 </script>
 
@@ -232,100 +258,120 @@
 			<!-- Recent sessions + coachees side by side -->
 			{#if !loadingCoachees && (recentSessions.length > 0 || coachees.length > 0)}
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start;">
-
 					<!-- Recent sessions -->
 					{#if recentSessions.length > 0}
-					<div
-						style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
-					>
-						<div style="padding: 16px 20px 12px; border-bottom: 1px solid var(--bd2);">
-							<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">Recent sessions</h3>
-						</div>
-						{#each recentSessions as s, i}
-							<button
-								onclick={() => goto(`/coachees/${s.coachee.user_id}`)}
-								style="
+						<div
+							style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
+						>
+							<div style="padding: 16px 20px 12px; border-bottom: 1px solid var(--bd2);">
+								<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">
+									Recent sessions
+								</h3>
+							</div>
+							{#each recentSessions as s, i}
+								<button
+									onclick={() => goto(`/coachees/${s.coachee.user_id}`)}
+									style="
 									display: flex; align-items: center; gap: 12px;
 									padding: 10px 16px; width: 100%; text-align: left;
 									border-bottom: {i < recentSessions.length - 1 ? '1px solid var(--bd2)' : 'none'};
 									background: none; border-top: none; border-left: none; border-right: none;
 									cursor: pointer; font-family: var(--font);
 								"
-							>
-								<div
-									style="
+								>
+									<div
+										style="
 										width: 30px; height: 30px; border-radius: 50%;
 										background: var(--pr-lt); color: var(--pr);
 										display: flex; align-items: center; justify-content: center;
 										font-size: 11px; font-weight: 600; flex-shrink: 0;
 									"
-								>
-									{(s.coachee.user_firstname?.[0] ?? '').toUpperCase()}{(s.coachee.user_lastname?.[0] ?? '').toUpperCase()}
-								</div>
-								<div style="flex: 1; min-width: 0;">
-									<div style="font-size: 12.5px; font-weight: 600; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-										{s.coachee.user_firstname} {s.coachee.user_lastname}
+									>
+										{(s.coachee.user_firstname?.[0] ?? '').toUpperCase()}{(
+											s.coachee.user_lastname?.[0] ?? ''
+										).toUpperCase()}
 									</div>
-									<div style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{s.Name || 'Training session'}</div>
-								</div>
-								<div style="font-size: 11.5px; color: var(--tx3); white-space: nowrap;">{formatDate(s.Date)}</div>
-							</button>
-						{/each}
-					</div>
+									<div style="flex: 1; min-width: 0;">
+										<div
+											style="font-size: 12.5px; font-weight: 600; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+										>
+											{s.coachee.user_firstname}
+											{s.coachee.user_lastname}
+										</div>
+										<div
+											style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+										>
+											{s.Name || 'Training session'}
+										</div>
+									</div>
+									<div style="font-size: 11.5px; color: var(--tx3); white-space: nowrap;">
+										{formatDate(s.Date)}
+									</div>
+								</button>
+							{/each}
+						</div>
 					{/if}
 
 					<!-- Coachees quick list -->
 					{#if coachees.length > 0}
-					<div
-						style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
-					>
 						<div
-							style="padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--bd2);"
+							style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
 						>
-							<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">Coachees</h3>
-							<button
-								onclick={() => goto('/coachees')}
-								style="font-size: 12.5px; color: var(--pr); font-weight: 600; cursor: pointer; background: none; border: none; font-family: var(--font);"
+							<div
+								style="padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--bd2);"
 							>
-								All coachees
-							</button>
-						</div>
-						{#each coachees.slice(0, 8) as coachee, i}
-							<button
-								onclick={() => goto(`/coachees/${coachee.user_id}`)}
-								style="
+								<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">Coachees</h3>
+								<button
+									onclick={() => goto('/coachees')}
+									style="font-size: 12.5px; color: var(--pr); font-weight: 600; cursor: pointer; background: none; border: none; font-family: var(--font);"
+								>
+									All coachees
+								</button>
+							</div>
+							{#each coachees.slice(0, 8) as coachee, i}
+								<button
+									onclick={() => goto(`/coachees/${coachee.user_id}`)}
+									style="
 									display: flex; align-items: center; gap: 12px;
 									padding: 10px 16px; width: 100%; text-align: left;
 									border-bottom: {i < Math.min(coachees.length, 8) - 1 ? '1px solid var(--bd2)' : 'none'};
 									background: none; border-top: none; border-left: none; border-right: none;
 									cursor: pointer; font-family: var(--font);
 								"
-							>
-								<div
-									style="
+								>
+									<div
+										style="
 										width: 30px; height: 30px; border-radius: 50%;
 										background: var(--pr); color: #fff;
 										display: flex; align-items: center; justify-content: center;
 										font-size: 11px; font-weight: 600; flex-shrink: 0;
 									"
-							>
-									{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(coachee.user_lastname?.[0] ?? '').toUpperCase()}
-								</div>
-								<div style="flex: 1; min-width: 0;">
-									<div style="font-size: 12.5px; font-weight: 600; color: var(--tx);">{coachee.user_firstname} {coachee.user_lastname}</div>
-									<div style="font-size: 11.5px; color: var(--tx3);">{coachee.user_email ?? ''}</div>
-								</div>
-								<Icon name="chevron" size={16} color="var(--tx3)" />
-							</button>
-						{/each}
-					</div>
+									>
+										{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(
+											coachee.user_lastname?.[0] ?? ''
+										).toUpperCase()}
+									</div>
+									<div style="flex: 1; min-width: 0;">
+										<div style="font-size: 12.5px; font-weight: 600; color: var(--tx);">
+											{coachee.user_firstname}
+											{coachee.user_lastname}
+										</div>
+										<div style="font-size: 11.5px; color: var(--tx3);">
+											{coachee.user_email ?? ''}
+										</div>
+									</div>
+									<Icon name="chevron" size={16} color="var(--tx3)" />
+								</button>
+							{/each}
+						</div>
 					{/if}
-
 				</div>
 			{/if}
 
 			{#if loadingCoachees}
-				<div style="display: flex; align-items: center; gap: 12px; padding: 24px 0; color: var(--tx3); font-size: 13px;">
+				<div
+					style="display: flex; align-items: center; gap: 12px; padding: 24px 0; color: var(--tx3); font-size: 13px;"
+				>
 					<div
 						style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 					></div>
@@ -336,10 +382,7 @@
 	</AppShell>
 {:else}
 	<!-- User (non-coach) view -->
-	<AppShell
-		title="Dashboard"
-		breadcrumbs={[{ label: 'Studio' }, { label: 'Dashboard' }]}
-	>
+	<AppShell title="Dashboard" breadcrumbs={[{ label: 'Studio' }, { label: 'Dashboard' }]}>
 		<div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px;">
 			<!-- User info card -->
 			<div
@@ -370,9 +413,7 @@
 			<div
 				style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); padding: 24px; box-shadow: var(--sh);"
 			>
-				<div
-					style="font-size: 14px; font-weight: 700; color: var(--tx); margin-bottom: 16px;"
-				>
+				<div style="font-size: 14px; font-weight: 700; color: var(--tx); margin-bottom: 16px;">
 					My coach
 				</div>
 
@@ -385,16 +426,16 @@
 				{/if}
 
 				{#if loadingEnrollment}
-					<div style="display: flex; align-items: center; gap: 10px; color: var(--tx3); font-size: 13px; padding: 8px 0;">
+					<div
+						style="display: flex; align-items: center; gap: 10px; color: var(--tx3); font-size: 13px; padding: 8px 0;"
+					>
 						<div
 							style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 						></div>
 						Loading...
 					</div>
 				{:else if !userEnrollment}
-					<p style="font-size: 13.5px; color: var(--tx3);">
-						You are not enrolled with any coach.
-					</p>
+					<p style="font-size: 13.5px; color: var(--tx3);">You are not enrolled with any coach.</p>
 				{:else}
 					<div
 						style="margin-bottom: 16px; border: 1px solid var(--bd); background: var(--panel2); border-radius: var(--rs); padding: 16px;"

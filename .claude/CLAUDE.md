@@ -34,6 +34,7 @@ Crimpy is a climbing training platform composed of a flutter app that connects t
 **Alpine design system** — warm, friendly, desktop-first.
 
 Font: Figtree (Google Fonts, loaded in `app.html`). CSS variables defined in `layout.css`:
+
 - Canvas: `--bg: #f5efe6`, panels: `--panel: #fff`, `--panel2: #faf6ef`
 - Borders: `--bd: #e8e0d6`, `--bd2: #f0eadf`
 - Text: `--tx: #2d241d`, `--tx2: #7a6e62`, `--tx3: #b0a496`
@@ -75,6 +76,7 @@ Single `ApiClient` class exported as `apiClient`. All HTTP calls go through the 
 ### Routing
 
 File-based SvelteKit routing. Every route pair:
+
 - `+page.ts` -- `ssr = false`, auth guard via `authStore.verifyUser()`, returns typed params
 - `+page.svelte` -- receives `data` via `$props()`, calls `authStore.initialize()` in `onMount`
 
@@ -87,6 +89,7 @@ Navigation uses `goto()` from `$app/navigation`. Protected pages wrap their cont
 ### Drag-and-drop (`@dnd-kit/svelte`)
 
 Used in the training editor. Key patterns:
+
 - Wrap the interactive area in `<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>`.
 - `PointerSensor.configure({ activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })] })` prevents accidental drags on clicks.
 - **Source items** (sidebar): `createDraggable({ id })` with `{@attach draggable.attach}`. IDs prefixed with `__new__:<type>:<extraData>` signal "create new" in `onDragEnd`.

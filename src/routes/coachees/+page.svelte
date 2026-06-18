@@ -3,7 +3,12 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { EnrolledUser, EnrollmentTokenResponse, SessionResponse, Program } from '$lib/api/client';
+	import type {
+		EnrolledUser,
+		EnrollmentTokenResponse,
+		SessionResponse,
+		Program
+	} from '$lib/api/client';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -12,7 +17,10 @@
 		activeProgram: string | null;
 	};
 
-	function programStatus(startDate: string, durationWeeks?: number): 'upcoming' | 'active' | 'completed' {
+	function programStatus(
+		startDate: string,
+		durationWeeks?: number
+	): 'upcoming' | 'active' | 'completed' {
 		const diffMs = Date.now() - new Date(startDate).getTime();
 		if (diffMs < 0) return 'upcoming';
 		const week = Math.ceil(diffMs / (7 * 86400000));
@@ -57,17 +65,22 @@
 			loading = false;
 		}
 		if (coachees.length > 0) {
-			await Promise.all(coachees.map(async (c) => {
-				const [sessions, programs] = await Promise.all([
-					apiClient.getClientSessions(c.user_id).catch(() => [] as SessionResponse[]),
-					apiClient.listPrograms(c.user_id).catch(() => [] as Program[])
-				]);
-				const sorted = sessions.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
-				const lastActivity = sorted[0]?.Date ?? null;
-				const active = programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active')
-					?? programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');
-				extras[c.user_id] = { lastActivity, activeProgram: active?.name ?? null };
-			}));
+			await Promise.all(
+				coachees.map(async (c) => {
+					const [sessions, programs] = await Promise.all([
+						apiClient.getClientSessions(c.user_id).catch(() => [] as SessionResponse[]),
+						apiClient.listPrograms(c.user_id).catch(() => [] as Program[])
+					]);
+					const sorted = sessions.sort(
+						(a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()
+					);
+					const lastActivity = sorted[0]?.Date ?? null;
+					const active =
+						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active') ??
+						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');
+					extras[c.user_id] = { lastActivity, activeProgram: active?.name ?? null };
+				})
+			);
 		}
 	});
 
@@ -85,19 +98,21 @@
 
 	async function handleCopyLink() {
 		if (!enrollmentToken) return;
-		await navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollmentToken.token}`);
+		await navigator.clipboard.writeText(
+			`${window.location.origin}/enroll/${enrollmentToken.token}`
+		);
 		copyConfirmed = true;
 		setTimeout(() => (copyConfirmed = false), 2000);
 	}
 </script>
 
-<AppShell
-	title="Coachees"
-	breadcrumbs={[{ label: 'Studio' }, { label: 'Coachees' }]}
->
+<AppShell title="Coachees" breadcrumbs={[{ label: 'Studio' }, { label: 'Coachees' }]}>
 	{#snippet actions()}
 		<button
-			onclick={() => { showEnrollmentPanel = !showEnrollmentPanel; if (showEnrollmentPanel && !enrollmentToken) handleGenerateToken(); }}
+			onclick={() => {
+				showEnrollmentPanel = !showEnrollmentPanel;
+				if (showEnrollmentPanel && !enrollmentToken) handleGenerateToken();
+			}}
 			style="
 				display: inline-flex; align-items: center; gap: 7px;
 				padding: 6px 12px; border-radius: var(--rs);
@@ -113,7 +128,6 @@
 	{/snippet}
 
 	<div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 16px;">
-
 		<!-- Enrollment panel -->
 		{#if showEnrollmentPanel}
 			<div
@@ -154,9 +168,7 @@
 							overflow: hidden;
 						"
 					>
-						<span
-							style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-						>
+						<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
 							{window.location.origin}/enroll/{enrollmentToken.token}
 						</span>
 						<button
@@ -238,7 +250,9 @@
 			</div>
 
 			{#if loading}
-				<div style="display: flex; align-items: center; gap: 12px; padding: 24px 20px; color: var(--tx3); font-size: 13px;">
+				<div
+					style="display: flex; align-items: center; gap: 12px; padding: 24px 20px; color: var(--tx3); font-size: 13px;"
+				>
 					<div
 						style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 					></div>
@@ -274,17 +288,34 @@
 									font-size: 12px; font-weight: 600; flex-shrink: 0;
 								"
 							>
-								{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(coachee.user_lastname?.[0] ?? '').toUpperCase()}
+								{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(
+									coachee.user_lastname?.[0] ?? ''
+								).toUpperCase()}
 							</div>
-							<div style="font-weight: 600; font-size: 13.5px;">{coachee.user_firstname} {coachee.user_lastname}</div>
+							<div style="font-weight: 600; font-size: 13.5px;">
+								{coachee.user_firstname}
+								{coachee.user_lastname}
+							</div>
 						</div>
-						<div style="color: var(--tx2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+						<div
+							style="color: var(--tx2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+						>
 							{coachee.user_email ?? ''}
 						</div>
-						<div style="font-size: 12.5px; color: {extra?.lastActivity ? 'var(--tx2)' : 'var(--tx3)'};">
-							{extra === undefined ? '...' : (extra.lastActivity ? formatDateShort(extra.lastActivity) : '-')}
+						<div
+							style="font-size: 12.5px; color: {extra?.lastActivity ? 'var(--tx2)' : 'var(--tx3)'};"
+						>
+							{extra === undefined
+								? '...'
+								: extra.lastActivity
+									? formatDateShort(extra.lastActivity)
+									: '-'}
 						</div>
-						<div style="font-size: 12.5px; color: {extra?.activeProgram ? 'var(--tx)' : 'var(--tx3)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+						<div
+							style="font-size: 12.5px; color: {extra?.activeProgram
+								? 'var(--tx)'
+								: 'var(--tx3)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+						>
 							{extra === undefined ? '...' : (extra.activeProgram ?? '-')}
 						</div>
 						<div style="display: flex; justify-content: flex-end;">
@@ -295,7 +326,9 @@
 			{/if}
 		</div>
 
-		<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px;">
+		<div
+			style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px;"
+		>
 			<div style="font-size: 12.5px; color: var(--tx3);">
 				{filtered.length} of {coachees.length} coachees
 			</div>

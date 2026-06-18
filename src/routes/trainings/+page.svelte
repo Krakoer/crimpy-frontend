@@ -42,9 +42,18 @@
 
 	onMount(() => {
 		authStore.initialize();
-		if (!authStore.isAuthenticated) { goto('/'); return; }
-		if (!authStore.isEmailVerified) { goto('/verify-email'); return; }
-		if (!authStore.isValidatedCoach) { goto('/dashboard'); return; }
+		if (!authStore.isAuthenticated) {
+			goto('/');
+			return;
+		}
+		if (!authStore.isEmailVerified) {
+			goto('/verify-email');
+			return;
+		}
+		if (!authStore.isValidatedCoach) {
+			goto('/dashboard');
+			return;
+		}
 		loadTrainings();
 	});
 
@@ -73,7 +82,11 @@
 	}
 
 	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+		return new Date(iso).toLocaleDateString('en-GB', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		});
 	}
 
 	function typeInfo(t: TrainingSummary): TypeInfo {
@@ -81,10 +94,7 @@
 	}
 </script>
 
-<AppShell
-	title="Trainings"
-	breadcrumbs={[{ label: 'Studio' }, { label: 'Trainings' }]}
->
+<AppShell title="Trainings" breadcrumbs={[{ label: 'Studio' }, { label: 'Trainings' }]}>
 	{#snippet actions()}
 		<button
 			onclick={() => goto('/trainings/new')}
@@ -101,7 +111,6 @@
 	{/snippet}
 
 	<div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px;">
-
 		{#if deleteError}
 			<div
 				style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
@@ -195,7 +204,9 @@
 		</div>
 
 		{#if loading}
-			<div style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;">
+			<div
+				style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;"
+			>
 				<div
 					style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
 				></div>
@@ -230,7 +241,9 @@
 					{@const tc = typeInfo(training)}
 					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
-						onclick={(e) => { if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`); }}
+						onclick={(e) => {
+							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
+						}}
 						style="
 							background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 							box-shadow: var(--sh); overflow: hidden; position: relative;
@@ -240,8 +253,12 @@
 						onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
 					>
 						<div style="height: 4px; background: {tc.bg};"></div>
-						<div style="padding: 16px 18px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
-							<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+						<div
+							style="padding: 16px 18px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px;"
+						>
+							<div
+								style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;"
+							>
 								<span
 									style="
 										display: inline-flex; align-items: center;
@@ -293,7 +310,9 @@
 								</div>
 							</div>
 
-							<div style="font-size: 15.5px; font-weight: 700; color: var(--tx); letter-spacing: -0.01em; line-height: 1.25;">
+							<div
+								style="font-size: 15.5px; font-weight: 700; color: var(--tx); letter-spacing: -0.01em; line-height: 1.25;"
+							>
 								{training.title}
 							</div>
 
@@ -306,7 +325,9 @@
 							{/if}
 
 							<div style="height: 1px; background: var(--bd2);"></div>
-							<div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--tx3);">
+							<div
+								style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--tx3);"
+							>
 								<span style="display: inline-flex; align-items: center; gap: 4px;">
 									<Icon name="clock" size={12} color="var(--tx3)" />
 									Created {formatDate(training.created_at)}
@@ -338,7 +359,9 @@
 						<Icon name="plus" size={20} color="var(--pr)" />
 					</div>
 					<div style="font-size: 13.5px; font-weight: 600;">Create a training</div>
-					<div style="font-size: 11.5px; color: var(--pr); opacity: 0.7; text-align: center; max-width: 180px;">
+					<div
+						style="font-size: 11.5px; color: var(--pr); opacity: 0.7; text-align: center; max-width: 180px;"
+					>
 						Build from scratch or start from a template.
 					</div>
 				</button>
@@ -352,7 +375,9 @@
 					{@const tc = typeInfo(training)}
 					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
-						onclick={(e) => { if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`); }}
+						onclick={(e) => {
+							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
+						}}
 						style="
 							display: grid; grid-template-columns: 48px 1.6fr 1fr 1fr 1fr 40px;
 							align-items: center; gap: 14px; padding: 14px 20px; cursor: pointer;
@@ -372,7 +397,9 @@
 							{tc.initials}
 						</div>
 						<div style="font-family: var(--font);">
-							<div style="font-size: 14px; font-weight: 600; color: var(--tx);">{training.title}</div>
+							<div style="font-size: 14px; font-weight: 600; color: var(--tx);">
+								{training.title}
+							</div>
 							{#if training.description}
 								<div
 									style="font-size: 12px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch;"
@@ -393,7 +420,9 @@
 								{tc.label}
 							</span>
 						</div>
-						<div style="font-size: 12.5px; color: var(--tx2);">Created {formatDate(training.created_at)}</div>
+						<div style="font-size: 12.5px; color: var(--tx2);">
+							Created {formatDate(training.created_at)}
+						</div>
 						<div>
 							{#if confirmDeleteId === training.id}
 								<div style="display: flex; gap: 4px;">
@@ -453,6 +482,8 @@
 
 <style>
 	@keyframes spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

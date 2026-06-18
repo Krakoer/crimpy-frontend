@@ -25,7 +25,7 @@
 				font-size: 14px; line-height: 1; opacity: 0.5;
 				color: inherit; font-family: var(--font);
 			"
-			aria-label="Dismiss"
-		>x</button>
+			aria-label="Dismiss">x</button
+		>
 	</div>
 {/if}

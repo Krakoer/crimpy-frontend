@@ -57,7 +57,9 @@
 		return parts.join(' · ');
 	});
 
-	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(COLLAPSE_KEY);
+	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(
+		COLLAPSE_KEY
+	);
 
 	$effect(() => {
 		if (collapseSignals?.collapse) collapsed = true;
@@ -68,38 +70,61 @@
 	});
 </script>
 
-<div style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;">
+<div
+	style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
+>
 	<div
-		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed ? '#fff' : 'var(--panel2)'};"
+		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed
+			? '#fff'
+			: 'var(--panel2)'};"
 		onclick={() => (collapsed = !collapsed)}
 		role="button"
 		tabindex="0"
 		onkeydown={(e) => e.key === 'Enter' && (collapsed = !collapsed)}
 	>
-		<div style="width: 4px; height: 20px; background: var(--pr); border-radius: 2px; flex-shrink: 0;"></div>
-		<div style="transform: {collapsed ? 'rotate(0deg)' : 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;">
+		<div
+			style="width: 4px; height: 20px; background: var(--pr); border-radius: 2px; flex-shrink: 0;"
+		></div>
+		<div
+			style="transform: {collapsed
+				? 'rotate(0deg)'
+				: 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;"
+		>
 			<Icon name="chevron" size={12} color="var(--tx3)" />
 		</div>
-		<span style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden;">
-			<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{exerciseName}</span>
+		<span
+			style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden;"
+		>
+			<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+				>{exerciseName}</span
+			>
 			{#if collapsed && collapsedSummary}
-				<span style="font-size: 11px; color: var(--tx3); font-weight: 500; flex-shrink: 0;">{collapsedSummary}</span>
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 500; flex-shrink: 0;"
+					>{collapsedSummary}</span
+				>
 			{/if}
 		</span>
 	</div>
 
 	{#if !collapsed}
-		<div style="padding: 12px 18px; border-top: 1px solid var(--bd2); display: flex; gap: 24px; flex-wrap: wrap;">
+		<div
+			style="padding: 12px 18px; border-top: 1px solid var(--bd2); display: flex; gap: 24px; flex-wrap: wrap;"
+		>
 			<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">{isDuration ? 'DURATION' : 'REPS'}</span>
+				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+					>{isDuration ? 'DURATION' : 'REPS'}</span
+				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-					{isDuration ? fmtTime(item.duration ?? 0) : item.reps ?? 1}
+					{isDuration ? fmtTime(item.duration ?? 0) : (item.reps ?? 1)}
 				</span>
 			</div>
 
 			{#if item.loads && item.loads.length > 0}
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">LOAD</span>
+					<span
+						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						>LOAD</span
+					>
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
 						{fmtLoad(item.loads[0].value, item.loads[0].unit)}
 					</span>
@@ -107,7 +132,9 @@
 			{/if}
 
 			<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">REST</span>
+				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+					>REST</span
+				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
 					{fmtTime(item.rest_seconds ?? 0)}
 				</span>
@@ -116,8 +143,13 @@
 
 		{#if item.comment?.trim()}
 			<div style="padding: 0 18px 12px;">
-				<div style="padding: 8px 12px; background: var(--pr-fog); border-left: 3px solid var(--pr); border-radius: 0 var(--rs) var(--rs) 0;">
-					<span style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;">{item.comment}</span>
+				<div
+					style="padding: 8px 12px; background: var(--pr-fog); border-left: 3px solid var(--pr); border-radius: 0 var(--rs) var(--rs) 0;"
+				>
+					<span
+						style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;"
+						>{item.comment}</span
+					>
 				</div>
 			</div>
 		{/if}

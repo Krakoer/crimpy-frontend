@@ -37,7 +37,9 @@
 				video_link: videoLink.trim() || undefined
 			});
 			if (selectedTags.length > 0) {
-				await Promise.all(selectedTags.map((t) => apiClient.assignTagToExercise(exercise.id, t.id)));
+				await Promise.all(
+					selectedTags.map((t) => apiClient.assignTagToExercise(exercise.id, t.id))
+				);
 				exercise.tags = selectedTags;
 			}
 			snackbar.show('Exercise created');
@@ -84,8 +86,8 @@
 					border: 1px solid var(--bd); background: #fff;
 					cursor: pointer; font-size: 16px; color: var(--tx2);
 				"
-				aria-label="Close"
-			>x</button>
+				aria-label="Close">x</button
+			>
 		</div>
 
 		<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;">
@@ -184,14 +186,13 @@
 				>
 					Tags
 				</p>
-				<TagSelect
-					selectedTags={selectedTags}
-					onchange={(tags) => (selectedTags = tags)}
-				/>
+				<TagSelect {selectedTags} onchange={(tags) => (selectedTags = tags)} />
 			</div>
 		</div>
 
-		<div style="display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--bd); border-radius: 0 0 var(--rl) var(--rl);">
+		<div
+			style="display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--bd); border-radius: 0 0 var(--rl) var(--rl);"
+		>
 			<button
 				onclick={handleSave}
 				disabled={saving || !name.trim()}

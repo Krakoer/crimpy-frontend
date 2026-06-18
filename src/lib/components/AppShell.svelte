@@ -68,9 +68,7 @@
 									{crumb.label}
 								</button>
 							{:else}
-								<span
-									style="color: {i === breadcrumbs.length - 1 ? 'var(--tx2)' : 'var(--tx3)'};"
-								>
+								<span style="color: {i === breadcrumbs.length - 1 ? 'var(--tx2)' : 'var(--tx3)'};">
 									{crumb.label}
 								</span>
 							{/if}

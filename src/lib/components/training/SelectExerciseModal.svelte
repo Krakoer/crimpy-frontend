@@ -105,7 +105,11 @@
 	}
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} />
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key === 'Escape') onClose();
+	}}
+/>
 
 <div
 	style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.4);"
@@ -135,8 +139,8 @@
 					border: 1px solid var(--bd); background: #fff;
 					cursor: pointer; font-size: 16px; color: var(--tx2);
 				"
-				aria-label="Close"
-			>x</button>
+				aria-label="Close">x</button
+			>
 		</div>
 
 		<div
@@ -173,27 +177,33 @@
 					cursor: pointer;
 				"
 			>
-				<Icon name="star" size={15} color={favoritesOnly ? 'var(--pr)' : 'var(--tx3)'} fill={favoritesOnly ? 'var(--pr)' : 'none'} />
+				<Icon
+					name="star"
+					size={15}
+					color={favoritesOnly ? 'var(--pr)' : 'var(--tx3)'}
+					fill={favoritesOnly ? 'var(--pr)' : 'none'}
+				/>
 			</button>
 		</div>
 
 		<div style="padding: 10px 16px; border-bottom: 1px solid var(--bd2); flex-shrink: 0;">
-			<TagFilterSelect
-				selectedTags={filterTags}
-				onchange={handleTagsChange}
-			/>
+			<TagFilterSelect selectedTags={filterTags} onchange={handleTagsChange} />
 		</div>
 
 		<div style="flex: 1; overflow-y: auto;">
 			{#if loading}
-				<div style="display: flex; align-items: center; gap: 10px; padding: 24px 16px; color: var(--tx3); font-size: 13px; font-family: var(--font);">
+				<div
+					style="display: flex; align-items: center; gap: 10px; padding: 24px 16px; color: var(--tx3); font-size: 13px; font-family: var(--font);"
+				>
 					<div
 						style="width: 14px; height: 14px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"
 					></div>
 					Loading...
 				</div>
 			{:else if exercises.length === 0}
-				<p style="padding: 24px 16px; font-size: 13px; color: var(--tx3); font-family: var(--font);">
+				<p
+					style="padding: 24px 16px; font-size: 13px; color: var(--tx3); font-family: var(--font);"
+				>
 					No exercises found.
 				</p>
 			{:else}
@@ -210,12 +220,19 @@
 					>
 						<div style="font-size: 13.5px; font-weight: 600; color: var(--tx);">{ex.name}</div>
 						{#if ex.description}
-							<div style="font-size: 12px; color: var(--tx3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ex.description}</div>
+							<div
+								style="font-size: 12px; color: var(--tx3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+							>
+								{ex.description}
+							</div>
 						{/if}
 						{#if ex.tags?.length}
 							<div style="margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px;">
 								{#each ex.tags as tag (tag.id)}
-									<span style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: #fff; background: {tag.color};">{tag.name}</span>
+									<span
+										style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: #fff; background: {tag.color};"
+										>{tag.name}</span
+									>
 								{/each}
 							</div>
 						{/if}
@@ -244,6 +261,8 @@
 
 <style>
 	@keyframes spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

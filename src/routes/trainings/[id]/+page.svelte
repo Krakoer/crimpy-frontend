@@ -4,7 +4,14 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import type { TrainingRequest, Exercise, Tag, TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
+	import type {
+		TrainingRequest,
+		Exercise,
+		Tag,
+		TrainingItem,
+		TrainingItemType,
+		TrainingType
+	} from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import TrainingPreview from '$lib/components/training/TrainingPreview.svelte';
@@ -42,11 +49,20 @@
 
 	type FindResult = { container: TrainingItem[]; containerId: string; index: number };
 
-	function findItemInTree(treeItems: TrainingItem[], targetId: string, cid = 'root'): FindResult | null {
+	function findItemInTree(
+		treeItems: TrainingItem[],
+		targetId: string,
+		cid = 'root'
+	): FindResult | null {
 		for (let i = 0; i < treeItems.length; i++) {
-			if (treeItems[i]._id === targetId) return { container: treeItems, containerId: cid, index: i };
+			if (treeItems[i]._id === targetId)
+				return { container: treeItems, containerId: cid, index: i };
 			if (treeItems[i].items) {
-				const found = findItemInTree(treeItems[i].items!, targetId, 'container:' + treeItems[i]._id!);
+				const found = findItemInTree(
+					treeItems[i].items!,
+					targetId,
+					'container:' + treeItems[i]._id!
+				);
 				if (found) return found;
 			}
 		}
@@ -80,7 +96,8 @@
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (draft.training_type === 'stretching') {
 			if (movedItem.type === 'section' || movedItem.type === 'repeater') return false;
-			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return false;
+			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit'))
+				return false;
 		}
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
@@ -157,7 +174,10 @@
 		}
 	}
 
-	function onDragEnd(event: { canceled: boolean; operation: { source: unknown; target: unknown } }) {
+	function onDragEnd(event: {
+		canceled: boolean;
+		operation: { source: unknown; target: unknown };
+	}) {
 		if (event.canceled) {
 			if (itemsSnapshot) draft.items = itemsSnapshot as typeof draft.items;
 			itemsSnapshot = null;
@@ -200,26 +220,38 @@
 		}
 	}
 
-	const dndSensors = [PointerSensor.configure({
-		activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
-	})];
+	const dndSensors = [
+		PointerSensor.configure({
+			activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
+		})
+	];
 
 	let trainingId = $derived($page.params.id as string);
 
 	const TYPE_COLORS: Record<TrainingType, string> = {
-		workout: 'var(--pr)', climbing: 'var(--gd)', stretching: 'var(--gn)'
+		workout: 'var(--pr)',
+		climbing: 'var(--gd)',
+		stretching: 'var(--gn)'
 	};
 	const TYPE_LABELS: Record<TrainingType, string> = {
-		workout: 'Workout', climbing: 'Climbing', stretching: 'Stretching'
+		workout: 'Workout',
+		climbing: 'Climbing',
+		stretching: 'Stretching'
 	};
 
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<TrainingRequest>({ title: '', description: '', training_type: 'workout', goal: '', comment: '', items: [] });
+	let draft = $state<TrainingRequest>({
+		title: '',
+		description: '',
+		training_type: 'workout',
+		goal: '',
+		comment: '',
+		items: []
+	});
 	let savedSnapshot = $state<string | null>(null);
 
 	let isDirty = $derived(
-		savedSnapshot !== null &&
-		JSON.stringify($state.snapshot(draft)) !== savedSnapshot
+		savedSnapshot !== null && JSON.stringify($state.snapshot(draft)) !== savedSnapshot
 	);
 
 	let showCreateExerciseModal = $state(false);
@@ -280,7 +312,9 @@
 		let result = list;
 		if (q) result = result.filter((e) => e.name.toLowerCase().includes(q));
 		if (filterExerciseTags.length > 0) {
-			result = result.filter((e) => filterExerciseTags.every((t) => e.tags?.some((et) => et.id === t.id)));
+			result = result.filter((e) =>
+				filterExerciseTags.every((t) => e.tags?.some((et) => et.id === t.id))
+			);
 		}
 		return result;
 	}
@@ -413,36 +447,50 @@
 	onMount(() => {
 		authStore.initialize();
 
-		if (!authStore.isAuthenticated) { goto('/'); return; }
-		if (!authStore.isEmailVerified) { goto('/verify-email'); return; }
-		if (!authStore.isValidatedCoach) { goto('/dashboard'); return; }
+		if (!authStore.isAuthenticated) {
+			goto('/');
+			return;
+		}
+		if (!authStore.isEmailVerified) {
+			goto('/verify-email');
+			return;
+		}
+		if (!authStore.isValidatedCoach) {
+			goto('/dashboard');
+			return;
+		}
 
-		apiClient.getTraining(trainingId).then(async (training) => {
-			const items = training.items ?? [];
-			ensureClientIds(items);
-			draft = {
-				title: training.title,
-				description: training.description ?? '',
-				training_type: training.training_type ?? 'workout',
-				goal: training.goal ?? '',
-				comment: training.comment ?? '',
-				items
-			};
-			const ids = [...new Set(collectExerciseIds(items))];
-			if (ids.length > 0) {
-				const fetched = await Promise.all(ids.map((id) => apiClient.getExercise(id).catch(() => null)));
-				exercises = fetched.filter(Boolean) as Exercise[];
-			}
-			savedSnapshot = JSON.stringify($state.snapshot(draft));
-			loading = false;
-			if (draft.training_type === 'stretching') {
-				applyStretchingFilter();
-			} else {
-				loadSidebarExercises();
-			}
-		}).catch(() => {
-			goto('/trainings');
-		});
+		apiClient
+			.getTraining(trainingId)
+			.then(async (training) => {
+				const items = training.items ?? [];
+				ensureClientIds(items);
+				draft = {
+					title: training.title,
+					description: training.description ?? '',
+					training_type: training.training_type ?? 'workout',
+					goal: training.goal ?? '',
+					comment: training.comment ?? '',
+					items
+				};
+				const ids = [...new Set(collectExerciseIds(items))];
+				if (ids.length > 0) {
+					const fetched = await Promise.all(
+						ids.map((id) => apiClient.getExercise(id).catch(() => null))
+					);
+					exercises = fetched.filter(Boolean) as Exercise[];
+				}
+				savedSnapshot = JSON.stringify($state.snapshot(draft));
+				loading = false;
+				if (draft.training_type === 'stretching') {
+					applyStretchingFilter();
+				} else {
+					loadSidebarExercises();
+				}
+			})
+			.catch(() => {
+				goto('/trainings');
+			});
 	});
 
 	async function handleSave() {
@@ -483,12 +531,14 @@
 	const structureButtons = [
 		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
 		{ type: 'section' as TrainingItemType, label: 'Section', icon: 'filter', color: 'var(--tx2)' },
-		{ type: 'repeater' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' },
+		{ type: 'repeater' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' }
 	];
 
 	let allowedStructureButtons = $derived(
 		draft.training_type === 'stretching'
-			? structureButtons.filter(b => b.type === 'circuit' && !draft.items.some(i => i.type === 'circuit'))
+			? structureButtons.filter(
+					(b) => b.type === 'circuit' && !draft.items.some((i) => i.type === 'circuit')
+				)
 			: structureButtons
 	);
 </script>
@@ -499,7 +549,11 @@
 
 <AppShell
 	title={draft.title || 'Training'}
-	breadcrumbs={[{ label: 'Studio' }, { label: 'Trainings', href: '/trainings' }, { label: draft.title || 'Training' }]}
+	breadcrumbs={[
+		{ label: 'Studio' },
+		{ label: 'Trainings', href: '/trainings' },
+		{ label: draft.title || 'Training' }
+	]}
 >
 	{#snippet actions()}
 		{#if !loading}
@@ -539,8 +593,8 @@
 							background: #fdf3f3; color: var(--rd); border: 1px solid var(--rd);
 							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 							opacity: {deleting ? 0.6 : 1};
-						"
-					>{deleting ? 'Deleting...' : 'Confirm delete'}</button>
+						">{deleting ? 'Deleting...' : 'Confirm delete'}</button
+					>
 					<button
 						onclick={() => (confirmDelete = false)}
 						style="
@@ -548,8 +602,8 @@
 							padding: 8px 14px; border-radius: var(--rs);
 							background: #fff; color: var(--tx3); border: 1px solid var(--bd);
 							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-						"
-					>Cancel</button>
+						">Cancel</button
+					>
 				{:else}
 					<button
 						onclick={() => (confirmDelete = true)}
@@ -585,31 +639,44 @@
 
 	{#if loading}
 		<div style="padding: 40px; display: flex; align-items: center; gap: 10px; color: var(--tx3);">
-			<div style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+			<div
+				style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
+			></div>
 			Loading...
 		</div>
 	{:else if !isEditing}
 		<div style="padding: 20px 28px 40px;">
-			<div style="
+			<div
+				style="
 				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 				padding: 20px 24px; box-shadow: var(--sh); margin-bottom: 16px;
-			">
-				<h2 style="font-size: 18px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">{draft.title}</h2>
+			"
+			>
+				<h2 style="font-size: 18px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">
+					{draft.title}
+				</h2>
 				{#if draft.description}
 					<p style="font-size: 13px; color: var(--tx2); margin-bottom: 8px;">{draft.description}</p>
 				{/if}
 				{#if draft.goal}
-					<p style="font-size: 12px; color: var(--tx3);"><span style="font-weight: 600;">Goal:</span> {draft.goal}</p>
+					<p style="font-size: 12px; color: var(--tx3);">
+						<span style="font-weight: 600;">Goal:</span>
+						{draft.goal}
+					</p>
 				{/if}
 			</div>
 			{#if draft.training_type === 'climbing'}
 				{#if draft.comment}
-					<div style="
+					<div
+						style="
 						background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 						padding: 20px 24px; box-shadow: var(--sh);
 						border-left: 3px solid var(--gd);
-					">
-						<p style="font-size: 13px; color: var(--tx); line-height: 1.6; white-space: pre-wrap;">{draft.comment}</p>
+					"
+					>
+						<p style="font-size: 13px; color: var(--tx); line-height: 1.6; white-space: pre-wrap;">
+							{draft.comment}
+						</p>
 					</div>
 				{/if}
 			{:else}
@@ -622,11 +689,15 @@
 				<!-- Main content -->
 				<div class="flex-1" style="padding: 20px 28px 40px; min-width: 0;">
 					<!-- Meta card -->
-					<div style="
+					<div
+						style="
 						background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 						padding: 18px 22px; box-shadow: var(--sh); margin-bottom: 16px;
-					">
-						<div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-bottom: 12px;">
+					"
+					>
+						<div
+							style="display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-bottom: 12px;"
+						>
 							<div>
 								<input
 									type="text"
@@ -649,7 +720,7 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 4px; align-self: flex-start;">
-								{#each (['workout', 'climbing', 'stretching'] as TrainingType[]) as t}
+								{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t}
 									<button
 										onclick={() => handleTypeChange(t)}
 										style="
@@ -659,13 +730,16 @@
 											background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
 											color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 											cursor: pointer; transition: all 0.15s;
-										"
-									>{TYPE_LABELS[t]}</button>
+										">{TYPE_LABELS[t]}</button
+									>
 								{/each}
 							</div>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
-							<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">GOAL</span>
+							<span
+								style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+								>GOAL</span
+							>
 							<input
 								type="text"
 								bind:value={draft.goal}
@@ -676,7 +750,9 @@
 					</div>
 
 					{#if saveError}
-						<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;">
+						<div
+							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+						>
 							{saveError}
 						</div>
 					{/if}
@@ -685,21 +761,31 @@
 						bind:items={draft.items}
 						{exercises}
 						allowedTypes={draft.training_type === 'stretching'
-							? (draft.items.some((i) => i.type === 'circuit') ? ['exercise'] : ['exercise', 'circuit'])
+							? draft.items.some((i) => i.type === 'circuit')
+								? ['exercise']
+								: ['exercise', 'circuit']
 							: ['exercise', 'circuit', 'section', 'repeater']}
-						circuitInnerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
+						circuitInnerAllowedTypes={draft.training_type === 'stretching'
+							? ['exercise']
+							: undefined}
 					/>
 				</div>
 
 				<!-- Right rail -->
-				<div style="
+				<div
+					style="
 					width: 260px; flex-shrink: 0; border-left: 1px solid var(--bd);
 					background: var(--panel); display: flex; flex-direction: column;
 					position: sticky; top: 0; align-self: flex-start; max-height: calc(100vh - 65px);
-				">
+				"
+				>
 					{#if allowedStructureButtons.length > 0}
 						<div style="padding: 14px 14px 10px; border-bottom: 1px solid var(--bd2);">
-							<div style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px;">ADD BLOCK</div>
+							<div
+								style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px;"
+							>
+								ADD BLOCK
+							</div>
 							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
 								{#each allowedStructureButtons as btn}
 									<SidePanelDraggable
@@ -722,7 +808,9 @@
 					{/if}
 
 					<div style="padding: 12px 14px 8px; border-bottom: 1px solid var(--bd2);">
-						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+						<div
+							style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;"
+						>
 							<span style="font-size: 12px; font-weight: 700; color: var(--tx);">Exercises</span>
 							<div style="display: flex; gap: 4px;">
 								<button
@@ -734,8 +822,8 @@
 										background: {favoritesOnlyExercises ? 'var(--pr-lt)' : '#fff'};
 										color: {favoritesOnlyExercises ? 'var(--pr)' : 'var(--tx3)'};
 										cursor: pointer; font-family: var(--font);
-									"
-								>Fav</button>
+									">Fav</button
+								>
 								<button
 									onclick={() => (showCreateExerciseModal = true)}
 									title="Create new exercise"
@@ -749,11 +837,13 @@
 								</button>
 							</div>
 						</div>
-						<div style="
+						<div
+							style="
 							display: flex; align-items: center; gap: 7px;
 							background: var(--panel2); border: 1px solid var(--bd); border-radius: var(--rs);
 							padding: 6px 10px;
-						">
+						"
+						>
 							<Icon name="search" size={13} color="var(--tx3)" />
 							<input
 								type="text"
@@ -768,18 +858,26 @@
 									style="cursor: pointer; color: var(--tx3); font-size: 11px;"
 									role="button"
 									tabindex="0"
-									onkeydown={(e) => e.key === 'Enter' && handleSidebarSearch('')}
-								>x</span>
+									onkeydown={(e) => e.key === 'Enter' && handleSidebarSearch('')}>x</span
+								>
 							{/if}
 						</div>
 						<div style="margin-top: 6px;">
-							<TagFilterSelect selectedTags={filterExerciseTags} onchange={handleSidebarTagsChange} />
+							<TagFilterSelect
+								selectedTags={filterExerciseTags}
+								onchange={handleSidebarTagsChange}
+							/>
 						</div>
 					</div>
 
-					<div class="flex-1 overflow-auto" style="padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;">
+					<div
+						class="flex-1 overflow-auto"
+						style="padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;"
+					>
 						{#if sidebarLoading}
-							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">Loading...</div>
+							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">
+								Loading...
+							</div>
 						{:else if sidebarResults.length > 0}
 							{#each sidebarResults as ex (ex.id)}
 								<SidePanelDraggable
@@ -793,16 +891,26 @@
 										transition: border-color 0.1s;
 									"
 								>
-									<div style="
+									<div
+										style="
 										width: 22px; height: 22px; border-radius: 5px;
 										background: var(--pr-fog); color: var(--pr);
 										display: flex; align-items: center; justify-content: center;
 										font-size: 8px; font-weight: 700; flex-shrink: 0;
-									">EX</div>
+									"
+									>
+										EX
+									</div>
 									<div style="flex: 1; min-width: 0;">
-										<div style="font-size: 12px; font-weight: 600; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ex.name}</div>
+										<div
+											style="font-size: 12px; font-weight: 600; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+										>
+											{ex.name}
+										</div>
 										{#if ex.tags && ex.tags.length > 0}
-											<div style="font-size: 10px; color: var(--tx3);">{ex.tags.map(t => t.name).join(' · ')}</div>
+											<div style="font-size: 10px; color: var(--tx3);">
+												{ex.tags.map((t) => t.name).join(' · ')}
+											</div>
 										{/if}
 									</div>
 									<Icon name="plus" size={12} color="var(--tx3)" />
@@ -817,11 +925,13 @@
 										border: 1px dashed var(--bd); background: transparent;
 										font-size: 11px; color: var(--tx3); cursor: pointer;
 										font-family: var(--font); opacity: {sidebarLoadingMore ? 0.5 : 1};
-									"
-								>{sidebarLoadingMore ? '...' : 'Load more'}</button>
+									">{sidebarLoadingMore ? '...' : 'Load more'}</button
+								>
 							{/if}
 						{:else}
-							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">No exercises found</div>
+							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">
+								No exercises found
+							</div>
 						{/if}
 					</div>
 				</div>
@@ -830,11 +940,15 @@
 	{:else}
 		<!-- Climbing type: show meta + comment editor -->
 		<div style="padding: 20px 28px 40px;">
-			<div style="
+			<div
+				style="
 				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 				padding: 18px 22px; box-shadow: var(--sh); margin-bottom: 16px;
-			">
-				<div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-bottom: 12px;">
+			"
+			>
+				<div
+					style="display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-bottom: 12px;"
+				>
 					<div>
 						<input
 							type="text"
@@ -857,7 +971,7 @@
 						/>
 					</div>
 					<div style="display: flex; gap: 4px; align-self: flex-start;">
-						{#each (['workout', 'climbing', 'stretching'] as TrainingType[]) as t}
+						{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t}
 							<button
 								onclick={() => handleTypeChange(t)}
 								style="
@@ -867,13 +981,16 @@
 									background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
 									color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 									cursor: pointer; transition: all 0.15s;
-								"
-							>{TYPE_LABELS[t]}</button>
+								">{TYPE_LABELS[t]}</button
+							>
 						{/each}
 					</div>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-					<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">GOAL</span>
+					<span
+						style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						>GOAL</span
+					>
 					<input
 						type="text"
 						bind:value={draft.goal}
@@ -894,7 +1011,9 @@
 			</div>
 
 			{#if saveError}
-				<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;">
+				<div
+					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+				>
 					{saveError}
 				</div>
 			{/if}
@@ -911,13 +1030,21 @@
 {/if}
 
 {#if showLeaveModal}
-	<div style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.3);">
-		<div style="
+	<div
+		style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.3);"
+	>
+		<div
+			style="
 			background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
 			box-shadow: 0 20px 60px rgba(0,0,0,0.15); padding: 28px 32px; min-width: 340px;
-		">
-			<p style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 6px;">Unsaved changes</p>
-			<p style="font-size: 13.5px; color: var(--tx2); margin-bottom: 24px;">Leave without saving?</p>
+		"
+		>
+			<p style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 6px;">
+				Unsaved changes
+			</p>
+			<p style="font-size: 13.5px; color: var(--tx2); margin-bottom: 24px;">
+				Leave without saving?
+			</p>
 			<div style="display: flex; gap: 10px;">
 				<button
 					onclick={confirmLeave}
@@ -925,16 +1052,16 @@
 						padding: 9px 18px; border-radius: var(--rs);
 						border: 1px solid var(--bd); background: #fff; color: var(--tx);
 						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-					"
-				>Leave</button>
+					">Leave</button
+				>
 				<button
 					onclick={cancelLeave}
 					style="
 						padding: 9px 18px; border-radius: var(--rs);
 						border: 1px solid var(--pr); background: var(--pr); color: #fff;
 						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-					"
-				>Stay</button>
+					">Stay</button
+				>
 			</div>
 		</div>
 	</div>
@@ -942,6 +1069,8 @@
 
 <style>
 	@keyframes spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

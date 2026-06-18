@@ -12,13 +12,23 @@
 	let { id, group, index, children }: Props = $props();
 
 	const sortable = createSortable({
-		get id() { return id; },
-		get group() { return group; },
-		get index() { return index; }
+		get id() {
+			return id;
+		},
+		get group() {
+			return group;
+		},
+		get index() {
+			return index;
+		}
 	});
 </script>
 
-<div {@attach sortable.attach} class="group relative" style:opacity={sortable.isDragging ? '0.4' : undefined}>
+<div
+	{@attach sortable.attach}
+	class="group relative"
+	style:opacity={sortable.isDragging ? '0.4' : undefined}
+>
 	<button
 		{@attach sortable.attachHandle}
 		class="absolute inset-y-0 left-0 z-10 flex w-5 cursor-grab items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"

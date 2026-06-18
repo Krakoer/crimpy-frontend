@@ -69,7 +69,6 @@
 						style="width: 24px; height: 24px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
 					></div>
 				</div>
-
 			{:else if pageState === 'invalid' || pageState === 'error'}
 				<div>
 					<h2 class="mb-4 text-xl font-bold" style="font-family: monospace;">
@@ -89,12 +88,9 @@
 						GO TO DASHBOARD
 					</button>
 				</div>
-
 			{:else if pageState === 'confirm' && tokenInfo}
 				<div>
-					<h2 class="mb-2 text-xl font-bold" style="font-family: monospace;">
-						ENROLLMENT REQUEST
-					</h2>
+					<h2 class="mb-2 text-xl font-bold" style="font-family: monospace;">ENROLLMENT REQUEST</h2>
 					<p class="mb-6" style="font-family: monospace; font-size: 13px; color: #666;">
 						You have been invited to train with a coach.
 					</p>
@@ -135,7 +131,6 @@
 						</button>
 					</div>
 				</div>
-
 			{:else if pageState === 'accepted'}
 				<div>
 					<h2 class="mb-4 text-xl font-bold" style="font-family: monospace;">ENROLLED</h2>

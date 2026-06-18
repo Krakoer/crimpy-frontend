@@ -108,7 +108,10 @@
 		if (!editingTagId || !editName.trim() || editSaving) return;
 		editSaving = true;
 		try {
-			const updated = await apiClient.updateTag(editingTagId, { name: editName.trim(), color: editColor });
+			const updated = await apiClient.updateTag(editingTagId, {
+				name: editName.trim(),
+				color: editColor
+			});
 			allTags = allTags.map((t) => (t.id === updated.id ? updated : t));
 			if (selectedTags.some((t) => t.id === updated.id)) {
 				onchange(selectedTags.map((t) => (t.id === updated.id ? updated : t)));
@@ -168,7 +171,12 @@
 		role="button"
 		tabindex="0"
 		onclick={openDropdown}
-		onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDropdown(); } }}
+		onkeydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				openDropdown();
+			}
+		}}
 		style="
 			display: flex; min-height: 36px; width: 100%; cursor: pointer;
 			flex-wrap: wrap; align-items: center; gap: 4px;
@@ -195,8 +203,8 @@
 						color: rgba(255,255,255,0.8); font-size: 13px; line-height: 1;
 						display: flex; align-items: center;
 					"
-					aria-label="Remove {tag.name}"
-				>&times;</button>
+					aria-label="Remove {tag.name}">&times;</button
+				>
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
@@ -260,8 +268,8 @@
 										background: var(--pr); color: #fff; font-size: 11.5px; font-weight: 600;
 										cursor: pointer; font-family: var(--font);
 										opacity: {editSaving || !editName.trim() ? 0.6 : 1};
-									"
-								>{editSaving ? '...' : 'Save'}</button>
+									">{editSaving ? '...' : 'Save'}</button
+								>
 								<button
 									type="button"
 									onclick={cancelEdit}
@@ -269,12 +277,14 @@
 										padding: 4px 10px; border-radius: var(--rs);
 										border: 1px solid var(--bd); background: #fff; color: var(--tx);
 										font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
-									"
-								>Cancel</button>
+									">Cancel</button
+								>
 							</div>
 							{#if confirmDeleteId === tag.id}
 								<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-									<span style="font-size: 11.5px; color: var(--tx2); font-family: var(--font);">Delete tag permanently?</span>
+									<span style="font-size: 11.5px; color: var(--tx2); font-family: var(--font);"
+										>Delete tag permanently?</span
+									>
 									<button
 										type="button"
 										onclick={deleteTag}
@@ -284,28 +294,34 @@
 											border: 1px solid var(--rd); color: var(--rd); background: #fff5f5;
 											font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
 											opacity: {editDeleting ? 0.6 : 1};
-										"
-									>{editDeleting ? '...' : 'Confirm'}</button>
+										">{editDeleting ? '...' : 'Confirm'}</button
+									>
 									<button
 										type="button"
-										onclick={(e) => { e.stopPropagation(); confirmDeleteId = null; }}
+										onclick={(e) => {
+											e.stopPropagation();
+											confirmDeleteId = null;
+										}}
 										style="
 											padding: 3px 8px; border-radius: var(--rs);
 											border: 1px solid var(--bd); background: #fff; color: var(--tx);
 											font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
-										"
-									>No</button>
+										">No</button
+									>
 								</div>
 							{:else}
 								<button
 									type="button"
-									onclick={(e) => { e.stopPropagation(); confirmDeleteId = tag.id; }}
+									onclick={(e) => {
+										e.stopPropagation();
+										confirmDeleteId = tag.id;
+									}}
 									style="
 										background: none; border: none; cursor: pointer; padding: 0;
 										font-size: 11.5px; color: var(--rd); font-family: var(--font);
 										text-decoration: underline; margin-top: 2px;
-									"
-								>Delete tag</button>
+									">Delete tag</button
+								>
 							{/if}
 						</div>
 					{:else}
@@ -323,7 +339,9 @@
 									cursor: pointer; font-family: var(--font); font-size: 13px; color: var(--tx);
 								"
 							>
-								<span style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 3px; background: {tag.color};"></span>
+								<span
+									style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 3px; background: {tag.color};"
+								></span>
 								<span style="flex: 1;">{tag.name}</span>
 								{#if isSelected(tag)}
 									<Icon name="check" size={13} color="var(--pr)" />
@@ -348,7 +366,9 @@
 				{/each}
 
 				{#if filtered.length === 0 && !showCreate}
-					<p style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);">
+					<p
+						style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);"
+					>
 						{search.trim() ? 'No matching tags.' : 'No tags yet.'}
 					</p>
 				{/if}

@@ -11,9 +11,7 @@
 		{ id: 'exercises', label: 'Exercises', icon: 'dumbbell', href: '/exercises' }
 	];
 
-	const secondary = [
-		{ id: 'settings', label: 'Settings', icon: 'settings', href: '/settings' }
-	];
+	const secondary = [{ id: 'settings', label: 'Settings', icon: 'settings', href: '/settings' }];
 
 	function activeId(pathname: string): string {
 		if (pathname.startsWith('/coachees')) return 'coachees';

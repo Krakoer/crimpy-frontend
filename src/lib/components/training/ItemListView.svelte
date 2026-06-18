@@ -26,23 +26,27 @@
 	{#if depth === 0}
 		<div style="display: flex; gap: 6px; margin-bottom: 12px;">
 			<button
-				onclick={() => { collapseSignals.collapse++; }}
+				onclick={() => {
+					collapseSignals.collapse++;
+				}}
 				style="
 					padding: 5px 12px; border-radius: var(--rs);
 					border: 1px solid var(--bd); background: #fff;
 					font-size: 12px; font-weight: 600; color: var(--tx2);
 					cursor: pointer; font-family: var(--font);
-				"
-			>Collapse all</button>
+				">Collapse all</button
+			>
 			<button
-				onclick={() => { collapseSignals.expand++; }}
+				onclick={() => {
+					collapseSignals.expand++;
+				}}
 				style="
 					padding: 5px 12px; border-radius: var(--rs);
 					border: 1px solid var(--bd); background: #fff;
 					font-size: 12px; font-weight: 600; color: var(--tx2);
 					cursor: pointer; font-family: var(--font);
-				"
-			>Expand all</button>
+				">Expand all</button
+			>
 		</div>
 	{/if}
 

@@ -12,7 +12,11 @@
 
 	let { id, onclick, class: cls = '', style: baseStyle = '', children }: Props = $props();
 
-	const draggable = createDraggable({ get id() { return id; } });
+	const draggable = createDraggable({
+		get id() {
+			return id;
+		}
+	});
 </script>
 
 <div
