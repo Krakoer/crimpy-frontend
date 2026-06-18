@@ -7,13 +7,17 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"prepare": "playwright install && svelte-kit sync || echo ''",
+		"prepare": "husky; playwright install && svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
+		"format:check": "prettier --check .",
 		"test:e2e": "playwright test",
 		"test": "npm run test:e2e"
+	},
+	"lint-staged": {
+		"*": "prettier --write --ignore-unknown"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.4",
@@ -28,6 +32,8 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.17.0",
 		"globals": "^17.4.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.0.7",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.5.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
