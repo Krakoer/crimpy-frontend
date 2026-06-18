@@ -18,12 +18,14 @@
 		bw: 'BW',
 		percent_bw: '% BW',
 		kg: 'kg',
-		lbs: 'lbs'
+		lbs: 'lbs',
+		max: 'MAX'
 	};
 
 	let perRep = $derived((item.edge_sizes_mm?.length ?? 0) > 1);
 
 	function fmtLoad(value: number, unit: LoadUnit): string {
+		if (unit === 'max') return 'MAX';
 		return `${value} ${LOAD_UNIT_LABELS[unit]}`;
 	}
 

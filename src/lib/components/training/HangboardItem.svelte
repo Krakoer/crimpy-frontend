@@ -34,7 +34,8 @@
 		{ value: 'bw', label: 'BW' },
 		{ value: 'percent_bw', label: '% BW' },
 		{ value: 'kg', label: 'kg' },
-		{ value: 'lbs', label: 'lbs' }
+		{ value: 'lbs', label: 'lbs' },
+		{ value: 'max', label: 'Max' }
 	];
 
 	let perRep = $state((item.edge_sizes_mm?.length ?? 0) > 1);
@@ -112,6 +113,13 @@
 		perRep = !perRep;
 		resizeArraysToReps();
 	}
+
+	// Keep the legacy item-level flag in sync for older clients: an item counts
+	// as "max effort" only when every rep is set to max.
+	$effect(() => {
+		const loads = item.loads ?? [];
+		item.load_is_max = loads.length > 0 && loads.every((l) => l.unit === 'max');
+	});
 
 	function onRepsChange() {
 		resizeArraysToReps();
@@ -390,13 +398,15 @@
 						<span style={labelStyle}>LOAD</span>
 						{#if item.hand !== 'split'}
 							<div style="display: flex; gap: 4px;">
-								<input
-									type="number"
-									min="0"
-									bind:value={uniformLoadValue}
-									oninput={onUniformChange}
-									style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-								/>
+								{#if uniformLoadUnit !== 'max'}
+									<input
+										type="number"
+										min="0"
+										bind:value={uniformLoadValue}
+										oninput={onUniformChange}
+										style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+									/>
+								{/if}
 								<select
 									bind:value={uniformLoadUnit}
 									onchange={onUniformChange}
@@ -409,13 +419,15 @@
 							<div style="display: flex; flex-direction: column; gap: 3px;">
 								<div style="display: flex; align-items: center; gap: 4px;">
 									<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
-									<input
-										type="number"
-										min="0"
-										bind:value={uniformLoadValue}
-										oninput={onUniformChange}
-										style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-									/>
+									{#if uniformLoadUnit !== 'max'}
+										<input
+											type="number"
+											min="0"
+											bind:value={uniformLoadValue}
+											oninput={onUniformChange}
+											style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+										/>
+									{/if}
 									<select
 										bind:value={uniformLoadUnit}
 										onchange={onUniformChange}
@@ -426,13 +438,15 @@
 								</div>
 								<div style="display: flex; align-items: center; gap: 4px;">
 									<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
-									<input
-										type="number"
-										min="0"
-										bind:value={uniformLoadValueR}
-										oninput={onUniformChange}
-										style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-									/>
+									{#if uniformLoadUnitR !== 'max'}
+										<input
+											type="number"
+											min="0"
+											bind:value={uniformLoadValueR}
+											oninput={onUniformChange}
+											style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+										/>
+									{/if}
 									<select
 										bind:value={uniformLoadUnitR}
 										onchange={onUniformChange}
@@ -495,12 +509,16 @@
 									</td>
 									{#if item.hand !== 'split'}
 										<td>
-											<input
-												class="hb-in"
-												type="number"
-												min="0"
-												bind:value={item.loads![ri].value}
-											/>
+											{#if item.loads![ri].unit === 'max'}
+												<span class="hb-max">MAX</span>
+											{:else}
+												<input
+													class="hb-in"
+													type="number"
+													min="0"
+													bind:value={item.loads![ri].value}
+												/>
+											{/if}
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![ri].unit}>
@@ -514,12 +532,16 @@
 										</td>
 									{:else}
 										<td>
-											<input
-												class="hb-in"
-												type="number"
-												min="0"
-												bind:value={item.loads![2 * ri].value}
-											/>
+											{#if item.loads![2 * ri].unit === 'max'}
+												<span class="hb-max">MAX</span>
+											{:else}
+												<input
+													class="hb-in"
+													type="number"
+													min="0"
+													bind:value={item.loads![2 * ri].value}
+												/>
+											{/if}
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![2 * ri].unit}>
@@ -527,12 +549,16 @@
 											</select>
 										</td>
 										<td>
-											<input
-												class="hb-in"
-												type="number"
-												min="0"
-												bind:value={item.loads![2 * ri + 1].value}
-											/>
+											{#if item.loads![2 * ri + 1].unit === 'max'}
+												<span class="hb-max">MAX</span>
+											{:else}
+												<input
+													class="hb-in"
+													type="number"
+													min="0"
+													bind:value={item.loads![2 * ri + 1].value}
+												/>
+											{/if}
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![2 * ri + 1].unit}>
@@ -657,6 +683,15 @@
 		text-align: center;
 		font-weight: 700;
 		color: var(--tx2);
+	}
+
+	.hb-max {
+		display: inline-block;
+		width: 100%;
+		text-align: center;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		color: var(--hb);
 	}
 
 	.hb-in,

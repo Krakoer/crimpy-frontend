@@ -149,7 +149,7 @@ export interface ExercisePage {
 	offset: number;
 }
 
-export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs';
+export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs' | 'max';
 
 export interface Load {
 	value: number;

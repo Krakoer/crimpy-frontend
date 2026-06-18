@@ -17,8 +17,14 @@
 		bw: 'BW',
 		percent_bw: '% BW',
 		kg: 'kg',
-		lbs: 'lbs'
+		lbs: 'lbs',
+		max: 'MAX'
 	};
+
+	function fmtLoad(value: number, unit: LoadUnit): string {
+		if (unit === 'max') return 'MAX';
+		return `${value} ${LOAD_UNIT_LABELS[unit]}`;
+	}
 
 	let exerciseName = $derived(
 		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
@@ -46,7 +52,7 @@
 		if (rest > 0) parts.push(`${rest}s rest`);
 		const load = item.loads?.[0];
 		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
-			parts.push(`${load.value} ${LOAD_UNIT_LABELS[load.unit]}`);
+			parts.push(fmtLoad(load.value, load.unit));
 		}
 		return parts.join(' · ');
 	});
@@ -95,7 +101,7 @@
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;">LOAD</span>
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-						{item.loads[0].value} {LOAD_UNIT_LABELS[item.loads[0].unit]}
+						{fmtLoad(item.loads[0].value, item.loads[0].unit)}
 					</span>
 				</div>
 			{/if}
