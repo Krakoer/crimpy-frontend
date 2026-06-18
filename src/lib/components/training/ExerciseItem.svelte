@@ -49,8 +49,12 @@
 		item.rest_seconds = restMin * 60 + restSec;
 	});
 
-	if (!item.loads || item.loads.length === 0) {
-		item.loads = [{ value: 100, unit: 'percent_bw' }];
+	function addLoad() {
+		item.loads = [{ value: 0, unit: 'kg' }];
+	}
+
+	function removeLoad() {
+		item.loads = undefined;
 	}
 
 	function setDurationMode() {
@@ -236,13 +240,13 @@
 				{/if}
 			</div>
 
-			<!-- Load -->
-			{#if item.loads && item.loads.length > 0}
-				<div style="display: flex; flex-direction: column; gap: 4px;">
-					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; text-align: center;"
-						>LOAD</span
-					>
+			<!-- Load (optional) -->
+			<div style="display: flex; flex-direction: column; gap: 4px;">
+				<span
+					style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; text-align: center;"
+					>LOAD</span
+				>
+				{#if item.loads && item.loads.length > 0}
 					<div style="display: flex; gap: 4px; align-items: center;">
 						<input
 							type="number"
@@ -261,9 +265,30 @@
 								<option value={u.value}>{u.label}</option>
 							{/each}
 						</select>
+						<button
+							onclick={(e) => {
+								e.stopPropagation();
+								removeLoad();
+							}}
+							title="Remove load"
+							style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 5px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+						>
+							<Icon name="x" size={11} color="var(--tx3)" />
+						</button>
 					</div>
-				</div>
-			{/if}
+				{:else}
+					<button
+						onclick={(e) => {
+							e.stopPropagation();
+							addLoad();
+						}}
+						style="display: flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 5px; border: 1px dashed var(--bd); background: #fff; color: var(--tx3); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+					>
+						<Icon name="plus" size={11} color="var(--tx3)" />
+						Add
+					</button>
+				{/if}
+			</div>
 
 			<!-- Rest -->
 			<div style="display: flex; flex-direction: column; gap: 4px;">
