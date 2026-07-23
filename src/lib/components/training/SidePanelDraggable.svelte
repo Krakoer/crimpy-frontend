@@ -22,6 +22,12 @@
 <div
 	{@attach draggable.attach}
 	{onclick}
+	onkeydown={(e) => {
+		if (onclick && (e.key === 'Enter' || e.key === ' ')) {
+			e.preventDefault();
+			onclick();
+		}
+	}}
 	role="button"
 	tabindex="0"
 	class={cls}

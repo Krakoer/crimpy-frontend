@@ -239,10 +239,14 @@
 			<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
 				{#each filtered as training (training.id)}
 					{@const tc = typeInfo(training)}
-					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
+						role="button"
+						tabindex="0"
 						onclick={(e) => {
 							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
+						}}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
 							background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
@@ -373,10 +377,14 @@
 			>
 				{#each filtered as training, i (training.id)}
 					{@const tc = typeInfo(training)}
-					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
+						role="button"
+						tabindex="0"
 						onclick={(e) => {
 							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
+						}}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
 							display: grid; grid-template-columns: 48px 1.6fr 1fr 1fr 1fr 40px;

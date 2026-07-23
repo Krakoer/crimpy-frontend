@@ -676,20 +676,24 @@
 					>
 						<div>
 							<label
+								for="edit-program-name"
 								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
 								>Name</label
 							>
 							<input
+								id="edit-program-name"
 								bind:value={editName}
 								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--tx); outline: none; background: #fff;"
 							/>
 						</div>
 						<div>
 							<label
+								for="edit-program-objective"
 								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
 								>Objective</label
 							>
 							<input
+								id="edit-program-objective"
 								bind:value={editObjective}
 								placeholder="Goal..."
 								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
@@ -697,22 +701,26 @@
 						</div>
 						<div>
 							<label
+								for="edit-program-start-date"
 								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
 								>Start date</label
 							>
 							<input
 								type="date"
+								id="edit-program-start-date"
 								bind:value={editStartDate}
 								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
 						</div>
 						<div>
 							<label
+								for="edit-program-weeks"
 								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
 								>Weeks</label
 							>
 							<input
 								type="number"
+								id="edit-program-weeks"
 								bind:value={editDurationWeeks}
 								min="1"
 								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
@@ -1144,6 +1152,8 @@
 														{#if draft.days[dayIndex].length === 0}
 															{#if editMode}
 																<div
+																	role="button"
+																	tabindex="-1"
 																	style="
 															flex: 1; display: flex; align-items: center; justify-content: center;
 															border-radius: 5px; border: 1px dashed var(--bd);
@@ -1299,6 +1309,8 @@
 													{/each}
 													{#if draft.everydaySessions.length === 0 && editMode}
 														<div
+															role="button"
+															tabindex="-1"
 															style="
 														flex: 1; display: flex; align-items: center; justify-content: center;
 														border-radius: 5px; border: 1px dashed rgba(144,123,153,0.4);
@@ -1467,10 +1479,19 @@
 		{@const sourceWn = dupModalSourceWn}
 		<div
 			style="position: fixed; inset: 0; z-index: 1000; background: rgba(45,36,29,0.2); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center;"
-			onclick={() => (dupModalSourceWn = null)}
+			role="button"
+			tabindex="0"
+			aria-label="Close dialog"
+			onclick={(e) => {
+				if (e.target === e.currentTarget) dupModalSourceWn = null;
+			}}
+			onkeydown={(e) => {
+				if (e.key === 'Escape' || e.key === 'Enter') dupModalSourceWn = null;
+			}}
 		>
 			<div
-				onclick={(e) => e.stopPropagation()}
+				role="dialog"
+				aria-modal="true"
 				style="background: #fff; border-radius: var(--rl); box-shadow: 0 8px 32px rgba(45,36,29,0.18); padding: 22px 26px; width: 380px;"
 			>
 				<h3 style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">

@@ -514,9 +514,16 @@
 							</div>
 							<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
 								{#each weekStripDays as day (day.date.getTime())}
-									<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 									<div
+										role="button"
+										tabindex="0"
 										onclick={() => toggleDayFilter(day.date)}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												toggleDayFilter(day.date);
+											}
+										}}
 										style="
 										padding: 10px 4px; border-radius: var(--rs); text-align: center; cursor: pointer;
 										background: {day.isSelected ? 'var(--pr)' : day.isToday ? 'var(--pr-fog)' : 'var(--panel2)'};
@@ -866,11 +873,13 @@
 								<div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
 									<div>
 										<label
+											for="new-program-name"
 											style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;"
 											>Program name *</label
 										>
 										<input
 											type="text"
+											id="new-program-name"
 											bind:value={newProgramName}
 											placeholder="e.g. Summer Bouldering Block"
 											style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 14px; color: var(--tx); outline: none; background: #fff;"
@@ -878,10 +887,12 @@
 									</div>
 									<div>
 										<label
+											for="new-program-objective"
 											style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;"
 											>Objective</label
 										>
 										<textarea
+											id="new-program-objective"
 											bind:value={newProgramObjective}
 											placeholder="What's the goal?"
 											rows={2}
@@ -891,11 +902,13 @@
 									<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
 										<div>
 											<label
+												for="new-program-start-date"
 												style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;"
 												>Start date *</label
 											>
 											<input
 												type="date"
+												id="new-program-start-date"
 												bind:value={newProgramStartDate}
 												style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 											/>
@@ -906,12 +919,14 @@
 										</div>
 										<div>
 											<label
+												for="new-program-duration"
 												style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;"
 												>Duration</label
 											>
 											<div style="display: flex; align-items: center; gap: 8px;">
 												<input
 													type="number"
+													id="new-program-duration"
 													bind:value={newProgramDurationWeeks}
 													min="1"
 													max="52"
@@ -993,11 +1008,15 @@
 						{#each programs as program (program.id)}
 							{@const ps = programStatus(program.start_date, program.duration_weeks)}
 							{@const totalWks = program.duration_weeks}
-							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 							<div
+								role="button"
+								tabindex="0"
 								onclick={(e) => {
 									if (!(e.target as HTMLElement).closest('button'))
 										goto(`/coachees/${data.id}/programs/${program.id}`);
+								}}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') goto(`/coachees/${data.id}/programs/${program.id}`);
 								}}
 								style="
 								background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
