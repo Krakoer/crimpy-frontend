@@ -95,13 +95,13 @@
 
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (draft.training_type === 'stretching') {
-			if (movedItem.type === 'section' || movedItem.type === 'repeater') return false;
+			if (movedItem.type === 'group' || movedItem.type === 'repeater') return false;
 			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit'))
 				return false;
 		}
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
-		if (movedItem.type === 'section') {
+		if (movedItem.type === 'group') {
 			const containerItemId = targetContainerId.slice(10);
 			const containerItem = findItemById(draft.items, containerItemId);
 			return containerItem?.type === 'circuit';
@@ -419,8 +419,8 @@
 			base.cycles = 3;
 			base.cycle_rest_seconds = 120;
 			base.items = [];
-		} else if (type === 'section') {
-			base.section_title = 'Section';
+		} else if (type === 'group') {
+			base.group_title = 'Group';
 			base.items = [];
 		} else if (type === 'repeater') {
 			base.cycles = 3;
@@ -438,7 +438,7 @@
 
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		if (draft.training_type === 'stretching') {
-			if (type === 'section' || type === 'repeater') return;
+			if (type === 'group' || type === 'repeater') return;
 			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
 		}
 		draft.items.push(createNewItem(type, exerciseId));
@@ -530,7 +530,7 @@
 
 	const structureButtons = [
 		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
-		{ type: 'section' as TrainingItemType, label: 'Section', icon: 'filter', color: 'var(--tx2)' },
+		{ type: 'group' as TrainingItemType, label: 'Group', icon: 'filter', color: 'var(--tx2)' },
 		{ type: 'repeater' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' }
 	];
 
@@ -764,7 +764,7 @@
 							? draft.items.some((i) => i.type === 'circuit')
 								? ['exercise']
 								: ['exercise', 'circuit']
-							: ['exercise', 'circuit', 'section', 'repeater']}
+							: ['exercise', 'circuit', 'group', 'repeater']}
 						circuitInnerAllowedTypes={draft.training_type === 'stretching'
 							? ['exercise']
 							: undefined}

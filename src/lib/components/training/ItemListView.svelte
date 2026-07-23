@@ -3,7 +3,7 @@
 	import ExerciseItemView from './ExerciseItemView.svelte';
 	import HangboardItemView from './HangboardItemView.svelte';
 	import CircuitItemView from './CircuitItemView.svelte';
-	import SectionItemView from './SectionItemView.svelte';
+	import GroupItemView from './GroupItemView.svelte';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -57,8 +57,8 @@
 			<HangboardItemView {item} />
 		{:else if item.type === 'circuit'}
 			<CircuitItemView {item} {exercises} {depth} />
-		{:else if item.type === 'section'}
-			<SectionItemView {item} {exercises} {depth} />
+		{:else if item.type === 'group'}
+			<GroupItemView {item} {exercises} {depth} />
 		{/if}
 	{/each}
 

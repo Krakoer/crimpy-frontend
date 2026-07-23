@@ -58,6 +58,8 @@
 		/>
 	{:else if name === 'filter'}
 		<path d="M4 6h16M7 12h10M10 18h4" />
+	{:else if name === 'layers'}
+		<path d="M12 3 3 8l9 5 9-5-9-5Z" /><path d="M3 13l9 5 9-5" />
 	{:else if name === 'spark'}
 		<path d="M3 17l5-7 4 4 4-6 5 7" />
 	{:else if name === 'logout'}

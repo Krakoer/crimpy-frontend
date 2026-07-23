@@ -162,7 +162,7 @@ export type TrainingItemType =
 	| 'free'
 	| 'exercise'
 	| 'circuit'
-	| 'section';
+	| 'group';
 
 export interface TrainingItem {
 	id?: string;
@@ -171,7 +171,7 @@ export interface TrainingItem {
 	position?: number;
 	cycles?: number;
 	cycle_rest_seconds?: number;
-	section_title?: string;
+	group_title?: string;
 	exercise_id?: string;
 	reps?: number;
 	duration?: number;

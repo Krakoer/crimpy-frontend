@@ -3,7 +3,7 @@
 	import ExerciseItem from './ExerciseItem.svelte';
 	import HangboardItem from './HangboardItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
-	import SectionItem from './SectionItem.svelte';
+	import GroupItem from './GroupItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
 	import { setContext, untrack } from 'svelte';
@@ -21,7 +21,7 @@
 	let {
 		items = $bindable(),
 		exercises,
-		allowedTypes = ['exercise', 'circuit', 'section', 'repeater'],
+		allowedTypes = ['exercise', 'circuit', 'group', 'repeater'],
 		circuitInnerAllowedTypes,
 		depth = 0,
 		containerId = 'root'
@@ -43,8 +43,8 @@
 			base.cycles = 3;
 			base.cycle_rest_seconds = 120;
 			base.items = [];
-		} else if (type === 'section') {
-			base.section_title = 'Section';
+		} else if (type === 'group') {
+			base.group_title = 'Group';
 			base.items = [];
 		} else if (type === 'repeater') {
 			base.cycles = 3;
@@ -127,8 +127,8 @@
 					{depth}
 					innerAllowedTypes={circuitInnerAllowedTypes}
 				/>
-			{:else if item.type === 'section'}
-				<SectionItem
+			{:else if item.type === 'group'}
+				<GroupItem
 					bind:item={items[i]}
 					{exercises}
 					onRemove={() => removeItem(i)}

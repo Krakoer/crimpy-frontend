@@ -23,20 +23,20 @@
 
 	const typeLabels: Record<string, string> = {
 		circuit: 'Circuit',
-		section: 'Section',
+		group: 'Group',
 		hangboard: 'Hangboard',
 		exercise: 'Exercise'
 	};
 	const typeIcons: Record<string, string> = {
 		circuit: 'link',
-		section: 'filter',
+		group: 'layers',
 		hangboard: 'grip',
 		exercise: 'dumbbell'
 	};
 	const typeColors: Record<string, string> = {
 		exercise: 'var(--pr)',
 		circuit: 'var(--pr)',
-		section: 'var(--tx2)',
+		group: 'var(--tx2)',
 		hangboard: '#4A7C8C'
 	};
 

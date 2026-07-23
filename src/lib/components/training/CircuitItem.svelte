@@ -175,7 +175,7 @@
 					bind:items={item.items!}
 					{exercises}
 					allowedTypes={innerAllowedTypes ??
-						(depth < 1 ? ['exercise', 'section', 'repeater'] : ['exercise', 'repeater'])}
+						(depth < 1 ? ['exercise', 'group', 'repeater'] : ['exercise', 'repeater'])}
 					depth={depth + 1}
 					containerId={'container:' + item._id}
 				/>

@@ -62,9 +62,9 @@
 		>
 			<input
 				type="text"
-				bind:value={item.section_title}
+				bind:value={item.group_title}
 				onclick={(e) => e.stopPropagation()}
-				placeholder="Section title..."
+				placeholder="Group title..."
 				style="border: none; outline: none; background: transparent; font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--tx); width: 160px;"
 			/>
 			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;"
