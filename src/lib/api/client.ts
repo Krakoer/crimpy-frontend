@@ -1,8 +1,4 @@
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/public';
-
-const API_BASE_URL =
-	env.PUBLIC_API_URL || (dev ? 'http://127.0.0.1:3000' : 'https://api.crimpy.app');
+import { getApiBaseUrl } from '$lib/config';
 
 export interface LoginRequest {
 	email: string;
@@ -203,10 +199,9 @@ export interface CoachTrainingRequest {
 }
 
 class ApiClient {
-	private baseUrl: string = API_BASE_URL;
-
 	private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-		const url = `${this.baseUrl}${endpoint}`;
+		const baseUrl = await getApiBaseUrl();
+		const url = `${baseUrl}${endpoint}`;
 		const token = this.getToken();
 
 		const headers: Record<string, string> = {

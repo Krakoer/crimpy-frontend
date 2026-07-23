@@ -1,8 +1,6 @@
 services:
   crimpy-frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: krakoer/crimpy-frontend:latest
     container_name: crimpy-frontend
     restart: unless-stopped
     labels:
