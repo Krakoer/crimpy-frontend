@@ -115,7 +115,6 @@ export interface AssessmentResponse {
 
 export interface Tag {
 	id: string;
-	coach_id: string;
 	name: string;
 	color: string;
 	is_builtin: boolean;
