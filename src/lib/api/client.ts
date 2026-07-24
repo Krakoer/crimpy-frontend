@@ -15,6 +15,19 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
 	token: string;
+	refresh_token: string;
+	user: User;
+}
+
+export interface RefreshResponse {
+	token: string;
+	refresh_token: string;
+}
+
+export interface RegisterResponse {
+	message: string;
+	token?: string;
+	refresh_token?: string;
 	user: User;
 }
 
@@ -275,8 +288,21 @@ export interface WeekRequest {
 	sessions: SessionRequest[];
 }
 
+const ENDPOINTS_WITHOUT_TOKEN_REFRESH = [
+	'/auth/login',
+	'/auth/register',
+	'/auth/refresh',
+	'/auth/logout'
+];
+
 class ApiClient {
-	private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+	private inFlightRefresh: Promise<boolean> | null = null;
+
+	private async request<T>(
+		endpoint: string,
+		options: RequestInit = {},
+		allowTokenRefresh = true
+	): Promise<T> {
 		const baseUrl = await getApiBaseUrl();
 		const url = `${baseUrl}${endpoint}`;
 		const token = this.getToken();
@@ -297,6 +323,17 @@ class ApiClient {
 			}
 		});
 
+		if (
+			response.status === 401 &&
+			allowTokenRefresh &&
+			!ENDPOINTS_WITHOUT_TOKEN_REFRESH.some((prefix) => endpoint.startsWith(prefix))
+		) {
+			const refreshed = await this.refreshAccessToken();
+			if (refreshed) {
+				return this.request<T>(endpoint, options, false);
+			}
+		}
+
 		if (!response.ok) {
 			const error = await response.json().catch(() => ({ error: 'Unknown error' }));
 			throw new Error(error.error || `HTTP ${response.status}`);
@@ -306,9 +343,52 @@ class ApiClient {
 		return response.json();
 	}
 
+	private refreshAccessToken(): Promise<boolean> {
+		if (!this.inFlightRefresh) {
+			this.inFlightRefresh = this.rotateTokens().finally(() => {
+				this.inFlightRefresh = null;
+			});
+		}
+		return this.inFlightRefresh;
+	}
+
+	private async rotateTokens(): Promise<boolean> {
+		const refreshToken = this.getRefreshToken();
+		if (!refreshToken) {
+			this.clearToken();
+			return false;
+		}
+
+		try {
+			const baseUrl = await getApiBaseUrl();
+			const response = await fetch(`${baseUrl}/auth/refresh`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ refresh_token: refreshToken })
+			});
+			if (!response.ok) {
+				this.clearToken();
+				return false;
+			}
+			const rotated: RefreshResponse = await response.json();
+			this.setToken(rotated.token);
+			this.setRefreshToken(rotated.refresh_token);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
 	private getToken(): string | null {
 		if (typeof window !== 'undefined') {
 			return localStorage.getItem('auth_token');
+		}
+		return null;
+	}
+
+	getRefreshToken(): string | null {
+		if (typeof window !== 'undefined') {
+			return localStorage.getItem('refresh_token');
 		}
 		return null;
 	}
@@ -319,9 +399,16 @@ class ApiClient {
 		}
 	}
 
+	setRefreshToken(token: string): void {
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('refresh_token', token);
+		}
+	}
+
 	clearToken(): void {
 		if (typeof window !== 'undefined') {
 			localStorage.removeItem('auth_token');
+			localStorage.removeItem('refresh_token');
 			localStorage.removeItem('user');
 		}
 	}
@@ -333,11 +420,22 @@ class ApiClient {
 		});
 	}
 
-	async register(data: RegisterRequest): Promise<AuthResponse> {
-		return this.request<AuthResponse>('/auth/register', {
+	async register(data: RegisterRequest): Promise<RegisterResponse> {
+		return this.request<RegisterResponse>('/auth/register', {
 			method: 'POST',
 			body: JSON.stringify(data)
 		});
+	}
+
+	async logout(): Promise<void> {
+		const refreshToken = this.getRefreshToken();
+		if (refreshToken) {
+			await this.request<{ message: string }>('/auth/logout', {
+				method: 'POST',
+				body: JSON.stringify({ refresh_token: refreshToken })
+			}).catch(() => undefined);
+		}
+		this.clearToken();
 	}
 
 	async getPendingCoaches(): Promise<CoachResponse[]> {

@@ -12,6 +12,7 @@ class AuthStore {
 	async login(email: string, password: string): Promise<void> {
 		const response = await apiClient.login({ email, password });
 		apiClient.setToken(response.token);
+		apiClient.setRefreshToken(response.refresh_token);
 		this.user = response.user;
 	}
 
@@ -29,11 +30,17 @@ class AuthStore {
 			lastname,
 			is_coach: isCoach
 		});
-		apiClient.setToken(response.token);
+		if (response.token) apiClient.setToken(response.token);
+		if (response.refresh_token) apiClient.setRefreshToken(response.refresh_token);
 		this.user = response.user;
 	}
 
-	logout(): void {
+	async logout(): Promise<void> {
+		await apiClient.logout();
+		this.user = null;
+	}
+
+	clearSession(): void {
 		apiClient.clearToken();
 		this.user = null;
 	}
@@ -46,7 +53,7 @@ class AuthStore {
 				try {
 					this.user = JSON.parse(userJson);
 				} catch (e) {
-					this.logout();
+					this.clearSession();
 				}
 			}
 		}
@@ -66,7 +73,7 @@ class AuthStore {
 				this.saveUser();
 				return user;
 			} catch (e) {
-				this.logout();
+				this.clearSession();
 				return null;
 			}
 		}

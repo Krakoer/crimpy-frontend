@@ -29,8 +29,8 @@
 		return (f + l).toUpperCase() || 'U';
 	}
 
-	function handleLogout() {
-		authStore.logout();
+	async function handleLogout() {
+		await authStore.logout();
 		goto('/');
 	}
 </script>
