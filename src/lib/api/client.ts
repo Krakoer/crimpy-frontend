@@ -257,6 +257,12 @@ export interface WeekSummary {
 	updated_at: string;
 }
 
+export interface SessionOverride {
+	id?: string;
+	item_id: string;
+	overrides: unknown;
+}
+
 export interface WeekSession {
 	id: string;
 	training_id: string;
@@ -267,7 +273,7 @@ export interface WeekSession {
 	is_everyday: boolean;
 	position: number;
 	notes?: string;
-	overrides: [];
+	overrides: SessionOverride[];
 }
 
 export interface WeekDetail extends WeekSummary {
@@ -280,7 +286,7 @@ export interface SessionRequest {
 	times_per_week?: number;
 	is_everyday?: boolean;
 	notes?: string;
-	overrides: [];
+	overrides: SessionOverride[];
 }
 
 export interface WeekRequest {

@@ -17,6 +17,7 @@
 		ProgramRequest,
 		WeekSummary,
 		WeekDetail,
+		SessionOverride,
 		SessionRequest,
 		TrainingSummary,
 		TrainingType
@@ -26,9 +27,28 @@
 	const userId = $derived(data.userId as string);
 	const programId = $derived(data.programId as string);
 
-	type DaySession = { _id: string; training_id: string };
-	type FreqSession = { _id: string; training_id: string; times_per_week: number };
-	type EverydaySession = { _id: string; training_id: string };
+	type DraftSession = {
+		_id: string;
+		training_id: string;
+		notes?: string;
+		overrides: SessionOverride[];
+	};
+	type DaySession = DraftSession;
+	type FreqSession = DraftSession & { times_per_week: number };
+	type EverydaySession = DraftSession;
+
+	function newDraftSession(trainingId: string): DraftSession {
+		return { _id: crypto.randomUUID(), training_id: trainingId, overrides: [] };
+	}
+
+	function movedDraftSession(session: DraftSession): DraftSession {
+		return {
+			_id: session._id,
+			training_id: session.training_id,
+			notes: session.notes,
+			overrides: session.overrides
+		};
+	}
 	type WeekDraft = {
 		notes: string;
 		days: DaySession[][];
@@ -60,16 +80,18 @@
 		const freqSessions: FreqSession[] = [];
 		const everydaySessions: EverydaySession[] = [];
 		for (const s of detail.sessions) {
+			const preserved = {
+				_id: crypto.randomUUID(),
+				training_id: s.training_id,
+				notes: s.notes,
+				overrides: s.overrides ?? []
+			};
 			if (s.is_everyday) {
-				everydaySessions.push({ _id: crypto.randomUUID(), training_id: s.training_id });
+				everydaySessions.push(preserved);
 			} else if (s.day_of_week !== undefined) {
-				days[s.day_of_week].push({ _id: crypto.randomUUID(), training_id: s.training_id });
+				days[s.day_of_week].push(preserved);
 			} else if (s.times_per_week !== undefined) {
-				freqSessions.push({
-					_id: crypto.randomUUID(),
-					training_id: s.training_id,
-					times_per_week: s.times_per_week
-				});
+				freqSessions.push({ ...preserved, times_per_week: s.times_per_week });
 			}
 		}
 		return {
@@ -89,14 +111,29 @@
 		const reqs: SessionRequest[] = [];
 		for (let day = 0; day < 7; day++) {
 			for (const s of draft.days[day]) {
-				reqs.push({ training_id: s.training_id, day_of_week: day, overrides: [] });
+				reqs.push({
+					training_id: s.training_id,
+					day_of_week: day,
+					notes: s.notes,
+					overrides: s.overrides
+				});
 			}
 		}
 		for (const s of draft.freqSessions) {
-			reqs.push({ training_id: s.training_id, times_per_week: s.times_per_week, overrides: [] });
+			reqs.push({
+				training_id: s.training_id,
+				times_per_week: s.times_per_week,
+				notes: s.notes,
+				overrides: s.overrides
+			});
 		}
 		for (const s of draft.everydaySessions) {
-			reqs.push({ training_id: s.training_id, is_everyday: true, overrides: [] });
+			reqs.push({
+				training_id: s.training_id,
+				is_everyday: true,
+				notes: s.notes,
+				overrides: s.overrides
+			});
 		}
 		return reqs;
 	}
@@ -197,21 +234,17 @@
 				const wn = parseInt(wnStr);
 				const day = parseInt(dayStr);
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].days[day].push({ _id: crypto.randomUUID(), training_id: trainingId });
+				weekDrafts[wn].days[day].push(newDraftSession(trainingId));
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('freq:')) {
 				const wn = parseInt(targetId.slice(5));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].freqSessions.push({
-					_id: crypto.randomUUID(),
-					training_id: trainingId,
-					times_per_week: 1
-				});
+				weekDrafts[wn].freqSessions.push({ ...newDraftSession(trainingId), times_per_week: 1 });
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('everyday:')) {
 				const wn = parseInt(targetId.slice(9));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].everydaySessions.push({ _id: crypto.randomUUID(), training_id: trainingId });
+				weekDrafts[wn].everydaySessions.push(newDraftSession(trainingId));
 				weekDrafts[wn].dirty = true;
 			}
 		} else {
@@ -228,25 +261,18 @@
 				const wn = parseInt(wnStr);
 				const day = parseInt(dayStr);
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].days[day].push({ _id: session._id, training_id: session.training_id });
+				weekDrafts[wn].days[day].push(movedDraftSession(session));
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('freq:')) {
 				const wn = parseInt(targetId.slice(5));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
 				const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
-				weekDrafts[wn].freqSessions.push({
-					_id: session._id,
-					training_id: session.training_id,
-					times_per_week: times
-				});
+				weekDrafts[wn].freqSessions.push({ ...movedDraftSession(session), times_per_week: times });
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('everyday:')) {
 				const wn = parseInt(targetId.slice(9));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].everydaySessions.push({
-					_id: session._id,
-					training_id: session.training_id
-				});
+				weekDrafts[wn].everydaySessions.push(movedDraftSession(session));
 				weekDrafts[wn].dirty = true;
 			}
 		}
