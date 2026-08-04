@@ -1,0 +1,11 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/e2e.yml

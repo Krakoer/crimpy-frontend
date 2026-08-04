@@ -6,7 +6,11 @@ on:
     tags: ['v*']
 
 jobs:
+  e2e:
+    uses: ./.github/workflows/e2e.yml
+
   docker:
+    needs: e2e
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
