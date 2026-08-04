@@ -4,6 +4,14 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { EnrollmentTokenInfo } from '$lib/api/client';
+	import AuthShell from '$lib/components/AuthShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
+	import {
+		authBadge,
+		authBanner,
+		authPrimaryButton,
+		authSecondaryButton
+	} from '$lib/components/auth-styles';
 
 	let { data } = $props();
 
@@ -48,109 +56,117 @@
 	function handleDecline() {
 		goto('/dashboard');
 	}
+
+	function coachInitials(info: EnrollmentTokenInfo): string {
+		return ((info.coach_firstname?.[0] ?? '') + (info.coach_lastname?.[0] ?? '')).toUpperCase();
+	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-white p-4">
-	<div class="w-full max-w-md">
-		<div class="mb-8 text-center">
-			<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-				CRIMPY
-			</h1>
-			<p class="text-gray-600" style="font-family: monospace; font-size: 13px;">
-				Climbing Training Platform
+<AuthShell>
+	<div style="padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;">
+		{#if pageState === 'loading'}
+			<div style="display: flex; justify-content: center; padding: 24px 0;">
+				<div class="spinner"></div>
+			</div>
+		{:else if pageState === 'invalid' || pageState === 'error'}
+			<div style="text-align: center;">
+				<div style={authBadge('error')}>
+					<Icon name="x" size={24} color="var(--rd)" />
+				</div>
+				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
+					Enrollment unavailable
+				</h1>
+			</div>
+			<div style={authBanner('error')}>{errorMessage}</div>
+			<button
+				onclick={() => goto('/dashboard')}
+				style="{authSecondaryButton} width: 100%; text-align: center;"
+			>
+				Go to dashboard
+			</button>
+		{:else if pageState === 'confirm' && tokenInfo}
+			<div style="text-align: center;">
+				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx);">Enrollment request</h1>
+				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px;">
+					You have been invited to train with a coach.
+				</p>
+			</div>
+
+			<div
+				style="display: flex; align-items: center; gap: 12px; background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs); padding: 14px 16px;"
+			>
+				<div
+					style="
+						width: 40px; height: 40px; border-radius: 50%;
+						background: var(--pr); color: #fff;
+						display: flex; align-items: center; justify-content: center;
+						font-size: 14px; font-weight: 600; flex-shrink: 0;
+					"
+				>
+					{coachInitials(tokenInfo)}
+				</div>
+				<div style="min-width: 0;">
+					<p
+						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
+					>
+						Coach
+					</p>
+					<p style="font-size: 14px; font-weight: 600; color: var(--tx);">
+						{tokenInfo.coach_firstname}
+						{tokenInfo.coach_lastname}
+					</p>
+				</div>
+			</div>
+
+			<p style="font-size: 12.5px; color: var(--tx2); line-height: 1.6;">
+				Do you want to be enrolled by this coach? They will be able to assign training plans, view
+				your trainings, and send feedback.
 			</p>
-		</div>
 
-		<div class="border-2 border-black bg-white p-8">
-			{#if pageState === 'loading'}
-				<div class="flex items-center justify-center py-8">
-					<div
-						class="animate-spin"
-						style="width: 24px; height: 24px; border: 2px solid black; border-top-color: transparent; border-radius: 50%;"
-					></div>
+			<div style="display: flex; gap: 10px;">
+				<button
+					onclick={handleAccept}
+					disabled={accepting}
+					style="{authPrimaryButton} flex: 1; opacity: {accepting ? 0.5 : 1};"
+				>
+					{accepting ? 'Accepting...' : 'Accept'}
+				</button>
+				<button onclick={handleDecline} disabled={accepting} style="{authSecondaryButton} flex: 1;">
+					Decline
+				</button>
+			</div>
+		{:else if pageState === 'accepted'}
+			<div style="text-align: center;">
+				<div style={authBadge('success')}>
+					<Icon name="check" size={24} color="var(--gn)" />
 				</div>
-			{:else if pageState === 'invalid' || pageState === 'error'}
-				<div>
-					<h2 class="mb-4 text-xl font-bold" style="font-family: monospace;">
-						ENROLLMENT UNAVAILABLE
-					</h2>
-					<div
-						class="mb-6 border border-red-600 bg-red-50 p-4"
-						style="font-family: monospace; font-size: 13px; color: #B85450;"
-					>
-						{errorMessage}
-					</div>
-					<button
-						onclick={() => goto('/dashboard')}
-						class="w-full border border-black px-4 py-3 font-medium transition-colors hover:bg-gray-100"
-						style="font-family: monospace; font-size: 13px;"
-					>
-						GO TO DASHBOARD
-					</button>
-				</div>
-			{:else if pageState === 'confirm' && tokenInfo}
-				<div>
-					<h2 class="mb-2 text-xl font-bold" style="font-family: monospace;">ENROLLMENT REQUEST</h2>
-					<p class="mb-6" style="font-family: monospace; font-size: 13px; color: #666;">
-						You have been invited to train with a coach.
-					</p>
-
-					<div class="mb-6 border border-gray-300 bg-gray-50 p-4">
-						<p class="mb-1 font-bold" style="font-family: monospace; font-size: 12px; color: #666;">
-							COACH
-						</p>
-						<p class="text-lg font-bold" style="font-family: monospace;">
-							{tokenInfo.coach_firstname}
-							{tokenInfo.coach_lastname}
-						</p>
-					</div>
-
-					<p class="mb-6" style="font-family: monospace; font-size: 13px; color: #666;">
-						Do you want to be enrolled by this coach? They will be able to assign training plans,
-						view your trainings, and send feedback.
-					</p>
-
-					<div class="flex gap-3">
-						<button
-							onclick={handleAccept}
-							disabled={accepting}
-							class="flex-1 px-4 py-3 font-medium transition-opacity"
-							style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; opacity: {accepting
-								? 0.6
-								: 1};"
-						>
-							{accepting ? 'ACCEPTING...' : 'ACCEPT'}
-						</button>
-						<button
-							onclick={handleDecline}
-							disabled={accepting}
-							class="flex-1 border border-black px-4 py-3 font-medium transition-colors hover:bg-gray-100"
-							style="font-family: monospace; font-size: 13px;"
-						>
-							DECLINE
-						</button>
-					</div>
-				</div>
-			{:else if pageState === 'accepted'}
-				<div>
-					<h2 class="mb-4 text-xl font-bold" style="font-family: monospace;">ENROLLED</h2>
-					<div
-						class="mb-6 border border-green-600 bg-green-50 p-4"
-						style="font-family: monospace; font-size: 13px; color: #4A7C4A;"
-					>
-						You are now enrolled with {tokenInfo?.coach_firstname}
-						{tokenInfo?.coach_lastname}. Your coach can now assign you training plans and track your
-						trainings.
-					</div>
-					<button
-						onclick={() => goto('/dashboard')}
-						class="w-full px-4 py-3 font-medium transition-opacity"
-						style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white;"
-					>
-						GO TO DASHBOARD
-					</button>
-				</div>
-			{/if}
-		</div>
+				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
+					Enrolled
+				</h1>
+				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px; line-height: 1.5;">
+					You are now enrolled with {tokenInfo?.coach_firstname}
+					{tokenInfo?.coach_lastname}. Your coach can now assign you training plans and track your
+					trainings.
+				</p>
+			</div>
+			<button onclick={() => goto('/dashboard')} style={authPrimaryButton}>Go to dashboard</button>
+		{/if}
 	</div>
-</div>
+</AuthShell>
+
+<style>
+	.spinner {
+		width: 24px;
+		height: 24px;
+		border: 2px solid var(--pr-lt);
+		border-top-color: var(--pr);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+</style>

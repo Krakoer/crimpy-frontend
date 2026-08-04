@@ -4,6 +4,9 @@
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import AuthShell from '$lib/components/AuthShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
+	import { authBadge, authBanner, authSecondaryButton } from '$lib/components/auth-styles';
 
 	let verifying = $state(false);
 	let verified = $state(false);
@@ -75,7 +78,7 @@
 		resendMessage = '';
 		try {
 			await apiClient.resendVerification(authStore.user.email);
-			resendMessage = 'Verification email sent! Please check your inbox.';
+			resendMessage = 'Verification email sent. Please check your inbox.';
 			resendCooldown = 600;
 
 			if (cooldownInterval) {
@@ -113,129 +116,103 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-white p-6">
-	<div class="w-full max-w-2xl">
-		<div class="mb-8 text-center">
-			<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-				CRIMPY
-			</h1>
-			<p class="text-gray-600" style="font-family: monospace; font-size: 13px;">
-				Climbing Training Platform
-			</p>
+<AuthShell maxWidth={480}>
+	<div style="padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;">
+		<div style="text-align: center;">
+			{#if verifying}
+				<div style={authBadge('primary')}>
+					<Icon name="clock" size={24} color="var(--pr)" />
+				</div>
+				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
+					Verifying your email
+				</h1>
+				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px;">
+					Please wait while we verify your email address.
+				</p>
+			{:else if verified}
+				<div style={authBadge('success')}>
+					<Icon name="check" size={24} color="var(--gn)" />
+				</div>
+				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
+					Email verified
+				</h1>
+				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px;">
+					{authStore.isCoach
+						? 'Redirecting to the validation page...'
+						: 'Redirecting to your dashboard...'}
+				</p>
+			{:else}
+				<div style={authBadge('gold')}>
+					<Icon name="mail" size={24} color="var(--gd)" />
+				</div>
+				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
+					Verify your email
+				</h1>
+				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px; line-height: 1.5;">
+					Thank you for registering, {authStore.user?.firstname}. We have sent a verification link
+					to
+					<strong style="color: var(--tx);">{authStore.user?.email}</strong>.
+				</p>
+			{/if}
 		</div>
 
-		<div class="border-2 border-black bg-white p-8">
-			<div class="mb-6 text-center">
-				{#if verifying}
-					<div
-						class="mb-4 inline-flex h-16 w-16 items-center justify-center border-2 border-gray-400 bg-gray-50"
-					>
-						<span class="text-3xl">...</span>
-					</div>
-					<h2 class="mb-2 text-2xl font-bold" style="font-family: monospace;">VERIFYING EMAIL</h2>
-				{:else if verified}
-					<div
-						class="mb-4 inline-flex h-16 w-16 items-center justify-center border-2 border-green-600 bg-green-50"
-					>
-						<span class="text-3xl">✓</span>
-					</div>
-					<h2 class="mb-2 text-2xl font-bold" style="font-family: monospace;">EMAIL VERIFIED</h2>
-				{:else}
-					<div
-						class="mb-4 inline-flex h-16 w-16 items-center justify-center border-2 border-yellow-600 bg-yellow-50"
-					>
-						<span class="text-3xl">@</span>
-					</div>
-					<h2 class="mb-2 text-2xl font-bold" style="font-family: monospace;">VERIFY YOUR EMAIL</h2>
-				{/if}
-			</div>
+		{#if !verifying && !verified}
+			{#if error}
+				<div style={authBanner('error')}>{error}</div>
+			{/if}
 
-			<div class="space-y-4" style="font-family: monospace; font-size: 14px; line-height: 1.6;">
-				{#if verifying}
-					<p class="text-center">Please wait while we verify your email address...</p>
-				{:else if verified}
-					<p class="text-center">Your email has been successfully verified!</p>
-					{#if authStore.isCoach}
-						<p class="text-center" style="font-size: 12px; color: #666;">
-							Redirecting to pending validation page...
-						</p>
-					{:else}
-						<p class="text-center" style="font-size: 12px; color: #666;">
-							Redirecting to dashboard...
-						</p>
-					{/if}
-				{:else}
-					<p>
-						Thank you for registering, {authStore.user?.firstname}!
-					</p>
-					<p>
-						We have sent a verification email to <strong>{authStore.user?.email}</strong>. Please
-						check your inbox and click the verification link to continue.
-					</p>
+			{#if resendMessage}
+				<div style={authBanner('success')}>{resendMessage}</div>
+			{/if}
 
-					{#if error}
-						<div
-							class="border border-red-600 bg-red-50 p-3"
-							style="font-size: 12px; color: #B85450;"
-						>
-							{error}
-						</div>
-					{/if}
-
-					{#if resendMessage}
-						<div
-							class="border border-green-600 bg-green-50 p-3"
-							style="font-size: 12px; color: #22863a;"
-						>
-							{resendMessage}
-						</div>
-					{/if}
-
-					<div class="border border-gray-300 bg-gray-50 p-4">
-						<p class="mb-2 font-medium" style="font-size: 12px; color: #666;">NEXT STEPS</p>
-						<ol class="list-inside list-decimal space-y-1" style="font-size: 12px; color: #666;">
-							<li>Check your email inbox (and spam folder)</li>
-							<li>Click the verification link in the email</li>
-							{#if authStore.isCoach}
-								<li>Wait for admin validation to access the coach portal</li>
-							{:else}
-								<li>Access your dashboard</li>
-							{/if}
-						</ol>
-					</div>
-
-					<div class="pt-4 text-center">
-						<p style="font-size: 12px; color: #999;" class="mb-3">Did not receive the email?</p>
-						<button
-							onclick={handleResend}
-							disabled={resending || resendCooldown > 0}
-							class="border border-black px-6 py-2 font-medium transition-opacity"
-							style="font-family: monospace; font-size: 13px; opacity: {resending ||
-							resendCooldown > 0
-								? 0.5
-								: 1}; background-color: {resendCooldown > 0 ? '#f3f4f6' : 'white'};"
-						>
-							{#if resending}
-								SENDING...
-							{:else if resendCooldown > 0}
-								RESEND IN {formatCooldown(resendCooldown)}
-							{:else}
-								RESEND VERIFICATION EMAIL
-							{/if}
-						</button>
-					</div>
-				{/if}
-			</div>
-
-			<div class="mt-6 text-center">
-				<button
-					onclick={handleLogout}
-					class="border border-black px-6 py-2 font-medium transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 13px;"
+			<div
+				style="background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs); padding: 14px 16px;"
+			>
+				<p
+					style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
 				>
-					LOGOUT
+					Next steps
+				</p>
+				<ol
+					style="font-size: 12.5px; color: var(--tx2); line-height: 1.7; padding-left: 18px; list-style: decimal;"
+				>
+					<li>Check your inbox, and your spam folder</li>
+					<li>Click the verification link in the email</li>
+					{#if authStore.isCoach}
+						<li>Wait for admin validation to access the coach portal</li>
+					{:else}
+						<li>Access your dashboard</li>
+					{/if}
+				</ol>
+			</div>
+
+			<div style="text-align: center;">
+				<p style="font-size: 12.5px; color: var(--tx3); margin-bottom: 10px;">
+					Did not receive the email?
+				</p>
+				<button
+					onclick={handleResend}
+					disabled={resending || resendCooldown > 0}
+					style="{authSecondaryButton} opacity: {resending || resendCooldown > 0 ? 0.5 : 1};"
+				>
+					{#if resending}
+						Sending...
+					{:else if resendCooldown > 0}
+						Resend in {formatCooldown(resendCooldown)}
+					{:else}
+						Resend verification email
+					{/if}
 				</button>
 			</div>
-		</div>
+		{/if}
 	</div>
-</div>
+
+	<div style="border-top: 1px solid var(--bd); padding: 14px 26px; text-align: center;">
+		<button
+			onclick={handleLogout}
+			style="background: none; border: none; cursor: pointer; font-family: var(--font); font-size: 12.5px; font-weight: 600; color: var(--tx2);"
+		>
+			Sign out
+		</button>
+	</div>
+</AuthShell>

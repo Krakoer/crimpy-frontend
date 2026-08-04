@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
+	import AuthShell from '$lib/components/AuthShell.svelte';
+	import { authBanner, authInput, authLabel, authPrimaryButton } from '$lib/components/auth-styles';
 
 	let { data } = $props();
 
@@ -60,211 +62,134 @@
 		activeTab = tab;
 		resetForm();
 	}
+
+	function tabStyle(tab: 'login' | 'register'): string {
+		const active = activeTab === tab;
+		return `
+			flex: 1; padding: 7px 12px; border-radius: 6px; border: none; cursor: pointer;
+			font-family: var(--font); font-size: 12.5px; font-weight: 600;
+			background: ${active ? '#fff' : 'transparent'};
+			color: ${active ? 'var(--pr)' : 'var(--tx2)'};
+			box-shadow: ${active ? 'var(--sh)' : 'none'};
+		`;
+	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-white p-4">
-	<div class="w-full max-w-md">
-		<div class="mb-8 text-center">
-			<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-				CRIMPY
-			</h1>
-			<p class="text-gray-600" style="font-family: monospace; font-size: 13px;">
-				Climbing Training Platform
-			</p>
+<AuthShell>
+	<div style="padding: 24px 26px; display: flex; flex-direction: column; gap: 18px;">
+		<div
+			style="display: flex; gap: 4px; padding: 4px; background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs);"
+		>
+			<button style={tabStyle('login')} onclick={() => switchTab('login')}>Sign in</button>
+			<button style={tabStyle('register')} onclick={() => switchTab('register')}>
+				Register as coach
+			</button>
 		</div>
 
-		<div class="border-2 border-black bg-white">
-			<div class="flex border-b-2 border-black">
-				<button
-					class="flex-1 px-4 py-3 font-medium transition-colors"
-					style="font-family: monospace; font-size: 13px; background-color: {activeTab === 'login'
-						? '#C6613F'
-						: 'white'}; color: {activeTab === 'login' ? 'white' : 'black'};"
-					onclick={() => switchTab('login')}
-				>
-					LOGIN
-				</button>
-				<div class="w-0.5 bg-black"></div>
-				<button
-					class="flex-1 px-4 py-3 font-medium transition-colors"
-					style="font-family: monospace; font-size: 13px; background-color: {activeTab ===
-					'register'
-						? '#C6613F'
-						: 'white'}; color: {activeTab === 'register' ? 'white' : 'black'};"
-					onclick={() => switchTab('register')}
-				>
-					REGISTER AS COACH
-				</button>
-			</div>
+		{#if error}
+			<div style={authBanner('error')}>{error}</div>
+		{/if}
 
-			<div class="p-6">
-				{#if error}
-					<div
-						class="mb-4 border border-red-600 bg-red-50 p-3"
-						style="font-family: monospace; font-size: 12px; color: #B85450;"
-					>
-						{error}
+		{#if activeTab === 'login'}
+			<form
+				style="display: flex; flex-direction: column; gap: 16px;"
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleLogin();
+				}}
+			>
+				<div>
+					<label for="login-email" style={authLabel}>Email</label>
+					<input
+						id="login-email"
+						bind:value={email}
+						required
+						style={authInput}
+						placeholder="coach@example.com"
+					/>
+				</div>
+
+				<div>
+					<label for="login-password" style={authLabel}>Password</label>
+					<input
+						id="login-password"
+						type="password"
+						bind:value={password}
+						required
+						style={authInput}
+					/>
+				</div>
+
+				<button
+					type="submit"
+					disabled={loading}
+					style="{authPrimaryButton} opacity: {loading ? 0.5 : 1};"
+				>
+					{loading ? 'Signing in...' : 'Sign in'}
+				</button>
+			</form>
+		{:else}
+			<form
+				style="display: flex; flex-direction: column; gap: 16px;"
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleRegister();
+				}}
+			>
+				<div style="display: flex; gap: 12px;">
+					<div style="flex: 1; min-width: 0;">
+						<label for="reg-firstname" style={authLabel}>First name</label>
+						<input
+							id="reg-firstname"
+							type="text"
+							bind:value={firstname}
+							required
+							style={authInput}
+						/>
 					</div>
-				{/if}
+					<div style="flex: 1; min-width: 0;">
+						<label for="reg-lastname" style={authLabel}>Last name</label>
+						<input id="reg-lastname" type="text" bind:value={lastname} required style={authInput} />
+					</div>
+				</div>
 
-				{#if activeTab === 'login'}
-					<form
-						onsubmit={(e) => {
-							e.preventDefault();
-							handleLogin();
-						}}
-					>
-						<div class="mb-4">
-							<label
-								for="login-email"
-								class="mb-2 block font-medium"
-								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
-							>
-								EMAIL
-							</label>
-							<input
-								id="login-email"
-								bind:value={email}
-								required
-								class="w-full border border-black bg-white px-3 py-2"
-								style="font-family: monospace; font-size: 14px;"
-								placeholder="coach@example.com"
-							/>
-						</div>
+				<div>
+					<label for="reg-email" style={authLabel}>Email</label>
+					<input
+						id="reg-email"
+						type="email"
+						bind:value={email}
+						required
+						style={authInput}
+						placeholder="coach@example.com"
+					/>
+				</div>
 
-						<div class="mb-6">
-							<label
-								for="login-password"
-								class="mb-2 block font-medium"
-								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
-							>
-								PASSWORD
-							</label>
-							<input
-								id="login-password"
-								type="password"
-								bind:value={password}
-								required
-								class="w-full border border-black bg-white px-3 py-2"
-								style="font-family: monospace; font-size: 14px;"
-							/>
-						</div>
+				<div>
+					<label for="reg-password" style={authLabel}>Password</label>
+					<input
+						id="reg-password"
+						type="password"
+						bind:value={password}
+						required
+						minlength="6"
+						style={authInput}
+					/>
+				</div>
 
-						<button
-							type="submit"
-							disabled={loading}
-							class="w-full px-4 py-3 font-medium transition-opacity"
-							style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; opacity: {loading
-								? 0.6
-								: 1};"
-						>
-							{loading ? 'LOGGING IN...' : 'LOGIN'}
-						</button>
-					</form>
-				{:else}
-					<form
-						onsubmit={(e) => {
-							e.preventDefault();
-							handleRegister();
-						}}
-					>
-						<div class="mb-4">
-							<label
-								for="reg-firstname"
-								class="mb-2 block font-medium"
-								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
-							>
-								FIRST NAME
-							</label>
-							<input
-								id="reg-firstname"
-								type="text"
-								bind:value={firstname}
-								required
-								class="w-full border border-black bg-white px-3 py-2"
-								style="font-family: monospace; font-size: 14px;"
-							/>
-						</div>
+				<div style={authBanner('notice')}>
+					You will need to verify your email address and then wait for admin validation before
+					access.
+				</div>
 
-						<div class="mb-4">
-							<label
-								for="reg-lastname"
-								class="mb-2 block font-medium"
-								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
-							>
-								LAST NAME
-							</label>
-							<input
-								id="reg-lastname"
-								type="text"
-								bind:value={lastname}
-								required
-								class="w-full border border-black bg-white px-3 py-2"
-								style="font-family: monospace; font-size: 14px;"
-							/>
-						</div>
-
-						<div class="mb-4">
-							<label
-								for="reg-email"
-								class="mb-2 block font-medium"
-								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
-							>
-								EMAIL
-							</label>
-							<input
-								id="reg-email"
-								type="email"
-								bind:value={email}
-								required
-								class="w-full border border-black bg-white px-3 py-2"
-								style="font-family: monospace; font-size: 14px;"
-								placeholder="coach@example.com"
-							/>
-						</div>
-
-						<div class="mb-4">
-							<label
-								for="reg-password"
-								class="mb-2 block font-medium"
-								style="font-family: monospace; font-size: 12px; color: #666; letter-spacing: 0.5px;"
-							>
-								PASSWORD
-							</label>
-							<input
-								id="reg-password"
-								type="password"
-								bind:value={password}
-								required
-								minlength="6"
-								class="w-full border border-black bg-white px-3 py-2"
-								style="font-family: monospace; font-size: 14px;"
-							/>
-						</div>
-
-						<div class="mb-6 border border-yellow-600 bg-yellow-50 p-3">
-							<p
-								class="text-yellow-700"
-								style="font-family: monospace; font-size: 12px; font-weight: 500;"
-							>
-								You will need to verify your email address and then wait for admin validation before
-								access.
-							</p>
-						</div>
-
-						<button
-							type="submit"
-							disabled={loading}
-							class="w-full px-4 py-3 font-medium transition-opacity"
-							style="font-family: monospace; font-size: 13px; background-color: #C6613F; color: white; opacity: {loading
-								? 0.6
-								: 1};"
-						>
-							{loading ? 'REGISTERING...' : 'REGISTER AS COACH'}
-						</button>
-					</form>
-				{/if}
-			</div>
-		</div>
+				<button
+					type="submit"
+					disabled={loading}
+					style="{authPrimaryButton} opacity: {loading ? 0.5 : 1};"
+				>
+					{loading ? 'Creating account...' : 'Register as coach'}
+				</button>
+			</form>
+		{/if}
 	</div>
-</div>
+</AuthShell>

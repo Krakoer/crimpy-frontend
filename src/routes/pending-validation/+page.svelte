@@ -2,6 +2,9 @@
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
+	import AuthShell from '$lib/components/AuthShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
+	import { authBadge } from '$lib/components/auth-styles';
 
 	onMount(() => {
 		authStore.initialize();
@@ -33,62 +36,61 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-white p-6">
-	<div class="w-full max-w-2xl">
-		<div class="mb-8 text-center">
-			<h1 class="mb-2 text-4xl font-black" style="font-family: monospace; letter-spacing: -0.5px;">
-				CRIMPY
+<AuthShell maxWidth={480}>
+	<div style="padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;">
+		<div style="text-align: center;">
+			<div style={authBadge('gold')}>
+				<Icon name="clock" size={24} color="var(--gd)" />
+			</div>
+			<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
+				Pending validation
 			</h1>
-			<p class="text-gray-600" style="font-family: monospace; font-size: 13px;">
-				Climbing Training Platform
+			<p style="font-size: 13px; color: var(--tx2); margin-top: 6px; line-height: 1.5;">
+				Thank you for registering as a coach, {authStore.user?.firstname}. Your email is verified
+				and your account is now waiting for admin validation.
 			</p>
 		</div>
 
-		<div class="border-2 border-black bg-white p-8">
-			<div class="mb-6 text-center">
-				<div
-					class="mb-4 inline-flex h-16 w-16 items-center justify-center border-2 border-yellow-600 bg-yellow-50"
-				>
-					<span class="text-3xl">!</span>
-				</div>
-				<h2 class="mb-2 text-2xl font-bold" style="font-family: monospace;">PENDING VALIDATION</h2>
-			</div>
-
-			<div class="space-y-4" style="font-family: monospace; font-size: 14px; line-height: 1.6;">
-				<p>
-					Thank you for registering as a coach, {authStore.user?.firstname}!
-				</p>
-				<p>
-					Your email address has been verified. Your account is currently pending admin validation.
-					You will receive access to the coach portal once an administrator has reviewed and
-					approved your account.
-				</p>
-				<div class="border border-gray-300 bg-gray-50 p-4">
-					<p class="mb-2 font-medium" style="font-size: 12px; color: #666;">ACCOUNT DETAILS</p>
-					<p style="font-size: 12px; color: #666;">
-						Email: {authStore.user?.email}
-						{authStore.user?.email_verified ? '(Verified)' : ''}
-					</p>
-					<p style="font-size: 12px; color: #666;">
-						Name: {authStore.user?.firstname}
+		<div
+			style="background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs); padding: 14px 16px;"
+		>
+			<p
+				style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
+			>
+				Account details
+			</p>
+			<div style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px;">
+				<div style="display: flex; gap: 8px;">
+					<span style="color: var(--tx3); width: 52px; flex-shrink: 0;">Name</span>
+					<span style="color: var(--tx2);">
+						{authStore.user?.firstname}
 						{authStore.user?.lastname}
-					</p>
+					</span>
 				</div>
-				<p style="font-size: 12px; color: #999;">
-					This process typically takes 1-2 business days. You will be notified by email once your
-					account has been validated.
-				</p>
-			</div>
-
-			<div class="mt-6 text-center">
-				<button
-					onclick={handleLogout}
-					class="border border-black px-6 py-2 font-medium transition-colors hover:bg-gray-100"
-					style="font-family: monospace; font-size: 13px;"
-				>
-					LOGOUT
-				</button>
+				<div style="display: flex; gap: 8px;">
+					<span style="color: var(--tx3); width: 52px; flex-shrink: 0;">Email</span>
+					<span style="color: var(--tx2);">
+						{authStore.user?.email}
+						{#if authStore.user?.email_verified}
+							<span style="color: var(--gn); font-weight: 600;">(verified)</span>
+						{/if}
+					</span>
+				</div>
 			</div>
 		</div>
+
+		<p style="font-size: 12px; color: var(--tx3); line-height: 1.5; text-align: center;">
+			This typically takes 1 to 2 business days. You will be notified by email once your account has
+			been validated.
+		</p>
 	</div>
-</div>
+
+	<div style="border-top: 1px solid var(--bd); padding: 14px 26px; text-align: center;">
+		<button
+			onclick={handleLogout}
+			style="background: none; border: none; cursor: pointer; font-family: var(--font); font-size: 12.5px; font-weight: 600; color: var(--tx2);"
+		>
+			Sign out
+		</button>
+	</div>
+</AuthShell>
