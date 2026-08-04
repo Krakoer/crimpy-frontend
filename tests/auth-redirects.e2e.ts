@@ -106,7 +106,9 @@ test.describe('route guards', () => {
 
 		await page.goto('/coachees');
 
-		await expect(page).toHaveURL('/dashboard');
+		// The guard sends them to /dashboard, which immediately forwards an
+		// unvalidated coach on, so only the final destination is stable.
+		await expect(page).toHaveURL('/pending-validation');
 	});
 
 	test('clears the session and returns to sign-in when the stored token is rejected', async ({
