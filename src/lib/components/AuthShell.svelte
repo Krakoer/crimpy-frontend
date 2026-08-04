@@ -2,8 +2,16 @@
 	import type { Snippet } from 'svelte';
 	import Icon from './Icon.svelte';
 
-	let { maxWidth = 420, children }: { maxWidth?: number; children: Snippet } = $props();
+	let {
+		title,
+		maxWidth = 420,
+		children
+	}: { title: string; maxWidth?: number; children: Snippet } = $props();
 </script>
+
+<svelte:head>
+	<title>{title} - Crimpy</title>
+</svelte:head>
 
 <div
 	style="

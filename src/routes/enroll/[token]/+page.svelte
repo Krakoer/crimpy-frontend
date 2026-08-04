@@ -62,7 +62,7 @@
 	}
 </script>
 
-<AuthShell>
+<AuthShell title="Enrollment request">
 	<div style="padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;">
 		{#if pageState === 'loading'}
 			<div style="display: flex; justify-content: center; padding: 24px 0;">

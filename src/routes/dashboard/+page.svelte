@@ -162,6 +162,7 @@
 {#if authStore.isValidatedCoach}
 	<AppShell
 		title="Welcome back, {authStore.user?.firstname ?? 'Coach'}"
+		documentTitle="Dashboard"
 		breadcrumbs={[{ label: 'Studio' }, { label: 'Dashboard' }]}
 	>
 		{#snippet actions()}

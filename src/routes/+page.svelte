@@ -75,7 +75,7 @@
 	}
 </script>
 
-<AuthShell>
+<AuthShell title={activeTab === 'login' ? 'Sign in' : 'Register as coach'}>
 	<div style="padding: 24px 26px; display: flex; flex-direction: column; gap: 18px;">
 		<div
 			style="display: flex; gap: 4px; padding: 4px; background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs);"

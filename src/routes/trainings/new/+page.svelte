@@ -428,10 +428,6 @@
 	);
 </script>
 
-<svelte:head>
-	<title>{draft.title || 'New training'} - Crimpy</title>
-</svelte:head>
-
 <AppShell
 	title={draft.title || 'New training'}
 	breadcrumbs={[

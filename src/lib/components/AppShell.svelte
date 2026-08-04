@@ -11,16 +11,22 @@
 
 	let {
 		title,
+		documentTitle,
 		breadcrumbs = [],
 		actions,
 		children
 	}: {
 		title: string;
+		documentTitle?: string;
 		breadcrumbs?: Breadcrumb[];
 		actions?: Snippet;
 		children: Snippet;
 	} = $props();
 </script>
+
+<svelte:head>
+	<title>{documentTitle ?? title} - Crimpy</title>
+</svelte:head>
 
 <div
 	style="

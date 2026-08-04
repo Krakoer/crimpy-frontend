@@ -116,7 +116,7 @@
 	}
 </script>
 
-<AuthShell maxWidth={480}>
+<AuthShell title="Verify your email" maxWidth={480}>
 	<div style="padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;">
 		<div style="text-align: center;">
 			{#if verifying}

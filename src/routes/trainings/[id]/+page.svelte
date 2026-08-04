@@ -543,12 +543,9 @@
 	);
 </script>
 
-<svelte:head>
-	<title>{draft.title || 'Training'}{isDirty ? ' *' : ''} - Crimpy</title>
-</svelte:head>
-
 <AppShell
 	title={draft.title || 'Training'}
+	documentTitle="{draft.title || 'Training'}{isDirty ? ' *' : ''}"
 	breadcrumbs={[
 		{ label: 'Studio' },
 		{ label: 'Trainings', href: '/trainings' },
