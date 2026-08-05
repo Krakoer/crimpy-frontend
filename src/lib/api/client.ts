@@ -377,6 +377,10 @@ class ApiClient {
 		return response.json();
 	}
 
+	private async requestList<T>(endpoint: string, options: RequestInit = {}): Promise<T[]> {
+		return (await this.request<T[] | null>(endpoint, options)) ?? [];
+	}
+
 	private refreshAccessToken(): Promise<boolean> {
 		if (!this.inFlightRefresh) {
 			this.inFlightRefresh = this.rotateTokens().finally(() => {
@@ -473,7 +477,7 @@ class ApiClient {
 	}
 
 	async getPendingCoaches(): Promise<CoachResponse[]> {
-		return this.request<CoachResponse[]>('/api/admin/coaches/pending');
+		return this.requestList<CoachResponse>('/api/admin/coaches/pending');
 	}
 
 	async validateCoach(id: string): Promise<{ message: string }> {
@@ -523,7 +527,7 @@ class ApiClient {
 	}
 
 	async getEnrollments(): Promise<EnrolledUser[]> {
-		return this.request<EnrolledUser[]>('/api/coach/enrollments');
+		return this.requestList<EnrolledUser>('/api/coach/enrollments');
 	}
 
 	async getUserEnrollment(): Promise<UserEnrollment | null> {
@@ -547,11 +551,11 @@ class ApiClient {
 	}
 
 	async getClientSessions(userId: string): Promise<SessionResponse[]> {
-		return this.request<SessionResponse[]>(`/api/coach/clients/${userId}/sessions`);
+		return this.requestList<SessionResponse>(`/api/coach/clients/${userId}/sessions`);
 	}
 
 	async getClientAssessments(userId: string): Promise<AssessmentResponse[]> {
-		return this.request<AssessmentResponse[]>(`/api/coach/clients/${userId}/assessments`);
+		return this.requestList<AssessmentResponse>(`/api/coach/clients/${userId}/assessments`);
 	}
 
 	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {
@@ -596,11 +600,11 @@ class ApiClient {
 	}
 
 	async getFavoriteExercises(): Promise<Exercise[]> {
-		return this.request<Exercise[]>('/api/coach/exercises/favorites');
+		return this.requestList<Exercise>('/api/coach/exercises/favorites');
 	}
 
 	async getTrainings(): Promise<TrainingSummary[]> {
-		return this.request<TrainingSummary[]>('/api/trainings');
+		return this.requestList<TrainingSummary>('/api/trainings');
 	}
 
 	async getTraining(id: string): Promise<Training> {
@@ -628,7 +632,7 @@ class ApiClient {
 	}
 
 	async getTags(): Promise<Tag[]> {
-		return this.request<Tag[]>('/api/coach/tags');
+		return this.requestList<Tag>('/api/coach/tags');
 	}
 
 	async createTag(data: TagRequest): Promise<Tag> {
@@ -664,7 +668,7 @@ class ApiClient {
 	}
 
 	async listPrograms(userId: string): Promise<Program[]> {
-		return this.request<Program[]>(`/api/coach/clients/${userId}/programs`);
+		return this.requestList<Program>(`/api/coach/clients/${userId}/programs`);
 	}
 
 	async getProgram(userId: string, programId: string): Promise<Program> {
@@ -692,7 +696,9 @@ class ApiClient {
 	}
 
 	async listWeeks(userId: string, programId: string): Promise<WeekSummary[]> {
-		return this.request<WeekSummary[]>(`/api/coach/clients/${userId}/programs/${programId}/weeks`);
+		return this.requestList<WeekSummary>(
+			`/api/coach/clients/${userId}/programs/${programId}/weeks`
+		);
 	}
 
 	async getWeek(userId: string, programId: string, weekNumber: number): Promise<WeekDetail> {
