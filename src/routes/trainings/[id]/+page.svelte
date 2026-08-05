@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
-	import { goto, beforeNavigate } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import type {
 		TrainingRequest,
 		Exercise,
@@ -23,6 +23,7 @@
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	function ensureClientIds(items: TrainingItem[]) {
 		for (const item of items) {
@@ -261,8 +262,12 @@
 	let saveError = $state('');
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
-	let showLeaveModal = $state(false);
-	let pendingUrl = $state<string | null>(null);
+	let createExerciseModalDirty = $state(false);
+	let leavingAfterDelete = $state(false);
+
+	let guardDirty = $derived(
+		!leavingAfterDelete && (isDirty || (showCreateExerciseModal && createExerciseModalDirty))
+	);
 
 	$effect(() => {
 		function handleKeydown(e: KeyboardEvent) {
@@ -274,26 +279,6 @@
 		window.addEventListener('keydown', handleKeydown);
 		return () => window.removeEventListener('keydown', handleKeydown);
 	});
-
-	beforeNavigate(({ cancel, to }) => {
-		if (isDirty) {
-			cancel();
-			pendingUrl = to?.url?.pathname ?? null;
-			showLeaveModal = true;
-		}
-	});
-
-	function confirmLeave() {
-		showLeaveModal = false;
-		savedSnapshot = JSON.stringify($state.snapshot(draft));
-		if (pendingUrl) goto(pendingUrl);
-		pendingUrl = null;
-	}
-
-	function cancelLeave() {
-		showLeaveModal = false;
-		pendingUrl = null;
-	}
 
 	const SIDEBAR_PAGE_SIZE = 20;
 	let rootExerciseSearch = $state('');
@@ -521,6 +506,7 @@
 		try {
 			await apiClient.deleteTraining(trainingId);
 			snackbar.show('Training deleted');
+			leavingAfterDelete = true;
 			goto('/trainings');
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to delete training.';
@@ -1023,46 +1009,11 @@
 		onCreated={onExerciseCreated}
 		onClose={() => (showCreateExerciseModal = false)}
 		initialTags={draft.training_type === 'stretching' ? filterExerciseTags : []}
+		onDirtyChange={(dirty) => (createExerciseModalDirty = dirty)}
 	/>
 {/if}
 
-{#if showLeaveModal}
-	<div
-		style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.3);"
-	>
-		<div
-			style="
-			background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
-			box-shadow: 0 20px 60px rgba(0,0,0,0.15); padding: 28px 32px; min-width: 340px;
-		"
-		>
-			<p style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 6px;">
-				Unsaved changes
-			</p>
-			<p style="font-size: 13.5px; color: var(--tx2); margin-bottom: 24px;">
-				Leave without saving?
-			</p>
-			<div style="display: flex; gap: 10px;">
-				<button
-					onclick={confirmLeave}
-					style="
-						padding: 9px 18px; border-radius: var(--rs);
-						border: 1px solid var(--bd); background: #fff; color: var(--tx);
-						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-					">Leave</button
-				>
-				<button
-					onclick={cancelLeave}
-					style="
-						padding: 9px 18px; border-radius: var(--rs);
-						border: 1px solid var(--pr); background: var(--pr); color: #fff;
-						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
-					">Stay</button
-				>
-			</div>
-		</div>
-	</div>
-{/if}
+<UnsavedChangesGuard dirty={guardDirty} />
 
 <style>
 	@keyframes spin {
