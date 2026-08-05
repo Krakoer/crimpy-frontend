@@ -213,10 +213,11 @@
 				Loading trainings...
 			</div>
 		{:else if trainings.length === 0}
-			<div
+			<button
+				onclick={() => goto('/trainings/new')}
 				style="
 					background: var(--pr-fog); border-radius: var(--rl); border: 1.5px dashed var(--pr-lt);
-					padding: 48px; text-align: center;
+					padding: 48px; text-align: center; cursor: pointer; font-family: var(--font);
 					display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--pr);
 				"
 			>
@@ -233,7 +234,7 @@
 				<div style="font-size: 12px; color: var(--pr); opacity: 0.7;">
 					Create your first training to get started.
 				</div>
-			</div>
+			</button>
 		{:else if view === 'grid'}
 			<!-- Grid view -->
 			<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
