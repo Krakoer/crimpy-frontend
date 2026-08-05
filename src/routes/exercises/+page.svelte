@@ -8,6 +8,7 @@
 	import TagSelect from '$lib/components/TagSelect.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	const PAGE_SIZE = 20;
 
@@ -33,6 +34,17 @@
 	let saveError = $state('');
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
+
+	let panelBaseline = $state<string | null>(null);
+
+	function panelSnapshot(): string {
+		return JSON.stringify({
+			form: $state.snapshot(form),
+			tagIds: selectedTags.map((t) => t.id)
+		});
+	}
+
+	let isDirty = $derived(panelBaseline !== null && panelSnapshot() !== panelBaseline);
 
 	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -136,6 +148,7 @@
 		saveError = '';
 		confirmDelete = false;
 		panel = 'new';
+		panelBaseline = panelSnapshot();
 	}
 
 	async function openEdit(exercise: Exercise) {
@@ -149,10 +162,12 @@
 		saveError = '';
 		confirmDelete = false;
 		panel = exercise;
+		panelBaseline = panelSnapshot();
 		try {
 			const full = await apiClient.getExercise(exercise.id);
 			selectedTags = full.tags ?? [];
 			panel = full;
+			panelBaseline = panelSnapshot();
 		} catch {
 			// use what we have
 		}
@@ -160,6 +175,7 @@
 
 	function closePanel() {
 		panel = null;
+		panelBaseline = null;
 	}
 
 	async function handleSave() {
@@ -460,6 +476,8 @@
 		</div>
 	</div>
 </AppShell>
+
+<UnsavedChangesGuard dirty={isDirty} />
 
 <!-- View exercise dialog -->
 {#if viewExercise !== null}

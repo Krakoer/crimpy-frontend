@@ -19,6 +19,7 @@
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 
@@ -212,18 +213,30 @@
 		stretching: 'Stretching'
 	};
 
+	function emptyDraft(): TrainingRequest {
+		return {
+			title: '',
+			description: '',
+			training_type: 'workout',
+			goal: '',
+			comment: '',
+			items: []
+		};
+	}
+
 	let exercises = $state<Exercise[]>([]);
-	let draft = $state<TrainingRequest>({
-		title: '',
-		description: '',
-		training_type: 'workout',
-		goal: '',
-		comment: '',
-		items: []
-	});
+	let draft = $state<TrainingRequest>(emptyDraft());
 	let saving = $state(false);
 	let saveError = $state('');
 	let showCreateExerciseModal = $state(false);
+	let createExerciseModalDirty = $state(false);
+	let leavingAfterCreate = $state(false);
+
+	const emptyDraftSnapshot = JSON.stringify(emptyDraft());
+	let isDirty = $derived(JSON.stringify($state.snapshot(draft)) !== emptyDraftSnapshot);
+	let guardDirty = $derived(
+		!leavingAfterCreate && (isDirty || (showCreateExerciseModal && createExerciseModalDirty))
+	);
 	const SIDEBAR_PAGE_SIZE = 20;
 	let rootExerciseSearch = $state('');
 	let favoritesOnlyExercises = $state(false);
@@ -406,6 +419,7 @@
 				items: draft.training_type === 'climbing' ? [] : draft.items
 			});
 			snackbar.show('Training created');
+			leavingAfterCreate = true;
 			goto(`/trainings/${training.id}`);
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save training.';
@@ -798,5 +812,8 @@
 		onCreated={onExerciseCreated}
 		onClose={() => (showCreateExerciseModal = false)}
 		initialTags={draft.training_type === 'stretching' ? filterExerciseTags : []}
+		onDirtyChange={(dirty) => (createExerciseModalDirty = dirty)}
 	/>
 {/if}
+
+<UnsavedChangesGuard dirty={guardDirty} />
