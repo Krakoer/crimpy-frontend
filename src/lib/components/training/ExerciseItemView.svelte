@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Exercise, TrainingItem } from '$lib/api/client';
+	import { assessmentLabel, formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
-	import { fmtLoad } from './load-units';
 	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
@@ -29,9 +29,13 @@
 		return `${s}s`;
 	}
 
+	let variableTarget = $derived(item.variable_targets?.[isDuration ? 'duration' : 'reps']);
+
 	let collapsedSummary = $derived.by(() => {
 		const parts: string[] = [];
-		if (isDuration) {
+		if (variableTarget) {
+			parts.push(`${variableTarget.percent}% ${assessmentLabel(variableTarget.assessment_type)}`);
+		} else if (isDuration) {
 			parts.push(fmtTime(item.duration ?? 0));
 		} else {
 			parts.push(`${item.reps ?? 1} reps`);
@@ -40,7 +44,7 @@
 		if (rest > 0) parts.push(`${rest}s rest`);
 		const load = item.loads?.[0];
 		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
-			parts.push(fmtLoad(load.value, load.unit));
+			parts.push(formatLoad(load));
 		}
 		return parts.join(' · ');
 	});
@@ -103,8 +107,17 @@
 					>{isDuration ? 'DURATION' : 'REPS'}</span
 				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-					{isDuration ? fmtTime(item.duration ?? 0) : (item.reps ?? 1)}
+					{#if variableTarget}
+						{variableTarget.percent}% {assessmentLabel(variableTarget.assessment_type)}
+					{:else}
+						{isDuration ? fmtTime(item.duration ?? 0) : (item.reps ?? 1)}
+					{/if}
 				</span>
+				{#if variableTarget}
+					<span style="font-size: 10px; color: var(--tx3);">
+						fallback {isDuration ? fmtTime(item.duration ?? 0) : `${item.reps ?? 1} reps`}
+					</span>
+				{/if}
 			</div>
 
 			{#if item.loads && item.loads.length > 0}
@@ -114,8 +127,13 @@
 						>LOAD</span
 					>
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-						{fmtLoad(item.loads[0].value, item.loads[0].unit)}
+						{formatLoad(item.loads[0])}
 					</span>
+					{#if item.loads[0].unit === 'percent_assessment'}
+						<span style="font-size: 10px; color: var(--tx3);">
+							fallback {item.loads[0].fallback ?? 0} kg
+						</span>
+					{/if}
 				</div>
 			{/if}
 

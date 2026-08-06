@@ -14,15 +14,18 @@
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import DraggableSession from '$lib/components/program/DraggableSession.svelte';
 	import type {
+		AssessmentResponse,
 		Program,
 		ProgramRequest,
 		WeekSummary,
 		WeekDetail,
 		SessionOverride,
 		SessionRequest,
+		TrainingItem,
 		TrainingSummary,
 		TrainingType
 	} from '$lib/api/client';
+	import { ASSESSMENT_TYPES, missingAssessmentTypes } from '$lib/assessments';
 
 	let { data } = $props();
 	const userId = $derived(data.userId as string);
@@ -38,8 +41,34 @@
 	type FreqSession = DraftSession & { times_per_week: number };
 	type EverydaySession = DraftSession;
 
+	// Only used when a training is dropped onto the program, so this is where the
+	// coach is told about assessments the coachee is missing.
 	function newDraftSession(trainingId: string): DraftSession {
+		warnAboutMissingAssessments(trainingId);
 		return { _id: crypto.randomUUID(), training_id: trainingId, overrides: [] };
+	}
+
+	// A training can prescribe loads or durations as a percentage of an
+	// assessment result. The coachee only gets the coach fallback until they have
+	// done that assessment, which is worth saying out loud when the training
+	// lands on their program.
+	async function warnAboutMissingAssessments(trainingId: string) {
+		let items = trainingItemsById.get(trainingId);
+		if (!items) {
+			try {
+				items = (await apiClient.getTraining(trainingId)).items ?? [];
+			} catch {
+				return;
+			}
+			trainingItemsById.set(trainingId, items);
+		}
+		const missing = missingAssessmentTypes(items, coacheeAssessments);
+		if (missing.length === 0) return;
+		const names = missing.map((type) => ASSESSMENT_TYPES[type]?.label ?? 'assessment').join(', ');
+		snackbar.show(
+			`${coacheeName} has not done ${names} yet, so the fallback values of this training will be used.`,
+			'warning'
+		);
 	}
 
 	function movedDraftSession(session: DraftSession): DraftSession {
@@ -165,6 +194,8 @@
 	});
 
 	let trainings = $state<TrainingSummary[]>([]);
+	let coacheeAssessments = $state<AssessmentResponse[]>([]);
+	const trainingItemsById = new Map<string, TrainingItem[]>();
 	let trainingSearch = $state('');
 	let trainingTypeFilter = $state<string>('all');
 	let filteredTrainings = $derived(
@@ -540,6 +571,10 @@
 				const found = enrollments.find((e) => e.user_id === userId);
 				if (found) coacheeName = `${found.user_firstname} ${found.user_lastname}`;
 			})
+			.catch(() => {});
+		apiClient
+			.getClientAssessments(userId)
+			.then((a) => (coacheeAssessments = a ?? []))
 			.catch(() => {});
 		loading = true;
 		try {

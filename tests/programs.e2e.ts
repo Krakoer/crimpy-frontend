@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	capture,
 	mockApi,
@@ -169,4 +169,48 @@ test('loads the sessions already planned in a week', async ({ page }) => {
 
 	await expect(page.getByText('Power endurance block')).toBeVisible();
 	await expect(page.getByText('Deload the second half').first()).toBeVisible();
+});
+
+/** Drives the dnd-kit pointer sensor, which only activates after 8px of travel. */
+async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
+	const from = await source.boundingBox();
+	const to = await target.boundingBox();
+	if (!from || !to) throw new Error('Cannot drag between elements that are not laid out');
+
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 20, { steps: 5 });
+	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+	await page.mouse.up();
+}
+
+test('warns when a dropped training needs an assessment the coachee has not done', async ({
+	page
+}) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [] });
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({
+			items: [
+				{
+					id: 'item-1',
+					type: 'hangboard_rep',
+					position: 0,
+					loads: [{ value: 80, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }]
+				}
+			]
+		})
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await dragOnto(
+		page,
+		page.getByText('Power endurance block').first(),
+		page.getByTestId('cell:1:0')
+	);
+
+	await expect(page.getByText(/has not done Max force yet/)).toBeVisible();
 });

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { TrainingItem } from '$lib/api/client';
+	import { formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
-	import { fmtLoad } from './load-units';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
 		HANGBOARD_HANDS,
@@ -187,24 +187,20 @@
 							>
 							{#if !twoHanded}
 								<span style="font-size: 14px; font-weight: 700; color: var(--tx);">
-									{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}
+									{item.loads?.[0] ? formatLoad(item.loads[0]) : '-'}
 								</span>
 							{:else}
 								<div style="display: flex; flex-direction: column; gap: 2px;">
 									<div style="display: flex; align-items: center; gap: 6px;">
 										<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
 										<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-											>{item.left_loads?.[0]
-												? fmtLoad(item.left_loads[0].value, item.left_loads[0].unit)
-												: '-'}</span
+											>{item.left_loads?.[0] ? formatLoad(item.left_loads[0]) : '-'}</span
 										>
 									</div>
 									<div style="display: flex; align-items: center; gap: 6px;">
 										<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
 										<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-											>{item.loads?.[0]
-												? fmtLoad(item.loads[0].value, item.loads[0].unit)
-												: '-'}</span
+											>{item.loads?.[0] ? formatLoad(item.loads[0]) : '-'}</span
 										>
 									</div>
 								</div>
@@ -283,23 +279,17 @@
 										>
 										{#if !twoHanded}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.loads?.[repIdx]
-													? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit)
-													: '-'}
+												{item.loads?.[repIdx] ? formatLoad(item.loads[repIdx]) : '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.hand_positions?.[0]?.[repIdx] ?? '-'}
 											</td>
 										{:else}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.left_loads?.[repIdx]
-													? fmtLoad(item.left_loads[repIdx].value, item.left_loads[repIdx].unit)
-													: '-'}
+												{item.left_loads?.[repIdx] ? formatLoad(item.left_loads[repIdx]) : '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.loads?.[repIdx]
-													? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit)
-													: '-'}
+												{item.loads?.[repIdx] ? formatLoad(item.loads[repIdx]) : '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.hand_positions?.[0]?.[repIdx] ?? '-'}

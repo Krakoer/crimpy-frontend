@@ -19,6 +19,7 @@
 
 <div
 	{@attach droppable.attach}
+	data-testid={id}
 	style:outline={!disabled && droppable.isDropTarget ? '2px dashed #C6613F' : undefined}
 	style:background-color={!disabled && droppable.isDropTarget ? '#FFF5F0' : undefined}
 	style="position: relative; transition: background-color 0.1s;"
