@@ -3,7 +3,15 @@
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
+	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import {
+		ASSESSMENT_TYPES,
+		assessmentLabel,
+		assessmentTypesForField,
+		formatLoad,
+		type VariableField
+	} from '$lib/assessments';
 
 	interface Props {
 		item: TrainingItem;
@@ -24,8 +32,11 @@
 		{ value: 'bw', label: 'BW' },
 		{ value: 'percent_bw', label: '% BW' },
 		{ value: 'kg', label: 'kg' },
-		{ value: 'lbs', label: 'lbs' }
+		{ value: 'lbs', label: 'lbs' },
+		{ value: 'percent_assessment', label: '% assessment' }
 	];
+
+	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
 
 	let exerciseName = $derived(
 		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
@@ -57,16 +68,64 @@
 		item.loads = undefined;
 	}
 
+	// An assessment-relative load carries the percentage in its value and needs
+	// an assessment plus the kilograms to fall back on; the other units do not.
+	function onLoadUnitChange() {
+		const load = item.loads?.[0];
+		if (!load) return;
+		if (load.unit === 'percent_assessment') {
+			load.assessment_type ??= LOAD_ASSESSMENTS[0];
+			load.fallback ??= 0;
+			if (load.value === 0) load.value = 80;
+		} else {
+			load.assessment_type = undefined;
+			load.fallback = undefined;
+		}
+	}
+
+	// Reps and duration are exclusive, so only the active one can be variable.
+	let variableField = $derived<'duration' | 'reps'>(isDuration ? 'duration' : 'reps');
+	let variableTarget = $derived(item.variable_targets?.[variableField]);
+	let canBeVariable = $derived(assessmentTypesForField(variableField).length > 0);
+
+	// The reps and duration inputs edit the fallback once the field is variable,
+	// so the plain value a client without assessment data reads stays right.
+	function toggleVariable(field: VariableField & ('duration' | 'reps'), on: boolean) {
+		const targets = { ...(item.variable_targets ?? {}) };
+		if (on) {
+			targets[field] = {
+				assessment_type: assessmentTypesForField(field)[0],
+				percent: 75,
+				fallback: (field === 'duration' ? item.duration : item.reps) ?? 0
+			};
+		} else {
+			delete targets[field];
+		}
+		item.variable_targets = Object.keys(targets).length > 0 ? targets : undefined;
+	}
+
+	$effect(() => {
+		const target = item.variable_targets?.duration;
+		if (target) target.fallback = durationMin * 60 + durationSec;
+	});
+
+	$effect(() => {
+		const target = item.variable_targets?.reps;
+		if (target) target.fallback = item.reps ?? 0;
+	});
+
 	function setDurationMode() {
 		durationMin = 0;
 		durationSec = 0;
 		item.reps = 0;
+		toggleVariable('reps', false);
 		isDuration = true;
 	}
 
 	function setRepsMode() {
 		item.duration = 0;
 		if (!item.reps || item.reps === 0) item.reps = 1;
+		toggleVariable('duration', false);
 		isDuration = false;
 	}
 
@@ -84,10 +143,18 @@
 
 	let collapsedSummary = $derived.by(() => {
 		const parts: string[] = [];
+		const durationTarget = item.variable_targets?.duration;
+		const repsTarget = item.variable_targets?.reps;
 		if (isDuration) {
-			const m = Math.floor((item.duration ?? 0) / 60);
-			const s = (item.duration ?? 0) % 60;
-			parts.push(m > 0 ? `${m}m${s > 0 ? s + 's' : ''}` : `${s}s`);
+			if (durationTarget) {
+				parts.push(`${durationTarget.percent}% ${assessmentLabel(durationTarget.assessment_type)}`);
+			} else {
+				const m = Math.floor((item.duration ?? 0) / 60);
+				const s = (item.duration ?? 0) % 60;
+				parts.push(m > 0 ? `${m}m${s > 0 ? s + 's' : ''}` : `${s}s`);
+			}
+		} else if (repsTarget) {
+			parts.push(`${repsTarget.percent}% ${assessmentLabel(repsTarget.assessment_type)}`);
 		} else {
 			parts.push(`${item.reps ?? 0} reps`);
 		}
@@ -95,7 +162,7 @@
 		if (rest > 0) parts.push(`${rest}s rest`);
 		const load = item.loads?.[0];
 		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
-			parts.push(`${load.value} ${load.unit}`);
+			parts.push(formatLoad(load));
 		}
 		return parts.join(' · ');
 	});
@@ -209,35 +276,83 @@
 							: 'none'};">Duration</button
 					>
 				</div>
-				{#if isDuration}
-					<div style="display: flex; align-items: center; gap: 2px;">
+				{#if variableTarget}
+					<div style="display: flex; align-items: center; gap: 4px;">
 						<input
 							type="number"
-							min="0"
-							bind:value={durationMin}
+							min="1"
+							bind:value={variableTarget.percent}
 							onclick={(e) => e.stopPropagation()}
-							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
-						<span style="font-size: 10px; color: var(--tx3);">m</span>
-						<input
-							type="number"
-							min="0"
-							max="59"
-							bind:value={durationSec}
+						<span style="font-size: 11px; color: var(--tx3);">% of</span>
+						<select
+							bind:value={variableTarget.assessment_type}
 							onclick={(e) => e.stopPropagation()}
-							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-						/>
-						<span style="font-size: 10px; color: var(--tx3);">s</span>
+							style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
+						>
+							{#each assessmentTypesForField(variableField) as type (type)}
+								<option value={type}>{ASSESSMENT_TYPES[type].label}</option>
+							{/each}
+						</select>
 					</div>
-				{:else}
-					<input
-						type="number"
-						min="1"
-						bind:value={item.reps}
-						onclick={(e) => e.stopPropagation()}
-						style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-					/>
 				{/if}
+				<div style="display: flex; align-items: center; gap: 4px;">
+					{#if variableTarget}
+						<span
+							style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+							>FALLBACK</span
+						>
+					{/if}
+					{#if isDuration}
+						<div style="display: flex; align-items: center; gap: 2px;">
+							<input
+								type="number"
+								min="0"
+								bind:value={durationMin}
+								onclick={(e) => e.stopPropagation()}
+								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+							/>
+							<span style="font-size: 10px; color: var(--tx3);">m</span>
+							<input
+								type="number"
+								min="0"
+								max="59"
+								bind:value={durationSec}
+								onclick={(e) => e.stopPropagation()}
+								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+							/>
+							<span style="font-size: 10px; color: var(--tx3);">s</span>
+						</div>
+					{:else}
+						<input
+							type="number"
+							min="1"
+							bind:value={item.reps}
+							onclick={(e) => e.stopPropagation()}
+							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
+						/>
+					{/if}
+					{#if canBeVariable}
+						<button
+							onclick={(e) => {
+								e.stopPropagation();
+								toggleVariable(variableField, !variableTarget);
+							}}
+							title={variableTarget
+								? 'Use a fixed value'
+								: 'Set as a percentage of an assessment result'}
+							style="padding: 4px 8px; border-radius: 5px; border: 1px solid {variableTarget
+								? 'var(--pr)'
+								: 'var(--bd)'}; background: {variableTarget
+								? 'var(--pr-fog)'
+								: '#fff'}; color: {variableTarget
+								? 'var(--pr)'
+								: 'var(--tx3)'}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+							>%</button
+						>
+					{/if}
+				</div>
 			</div>
 
 			<!-- Load (optional) -->
@@ -258,6 +373,7 @@
 						/>
 						<select
 							bind:value={item.loads[0].unit}
+							onchange={onLoadUnitChange}
 							onclick={(e) => e.stopPropagation()}
 							style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 						>
@@ -276,6 +392,19 @@
 							<Icon name="x" size={11} color="var(--tx3)" />
 						</button>
 					</div>
+					{#if item.loads[0].unit === 'percent_assessment'}
+						<AssessmentRefFields
+							field="load"
+							bind:assessmentType={
+								() => item.loads![0].assessment_type ?? LOAD_ASSESSMENTS[0],
+								(v) => (item.loads![0].assessment_type = v)
+							}
+							bind:fallback={
+								() => item.loads![0].fallback ?? 0, (v) => (item.loads![0].fallback = v)
+							}
+							fallbackUnit="kg"
+						/>
+					{/if}
 				{:else}
 					<button
 						onclick={(e) => {

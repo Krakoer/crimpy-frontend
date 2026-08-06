@@ -161,11 +161,29 @@ export interface ExercisePage {
 	offset: number;
 }
 
-export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs' | 'max';
+export type LoadUnit = 'bw' | 'percent_bw' | 'kg' | 'lbs' | 'max' | 'percent_assessment';
 
 export interface Load {
 	value: number;
 	unit: LoadUnit;
+	// Set only on percent_assessment loads, where value carries the percentage:
+	// the assessment the load is relative to, and the kilograms to fall back on
+	// when the athlete has never done it.
+	assessment_type?: number;
+	fallback?: number;
+}
+
+// A scalar item field prescribed as a percentage of the athlete last result for
+// an assessment, falling back to a fixed value when the assessment is missing.
+export interface VariableTarget {
+	assessment_type: number;
+	percent: number;
+	fallback: number;
+}
+
+export interface VariableTargets {
+	duration?: VariableTarget;
+	reps?: VariableTarget;
 }
 
 export type TrainingItemType =
@@ -194,6 +212,7 @@ export interface TrainingItem {
 	free_text?: string;
 	comment?: string;
 	load_is_max?: boolean;
+	variable_targets?: VariableTargets;
 	edge_sizes_mm?: number[];
 	hand_positions?: string[][];
 	items?: TrainingItem[];

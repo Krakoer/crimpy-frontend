@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { TrainingItem, LoadUnit } from '$lib/api/client';
+	import type { TrainingItem } from '$lib/api/client';
+	import { formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
@@ -14,20 +15,7 @@
 
 	const HB_COLOR = '#4A7C8C';
 
-	const LOAD_UNIT_LABELS: Record<LoadUnit, string> = {
-		bw: 'BW',
-		percent_bw: '% BW',
-		kg: 'kg',
-		lbs: 'lbs',
-		max: 'MAX'
-	};
-
 	let perRep = $derived((item.edge_sizes_mm?.length ?? 0) > 1);
-
-	function fmtLoad(value: number, unit: LoadUnit): string {
-		if (unit === 'max') return 'MAX';
-		return `${value} ${LOAD_UNIT_LABELS[unit]}`;
-	}
 
 	let collapsedSummary = $derived.by(() => {
 		const sets = item.cycles ?? 1;
@@ -177,24 +165,20 @@
 							>
 							{#if item.hand !== 'split'}
 								<span style="font-size: 14px; font-weight: 700; color: var(--tx);">
-									{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}
+									{item.loads?.[0] ? formatLoad(item.loads[0]) : '-'}
 								</span>
 							{:else}
 								<div style="display: flex; flex-direction: column; gap: 2px;">
 									<div style="display: flex; align-items: center; gap: 6px;">
 										<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
 										<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-											>{item.loads?.[0]
-												? fmtLoad(item.loads[0].value, item.loads[0].unit)
-												: '-'}</span
+											>{item.loads?.[0] ? formatLoad(item.loads[0]) : '-'}</span
 										>
 									</div>
 									<div style="display: flex; align-items: center; gap: 6px;">
 										<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
 										<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-											>{item.loads?.[1]
-												? fmtLoad(item.loads[1].value, item.loads[1].unit)
-												: '-'}</span
+											>{item.loads?.[1] ? formatLoad(item.loads[1]) : '-'}</span
 										>
 									</div>
 								</div>
@@ -264,25 +248,18 @@
 										>
 										{#if item.hand !== 'split'}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.loads?.[repIdx]
-													? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit)
-													: '-'}
+												{item.loads?.[repIdx] ? formatLoad(item.loads[repIdx]) : '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.hand_positions?.[0]?.[repIdx] ?? '-'}
 											</td>
 										{:else}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.loads?.[2 * repIdx]
-													? fmtLoad(item.loads[2 * repIdx].value, item.loads[2 * repIdx].unit)
-													: '-'}
+												{item.loads?.[2 * repIdx] ? formatLoad(item.loads[2 * repIdx]) : '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.loads?.[2 * repIdx + 1]
-													? fmtLoad(
-															item.loads[2 * repIdx + 1].value,
-															item.loads[2 * repIdx + 1].unit
-														)
+													? formatLoad(item.loads[2 * repIdx + 1])
 													: '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
