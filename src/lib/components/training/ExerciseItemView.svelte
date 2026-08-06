@@ -13,17 +13,18 @@
 
 	let collapsed = $state(false);
 
-	const LOAD_UNIT_LABELS: Record<LoadUnit, string> = {
+	// Keyed loosely so a unit that is no longer offered, such as the pounds of
+	// an older training, still shows its own name instead of "undefined".
+	const LOAD_UNIT_LABELS: Record<string, string> = {
 		bw: 'BW',
 		percent_bw: '% BW',
 		kg: 'kg',
-		lbs: 'lbs',
 		max: 'MAX'
 	};
 
 	function fmtLoad(value: number, unit: LoadUnit): string {
 		if (unit === 'max') return 'MAX';
-		return `${value} ${LOAD_UNIT_LABELS[unit]}`;
+		return `${value} ${LOAD_UNIT_LABELS[unit] ?? unit}`;
 	}
 
 	let exerciseName = $derived(
