@@ -23,8 +23,7 @@
 	const LOAD_UNITS: { value: LoadUnit; label: string }[] = [
 		{ value: 'bw', label: 'BW' },
 		{ value: 'percent_bw', label: '% BW' },
-		{ value: 'kg', label: 'kg' },
-		{ value: 'lbs', label: 'lbs' }
+		{ value: 'kg', label: 'kg' }
 	];
 
 	let exerciseName = $derived(
