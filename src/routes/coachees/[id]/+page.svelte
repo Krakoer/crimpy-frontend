@@ -12,6 +12,7 @@
 		ProgramRequest
 	} from '$lib/api/client';
 	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
+	import { ASSESSMENT_TYPES } from '$lib/assessments';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -38,15 +39,6 @@
 	let newProgramDurationWeeks = $state('');
 	let savingProgram = $state(false);
 	let newProgramError = $state('');
-
-	const ASSESSMENT_TYPES: Record<
-		number,
-		{ label: string; unit: string; format: (v: number) => string }
-	> = {
-		0: { label: 'Critical force', unit: 'kg', format: (v) => v.toFixed(1) },
-		1: { label: 'Max force', unit: 'kg', format: (v) => v.toFixed(1) },
-		2: { label: '60% endurance', unit: 's', format: (v) => v.toFixed(0) }
-	};
 
 	const GRIP_POSITIONS: Record<number, string> = {
 		0: 'Half Crimp',
