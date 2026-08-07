@@ -265,3 +265,86 @@ test.describe('training editor', () => {
 		expect(deletes).toHaveLength(1);
 	});
 });
+
+/** A hangboard item whose edge, load and grip vary from rep to rep only. */
+function hangboardItem(overrides: Record<string, unknown> = {}) {
+	return {
+		id: 'item-1',
+		type: 'repeater',
+		position: 0,
+		cycles: 2,
+		reps: 2,
+		worktime_seconds: 7,
+		rest_seconds: 3,
+		cycle_rest_seconds: 120,
+		hand: 'both',
+		edge_sizes_mm: [20, 18],
+		loads: [
+			{ value: 10, unit: 'kg' },
+			{ value: 12, unit: 'kg' }
+		],
+		hand_positions: [['HC', 'FC']],
+		...overrides
+	};
+}
+
+test.describe('hangboard granularity', () => {
+	test('renders a per-set hangboard item set by set', async ({ page }) => {
+		const perSet = testTraining({
+			items: [
+				hangboardItem({
+					edge_sizes_mm: [20, 18, 15, 12],
+					loads: [
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' },
+						{ value: 14, unit: 'kg' },
+						{ value: 16, unit: 'kg' }
+					],
+					hand_positions: [['HC', 'FC', 'OC', '3FD']]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('PER-SET', { exact: true })).toBeVisible();
+		await expect(page.getByText('Set 1', { exact: true })).toBeVisible();
+		await expect(page.getByText('Set 2', { exact: true })).toBeVisible();
+		await expect(page.getByText('16 kg')).toBeVisible();
+	});
+
+	test('repeats the per-rep values in every set when switching to per-set', async ({ page }) => {
+		const perRep = testTraining({ items: [hangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: perRep });
+		await stub(page, 'PUT', '/api/trainings/*', { body: perRep });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Per-set', exact: true }).click();
+
+		await expect(page.getByText('Set 2', { exact: true })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({
+			items: [
+				{
+					edge_sizes_mm: [20, 18, 20, 18],
+					loads: [
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' },
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' }
+					],
+					hand_positions: [['HC', 'FC', 'HC', 'FC']]
+				}
+			]
+		});
+	});
+});
