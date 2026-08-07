@@ -358,9 +358,10 @@
 			base.worktime_seconds = 7;
 			base.rest_seconds = 3;
 			base.hand = 'both';
+			base.granularity = 'uniform';
 			base.edge_sizes_mm = [20];
 			base.loads = [{ value: 100, unit: 'percent_bw' }];
-			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
+			base.hand_positions = [['HC']];
 		}
 		return base;
 	}

@@ -41,9 +41,9 @@
 		return ids;
 	}
 
-	// A hangboard item infers its per-set layout from its set and rep counts, so
-	// saving a cleared field as null would truncate its stored configuration on
-	// the next load.
+	// A hangboard item sizes its configuration arrays from its set and rep
+	// counts, so saving a cleared field as null would truncate its stored
+	// configuration on the next load.
 	function repeaterCounts(item: TrainingItem): Partial<TrainingItem> {
 		if (item.type !== 'repeater') return {};
 		return { cycles: saneCount(item.cycles), reps: saneCount(item.reps) };
@@ -439,9 +439,10 @@
 			base.worktime_seconds = 7;
 			base.rest_seconds = 3;
 			base.hand = 'both';
+			base.granularity = 'uniform';
 			base.edge_sizes_mm = [20];
 			base.loads = [{ value: 100, unit: 'percent_bw' }];
-			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
+			base.hand_positions = [['HC']];
 		}
 		return base;
 	}
