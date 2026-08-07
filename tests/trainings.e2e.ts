@@ -278,6 +278,7 @@ function hangboardItem(overrides: Record<string, unknown> = {}) {
 		rest_seconds: 3,
 		cycle_rest_seconds: 120,
 		hand: 'both',
+		granularity: 'rep',
 		edge_sizes_mm: [20, 18],
 		loads: [
 			{ value: 10, unit: 'kg' },
@@ -291,6 +292,7 @@ function hangboardItem(overrides: Record<string, unknown> = {}) {
 /** The same item configured set by set: set 1 hangs 20 then 18mm, set 2 15 then 12mm. */
 function perSetHangboardItem(overrides: Record<string, unknown> = {}) {
 	return hangboardItem({
+		granularity: 'set',
 		edge_sizes_mm: [20, 18, 15, 12],
 		loads: [
 			{ value: 10, unit: 'kg' },
@@ -350,6 +352,7 @@ test.describe('hangboard granularity', () => {
 		expect(updates[0].body).toMatchObject({
 			items: [
 				{
+					granularity: 'set',
 					edge_sizes_mm: [20, 18, 20, 18],
 					loads: [
 						{ value: 10, unit: 'kg' },
@@ -387,6 +390,7 @@ test.describe('hangboard granularity', () => {
 		expect(updates[0].body).toMatchObject({
 			items: [
 				{
+					granularity: 'set',
 					edge_sizes_mm: [20, 18, 20, 18],
 					loads: [
 						{ value: 10, unit: 'kg' },
@@ -448,5 +452,118 @@ test.describe('hangboard granularity', () => {
 		await expect(edgeInput(page, 1)).toHaveValue('18');
 		await expect(edgeInput(page, 2)).toHaveValue('15');
 		await expect(edgeInput(page, 3)).toHaveValue('12');
+	});
+});
+
+test.describe('hangboard hand modes', () => {
+	test('describes what the selected hand mode does', async ({ page }) => {
+		const training = testTraining({ items: [hangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByText('Both hands on the board at once')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Alternate', exact: true }).click();
+
+		await expect(page.getByText('Right then left within each rep')).toBeVisible();
+	});
+
+	// The alternating mode is the one the app used to store as 'both', so it has
+	// to survive a round trip under its own name.
+	test('saves the alternating mode without splitting the loads', async ({ page }) => {
+		const training = testTraining({ items: [hangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Alternate', exact: true }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		expect(item).toMatchObject({
+			hand: 'alternate',
+			granularity: 'rep',
+			edge_sizes_mm: [20, 18],
+			loads: [
+				{ value: 10, unit: 'kg' },
+				{ value: 12, unit: 'kg' }
+			]
+		});
+		expect(item.left_loads).toHaveLength(2);
+		expect(item.hand_positions).toEqual([
+			['HC', 'FC'],
+			['HC', 'FC']
+		]);
+	});
+
+	// Splitting the hands must never interleave the two into loads: each hand
+	// keeps its own array of one entry per row.
+	test('gives each hand its own loads and grips when split', async ({ page }) => {
+		const training = testTraining({ items: [hangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Split', exact: true }).click();
+
+		await expect(page.getByRole('columnheader', { name: 'L Load' })).toBeVisible();
+		await expect(page.getByRole('columnheader', { name: 'R Grip' })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		expect(item).toMatchObject({ hand: 'split', granularity: 'rep' });
+		expect(item.loads).toHaveLength(2);
+		expect(item.left_loads).toHaveLength(2);
+		expect(item.hand_positions).toHaveLength(2);
+	});
+
+	// Going back to a mode that hangs both hands together drops the second
+	// configuration rather than leaving a stale left hand behind.
+	test('drops the left-hand arrays when leaving a split mode', async ({ page }) => {
+		const split = testTraining({
+			items: [
+				hangboardItem({
+					hand: 'split',
+					left_loads: [
+						{ value: 5, unit: 'kg' },
+						{ value: 6, unit: 'kg' }
+					],
+					hand_positions: [
+						['HC', 'FC'],
+						['OC', '3FD']
+					]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: split });
+		await stub(page, 'PUT', '/api/trainings/*', { body: split });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Both', exact: true }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		expect(item).toMatchObject({ hand: 'both' });
+		expect(item.left_loads).toBeUndefined();
+		expect(item.hand_positions).toHaveLength(1);
 	});
 });
