@@ -1,15 +1,21 @@
 <script lang="ts">
-	import type { TrainingItem, LoadUnit } from '$lib/api/client';
+	import type { TrainingItem, LoadUnit, Load } from '$lib/api/client';
 	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
+		HANGBOARD_GRANULARITIES,
+		HANGBOARD_HANDS,
 		hangboardGranularity,
+		hangboardHand,
+		hangboardHandCount,
 		hangboardReps,
 		hangboardRowCount,
 		hangboardSets,
+		isTwoHandedMode,
 		saneCount,
-		type HangboardGranularity
+		type HangboardGranularity,
+		type HangboardHand
 	} from './hangboard-granularity';
 
 	interface Props {
@@ -46,13 +52,10 @@
 		{ value: 'max', label: 'Max' }
 	];
 
-	const GRANULARITIES: { value: HangboardGranularity; label: string }[] = [
-		{ value: 'uniform', label: 'Uniform' },
-		{ value: 'rep', label: 'Per-rep' },
-		{ value: 'set', label: 'Per-set' }
-	];
+	const GRANULARITIES = HANGBOARD_GRANULARITIES;
 
 	if (!item.hand) item.hand = 'both';
+	if (!item.granularity) item.granularity = hangboardGranularity(item);
 	if (!item.reps) item.reps = 6;
 	if (!item.cycles) item.cycles = 3;
 	if (!item.worktime_seconds) item.worktime_seconds = 7;
@@ -62,12 +65,18 @@
 	const initialGranularity = hangboardGranularity(item);
 	let granularity = $state<HangboardGranularity>(initialGranularity);
 
+	// Index of each hand inside hand_positions, which stores the left hand first.
+	const LEFT = 0;
+	const RIGHT = 1;
+
 	let uniformEdge = $state(item.edge_sizes_mm?.[0] ?? 20);
+	// loads is the right hand of a two-handed mode and the only load otherwise,
+	// so the primary uniform fields always feed it.
 	let uniformLoadValue = $state(item.loads?.[0]?.value ?? 0);
 	let uniformLoadUnit = $state<LoadUnit>(item.loads?.[0]?.unit ?? 'percent_bw');
-	let uniformLoadValueR = $state(item.loads?.[1]?.value ?? item.loads?.[0]?.value ?? 0);
-	let uniformLoadUnitR = $state<LoadUnit>(
-		item.loads?.[1]?.unit ?? item.loads?.[0]?.unit ?? 'percent_bw'
+	let uniformLoadValueL = $state(item.left_loads?.[0]?.value ?? item.loads?.[0]?.value ?? 0);
+	let uniformLoadUnitL = $state<LoadUnit>(
+		item.left_loads?.[0]?.unit ?? item.loads?.[0]?.unit ?? 'percent_bw'
 	);
 	let uniformHandPos = $state(item.hand_positions?.[0]?.[0] ?? 'HC');
 
@@ -77,14 +86,12 @@
 		granularity: initialGranularity,
 		reps: hangboardReps(item),
 		sets: hangboardSets(item),
-		split: item.hand === 'split'
+		twoHanded: isTwoHandedMode(hangboardHand(item))
 	};
 
 	untrack(() => {
 		if (!item.edge_sizes_mm?.length) {
-			item.edge_sizes_mm = [uniformEdge];
-			item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
-			item.hand_positions = [Array.from({ length: hangboardReps(item) }, () => uniformHandPos)];
+			rebuild(granularity);
 		} else if (item.edge_sizes_mm.length !== hangboardRowCount(item, granularity)) {
 			rebuild(granularity);
 		}
@@ -93,10 +100,11 @@
 	function rebuild(next: HangboardGranularity) {
 		const reps = hangboardReps(item);
 		const sets = hangboardSets(item);
-		const split = item.hand === 'split';
+		const twoHanded = isTwoHandedMode(hangboardHand(item));
 		const prev = layout;
 		const prevEdges = item.edge_sizes_mm ?? [];
 		const prevLoads = item.loads ?? [];
+		const prevLeftLoads = item.left_loads ?? [];
 		const prevGrips = item.hand_positions ?? [];
 
 		const prevIndex = (s: number, r: number) => {
@@ -105,47 +113,51 @@
 			if (prev.granularity === 'rep') return rep;
 			return Math.min(s, prev.sets - 1) * prev.reps + rep;
 		};
+		// A mode that used to share one load between the hands keeps feeding both
+		// of them from loads, so switching to a split configuration starts from
+		// the value that was already there.
 		const prevLoad = (s: number, r: number, hand: number) => {
 			const i = prevIndex(s, r);
-			return prevLoads[prev.split ? 2 * i + hand : i];
+			if (hand === LEFT && prev.twoHanded) return prevLeftLoads[i];
+			return prevLoads[i];
 		};
 		const prevGrip = (s: number, r: number, hand: number) =>
 			(prevGrips[hand] ?? prevGrips[0])?.[prevIndex(s, r)];
-		const defaultLoad = (hand: number) =>
-			hand === 1
-				? { value: uniformLoadValueR, unit: uniformLoadUnitR }
+		const defaultLoad = (hand: number): Load =>
+			hand === LEFT
+				? { value: uniformLoadValueL, unit: uniformLoadUnitL }
 				: { value: uniformLoadValue, unit: uniformLoadUnit };
 
-		if (next === 'uniform') {
-			item.edge_sizes_mm = [uniformEdge];
-			item.loads = split ? [defaultLoad(0), defaultLoad(1)] : [defaultLoad(0)];
-			item.hand_positions = Array.from({ length: split ? 2 : 1 }, () =>
-				Array.from({ length: reps }, () => uniformHandPos)
-			);
-		} else {
-			const rows = next === 'set' ? sets * reps : reps;
-			const coord = (i: number): [number, number] =>
-				next === 'set' ? [Math.floor(i / reps), i % reps] : [0, i];
+		const rows = next === 'uniform' ? 1 : next === 'set' ? sets * reps : reps;
+		const coord = (i: number): [number, number] =>
+			next === 'uniform' ? [0, 0] : next === 'set' ? [Math.floor(i / reps), i % reps] : [0, i];
 
-			item.edge_sizes_mm = Array.from({ length: rows }, (_, i) => {
-				const [s, r] = coord(i);
-				return prevEdges[prevIndex(s, r)] ?? uniformEdge;
-			});
-			item.loads = Array.from({ length: rows }, (_, i) => {
-				const [s, r] = coord(i);
-				const left = { ...(prevLoad(s, r, 0) ?? defaultLoad(0)) };
-				return split ? [left, { ...(prevLoad(s, r, 1) ?? defaultLoad(1)) }] : [left];
-			}).flat();
-			item.hand_positions = Array.from({ length: split ? 2 : 1 }, (_, hand) =>
+		item.edge_sizes_mm = Array.from({ length: rows }, (_, i) => {
+			const [s, r] = coord(i);
+			return prevEdges[prevIndex(s, r)] ?? uniformEdge;
+		});
+		item.loads = Array.from({ length: rows }, (_, i) => {
+			const [s, r] = coord(i);
+			return { ...(prevLoad(s, r, RIGHT) ?? defaultLoad(RIGHT)) };
+		});
+		item.left_loads = twoHanded
+			? Array.from({ length: rows }, (_, i) => {
+					const [s, r] = coord(i);
+					return { ...(prevLoad(s, r, LEFT) ?? defaultLoad(LEFT)) };
+				})
+			: undefined;
+		item.hand_positions = Array.from(
+			{ length: hangboardHandCount(hangboardHand(item)) },
+			(_, hand) =>
 				Array.from({ length: rows }, (_, i) => {
 					const [s, r] = coord(i);
 					return prevGrip(s, r, hand) ?? uniformHandPos;
 				})
-			);
-		}
+		);
 
-		layout = { granularity: next, reps, sets, split };
+		layout = { granularity: next, reps, sets, twoHanded };
 		granularity = next;
+		item.granularity = next;
 	}
 
 	// Downgrading to uniform replaces every row with the uniform fields, which
@@ -153,15 +165,15 @@
 	// behind is the one the coach was looking at.
 	function seedUniformFromFirstRow() {
 		uniformEdge = item.edge_sizes_mm?.[0] ?? uniformEdge;
-		const left = item.loads?.[0];
-		if (left) {
-			uniformLoadValue = left.value;
-			uniformLoadUnit = left.unit;
+		const primary = item.loads?.[0];
+		if (primary) {
+			uniformLoadValue = primary.value;
+			uniformLoadUnit = primary.unit;
 		}
-		const right = item.hand === 'split' ? item.loads?.[1] : undefined;
-		if (right) {
-			uniformLoadValueR = right.value;
-			uniformLoadUnitR = right.unit;
+		const left = item.left_loads?.[0];
+		if (left) {
+			uniformLoadValueL = left.value;
+			uniformLoadUnitL = left.unit;
 		}
 		uniformHandPos = item.hand_positions?.[0]?.[0] ?? uniformHandPos;
 	}
@@ -173,9 +185,9 @@
 	}
 
 	// Keep the legacy item-level flag in sync for older clients: an item counts
-	// as "max effort" only when every rep is set to max.
+	// as "max effort" only when every rep of every hand is set to max.
 	$effect(() => {
-		const loads = item.loads ?? [];
+		const loads = [...(item.loads ?? []), ...(item.left_loads ?? [])];
 		item.load_is_max = loads.length > 0 && loads.every((l) => l.unit === 'max');
 	});
 
@@ -202,8 +214,9 @@
 		rebuild(granularity);
 	}
 
-	function onBothHandsToggle() {
-		item.hand = item.hand === 'split' ? 'both' : 'split';
+	function setHand(next: HangboardHand) {
+		if (next === item.hand) return;
+		item.hand = next;
 		rebuild(granularity);
 	}
 
@@ -214,35 +227,32 @@
 	type RowSettings = {
 		edge: number;
 		grip: string;
-		load: { value: number; unit: LoadUnit };
-		loadR?: { value: number; unit: LoadUnit };
-		gripR?: string;
+		load: Load;
+		loadLeft?: Load;
+		gripLeft?: string;
 	};
 
 	let rowClipboard = $state<RowSettings | null>(null);
 	let copiedRow = $state<number | null>(null);
 
 	function captureRow(ri: number): RowSettings {
-		const split = item.hand === 'split';
 		return {
 			edge: item.edge_sizes_mm![ri],
-			grip: item.hand_positions![0][ri],
-			load: { ...item.loads![split ? 2 * ri : ri] },
-			...(split
-				? { loadR: { ...item.loads![2 * ri + 1] }, gripR: item.hand_positions![1][ri] }
+			grip: item.hand_positions![handGripIndex][ri],
+			load: { ...item.loads![ri] },
+			...(twoHanded
+				? { loadLeft: { ...item.left_loads![ri] }, gripLeft: item.hand_positions![LEFT][ri] }
 				: {})
 		};
 	}
 
 	function applyRow(ri: number, src: RowSettings) {
 		item.edge_sizes_mm![ri] = src.edge;
-		item.hand_positions![0][ri] = src.grip;
-		if (item.hand !== 'split') {
-			item.loads![ri] = { ...src.load };
-		} else {
-			item.loads![2 * ri] = { ...src.load };
-			item.loads![2 * ri + 1] = { ...(src.loadR ?? src.load) };
-			item.hand_positions![1][ri] = src.gripR ?? src.grip;
+		item.hand_positions![handGripIndex][ri] = src.grip;
+		item.loads![ri] = { ...src.load };
+		if (twoHanded) {
+			item.left_loads![ri] = { ...(src.loadLeft ?? src.load) };
+			item.hand_positions![LEFT][ri] = src.gripLeft ?? src.grip;
 		}
 	}
 
@@ -257,7 +267,12 @@
 
 	let rowCount = $derived(hangboardRowCount(item, granularity));
 	let repsPerSet = $derived(hangboardReps(item));
-	let columnCount = $derived(item.hand === 'split' ? 9 : 6);
+	let twoHanded = $derived(isTwoHandedMode(hangboardHand(item)));
+	// Grips of the hand that loads feeds: the right one when the hands are
+	// configured separately, the single shared array otherwise.
+	let handGripIndex = $derived(twoHanded ? RIGHT : LEFT);
+	let columnCount = $derived(twoHanded ? 9 : 6);
+	let handHint = $derived(HANGBOARD_HANDS.find((h) => h.value === hangboardHand(item))?.hint ?? '');
 
 	// Per-set rows belong to a set, so filling down stays inside it: propagating
 	// across sets is what the set header button is for.
@@ -435,20 +450,28 @@
 					</div>
 				</div>
 				<div style="width: 1px; height: 30px; background: var(--bd);"></div>
-				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
+				<div style="display: flex; flex-direction: column; gap: 2px;">
 					<span style={labelStyle}>HANDS</span>
-					<button
-						onclick={onBothHandsToggle}
-						style="
-							padding: 5px 10px; border-radius: 5px;
-							border: 1px solid {item.hand !== 'split' ? HB_COLOR : 'var(--bd)'};
-							background: {item.hand !== 'split' ? HB_COLOR + '18' : '#fff'};
-							color: {item.hand !== 'split' ? HB_COLOR : 'var(--tx3)'};
-							font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);
-						">{item.hand !== 'split' ? 'Both' : 'L / R'}</button
-					>
+					<div style="display: flex; gap: 3px;" role="group" aria-label="Hands">
+						{#each HANGBOARD_HANDS as h (h.value)}
+							<button
+								onclick={() => setHand(h.value)}
+								title={h.hint}
+								aria-pressed={hangboardHand(item) === h.value}
+								style="
+									padding: 5px 9px; border-radius: 5px;
+									border: 1px solid {hangboardHand(item) === h.value ? HB_COLOR : 'var(--bd)'};
+									background: {hangboardHand(item) === h.value ? HB_COLOR + '18' : '#fff'};
+									color: {hangboardHand(item) === h.value ? HB_COLOR : 'var(--tx3)'};
+									font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);
+								">{h.label}</button
+							>
+						{/each}
+					</div>
 				</div>
 			</div>
+
+			<div style="font-size: 11px; color: var(--tx3); margin-bottom: 14px;">{handHint}</div>
 
 			<!-- Row 2: config granularity + uniform or per-row grid -->
 			<div
@@ -488,18 +511,20 @@
 					</div>
 					<div style="display: flex; flex-direction: column; gap: 2px;">
 						<span style={labelStyle}>LOAD</span>
-						{#if item.hand !== 'split'}
+						{#if !twoHanded}
 							<div style="display: flex; gap: 4px;">
 								{#if uniformLoadUnit !== 'max'}
 									<input
 										type="number"
 										min="0"
+										aria-label="Load"
 										bind:value={uniformLoadValue}
 										oninput={onUniformChange}
 										style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 									/>
 								{/if}
 								<select
+									aria-label="Load unit"
 									bind:value={uniformLoadUnit}
 									onchange={onUniformChange}
 									style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
@@ -511,17 +536,19 @@
 							<div style="display: flex; flex-direction: column; gap: 3px;">
 								<div style="display: flex; align-items: center; gap: 4px;">
 									<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
-									{#if uniformLoadUnit !== 'max'}
+									{#if uniformLoadUnitL !== 'max'}
 										<input
 											type="number"
 											min="0"
-											bind:value={uniformLoadValue}
+											aria-label="Left load"
+											bind:value={uniformLoadValueL}
 											oninput={onUniformChange}
 											style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 										/>
 									{/if}
 									<select
-										bind:value={uniformLoadUnit}
+										aria-label="Left load unit"
+										bind:value={uniformLoadUnitL}
 										onchange={onUniformChange}
 										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 									>
@@ -531,17 +558,19 @@
 								</div>
 								<div style="display: flex; align-items: center; gap: 4px;">
 									<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
-									{#if uniformLoadUnitR !== 'max'}
+									{#if uniformLoadUnit !== 'max'}
 										<input
 											type="number"
 											min="0"
-											bind:value={uniformLoadValueR}
+											aria-label="Right load"
+											bind:value={uniformLoadValue}
 											oninput={onUniformChange}
 											style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 										/>
 									{/if}
 									<select
-										bind:value={uniformLoadUnitR}
+										aria-label="Right load unit"
+										bind:value={uniformLoadUnit}
 										onchange={onUniformChange}
 										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 									>
@@ -580,7 +609,7 @@
 							<tr>
 								<th class="hb-rep-col">Rep</th>
 								<th>Edge<span class="hb-unit">mm</span></th>
-								{#if item.hand !== 'split'}
+								{#if !twoHanded}
 									<th>Load</th>
 									<th>Unit</th>
 									<th>Grip</th>
@@ -625,7 +654,7 @@
 											bind:value={item.edge_sizes_mm![ri]}
 										/>
 									</td>
-									{#if item.hand !== 'split'}
+									{#if !twoHanded}
 										<td>
 											{#if item.loads![ri].unit === 'max'}
 												<span class="hb-max">MAX</span>
@@ -645,54 +674,54 @@
 											</select>
 										</td>
 										<td>
-											<select class="hb-sel" bind:value={item.hand_positions![0][ri]}>
+											<select class="hb-sel" bind:value={item.hand_positions![LEFT][ri]}>
 												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 											</select>
 										</td>
 									{:else}
 										<td>
-											{#if item.loads![2 * ri].unit === 'max'}
+											{#if item.left_loads![ri].unit === 'max'}
 												<span class="hb-max">MAX</span>
 											{:else}
 												<input
 													class="hb-in"
 													type="number"
 													min="0"
-													bind:value={item.loads![2 * ri].value}
+													bind:value={item.left_loads![ri].value}
 												/>
 											{/if}
 										</td>
 										<td>
-											<select class="hb-sel" bind:value={item.loads![2 * ri].unit}>
+											<select class="hb-sel" bind:value={item.left_loads![ri].unit}>
 												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
 													>{/each}
 											</select>
 										</td>
 										<td>
-											{#if item.loads![2 * ri + 1].unit === 'max'}
+											{#if item.loads![ri].unit === 'max'}
 												<span class="hb-max">MAX</span>
 											{:else}
 												<input
 													class="hb-in"
 													type="number"
 													min="0"
-													bind:value={item.loads![2 * ri + 1].value}
+													bind:value={item.loads![ri].value}
 												/>
 											{/if}
 										</td>
 										<td>
-											<select class="hb-sel" bind:value={item.loads![2 * ri + 1].unit}>
+											<select class="hb-sel" bind:value={item.loads![ri].unit}>
 												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
 													>{/each}
 											</select>
 										</td>
 										<td>
-											<select class="hb-sel" bind:value={item.hand_positions![0][ri]}>
+											<select class="hb-sel" bind:value={item.hand_positions![LEFT][ri]}>
 												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 											</select>
 										</td>
 										<td>
-											<select class="hb-sel" bind:value={item.hand_positions![1][ri]}>
+											<select class="hb-sel" bind:value={item.hand_positions![RIGHT][ri]}>
 												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
 											</select>
 										</td>
