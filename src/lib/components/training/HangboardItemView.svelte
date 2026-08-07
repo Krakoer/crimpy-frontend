@@ -26,6 +26,7 @@
 	let granularity = $derived(hangboardGranularity(item));
 	let rowCount = $derived(hangboardRowCount(item, granularity));
 	let repsPerSet = $derived(hangboardReps(item));
+	let columnCount = $derived(item.hand === 'split' ? 6 : 4);
 	let granularityLabel = $derived(
 		granularity === 'set' ? 'PER-SET' : granularity === 'rep' ? 'PER-REP' : 'UNIFORM'
 	);
@@ -263,7 +264,7 @@
 									{#if granularity === 'set' && repIdx % repsPerSet === 0}
 										<tr>
 											<td
-												colspan={item.hand === 'split' ? 5 : 3}
+												colspan={columnCount}
 												style="padding: 8px 10px 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: {HB_COLOR}; background: color-mix(in srgb, {HB_COLOR} 8%, transparent); border-bottom: 1px solid var(--bd);"
 												>Set {repIdx / repsPerSet + 1}</td
 											>
