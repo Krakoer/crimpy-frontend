@@ -255,23 +255,36 @@
 		if (rowClipboard) applyRow(ri, rowClipboard);
 	}
 
+	let rowCount = $derived(hangboardRowCount(item, granularity));
+	let repsPerSet = $derived(hangboardReps(item));
+	let columnCount = $derived(item.hand === 'split' ? 9 : 6);
+
+	// Per-set rows belong to a set, so filling down stays inside it: propagating
+	// across sets is what the set header button is for.
+	function fillDownLimit(ri: number): number {
+		if (granularity !== 'set') return rowCount;
+		return (Math.floor(ri / repsPerSet) + 1) * repsPerSet;
+	}
+
+	let fillDownLabel = $derived(
+		granularity === 'set'
+			? 'Fill the rows below in this set with this one'
+			: 'Fill all rows below with this one'
+	);
+
 	function fillDown(ri: number) {
 		const src = captureRow(ri);
 		rowClipboard = src;
 		copiedRow = ri;
-		for (let r = ri + 1; r < rowCount; r++) applyRow(r, src);
+		for (let r = ri + 1; r < fillDownLimit(ri); r++) applyRow(r, src);
 	}
 
 	function fillSetsBelow(setIdx: number) {
-		const reps = hangboardReps(item);
 		for (let s = setIdx + 1; s < hangboardSets(item); s++) {
-			for (let r = 0; r < reps; r++) applyRow(s * reps + r, captureRow(setIdx * reps + r));
+			for (let r = 0; r < repsPerSet; r++)
+				applyRow(s * repsPerSet + r, captureRow(setIdx * repsPerSet + r));
 		}
 	}
-
-	let rowCount = $derived(hangboardRowCount(item, granularity));
-	let repsPerSet = $derived(hangboardReps(item));
-	let columnCount = $derived(item.hand === 'split' ? 9 : 6);
 
 	let collapsedSummary = $derived.by(() => {
 		const edge = item.edge_sizes_mm?.[0] ?? 20;
@@ -553,10 +566,12 @@
 				</div>
 			{:else}
 				<div class="hb-rep-hint">
-					Copy a row, then paste it onto another, or fill all rows below it.
 					{#if granularity === 'set'}
-						Each set is configured on its own; use the set header to copy a whole set into the ones
+						Copy a row, then paste it onto another, or fill the rows below it in the same set. Each
+						set is configured on its own; use the set header to copy a whole set into the ones
 						below.
+					{:else}
+						Copy a row, then paste it onto another, or fill all rows below it.
 					{/if}
 				</div>
 				<div style="overflow-x: auto;">
@@ -706,8 +721,8 @@
 										<button
 											type="button"
 											class="hb-act-btn"
-											title="Fill all rows below with this one"
-											aria-label="Fill all rows below with this one"
+											title={fillDownLabel}
+											aria-label={fillDownLabel}
 											onclick={() => fillDown(ri)}
 										>
 											<Icon name="arrow-down" size={13} color="currentColor" />
