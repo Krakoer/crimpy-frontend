@@ -148,8 +148,28 @@
 		granularity = next;
 	}
 
+	// Downgrading to uniform replaces every row with the uniform fields, which
+	// were captured at mount: seed them from the first row so the value left
+	// behind is the one the coach was looking at.
+	function seedUniformFromFirstRow() {
+		uniformEdge = item.edge_sizes_mm?.[0] ?? uniformEdge;
+		const left = item.loads?.[0];
+		if (left) {
+			uniformLoadValue = left.value;
+			uniformLoadUnit = left.unit;
+		}
+		const right = item.hand === 'split' ? item.loads?.[1] : undefined;
+		if (right) {
+			uniformLoadValueR = right.value;
+			uniformLoadUnitR = right.unit;
+		}
+		uniformHandPos = item.hand_positions?.[0]?.[0] ?? uniformHandPos;
+	}
+
 	function setGranularity(next: HangboardGranularity) {
-		if (next !== granularity) rebuild(next);
+		if (next === granularity) return;
+		if (next === 'uniform') seedUniformFromFirstRow();
+		rebuild(next);
 	}
 
 	// Keep the legacy item-level flag in sync for older clients: an item counts
