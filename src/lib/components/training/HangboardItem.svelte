@@ -3,6 +3,13 @@
 	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
+	import {
+		hangboardGranularity,
+		hangboardReps,
+		hangboardRowCount,
+		hangboardSets,
+		type HangboardGranularity
+	} from './hangboard-granularity';
 
 	interface Props {
 		item: TrainingItem;
@@ -38,7 +45,21 @@
 		{ value: 'max', label: 'Max' }
 	];
 
-	let perRep = $state((item.edge_sizes_mm?.length ?? 0) > 1);
+	const GRANULARITIES: { value: HangboardGranularity; label: string }[] = [
+		{ value: 'uniform', label: 'Uniform' },
+		{ value: 'rep', label: 'Per-rep' },
+		{ value: 'set', label: 'Per-set' }
+	];
+
+	if (!item.hand) item.hand = 'both';
+	if (!item.reps) item.reps = 6;
+	if (!item.cycles) item.cycles = 3;
+	if (!item.worktime_seconds) item.worktime_seconds = 7;
+	if (!item.rest_seconds) item.rest_seconds = 3;
+	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
+
+	const initialGranularity = hangboardGranularity(item);
+	let granularity = $state<HangboardGranularity>(initialGranularity);
 
 	let uniformEdge = $state(item.edge_sizes_mm?.[0] ?? 20);
 	let uniformLoadValue = $state(item.loads?.[0]?.value ?? 0);
@@ -49,69 +70,85 @@
 	);
 	let uniformHandPos = $state(item.hand_positions?.[0]?.[0] ?? 'HC');
 
-	if (!item.hand) item.hand = 'both';
-	if (!item.reps) item.reps = 6;
-	if (!item.cycles) item.cycles = 3;
-	if (!item.worktime_seconds) item.worktime_seconds = 7;
-	if (!item.rest_seconds) item.rest_seconds = 3;
-	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
+	// Layout the stored arrays were built for, so a rebuild can read every value
+	// back by its (set, rep) coordinates rather than by raw index.
+	let layout = {
+		granularity: initialGranularity,
+		reps: hangboardReps(item),
+		sets: hangboardSets(item),
+		split: item.hand === 'split'
+	};
+
 	untrack(() => {
 		if (!item.edge_sizes_mm?.length) {
 			item.edge_sizes_mm = [uniformEdge];
 			item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
-			item.hand_positions = [Array.from({ length: item.reps ?? 1 }, () => uniformHandPos)];
+			item.hand_positions = [Array.from({ length: hangboardReps(item) }, () => uniformHandPos)];
+		} else if (item.edge_sizes_mm.length !== hangboardRowCount(item, granularity)) {
+			rebuild(granularity);
 		}
 	});
 
-	function resizeArraysToReps() {
-		const n = item.reps ?? 1;
-		if (!perRep) {
+	function rebuild(next: HangboardGranularity) {
+		const reps = hangboardReps(item);
+		const sets = hangboardSets(item);
+		const split = item.hand === 'split';
+		const prev = layout;
+		const prevEdges = item.edge_sizes_mm ?? [];
+		const prevLoads = item.loads ?? [];
+		const prevGrips = item.hand_positions ?? [];
+
+		const prevIndex = (s: number, r: number) => {
+			if (prev.granularity === 'uniform') return 0;
+			const rep = Math.min(r, prev.reps - 1);
+			if (prev.granularity === 'rep') return rep;
+			return Math.min(s, prev.sets - 1) * prev.reps + rep;
+		};
+		const prevLoad = (s: number, r: number, hand: number) => {
+			const i = prevIndex(s, r);
+			return prevLoads[prev.split ? 2 * i + hand : i];
+		};
+		const prevGrip = (s: number, r: number, hand: number) =>
+			(prevGrips[hand] ?? prevGrips[0])?.[prevIndex(s, r)];
+		const defaultLoad = (hand: number) =>
+			hand === 1
+				? { value: uniformLoadValueR, unit: uniformLoadUnitR }
+				: { value: uniformLoadValue, unit: uniformLoadUnit };
+
+		if (next === 'uniform') {
 			item.edge_sizes_mm = [uniformEdge];
-			if (item.hand !== 'split') {
-				item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
-			} else {
-				item.loads = [
-					{ value: uniformLoadValue, unit: uniformLoadUnit },
-					{ value: uniformLoadValueR, unit: uniformLoadUnitR }
-				];
-			}
-			if (item.hand !== 'split') {
-				item.hand_positions = [Array.from({ length: n }, () => uniformHandPos)];
-			} else {
-				item.hand_positions = [
-					Array.from({ length: n }, () => uniformHandPos),
-					Array.from({ length: n }, () => uniformHandPos)
-				];
-			}
+			item.loads = split ? [defaultLoad(0), defaultLoad(1)] : [defaultLoad(0)];
+			item.hand_positions = Array.from({ length: split ? 2 : 1 }, () =>
+				Array.from({ length: reps }, () => uniformHandPos)
+			);
 		} else {
-			const prev_edge = item.edge_sizes_mm ?? [];
-			const prev_load = item.loads ?? [];
-			const prev_hp = item.hand_positions ?? [];
-			item.edge_sizes_mm = Array.from({ length: n }, (_, i) => prev_edge[i] ?? uniformEdge);
-			if (item.hand !== 'split') {
-				item.loads = Array.from(
-					{ length: n },
-					(_, i) => prev_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit }
-				);
-				item.hand_positions = [
-					Array.from({ length: n }, (_, i) => prev_hp[0]?.[i] ?? uniformHandPos)
-				];
-			} else {
-				item.loads = Array.from({ length: n }, (_, i) => [
-					prev_load[2 * i] ?? { value: uniformLoadValue, unit: uniformLoadUnit },
-					prev_load[2 * i + 1] ?? { value: uniformLoadValueR, unit: uniformLoadUnitR }
-				]).flat();
-				item.hand_positions = [
-					Array.from({ length: n }, (_, i) => prev_hp[0]?.[i] ?? uniformHandPos),
-					Array.from({ length: n }, (_, i) => prev_hp[1]?.[i] ?? uniformHandPos)
-				];
-			}
+			const rows = next === 'set' ? sets * reps : reps;
+			const coord = (i: number): [number, number] =>
+				next === 'set' ? [Math.floor(i / reps), i % reps] : [0, i];
+
+			item.edge_sizes_mm = Array.from({ length: rows }, (_, i) => {
+				const [s, r] = coord(i);
+				return prevEdges[prevIndex(s, r)] ?? uniformEdge;
+			});
+			item.loads = Array.from({ length: rows }, (_, i) => {
+				const [s, r] = coord(i);
+				const left = { ...(prevLoad(s, r, 0) ?? defaultLoad(0)) };
+				return split ? [left, { ...(prevLoad(s, r, 1) ?? defaultLoad(1)) }] : [left];
+			}).flat();
+			item.hand_positions = Array.from({ length: split ? 2 : 1 }, (_, hand) =>
+				Array.from({ length: rows }, (_, i) => {
+					const [s, r] = coord(i);
+					return prevGrip(s, r, hand) ?? uniformHandPos;
+				})
+			);
 		}
+
+		layout = { granularity: next, reps, sets, split };
+		granularity = next;
 	}
 
-	function togglePerRep() {
-		perRep = !perRep;
-		resizeArraysToReps();
+	function setGranularity(next: HangboardGranularity) {
+		if (next !== granularity) rebuild(next);
 	}
 
 	// Keep the legacy item-level flag in sync for older clients: an item counts
@@ -121,32 +158,23 @@
 		item.load_is_max = loads.length > 0 && loads.every((l) => l.unit === 'max');
 	});
 
+	// A number input is momentarily empty while being retyped: rebuilding then
+	// would collapse the grid to a single row and lose every value in it.
 	function onRepsChange() {
-		resizeArraysToReps();
+		if (item.reps && item.reps > 0) rebuild(granularity);
+	}
+
+	function onSetsChange() {
+		if (granularity === 'set' && item.cycles && item.cycles > 0) rebuild(granularity);
 	}
 
 	function onBothHandsToggle() {
-		const n = item.reps ?? 1;
-		if (perRep) {
-			const prev_load = item.loads ?? [];
-			if (item.hand !== 'split') {
-				item.loads = Array.from({ length: n }, (_, i) => {
-					const load = prev_load[i] ?? { value: uniformLoadValue, unit: uniformLoadUnit };
-					return [load, { ...load }];
-				}).flat();
-			} else {
-				item.loads = Array.from(
-					{ length: n },
-					(_, i) => prev_load[2 * i] ?? { value: uniformLoadValue, unit: uniformLoadUnit }
-				);
-			}
-		}
 		item.hand = item.hand === 'split' ? 'both' : 'split';
-		resizeArraysToReps();
+		rebuild(granularity);
 	}
 
 	function onUniformChange() {
-		if (!perRep) resizeArraysToReps();
+		if (granularity === 'uniform') rebuild(granularity);
 	}
 
 	type RowSettings = {
@@ -197,9 +225,19 @@
 		const src = captureRow(ri);
 		rowClipboard = src;
 		copiedRow = ri;
-		const n = item.reps ?? 1;
-		for (let r = ri + 1; r < n; r++) applyRow(r, src);
+		for (let r = ri + 1; r < rowCount; r++) applyRow(r, src);
 	}
+
+	function fillSetsBelow(setIdx: number) {
+		const reps = hangboardReps(item);
+		for (let s = setIdx + 1; s < hangboardSets(item); s++) {
+			for (let r = 0; r < reps; r++) applyRow(s * reps + r, captureRow(setIdx * reps + r));
+		}
+	}
+
+	let rowCount = $derived(hangboardRowCount(item, granularity));
+	let repsPerSet = $derived(hangboardReps(item));
+	let columnCount = $derived(item.hand === 'split' ? 9 : 6);
 
 	let collapsedSummary = $derived.by(() => {
 		const edge = item.edge_sizes_mm?.[0] ?? 20;
@@ -290,6 +328,7 @@
 						type="number"
 						min="1"
 						bind:value={item.cycles}
+						oninput={onSetsChange}
 						onclick={(e) => e.stopPropagation()}
 						style={inputStyle}
 					/>
@@ -362,26 +401,30 @@
 				</div>
 			</div>
 
-			<!-- Row 2: rep config toggle + uniform or per-rep -->
+			<!-- Row 2: config granularity + uniform or per-row grid -->
 			<div
 				style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;"
 			>
 				<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
-					>REP CONFIG</span
+					>CONFIG GRANULARITY</span
 				>
-				<button
-					onclick={togglePerRep}
-					style="
-						padding: 3px 10px; font-size: 11px; font-weight: 600;
-						border-radius: 999px; border: 1px solid {perRep ? HB_COLOR : 'var(--bd)'};
-						background: {perRep ? HB_COLOR + '15' : '#fff'};
-						color: {perRep ? HB_COLOR : 'var(--tx3)'};
-						cursor: pointer; font-family: var(--font);
-					">{perRep ? 'Per-rep ON' : 'Uniform'}</button
-				>
+				<div style="display: flex; gap: 4px;">
+					{#each GRANULARITIES as g (g.value)}
+						<button
+							onclick={() => setGranularity(g.value)}
+							style="
+								padding: 3px 10px; font-size: 11px; font-weight: 600;
+								border-radius: 999px; border: 1px solid {granularity === g.value ? HB_COLOR : 'var(--bd)'};
+								background: {granularity === g.value ? HB_COLOR + '15' : '#fff'};
+								color: {granularity === g.value ? HB_COLOR : 'var(--tx3)'};
+								cursor: pointer; font-family: var(--font);
+							">{g.label}</button
+						>
+					{/each}
+				</div>
 			</div>
 
-			{#if !perRep}
+			{#if granularity === 'uniform'}
 				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
 					<div style="display: flex; flex-direction: column; gap: 2px;">
 						<label for="hb-edge" style={labelStyle}>EDGE (mm)</label>
@@ -475,6 +518,10 @@
 			{:else}
 				<div class="hb-rep-hint">
 					Copy a row, then paste it onto another, or fill all rows below it.
+					{#if granularity === 'set'}
+						Each set is configured on its own; use the set header to copy a whole set into the ones
+						below.
+					{/if}
 				</div>
 				<div style="overflow-x: auto;">
 					<table class="hb-table" style="--hb: {HB_COLOR};">
@@ -498,9 +545,27 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as ri (ri)}
+							{#each Array.from({ length: rowCount }, (_, i) => i) as ri (ri)}
+								{#if granularity === 'set' && ri % repsPerSet === 0}
+									<tr class="hb-set-row">
+										<td class="hb-set-cell" colspan={columnCount}>
+											<span>Set {ri / repsPerSet + 1}</span>
+											{#if ri + repsPerSet < rowCount}
+												<button
+													type="button"
+													class="hb-act-btn"
+													title="Copy this set into the sets below"
+													aria-label="Copy this set into the sets below"
+													onclick={() => fillSetsBelow(ri / repsPerSet)}
+												>
+													<Icon name="arrow-down" size={13} color="currentColor" />
+												</button>
+											{/if}
+										</td>
+									</tr>
+								{/if}
 								<tr class:hb-copied={copiedRow === ri}>
-									<td class="hb-rep">{ri + 1}</td>
+									<td class="hb-rep">{(ri % repsPerSet) + 1}</td>
 									<td>
 										<input
 											class="hb-in"
@@ -688,6 +753,29 @@
 		text-align: center;
 		font-weight: 700;
 		color: var(--tx2);
+	}
+
+	.hb-set-row td {
+		border-bottom: 1px solid var(--bd);
+	}
+
+	.hb-table tbody tr.hb-set-row:hover td {
+		background: color-mix(in srgb, var(--hb) 8%, transparent);
+	}
+
+	.hb-set-cell {
+		padding: 8px 8px 4px;
+		background: color-mix(in srgb, var(--hb) 8%, transparent);
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--hb);
+	}
+
+	.hb-set-cell span {
+		margin-right: 8px;
+		vertical-align: middle;
 	}
 
 	.hb-max {
