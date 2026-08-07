@@ -466,7 +466,7 @@ test.describe('hangboard hand modes', () => {
 
 		await expect(page.getByText('Both hands on the board at once')).toBeVisible();
 
-		await page.getByRole('button', { name: 'Alternate', exact: true }).click();
+		await page.getByRole('radio', { name: 'Alternate', exact: true }).click();
 
 		await expect(page.getByText('Right then left within each rep')).toBeVisible();
 	});
@@ -482,7 +482,7 @@ test.describe('hangboard hand modes', () => {
 
 		await page.goto('/trainings/training-1');
 		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('button', { name: 'Alternate', exact: true }).click();
+		await page.getByRole('radio', { name: 'Alternate', exact: true }).click();
 		await page.getByRole('button', { name: 'Save training' }).click();
 
 		await expect(page.getByText('Training saved')).toBeVisible();
@@ -515,7 +515,7 @@ test.describe('hangboard hand modes', () => {
 
 		await page.goto('/trainings/training-1');
 		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('button', { name: 'Split', exact: true }).click();
+		await page.getByRole('radio', { name: 'Split', exact: true }).click();
 
 		await expect(page.getByRole('columnheader', { name: 'L Load' })).toBeVisible();
 		await expect(page.getByRole('columnheader', { name: 'R Grip' })).toBeVisible();
@@ -556,7 +556,7 @@ test.describe('hangboard hand modes', () => {
 
 		await page.goto('/trainings/training-1');
 		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('button', { name: 'Both', exact: true }).click();
+		await page.getByRole('radio', { name: 'Both', exact: true }).click();
 		await page.getByRole('button', { name: 'Save training' }).click();
 
 		await expect(page.getByText('Training saved')).toBeVisible();
@@ -565,5 +565,117 @@ test.describe('hangboard hand modes', () => {
 		expect(item).toMatchObject({ hand: 'both' });
 		expect(item.left_loads).toBeUndefined();
 		expect(item.hand_positions).toHaveLength(1);
+	});
+});
+
+test.describe('hangboard uniform editing', () => {
+	// A uniform item is a single row, and the uniform fields are that row. What
+	// the coach types has to be what gets saved.
+	test('saves the edge, load and grip typed in the uniform panel', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				hangboardItem({
+					granularity: 'uniform',
+					edge_sizes_mm: [20],
+					loads: [{ value: 100, unit: 'percent_bw' }],
+					hand_positions: [['HC']]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await page.getByLabel('EDGE (mm)').fill('25');
+		await page.getByLabel('Load', { exact: true }).fill('80');
+		await page.getByLabel('GRIP').selectOption('OC');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		expect(item).toMatchObject({
+			granularity: 'uniform',
+			edge_sizes_mm: [25],
+			loads: [{ value: 80, unit: 'percent_bw' }],
+			hand_positions: [['OC']]
+		});
+	});
+
+	// The Max unit has no value input, so it only reaches the item through the
+	// same path the numbers take.
+	test('flags the item as max effort from the uniform load unit', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				hangboardItem({
+					granularity: 'uniform',
+					edge_sizes_mm: [20],
+					loads: [{ value: 100, unit: 'percent_bw' }],
+					hand_positions: [['HC']]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await page.getByLabel('Load unit', { exact: true }).selectOption('max');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		expect(item).toMatchObject({ load_is_max: true, loads: [{ unit: 'max' }] });
+	});
+});
+
+test.describe('hangboard items stored in an older shape', () => {
+	// The API validates every configuration array on its own and accepts an
+	// absent one, so a two-handed item can arrive with no left_loads at all.
+	// Rebuilding must give the left hand each row's own load, not row 0 for all.
+	test('gives the left hand its per-row load when left_loads is missing', async ({ page }) => {
+		const training = testTraining({
+			items: [hangboardItem({ hand: 'alternate', left_loads: undefined })]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		expect(item.left_loads).toEqual([
+			{ value: 10, unit: 'kg' },
+			{ value: 12, unit: 'kg' }
+		]);
+	});
+
+	// A two-handed item missing its second grip array used to throw while
+	// rendering, taking the whole editor down with it.
+	test('renders a split item that carries a single grip array', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				hangboardItem({ hand: 'split', left_loads: undefined, hand_positions: [['HC', 'FC']] })
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByRole('columnheader', { name: 'L Load' })).toBeVisible();
+		await expect(edgeInput(page, 0)).toHaveValue('20');
 	});
 });
