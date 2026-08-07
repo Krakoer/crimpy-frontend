@@ -78,7 +78,9 @@
 	let uniformLoadUnitL = $state<LoadUnit>(
 		item.left_loads?.[0]?.unit ?? item.loads?.[0]?.unit ?? 'percent_bw'
 	);
-	let uniformHandPos = $state(item.hand_positions?.[0]?.[0] ?? 'HC');
+	let uniformHandPos = $state(
+		item.hand_positions?.[isTwoHandedMode(hangboardHand(item)) ? RIGHT : LEFT]?.[0] ?? 'HC'
+	);
 
 	// Layout the stored arrays were built for, so a rebuild can read every value
 	// back by its (set, rep) coordinates rather than by raw index.
@@ -89,12 +91,27 @@
 		twoHanded: isTwoHandedMode(hangboardHand(item))
 	};
 
-	untrack(() => {
-		if (!item.edge_sizes_mm?.length) {
-			rebuild(granularity);
-		} else if (item.edge_sizes_mm.length !== hangboardRowCount(item, granularity)) {
-			rebuild(granularity);
+	// The API validates each configuration array on its own and accepts an absent
+	// one, so an item can arrive with any of them missing or sized for another
+	// layout. The editor indexes all of them by row, so it normalises whatever it
+	// is handed before rendering rather than trusting the stored shape.
+	function isNormalized(): boolean {
+		const rows = hangboardRowCount(item, granularity);
+		const hand = hangboardHand(item);
+		if (item.edge_sizes_mm?.length !== rows) return false;
+		if (item.loads?.length !== rows) return false;
+		if (isTwoHandedMode(hand)) {
+			if (item.left_loads?.length !== rows) return false;
+		} else if (item.left_loads) {
+			return false;
 		}
+		const grips = item.hand_positions;
+		if (grips?.length !== hangboardHandCount(hand)) return false;
+		return grips.every((perHand) => perHand?.length === rows);
+	}
+
+	untrack(() => {
+		if (!isNormalized()) rebuild(granularity);
 	});
 
 	function rebuild(next: HangboardGranularity) {
@@ -118,7 +135,7 @@
 		// the value that was already there.
 		const prevLoad = (s: number, r: number, hand: number) => {
 			const i = prevIndex(s, r);
-			if (hand === LEFT && prev.twoHanded) return prevLeftLoads[i];
+			if (hand === LEFT && prev.twoHanded) return prevLeftLoads[i] ?? prevLoads[i];
 			return prevLoads[i];
 		};
 		const prevGrip = (s: number, r: number, hand: number) =>
@@ -170,12 +187,14 @@
 			uniformLoadValue = primary.value;
 			uniformLoadUnit = primary.unit;
 		}
-		const left = item.left_loads?.[0];
+		// A mode that shared one load between the hands has no left row to read, so
+		// the left field starts from the shared value rather than a stale one.
+		const left = item.left_loads?.[0] ?? item.loads?.[0];
 		if (left) {
 			uniformLoadValueL = left.value;
 			uniformLoadUnitL = left.unit;
 		}
-		uniformHandPos = item.hand_positions?.[0]?.[0] ?? uniformHandPos;
+		uniformHandPos = item.hand_positions?.[handGripIndex]?.[0] ?? uniformHandPos;
 	}
 
 	function setGranularity(next: HangboardGranularity) {
@@ -216,12 +235,24 @@
 
 	function setHand(next: HangboardHand) {
 		if (next === item.hand) return;
+		seedUniformFromFirstRow();
 		item.hand = next;
 		rebuild(granularity);
 	}
 
+	// A uniform item is exactly one row, and the uniform fields are that row. They
+	// are written straight in: going through rebuild would read the row back over
+	// the edit that just happened and discard it.
 	function onUniformChange() {
-		if (granularity === 'uniform') rebuild(granularity);
+		if (granularity !== 'uniform') return;
+		item.edge_sizes_mm = [uniformEdge];
+		item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
+		item.left_loads = twoHanded
+			? [{ value: uniformLoadValueL, unit: uniformLoadUnitL }]
+			: undefined;
+		item.hand_positions = Array.from({ length: hangboardHandCount(hangboardHand(item)) }, () => [
+			uniformHandPos
+		]);
 	}
 
 	type RowSettings = {
@@ -272,6 +303,9 @@
 	// configured separately, the single shared array otherwise.
 	let handGripIndex = $derived(twoHanded ? RIGHT : LEFT);
 	let columnCount = $derived(twoHanded ? 9 : 6);
+	// The hint describes the selected mode, so the radiogroup points at it and a
+	// screen reader announces what the mode means, not just its label.
+	const handHintId = `hangboard-hand-hint-${crypto.randomUUID()}`;
 	let handHint = $derived(HANGBOARD_HANDS.find((h) => h.value === hangboardHand(item))?.hint ?? '');
 
 	// Per-set rows belong to a set, so filling down stays inside it: propagating
@@ -303,7 +337,7 @@
 
 	let collapsedSummary = $derived.by(() => {
 		const edge = item.edge_sizes_mm?.[0] ?? 20;
-		const grip = item.hand_positions?.[0]?.[0] ?? 'HC';
+		const grip = item.hand_positions?.[handGripIndex]?.[0] ?? 'HC';
 		return `${item.cycles}x${item.reps} · ${item.worktime_seconds}s on / ${item.rest_seconds}s off · ${edge}mm ${grip}`;
 	});
 
@@ -452,12 +486,18 @@
 				<div style="width: 1px; height: 30px; background: var(--bd);"></div>
 				<div style="display: flex; flex-direction: column; gap: 2px;">
 					<span style={labelStyle}>HANDS</span>
-					<div style="display: flex; gap: 3px;" role="group" aria-label="Hands">
+					<div
+						style="display: flex; gap: 3px;"
+						role="radiogroup"
+						aria-label="Hands"
+						aria-describedby={handHintId}
+					>
 						{#each HANGBOARD_HANDS as h (h.value)}
 							<button
 								onclick={() => setHand(h.value)}
 								title={h.hint}
-								aria-pressed={hangboardHand(item) === h.value}
+								role="radio"
+								aria-checked={hangboardHand(item) === h.value}
 								style="
 									padding: 5px 9px; border-radius: 5px;
 									border: 1px solid {hangboardHand(item) === h.value ? HB_COLOR : 'var(--bd)'};
@@ -471,7 +511,9 @@
 				</div>
 			</div>
 
-			<div style="font-size: 11px; color: var(--tx3); margin-bottom: 14px;">{handHint}</div>
+			<div id={handHintId} style="font-size: 11px; color: var(--tx3); margin-bottom: 14px;">
+				{handHint}
+			</div>
 
 			<!-- Row 2: config granularity + uniform or per-row grid -->
 			<div
