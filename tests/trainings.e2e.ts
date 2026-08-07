@@ -265,3 +265,188 @@ test.describe('training editor', () => {
 		expect(deletes).toHaveLength(1);
 	});
 });
+
+/** A hangboard item whose edge, load and grip vary from rep to rep only. */
+function hangboardItem(overrides: Record<string, unknown> = {}) {
+	return {
+		id: 'item-1',
+		type: 'repeater',
+		position: 0,
+		cycles: 2,
+		reps: 2,
+		worktime_seconds: 7,
+		rest_seconds: 3,
+		cycle_rest_seconds: 120,
+		hand: 'both',
+		edge_sizes_mm: [20, 18],
+		loads: [
+			{ value: 10, unit: 'kg' },
+			{ value: 12, unit: 'kg' }
+		],
+		hand_positions: [['HC', 'FC']],
+		...overrides
+	};
+}
+
+/** The same item configured set by set: set 1 hangs 20 then 18mm, set 2 15 then 12mm. */
+function perSetHangboardItem(overrides: Record<string, unknown> = {}) {
+	return hangboardItem({
+		edge_sizes_mm: [20, 18, 15, 12],
+		loads: [
+			{ value: 10, unit: 'kg' },
+			{ value: 12, unit: 'kg' },
+			{ value: 14, unit: 'kg' },
+			{ value: 16, unit: 'kg' }
+		],
+		hand_positions: [['HC', 'FC', 'OC', '3FD']],
+		...overrides
+	});
+}
+
+/**
+ * The value rows of the hangboard editor grid, in set then rep order. The set
+ * bands live in the same tbody, so they are excluded by their class.
+ */
+function editorRows(page: Page) {
+	return page.locator('.hb-table tbody tr:not(.hb-set-row)');
+}
+
+/** Edge is the first input of a grid row, and the only one on every layout. */
+function edgeInput(page: Page, rowIndex: number) {
+	return editorRows(page).nth(rowIndex).locator('input').first();
+}
+
+test.describe('hangboard granularity', () => {
+	test('renders a per-set hangboard item set by set', async ({ page }) => {
+		const perSet = testTraining({ items: [perSetHangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('PER-SET', { exact: true })).toBeVisible();
+		await expect(page.getByText('Set 1', { exact: true })).toBeVisible();
+		await expect(page.getByText('Set 2', { exact: true })).toBeVisible();
+		await expect(page.getByText('16 kg')).toBeVisible();
+	});
+
+	test('repeats the per-rep values in every set when switching to per-set', async ({ page }) => {
+		const perRep = testTraining({ items: [hangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: perRep });
+		await stub(page, 'PUT', '/api/trainings/*', { body: perRep });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Per-set', exact: true }).click();
+
+		await expect(page.getByText('Set 2', { exact: true })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({
+			items: [
+				{
+					edge_sizes_mm: [20, 18, 20, 18],
+					loads: [
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' },
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' }
+					],
+					hand_positions: [['HC', 'FC', 'HC', 'FC']]
+				}
+			]
+		});
+	});
+
+	test('copies a set into the sets below it', async ({ page }) => {
+		const perSet = testTraining({ items: [perSetHangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
+		await stub(page, 'PUT', '/api/trainings/*', { body: perSet });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(edgeInput(page, 2)).toHaveValue('15');
+
+		await page.getByRole('button', { name: 'Copy this set into the sets below' }).click();
+
+		await expect(edgeInput(page, 2)).toHaveValue('20');
+		await expect(edgeInput(page, 3)).toHaveValue('18');
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({
+			items: [
+				{
+					edge_sizes_mm: [20, 18, 20, 18],
+					loads: [
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' },
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' }
+					],
+					hand_positions: [['HC', 'FC', 'HC', 'FC']]
+				}
+			]
+		});
+	});
+
+	test('saves an edit made inside a later set and reads it back', async ({ page }) => {
+		const perSet = testTraining({ items: [perSetHangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
+		await stub(page, 'PUT', '/api/trainings/*', { body: perSet });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await edgeInput(page, 2).fill('25');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({
+			items: [{ cycles: 2, reps: 2, edge_sizes_mm: [20, 18, 25, 12] }]
+		});
+
+		const stored = (updates[0].body as { items: unknown[] }).items;
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ items: stored }) });
+		await page.reload();
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(edgeInput(page, 2)).toHaveValue('25');
+	});
+
+	test('resizes the grid on the committed set count, not on every keystroke', async ({ page }) => {
+		const perSet = testTraining({ items: [perSetHangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		const sets = page.getByRole('spinbutton', { name: 'Sets' });
+		await sets.selectText();
+		await sets.pressSequentially('12');
+
+		await expect(editorRows(page)).toHaveCount(4);
+
+		await sets.blur();
+
+		await expect(page.getByText('Set 12', { exact: true })).toBeVisible();
+		await expect(editorRows(page)).toHaveCount(24);
+		await expect(edgeInput(page, 0)).toHaveValue('20');
+		await expect(edgeInput(page, 1)).toHaveValue('18');
+		await expect(edgeInput(page, 2)).toHaveValue('15');
+		await expect(edgeInput(page, 3)).toHaveValue('12');
+	});
+});

@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
+	import { hangboardGranularity, hangboardReps, hangboardRowCount } from './hangboard-granularity';
 
 	interface Props {
 		item: TrainingItem;
@@ -22,7 +23,13 @@
 		max: 'MAX'
 	};
 
-	let perRep = $derived((item.edge_sizes_mm?.length ?? 0) > 1);
+	let granularity = $derived(hangboardGranularity(item));
+	let rowCount = $derived(hangboardRowCount(item, granularity));
+	let repsPerSet = $derived(hangboardReps(item));
+	let columnCount = $derived(item.hand === 'split' ? 6 : 4);
+	let granularityLabel = $derived(
+		granularity === 'set' ? 'PER-SET' : granularity === 'rep' ? 'PER-REP' : 'UNIFORM'
+	);
 
 	function fmtLoad(value: number, unit: LoadUnit): string {
 		if (unit === 'max') return 'MAX';
@@ -151,15 +158,15 @@
 						>REP PARAMETERS</span
 					>
 					<span
-						style="font-size: 10px; font-weight: 600; color: {perRep
-							? HB_COLOR
-							: 'var(--tx3)'}; letter-spacing: 0.04em;"
+						style="font-size: 10px; font-weight: 600; color: {granularity === 'uniform'
+							? 'var(--tx3)'
+							: HB_COLOR}; letter-spacing: 0.04em;"
 					>
-						{perRep ? 'PER-REP ON' : 'PER-REP OFF'}
+						{granularityLabel}
 					</span>
 				</div>
 
-				{#if !perRep}
+				{#if granularity === 'uniform'}
 					<div style="display: flex; gap: 20px; flex-wrap: wrap;">
 						<div style="display: flex; flex-direction: column; gap: 2px;">
 							<span
@@ -253,11 +260,20 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each Array.from({ length: item.reps ?? 1 }, (_, i) => i) as repIdx (repIdx)}
+								{#each Array.from({ length: rowCount }, (_, i) => i) as repIdx (repIdx)}
+									{#if granularity === 'set' && repIdx % repsPerSet === 0}
+										<tr>
+											<td
+												colspan={columnCount}
+												style="padding: 8px 10px 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: {HB_COLOR}; background: color-mix(in srgb, {HB_COLOR} 8%, transparent); border-bottom: 1px solid var(--bd);"
+												>Set {repIdx / repsPerSet + 1}</td
+											>
+										</tr>
+									{/if}
 									<tr style="border-bottom: 1px solid var(--bd2);">
 										<td
 											style="padding: 6px 10px; font-weight: 700; color: var(--tx2); font-size: 12px;"
-											>{repIdx + 1}</td
+											>{(repIdx % repsPerSet) + 1}</td
 										>
 										<td style="padding: 6px 10px; text-align: center; color: var(--tx);"
 											>{item.edge_sizes_mm?.[repIdx] ?? '-'}</td
