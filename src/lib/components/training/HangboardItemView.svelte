@@ -3,7 +3,14 @@
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
-	import { hangboardGranularity, hangboardReps, hangboardRowCount } from './hangboard-granularity';
+	import {
+		HANGBOARD_HANDS,
+		hangboardGranularity,
+		hangboardHand,
+		hangboardReps,
+		hangboardRowCount,
+		isTwoHandedMode
+	} from './hangboard-granularity';
 
 	interface Props {
 		item: TrainingItem;
@@ -26,7 +33,15 @@
 	let granularity = $derived(hangboardGranularity(item));
 	let rowCount = $derived(hangboardRowCount(item, granularity));
 	let repsPerSet = $derived(hangboardReps(item));
-	let columnCount = $derived(item.hand === 'split' ? 6 : 4);
+	let twoHanded = $derived(isTwoHandedMode(hangboardHand(item)));
+	// Grips of the hand that loads describes: the right one when the hands are
+	// configured separately, the single shared array otherwise.
+	let handGripIndex = $derived(twoHanded ? 1 : 0);
+	let columnCount = $derived(twoHanded ? 6 : 4);
+	let handLabel = $derived(
+		HANGBOARD_HANDS.find((h) => h.value === hangboardHand(item))?.label ?? 'Both'
+	);
+	let handHint = $derived(HANGBOARD_HANDS.find((h) => h.value === hangboardHand(item))?.hint ?? '');
 	let granularityLabel = $derived(
 		granularity === 'set' ? 'PER-SET' : granularity === 'rep' ? 'PER-REP' : 'UNIFORM'
 	);
@@ -143,8 +158,8 @@
 						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
 						>HAND</span
 					>
-					<span style="font-size: 13px; font-weight: 700; color: var(--tx);"
-						>{item.hand ?? 'both'}</span
+					<span style="font-size: 13px; font-weight: 700; color: var(--tx);" title={handHint}
+						>{handLabel}</span
 					>
 				</div>
 			</div>
@@ -182,7 +197,7 @@
 								style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
 								>LOAD</span
 							>
-							{#if item.hand !== 'split'}
+							{#if !twoHanded}
 								<span style="font-size: 14px; font-weight: 700; color: var(--tx);">
 									{item.loads?.[0] ? fmtLoad(item.loads[0].value, item.loads[0].unit) : '-'}
 								</span>
@@ -191,16 +206,16 @@
 									<div style="display: flex; align-items: center; gap: 6px;">
 										<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
 										<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-											>{item.loads?.[0]
-												? fmtLoad(item.loads[0].value, item.loads[0].unit)
+											>{item.left_loads?.[0]
+												? fmtLoad(item.left_loads[0].value, item.left_loads[0].unit)
 												: '-'}</span
 										>
 									</div>
 									<div style="display: flex; align-items: center; gap: 6px;">
 										<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
 										<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-											>{item.loads?.[1]
-												? fmtLoad(item.loads[1].value, item.loads[1].unit)
+											>{item.loads?.[0]
+												? fmtLoad(item.loads[0].value, item.loads[0].unit)
 												: '-'}</span
 										>
 									</div>
@@ -213,7 +228,7 @@
 								>GRIP</span
 							>
 							<span style="font-size: 14px; font-weight: 700; color: var(--tx);"
-								>{item.hand_positions?.[0]?.[0] ?? '-'}</span
+								>{item.hand_positions?.[handGripIndex]?.[0] ?? '-'}</span
 							>
 						</div>
 					</div>
@@ -230,7 +245,7 @@
 										style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);"
 										>EDGE (mm)</th
 									>
-									{#if item.hand !== 'split'}
+									{#if !twoHanded}
 										<th
 											style="padding: 6px 10px; text-align: center; font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; border-bottom: 1px solid var(--bd);"
 											>LOAD</th
@@ -278,7 +293,7 @@
 										<td style="padding: 6px 10px; text-align: center; color: var(--tx);"
 											>{item.edge_sizes_mm?.[repIdx] ?? '-'}</td
 										>
-										{#if item.hand !== 'split'}
+										{#if !twoHanded}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
 												{item.loads?.[repIdx]
 													? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit)
@@ -289,16 +304,13 @@
 											</td>
 										{:else}
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.loads?.[2 * repIdx]
-													? fmtLoad(item.loads[2 * repIdx].value, item.loads[2 * repIdx].unit)
+												{item.left_loads?.[repIdx]
+													? fmtLoad(item.left_loads[repIdx].value, item.left_loads[repIdx].unit)
 													: '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
-												{item.loads?.[2 * repIdx + 1]
-													? fmtLoad(
-															item.loads[2 * repIdx + 1].value,
-															item.loads[2 * repIdx + 1].unit
-														)
+												{item.loads?.[repIdx]
+													? fmtLoad(item.loads[repIdx].value, item.loads[repIdx].unit)
 													: '-'}
 											</td>
 											<td style="padding: 6px 10px; text-align: center; color: var(--tx);">
