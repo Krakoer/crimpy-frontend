@@ -13,6 +13,7 @@
 	} from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import ItemList from '$lib/components/training/ItemList.svelte';
+	import { applyHangboardDefaults } from '$lib/components/training/hangboard-granularity';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
@@ -352,16 +353,7 @@
 			base.group_title = 'Group';
 			base.items = [];
 		} else if (type === 'repeater') {
-			base.cycles = 3;
-			base.cycle_rest_seconds = 180;
-			base.reps = 6;
-			base.worktime_seconds = 7;
-			base.rest_seconds = 3;
-			base.hand = 'both';
-			base.granularity = 'uniform';
-			base.edge_sizes_mm = [20];
-			base.loads = [{ value: 100, unit: 'percent_bw' }];
-			base.hand_positions = [['HC']];
+			applyHangboardDefaults(base);
 		}
 		return base;
 	}

@@ -57,3 +57,20 @@ export const HANGBOARD_GRANULARITIES: { value: HangboardGranularity; label: stri
 	{ value: 'rep', label: 'Per-rep' },
 	{ value: 'set', label: 'Per-set' }
 ];
+
+// Fields a new hangboard item starts with. The declared shape lives here rather
+// than in each place that can create one: they drifted apart the last time it
+// changed.
+export function applyHangboardDefaults(item: TrainingItem): TrainingItem {
+	item.cycles = 3;
+	item.cycle_rest_seconds = 180;
+	item.reps = 6;
+	item.worktime_seconds = 7;
+	item.rest_seconds = 3;
+	item.hand = 'both';
+	item.granularity = 'uniform';
+	item.edge_sizes_mm = [20];
+	item.loads = [{ value: 100, unit: 'percent_bw' }];
+	item.hand_positions = [['HC']];
+	return item;
+}
