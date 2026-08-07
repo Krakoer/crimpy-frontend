@@ -189,8 +189,10 @@ export interface TrainingItem {
 	duration?: number;
 	rest_seconds?: number;
 	loads?: Load[];
+	left_loads?: Load[];
 	worktime_seconds?: number;
-	hand?: string;
+	hand?: HangboardHand;
+	granularity?: HangboardGranularity;
 	free_text?: string;
 	comment?: string;
 	load_is_max?: boolean;
@@ -198,6 +200,14 @@ export interface TrainingItem {
 	hand_positions?: string[][];
 	items?: TrainingItem[];
 }
+
+// How the two hands are worked. Only 'both' puts two hands on the board at the
+// same time; the other modes hang a single hand at a time.
+export type HangboardHand = 'both' | 'alternate' | 'split' | 'left' | 'right';
+
+// Layout of the hangboard configuration arrays: one row for the whole item, one
+// row per rep, or one row per set and rep.
+export type HangboardGranularity = 'uniform' | 'rep' | 'set';
 
 export type TrainingType = 'workout' | 'stretching' | 'climbing';
 
