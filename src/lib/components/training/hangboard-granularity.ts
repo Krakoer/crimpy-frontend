@@ -6,12 +6,19 @@ import type { TrainingItem } from '$lib/api/client';
 // 'set':     one value per (set, rep) pair.
 export type HangboardGranularity = 'uniform' | 'rep' | 'set';
 
+// A cleared or half-typed number input leaves null on the item, and a count of
+// zero or less would collapse the configuration grid: everything reading a set
+// or rep count goes through this floor.
+export function saneCount(value: number | null | undefined): number {
+	return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
+}
+
 export function hangboardReps(item: TrainingItem): number {
-	return Math.max(1, item.reps ?? 1);
+	return saneCount(item.reps);
 }
 
 export function hangboardSets(item: TrainingItem): number {
-	return Math.max(1, item.cycles ?? 1);
+	return saneCount(item.cycles);
 }
 
 // Number of configuration rows the item carries for the given granularity.

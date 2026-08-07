@@ -8,6 +8,7 @@
 		hangboardReps,
 		hangboardRowCount,
 		hangboardSets,
+		saneCount,
 		type HangboardGranularity
 	} from './hangboard-granularity';
 
@@ -158,14 +159,27 @@
 		item.load_is_max = loads.length > 0 && loads.every((l) => l.unit === 'max');
 	});
 
-	// A number input is momentarily empty while being retyped: rebuilding then
-	// would collapse the grid to a single row and lose every value in it.
-	function onRepsChange() {
-		if (item.reps && item.reps > 0) rebuild(granularity);
+	// A number input holds intermediate values while being retyped: typing "12"
+	// over a "3" goes through "1", and rebuilding then would truncate the grid
+	// and lose every value in it. These fields are only committed to the item on
+	// blur or Enter, which is when the grid is resized.
+	let setsField = $state<number | null>(item.cycles ?? null);
+	let repsField = $state<number | null>(item.reps ?? null);
+
+	function commitSets() {
+		const sets = saneCount(setsField);
+		setsField = sets;
+		if (sets === item.cycles) return;
+		item.cycles = sets;
+		if (granularity === 'set') rebuild(granularity);
 	}
 
-	function onSetsChange() {
-		if (granularity === 'set' && item.cycles && item.cycles > 0) rebuild(granularity);
+	function commitReps() {
+		const reps = saneCount(repsField);
+		repsField = reps;
+		if (reps === item.reps) return;
+		item.reps = reps;
+		rebuild(granularity);
 	}
 
 	function onBothHandsToggle() {
@@ -327,8 +341,9 @@
 					<input
 						type="number"
 						min="1"
-						bind:value={item.cycles}
-						oninput={onSetsChange}
+						aria-label="Sets"
+						bind:value={setsField}
+						onchange={commitSets}
 						onclick={(e) => e.stopPropagation()}
 						style={inputStyle}
 					/>
@@ -339,8 +354,9 @@
 					<input
 						type="number"
 						min="1"
-						bind:value={item.reps}
-						oninput={onRepsChange}
+						aria-label="Reps"
+						bind:value={repsField}
+						onchange={commitReps}
 						onclick={(e) => e.stopPropagation()}
 						style={inputStyle}
 					/>

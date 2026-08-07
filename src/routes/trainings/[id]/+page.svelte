@@ -23,6 +23,7 @@
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { saneCount } from '$lib/components/training/hangboard-granularity';
 
 	function ensureClientIds(items: TrainingItem[]) {
 		for (const item of items) {
@@ -40,9 +41,18 @@
 		return ids;
 	}
 
+	// A hangboard item infers its per-set layout from its set and rep counts, so
+	// saving a cleared field as null would truncate its stored configuration on
+	// the next load.
+	function repeaterCounts(item: TrainingItem): Partial<TrainingItem> {
+		if (item.type !== 'repeater') return {};
+		return { cycles: saneCount(item.cycles), reps: saneCount(item.reps) };
+	}
+
 	function stripClientIds(items: TrainingItem[]): TrainingItem[] {
 		return items.map(({ _id, ...rest }) => ({
 			...rest,
+			...repeaterCounts(rest),
 			items: rest.items ? stripClientIds(rest.items) : undefined
 		}));
 	}
