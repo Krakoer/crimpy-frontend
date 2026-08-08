@@ -23,7 +23,10 @@
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { saneCount } from '$lib/components/training/hangboard-granularity';
+	import {
+		applyHangboardDefaults,
+		saneCount
+	} from '$lib/components/training/hangboard-granularity';
 
 	function ensureClientIds(items: TrainingItem[]) {
 		for (const item of items) {
@@ -41,9 +44,9 @@
 		return ids;
 	}
 
-	// A hangboard item infers its per-set layout from its set and rep counts, so
-	// saving a cleared field as null would truncate its stored configuration on
-	// the next load.
+	// A hangboard item sizes its configuration arrays from its set and rep
+	// counts, so saving a cleared field as null would truncate its stored
+	// configuration on the next load.
 	function repeaterCounts(item: TrainingItem): Partial<TrainingItem> {
 		if (item.type !== 'repeater') return {};
 		return { cycles: saneCount(item.cycles), reps: saneCount(item.reps) };
@@ -433,15 +436,7 @@
 			base.group_title = 'Group';
 			base.items = [];
 		} else if (type === 'repeater') {
-			base.cycles = 3;
-			base.cycle_rest_seconds = 180;
-			base.reps = 6;
-			base.worktime_seconds = 7;
-			base.rest_seconds = 3;
-			base.hand = 'both';
-			base.edge_sizes_mm = [20];
-			base.loads = [{ value: 100, unit: 'percent_bw' }];
-			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
+			applyHangboardDefaults(base);
 		}
 		return base;
 	}

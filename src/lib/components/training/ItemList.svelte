@@ -6,6 +6,7 @@
 	import GroupItem from './GroupItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
+	import { applyHangboardDefaults } from './hangboard-granularity';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -47,15 +48,7 @@
 			base.group_title = 'Group';
 			base.items = [];
 		} else if (type === 'repeater') {
-			base.cycles = 3;
-			base.cycle_rest_seconds = 180;
-			base.reps = 6;
-			base.worktime_seconds = 7;
-			base.rest_seconds = 3;
-			base.hand = 'both';
-			base.edge_sizes_mm = [20];
-			base.loads = [{ value: 0, unit: 'percent_bw' }];
-			base.hand_positions = [['HC', 'HC', 'HC', 'HC', 'HC', 'HC']];
+			applyHangboardDefaults(base);
 		}
 		items.push(base);
 	}
