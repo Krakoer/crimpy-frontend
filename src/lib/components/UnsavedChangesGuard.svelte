@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { beforeNavigate, goto } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
 
 	interface Props {
 		dirty: boolean;
@@ -13,8 +13,17 @@
 	let pendingIsRoute = false;
 	let leaveConfirmed = false;
 
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
+	}
+
 	beforeNavigate((navigation) => {
-		if (!dirty || leaveConfirmed) return;
+		if (leaveConfirmed) {
+			leaveConfirmed = false;
+			return;
+		}
+		if (!dirty) return;
+		if (navigation.to && navigation.to.url.href === navigation.from?.url.href) return;
 		navigation.cancel();
 		if (navigation.type === 'leave') return;
 		pendingUrl = navigation.to?.url ?? null;
@@ -23,16 +32,25 @@
 		showModal = true;
 	});
 
+	afterNavigate(() => {
+		leaveConfirmed = false;
+	});
+
 	function leave() {
 		showModal = false;
-		leaveConfirmed = true;
 		const target = pendingUrl;
 		const delta = pendingDelta;
+		const targetIsRoute = pendingIsRoute;
 		pendingUrl = null;
 		pendingDelta = undefined;
-		if (delta !== undefined) history.go(delta);
-		else if (target && pendingIsRoute) goto(target);
-		else if (target) window.location.href = target.href;
+		if (delta !== undefined) {
+			leaveConfirmed = true;
+			history.go(delta);
+		} else if (target) {
+			leaveConfirmed = true;
+			if (targetIsRoute) goto(target);
+			else window.location.href = target.href;
+		}
 	}
 
 	function stay() {
@@ -40,19 +58,30 @@
 		pendingUrl = null;
 		pendingDelta = undefined;
 	}
+
+	function onKeydownCapture(e: KeyboardEvent) {
+		if (!showModal) return;
+		e.stopPropagation();
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			stay();
+		}
+	}
 </script>
+
+<svelte:window onkeydowncapture={onKeydownCapture} />
 
 {#if showModal}
 	<div
-		style="position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.3);"
+		style="position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: rgba(45,36,29,0.3);"
 		role="dialog"
 		aria-modal="true"
 		aria-label="Unsaved changes"
 	>
 		<div
 			style="
-				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
-				box-shadow: 0 20px 60px rgba(0,0,0,0.15); padding: 28px 32px; min-width: 340px;
+				background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+				box-shadow: var(--sh-hi); padding: 28px 32px; min-width: 340px;
 			"
 		>
 			<p style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 6px;">
@@ -72,6 +101,7 @@
 				>
 				<button
 					onclick={stay}
+					use:focusOnMount
 					style="
 						padding: 9px 18px; border-radius: var(--rs);
 						border: 1px solid var(--pr); background: var(--pr); color: #fff;
