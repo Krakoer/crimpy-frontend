@@ -37,11 +37,15 @@
 
 	let panelBaseline = $state<string | null>(null);
 
-	function panelSnapshot(): string {
+	function snapshotOf(formValue: ExerciseRequest, tags: Tag[]): string {
 		return JSON.stringify({
-			form: $state.snapshot(form),
-			tagIds: selectedTags.map((t) => t.id)
+			form: $state.snapshot(formValue),
+			tagIds: tags.map((t) => t.id)
 		});
+	}
+
+	function panelSnapshot(): string {
+		return snapshotOf(form, selectedTags);
 	}
 
 	let isDirty = $derived(panelBaseline !== null && panelSnapshot() !== panelBaseline);
@@ -152,22 +156,25 @@
 	}
 
 	async function openEdit(exercise: Exercise) {
-		form = {
+		const savedForm: ExerciseRequest = {
 			name: exercise.name,
 			description: exercise.description ?? '',
 			comment: exercise.comment ?? '',
 			video_link: exercise.video_link ?? ''
 		};
-		selectedTags = exercise.tags ?? [];
+		let savedTags = exercise.tags ?? [];
+		form = { ...savedForm };
+		selectedTags = savedTags;
 		saveError = '';
 		confirmDelete = false;
 		panel = exercise;
-		panelBaseline = panelSnapshot();
+		panelBaseline = snapshotOf(savedForm, savedTags);
 		try {
 			const full = await apiClient.getExercise(exercise.id);
-			selectedTags = full.tags ?? [];
+			savedTags = full.tags ?? [];
+			selectedTags = savedTags;
 			panel = full;
-			panelBaseline = panelSnapshot();
+			panelBaseline = snapshotOf(savedForm, savedTags);
 		} catch {
 			// use what we have
 		}

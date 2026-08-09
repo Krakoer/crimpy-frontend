@@ -36,7 +36,7 @@
 	let newProgramName = $state('');
 	let newProgramStartDate = $state('');
 	let newProgramObjective = $state('');
-	let newProgramDurationWeeks = $state('');
+	let newProgramDurationWeeks = $state<number | null>(null);
 	let savingProgram = $state(false);
 	let newProgramError = $state('');
 
@@ -45,7 +45,7 @@
 			(newProgramName !== '' ||
 				newProgramStartDate !== '' ||
 				newProgramObjective !== '' ||
-				newProgramDurationWeeks !== '')
+				newProgramDurationWeeks !== null)
 	);
 
 	function resetNewProgramForm() {
@@ -53,7 +53,7 @@
 		newProgramName = '';
 		newProgramStartDate = '';
 		newProgramObjective = '';
-		newProgramDurationWeeks = '';
+		newProgramDurationWeeks = null;
 		newProgramError = '';
 	}
 
@@ -278,7 +278,7 @@
 				name: newProgramName.trim(),
 				start_date: mondayOf(newProgramStartDate),
 				objective: newProgramObjective.trim() || undefined,
-				duration_weeks: newProgramDurationWeeks ? parseInt(newProgramDurationWeeks) : undefined
+				duration_weeks: newProgramDurationWeeks || undefined
 			};
 			const created = await apiClient.createProgram(data.id!, req);
 			resetNewProgramForm();
