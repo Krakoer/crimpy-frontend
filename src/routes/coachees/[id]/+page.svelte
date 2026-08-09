@@ -15,6 +15,7 @@
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	let { data } = $props();
 
@@ -35,9 +36,26 @@
 	let newProgramName = $state('');
 	let newProgramStartDate = $state('');
 	let newProgramObjective = $state('');
-	let newProgramDurationWeeks = $state('');
+	let newProgramDurationWeeks = $state<number | null>(null);
 	let savingProgram = $state(false);
 	let newProgramError = $state('');
+
+	const isDirty = $derived(
+		showNewProgramForm &&
+			(newProgramName !== '' ||
+				newProgramStartDate !== '' ||
+				newProgramObjective !== '' ||
+				newProgramDurationWeeks !== null)
+	);
+
+	function resetNewProgramForm() {
+		showNewProgramForm = false;
+		newProgramName = '';
+		newProgramStartDate = '';
+		newProgramObjective = '';
+		newProgramDurationWeeks = null;
+		newProgramError = '';
+	}
 
 	const ASSESSMENT_TYPES: Record<
 		number,
@@ -260,9 +278,10 @@
 				name: newProgramName.trim(),
 				start_date: mondayOf(newProgramStartDate),
 				objective: newProgramObjective.trim() || undefined,
-				duration_weeks: newProgramDurationWeeks ? parseInt(newProgramDurationWeeks) : undefined
+				duration_weeks: newProgramDurationWeeks || undefined
 			};
 			const created = await apiClient.createProgram(data.id!, req);
+			resetNewProgramForm();
 			goto(`/coachees/${data.id}/programs/${created.id}`);
 		} catch (e) {
 			newProgramError = e instanceof Error ? e.message : 'Failed to create program.';
@@ -940,14 +959,7 @@
 								</div>
 								<div style="display: flex; justify-content: flex-end; gap: 8px;">
 									<button
-										onclick={() => {
-											showNewProgramForm = false;
-											newProgramName = '';
-											newProgramStartDate = '';
-											newProgramObjective = '';
-											newProgramDurationWeeks = '';
-											newProgramError = '';
-										}}
+										onclick={resetNewProgramForm}
 										style="padding: 8px 16px; border-radius: var(--rs); border: 1px solid var(--bd); background: #fff; color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 										>Cancel</button
 									>
@@ -1356,3 +1368,5 @@
 		{/if}
 	</div>
 </AppShell>
+
+<UnsavedChangesGuard dirty={isDirty} />

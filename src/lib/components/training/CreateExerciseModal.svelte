@@ -9,9 +9,10 @@
 		onCreated: (exercise: Exercise) => void;
 		onClose: () => void;
 		initialTags?: Tag[];
+		onDirtyChange?: (dirty: boolean) => void;
 	}
 
-	let { onCreated, onClose, initialTags = [] }: Props = $props();
+	let { onCreated, onClose, initialTags = [], onDirtyChange }: Props = $props();
 
 	function focusOnMount(node: HTMLElement) {
 		node.focus();
@@ -24,6 +25,20 @@
 	let selectedTags = $state<Tag[]>(untrack(() => initialTags));
 	let saving = $state(false);
 	let error = $state('');
+
+	const initialTagIds = untrack(() => initialTags.map((t) => t.id).join());
+
+	const isDirty = $derived(
+		name.trim() !== '' ||
+			description.trim() !== '' ||
+			comment.trim() !== '' ||
+			videoLink.trim() !== '' ||
+			selectedTags.map((t) => t.id).join() !== initialTagIds
+	);
+
+	$effect(() => {
+		onDirtyChange?.(isDirty);
+	});
 
 	async function handleSave() {
 		if (!name.trim()) return;

@@ -10,6 +10,7 @@
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import DraggableSession from '$lib/components/program/DraggableSession.svelte';
 	import type {
@@ -147,7 +148,7 @@
 	let editName = $state('');
 	let editObjective = $state('');
 	let editStartDate = $state('');
-	let editDurationWeeks = $state('');
+	let editDurationWeeks = $state<number | null>(null);
 	let saving = $state(false);
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
@@ -176,6 +177,19 @@
 
 	const isDirty = $derived(Object.values(weekDrafts).some((d) => d.dirty));
 	const isSaving = $derived(Object.values(weekDrafts).some((d) => d.saving));
+
+	let leavingAfterDelete = $state(false);
+
+	const detailsDirty = $derived(
+		editing &&
+			program !== null &&
+			(editName !== program.name ||
+				editObjective !== (program.objective ?? '') ||
+				editStartDate !== program.start_date ||
+				editDurationWeeks !== (program.duration_weeks ?? null))
+	);
+
+	const guardDirty = $derived(!leavingAfterDelete && (isDirty || detailsDirty));
 
 	let dupModalSourceWn = $state<number | null>(null);
 
@@ -422,7 +436,7 @@
 		editName = program.name;
 		editObjective = program.objective ?? '';
 		editStartDate = program.start_date;
-		editDurationWeeks = program.duration_weeks !== undefined ? String(program.duration_weeks) : '';
+		editDurationWeeks = program.duration_weeks ?? null;
 		editing = true;
 	}
 
@@ -434,7 +448,7 @@
 				name: editName.trim(),
 				start_date: mondayOf(editStartDate),
 				objective: editObjective.trim() || undefined,
-				duration_weeks: editDurationWeeks ? parseInt(editDurationWeeks) : undefined
+				duration_weeks: editDurationWeeks || undefined
 			};
 			program = await apiClient.updateProgram(userId, programId, req);
 			editing = false;
@@ -451,6 +465,7 @@
 		try {
 			await apiClient.deleteProgram(userId, programId);
 			snackbar.show('Program deleted');
+			leavingAfterDelete = true;
 			goto(`/coachees/${userId}`);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to delete program.';
@@ -1576,3 +1591,5 @@
 		</div>
 	{/if}
 </AppShell>
+
+<UnsavedChangesGuard dirty={guardDirty} />

@@ -8,6 +8,7 @@
 	import TagSelect from '$lib/components/TagSelect.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	const PAGE_SIZE = 20;
 
@@ -33,6 +34,21 @@
 	let saveError = $state('');
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
+
+	let panelBaseline = $state<string | null>(null);
+
+	function snapshotOf(formValue: ExerciseRequest, tags: Tag[]): string {
+		return JSON.stringify({
+			form: $state.snapshot(formValue),
+			tagIds: tags.map((t) => t.id)
+		});
+	}
+
+	function panelSnapshot(): string {
+		return snapshotOf(form, selectedTags);
+	}
+
+	let isDirty = $derived(panelBaseline !== null && panelSnapshot() !== panelBaseline);
 
 	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -136,23 +152,29 @@
 		saveError = '';
 		confirmDelete = false;
 		panel = 'new';
+		panelBaseline = panelSnapshot();
 	}
 
 	async function openEdit(exercise: Exercise) {
-		form = {
+		const savedForm: ExerciseRequest = {
 			name: exercise.name,
 			description: exercise.description ?? '',
 			comment: exercise.comment ?? '',
 			video_link: exercise.video_link ?? ''
 		};
-		selectedTags = exercise.tags ?? [];
+		let savedTags = exercise.tags ?? [];
+		form = { ...savedForm };
+		selectedTags = savedTags;
 		saveError = '';
 		confirmDelete = false;
 		panel = exercise;
+		panelBaseline = snapshotOf(savedForm, savedTags);
 		try {
 			const full = await apiClient.getExercise(exercise.id);
-			selectedTags = full.tags ?? [];
+			savedTags = full.tags ?? [];
+			selectedTags = savedTags;
 			panel = full;
+			panelBaseline = snapshotOf(savedForm, savedTags);
 		} catch {
 			// use what we have
 		}
@@ -160,6 +182,7 @@
 
 	function closePanel() {
 		panel = null;
+		panelBaseline = null;
 	}
 
 	async function handleSave() {
@@ -460,6 +483,8 @@
 		</div>
 	</div>
 </AppShell>
+
+<UnsavedChangesGuard dirty={isDirty} />
 
 <!-- View exercise dialog -->
 {#if viewExercise !== null}
