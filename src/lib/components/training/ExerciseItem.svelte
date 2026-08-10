@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem, LoadUnit } from '$lib/api/client';
+	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { EXERCISE_LOAD_UNITS, fmtLoad } from './load-units';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -19,13 +20,6 @@
 	let collapsed = $state(false);
 	let showEditModal = $state(false);
 	let confirmDelete = $state(false);
-
-	const LOAD_UNITS: { value: LoadUnit; label: string }[] = [
-		{ value: 'bw', label: 'BW' },
-		{ value: 'percent_bw', label: '% BW' },
-		{ value: 'kg', label: 'kg' },
-		{ value: 'lbs', label: 'lbs' }
-	];
 
 	let exerciseName = $derived(
 		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
@@ -95,7 +89,7 @@
 		if (rest > 0) parts.push(`${rest}s rest`);
 		const load = item.loads?.[0];
 		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
-			parts.push(`${load.value} ${load.unit}`);
+			parts.push(fmtLoad(load.value, load.unit));
 		}
 		return parts.join(' · ');
 	});
@@ -261,7 +255,7 @@
 							onclick={(e) => e.stopPropagation()}
 							style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 						>
-							{#each LOAD_UNITS as u (u.value)}
+							{#each EXERCISE_LOAD_UNITS as u (u.value)}
 								<option value={u.value}>{u.label}</option>
 							{/each}
 						</select>

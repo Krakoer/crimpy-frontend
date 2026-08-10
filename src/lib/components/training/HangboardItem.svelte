@@ -2,6 +2,7 @@
 	import type { TrainingItem, LoadUnit, Load } from '$lib/api/client';
 	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { HANGBOARD_LOAD_UNITS } from './load-units';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
 		HANGBOARD_GRANULARITIES,
@@ -44,13 +45,6 @@
 	});
 
 	const HAND_POSITIONS = ['3FD', 'HC', 'FC', 'OC'];
-	const LOAD_UNITS: { value: LoadUnit; label: string }[] = [
-		{ value: 'bw', label: 'BW' },
-		{ value: 'percent_bw', label: '% BW' },
-		{ value: 'kg', label: 'kg' },
-		{ value: 'lbs', label: 'lbs' },
-		{ value: 'max', label: 'Max' }
-	];
 
 	const GRANULARITIES = HANGBOARD_GRANULARITIES;
 
@@ -571,7 +565,9 @@
 									onchange={onUniformChange}
 									style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 								>
-									{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option>{/each}
+									{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
+											>{u.label}</option
+										>{/each}
 								</select>
 							</div>
 						{:else}
@@ -594,7 +590,8 @@
 										onchange={onUniformChange}
 										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 									>
-										{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+										{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
+												>{u.label}</option
 											>{/each}
 									</select>
 								</div>
@@ -616,7 +613,8 @@
 										onchange={onUniformChange}
 										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 									>
-										{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+										{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
+												>{u.label}</option
 											>{/each}
 									</select>
 								</div>
@@ -711,7 +709,8 @@
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![ri].unit}>
-												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+												{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
+														>{u.label}</option
 													>{/each}
 											</select>
 										</td>
@@ -735,7 +734,8 @@
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.left_loads![ri].unit}>
-												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+												{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
+														>{u.label}</option
 													>{/each}
 											</select>
 										</td>
@@ -753,7 +753,8 @@
 										</td>
 										<td>
 											<select class="hb-sel" bind:value={item.loads![ri].unit}>
-												{#each LOAD_UNITS as u (u.value)}<option value={u.value}>{u.label}</option
+												{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
+														>{u.label}</option
 													>{/each}
 											</select>
 										</td>

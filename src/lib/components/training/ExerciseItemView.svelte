@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem, LoadUnit } from '$lib/api/client';
+	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { fmtLoad } from './load-units';
 	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
@@ -12,19 +13,6 @@
 	let { item, exercises }: Props = $props();
 
 	let collapsed = $state(false);
-
-	const LOAD_UNIT_LABELS: Record<LoadUnit, string> = {
-		bw: 'BW',
-		percent_bw: '% BW',
-		kg: 'kg',
-		lbs: 'lbs',
-		max: 'MAX'
-	};
-
-	function fmtLoad(value: number, unit: LoadUnit): string {
-		if (unit === 'max') return 'MAX';
-		return `${value} ${LOAD_UNIT_LABELS[unit]}`;
-	}
 
 	let exerciseName = $derived(
 		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
