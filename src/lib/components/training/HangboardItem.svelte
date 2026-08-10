@@ -55,19 +55,20 @@
 	// Every assessment-relative load of an item shares one assessment and one
 	// fallback: only the percentage varies from rep to rep, so the per-rep grid
 	// keeps a single column per load.
-	let loadAssessmentType = $state(
-		item.loads?.find((l) => l.unit === 'percent_assessment')?.assessment_type ?? LOAD_ASSESSMENTS[0]
-	);
-	let loadFallbackKg = $state(
-		item.loads?.find((l) => l.unit === 'percent_assessment')?.fallback ?? 0
+	// Both hands share that assessment and fallback, so the loads of either hand
+	// are driven by the same pair of fields and must be kept in step together.
+	let assessmentLoads = $derived([...(item.loads ?? []), ...(item.left_loads ?? [])]);
+	const firstAssessmentLoad = [...(item.loads ?? []), ...(item.left_loads ?? [])].find(
+		(l) => l.unit === 'percent_assessment'
 	);
 
-	let usesAssessmentLoad = $derived(
-		(item.loads ?? []).some((l) => l.unit === 'percent_assessment')
-	);
+	let loadAssessmentType = $state(firstAssessmentLoad?.assessment_type ?? LOAD_ASSESSMENTS[0]);
+	let loadFallbackKg = $state(firstAssessmentLoad?.fallback ?? 0);
+
+	let usesAssessmentLoad = $derived(assessmentLoads.some((l) => l.unit === 'percent_assessment'));
 
 	$effect(() => {
-		for (const load of item.loads ?? []) {
+		for (const load of assessmentLoads) {
 			if (load.unit === 'percent_assessment') {
 				load.assessment_type = loadAssessmentType;
 				load.fallback = loadFallbackKg;
