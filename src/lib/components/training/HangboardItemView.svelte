@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { TrainingItem, LoadUnit } from '$lib/api/client';
+	import type { TrainingItem } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { fmtLoad } from './load-units';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
 		HANGBOARD_HANDS,
@@ -22,15 +23,6 @@
 
 	const HB_COLOR = '#4A7C8C';
 
-	// Keyed loosely so a unit that is no longer offered, such as the pounds of
-	// an older training, still shows its own name instead of "undefined".
-	const LOAD_UNIT_LABELS: Record<string, string> = {
-		bw: 'BW',
-		percent_bw: '% BW',
-		kg: 'kg',
-		max: 'MAX'
-	};
-
 	let granularity = $derived(hangboardGranularity(item));
 	let rowCount = $derived(hangboardRowCount(item, granularity));
 	let repsPerSet = $derived(hangboardReps(item));
@@ -46,11 +38,6 @@
 	let granularityLabel = $derived(
 		granularity === 'set' ? 'PER-SET' : granularity === 'rep' ? 'PER-REP' : 'UNIFORM'
 	);
-
-	function fmtLoad(value: number, unit: LoadUnit): string {
-		if (unit === 'max') return 'MAX';
-		return `${value} ${LOAD_UNIT_LABELS[unit] ?? unit}`;
-	}
 
 	let collapsedSummary = $derived.by(() => {
 		const sets = item.cycles ?? 1;
