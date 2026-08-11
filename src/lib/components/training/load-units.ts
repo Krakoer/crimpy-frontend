@@ -7,7 +7,8 @@ export const LOAD_UNIT_LABELS: Record<LoadUnit, string> = {
 	bw: 'BW',
 	percent_bw: '% BW',
 	kg: 'kg',
-	max: 'MAX'
+	max: 'MAX',
+	percent_assessment: '% assessment'
 };
 
 /// Units offered when authoring an exercise. A max effort is a hangboard idea,
@@ -15,7 +16,8 @@ export const LOAD_UNIT_LABELS: Record<LoadUnit, string> = {
 export const EXERCISE_LOAD_UNITS: { value: LoadUnit; label: string }[] = [
 	{ value: 'bw', label: LOAD_UNIT_LABELS.bw },
 	{ value: 'percent_bw', label: LOAD_UNIT_LABELS.percent_bw },
-	{ value: 'kg', label: LOAD_UNIT_LABELS.kg }
+	{ value: 'kg', label: LOAD_UNIT_LABELS.kg },
+	{ value: 'percent_assessment', label: LOAD_UNIT_LABELS.percent_assessment }
 ];
 
 /// Units offered when authoring a hangboard item.

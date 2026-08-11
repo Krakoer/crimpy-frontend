@@ -531,6 +531,40 @@ test.describe('hangboard hand modes', () => {
 		expect(item.hand_positions).toHaveLength(2);
 	});
 
+	// The left hand offers the same assessment-relative unit as the right, so a
+	// percentage set there has to carry the reference the API requires of it.
+	test('gives a left-hand assessment load its assessment reference', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				hangboardItem({
+					granularity: 'uniform',
+					hand: 'split',
+					edge_sizes_mm: [20],
+					loads: [{ value: 10, unit: 'kg' }],
+					left_loads: [{ value: 10, unit: 'kg' }],
+					hand_positions: [['HC'], ['HC']]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('combobox', { name: 'Left load unit' }).selectOption('percent_assessment');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		const [leftLoad] = item.left_loads as Record<string, unknown>[];
+		expect(leftLoad.unit).toBe('percent_assessment');
+		expect(leftLoad.assessment_type).toBeDefined();
+		expect(leftLoad.fallback).toBeDefined();
+	});
+
 	// Going back to a mode that hangs both hands together drops the second
 	// configuration rather than leaving a stale left hand behind.
 	test('drops the left-hand arrays when leaving a split mode', async ({ page }) => {

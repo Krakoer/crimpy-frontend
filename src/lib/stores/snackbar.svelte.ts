@@ -1,4 +1,4 @@
-type SnackbarType = 'success' | 'error';
+type SnackbarType = 'success' | 'error' | 'warning';
 
 let message = $state('');
 let type = $state<SnackbarType>('success');

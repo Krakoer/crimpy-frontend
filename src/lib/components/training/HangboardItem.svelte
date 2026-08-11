@@ -3,7 +3,9 @@
 	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import { HANGBOARD_LOAD_UNITS } from './load-units';
+	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { assessmentTypesForField } from '$lib/assessments';
 	import {
 		HANGBOARD_GRANULARITIES,
 		HANGBOARD_HANDS,
@@ -47,6 +49,35 @@
 	const HAND_POSITIONS = ['3FD', 'HC', 'FC', 'OC'];
 
 	const GRANULARITIES = HANGBOARD_GRANULARITIES;
+
+	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
+
+	// Every assessment-relative load of an item shares one assessment and one
+	// fallback: only the percentage varies from rep to rep, so the per-rep grid
+	// keeps a single column per load.
+	// Both hands share that assessment and fallback, so the loads of either hand
+	// are driven by the same pair of fields and must be kept in step together.
+	let assessmentLoads = $derived([...(item.loads ?? []), ...(item.left_loads ?? [])]);
+	const firstAssessmentLoad = [...(item.loads ?? []), ...(item.left_loads ?? [])].find(
+		(l) => l.unit === 'percent_assessment'
+	);
+
+	let loadAssessmentType = $state(firstAssessmentLoad?.assessment_type ?? LOAD_ASSESSMENTS[0]);
+	let loadFallbackKg = $state(firstAssessmentLoad?.fallback ?? 0);
+
+	let usesAssessmentLoad = $derived(assessmentLoads.some((l) => l.unit === 'percent_assessment'));
+
+	$effect(() => {
+		for (const load of assessmentLoads) {
+			if (load.unit === 'percent_assessment') {
+				load.assessment_type = loadAssessmentType;
+				load.fallback = loadFallbackKg;
+			} else if (load.assessment_type !== undefined) {
+				load.assessment_type = undefined;
+				load.fallback = undefined;
+			}
+		}
+	});
 
 	if (!item.hand) item.hand = 'both';
 	if (!item.granularity) item.granularity = hangboardGranularity(item);
@@ -531,6 +562,20 @@
 					{/each}
 				</div>
 			</div>
+
+			{#if usesAssessmentLoad}
+				<div
+					style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 10px; border-radius: var(--rs); background: var(--pr-fog);"
+				>
+					<span style="font-size: 11px; color: var(--tx2);">Loads set in percent</span>
+					<AssessmentRefFields
+						field="load"
+						bind:assessmentType={loadAssessmentType}
+						bind:fallback={loadFallbackKg}
+						fallbackUnit="kg"
+					/>
+				</div>
+			{/if}
 
 			{#if granularity === 'uniform'}
 				<div style="display: flex; gap: 16px; flex-wrap: wrap;">

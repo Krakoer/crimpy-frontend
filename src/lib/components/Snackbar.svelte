@@ -1,5 +1,13 @@
 <script lang="ts">
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+
+	const TONES: Record<string, { background: string; color: string }> = {
+		success: { background: '#f3f8f4', color: 'var(--gn)' },
+		error: { background: '#fdf3f3', color: 'var(--rd)' },
+		warning: { background: '#fdf7ee', color: 'var(--gd)' }
+	};
+
+	let tone = $derived(TONES[snackbar.type] ?? TONES.success);
 </script>
 
 {#if snackbar.visible}
@@ -8,10 +16,10 @@
 		style="
 			display: flex; align-items: center; gap: 12px;
 			font-family: var(--font); font-size: 13px; font-weight: 600;
-			padding: 10px 16px; border-radius: var(--rs); white-space: nowrap;
-			background: {snackbar.type === 'error' ? '#fdf3f3' : '#f3f8f4'};
-			border: 1px solid {snackbar.type === 'error' ? 'var(--rd)' : 'var(--gn)'};
-			color: {snackbar.type === 'error' ? 'var(--rd)' : 'var(--gn)'};
+			padding: 10px 16px; border-radius: var(--rs); max-width: min(90vw, 620px);
+			background: {tone.background};
+			border: 1px solid {tone.color};
+			color: {tone.color};
 			box-shadow: var(--sh-hi);
 		"
 		role="status"
