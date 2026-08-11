@@ -13,9 +13,11 @@
 	} from '$lib/api/client';
 	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
 	import { ASSESSMENT_TYPES } from '$lib/assessments';
+	import { formatDuration, formatSessionTime, gripLabel, sessionTypeInfo } from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	let { data } = $props();
@@ -58,13 +60,6 @@
 		newProgramError = '';
 	}
 
-	const GRIP_POSITIONS: Record<number, string> = {
-		0: 'Half Crimp',
-		1: '3-Finger',
-		2: 'Full Crimp',
-		3: 'Open Hand'
-	};
-
 	function formatVal(v: number | null | undefined, type: number): string {
 		if (v === null || v === undefined) return '--';
 		return ASSESSMENT_TYPES[type]?.format(v) ?? '--';
@@ -102,16 +97,7 @@
 		}
 	});
 
-	const SESSION_TYPES: Record<number, { label: string; color: string; tint: string }> = {
-		0: { label: 'CR', color: '#c2714f', tint: '#f5e2d7' },
-		1: { label: 'CL', color: '#d4a15e', tint: '#faf0dc' },
-		2: { label: 'ST', color: '#6b8f71', tint: '#e3ede4' },
-		3: { label: 'WO', color: '#907b99', tint: '#ede8f0' }
-	};
-
-	function sessionType(type: number) {
-		return SESSION_TYPES[type] ?? { label: '??', color: '#888', tint: '#eee' };
-	}
+	let openedSession = $state<SessionResponse | null>(null);
 
 	function isSameDay(a: Date, b: Date): boolean {
 		return (
@@ -148,7 +134,7 @@
 				day: date.getDate(),
 				isToday: isSameDay(date, today),
 				isSelected: selectedDay !== null && isSameDay(date, selectedDay),
-				dots: daySessions.map((s) => SESSION_TYPES[s.SessionType]?.color ?? '#888')
+				dots: daySessions.map((s) => sessionTypeInfo(s.SessionType).color)
 			};
 		});
 	});
@@ -220,19 +206,6 @@
 		}
 
 		return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
-	}
-
-	function formatTime(iso: string): string {
-		const d = new Date(iso);
-		return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-	}
-
-	function formatDuration(seconds: number): string {
-		const h = Math.floor(seconds / 3600);
-		const m = Math.floor((seconds % 3600) / 60);
-		if (h > 0) return `${h}h ${m}m`;
-		if (m > 0) return `${m}m`;
-		return `${seconds}s`;
 	}
 
 	function formatProgramDate(date: string): string {
@@ -630,13 +603,18 @@
 											{group.label}
 										</div>
 										{#each group.items as session (session.ID)}
-											{@const type = sessionType(session.SessionType)}
-											<div
+											{@const type = sessionTypeInfo(session.SessionType)}
+											<button
+												onclick={() => (openedSession = session)}
+												aria-label="Open {session.Name}"
 												style="
-											display: grid; grid-template-columns: 44px 1fr auto;
-											padding: 12px 20px; align-items: center; gap: 12px;
-											border-bottom: 1px solid var(--bd2);
+											display: grid; grid-template-columns: 44px 1fr auto; width: 100%;
+											padding: 12px 20px; align-items: center; gap: 12px; text-align: left;
+											border: none; border-bottom: 1px solid var(--bd2);
+											background: none; cursor: pointer; font-family: var(--font);
 										"
+												onmouseenter={(e) => (e.currentTarget.style.background = 'var(--panel2)')}
+												onmouseleave={(e) => (e.currentTarget.style.background = '')}
 											>
 												<div
 													style="
@@ -646,7 +624,7 @@
 												font-size: 11px; font-weight: 700; flex-shrink: 0;
 											"
 												>
-													{type.label}
+													{type.short}
 												</div>
 												<div style="min-width: 0;">
 													<div
@@ -655,7 +633,7 @@
 														{session.Name}
 													</div>
 													<div style="font-size: 12px; color: var(--tx2);">
-														{formatTime(session.Date)} · {formatDuration(session.Duration)}
+														{formatSessionTime(session.Date)} · {formatDuration(session.Duration)}
 													</div>
 													{#if session.Notes?.trim()}
 														<div
@@ -666,7 +644,7 @@
 													{/if}
 												</div>
 												<Icon name="chevron" size={16} color="var(--tx3)" />
-											</div>
+											</button>
 										{/each}
 									{/each}
 								</div>
@@ -713,7 +691,7 @@
 									</div>
 									{#if grips.length > 0}
 										<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
-											{GRIP_POSITIONS[grip]}
+											{gripLabel(grip)}
 										</div>
 									{/if}
 									<div style="display: flex; gap: 20px; align-items: center;">
@@ -1191,13 +1169,13 @@
 														border: none; cursor: pointer; white-space: nowrap; font-family: var(--font);
 														background: {g === grip ? 'var(--pr-fog)' : 'var(--bd2)'};
 														color: {g === grip ? 'var(--pr)' : 'var(--tx3)'};
-													">{GRIP_POSITIONS[g]}</button
+													">{gripLabel(g)}</button
 													>
 												{/each}
 											</div>
 										{:else if grips.length === 1}
 											<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
-												{GRIP_POSITIONS[grips[0]]}
+												{gripLabel(grips[0])}
 											</div>
 										{/if}
 
@@ -1324,7 +1302,7 @@
 										{typeInfo?.label ?? `Type ${a.Type}`}
 									</div>
 									<div style="color: var(--tx3); font-size: 12px;">
-										{GRIP_POSITIONS[a.GripPosition] ?? `Grip ${a.GripPosition}`}
+										{gripLabel(a.GripPosition)}
 									</div>
 									<div style="text-align: right; font-weight: 600;">
 										{a.LeftValue !== null ? typeInfo?.format(a.LeftValue) : '--'}
@@ -1360,5 +1338,13 @@
 		{/if}
 	</div>
 </AppShell>
+
+{#if openedSession}
+	<SessionDetailModal
+		userId={data.id!}
+		session={openedSession}
+		onClose={() => (openedSession = null)}
+	/>
+{/if}
 
 <UnsavedChangesGuard dirty={isDirty} />

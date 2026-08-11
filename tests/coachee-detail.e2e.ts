@@ -6,7 +6,9 @@ import {
 	stub,
 	testEnrolledUser,
 	testProgram,
+	testRepData,
 	testSession,
+	testSessionDetail,
 	testUser
 } from './fixtures';
 
@@ -77,6 +79,98 @@ test.describe('coachee detail', () => {
 
 		await page.getByRole('button', { name: /^Sessions/ }).click();
 		await expect(page.getByText('No sessions recorded yet.')).toBeVisible();
+	});
+});
+
+test.describe('session details', () => {
+	const crimpySession = testSession({
+		ID: 'session-crimpy',
+		Name: 'Repeaters 20mm',
+		SessionType: 0,
+		Duration: 900,
+		RepeaterSets: 1,
+		RepeaterReps: 2,
+		RepeaterWorkTime: 7,
+		RepeaterRestTime: 3,
+		RepeaterSetRest: 120,
+		RepeaterSplitHand: false
+	});
+
+	const crimpyReps = [
+		testRepData({ ID: 'rep-1', Index: 0, AverageWeight: 31, TargetWeight: 30, RightHand: true }),
+		testRepData({ ID: 'rep-2', Index: 1, AverageWeight: 29, TargetWeight: 30, RightHand: false }),
+		testRepData({ ID: 'rep-3', Index: 2, AverageWeight: 22, TargetWeight: 30, RightHand: true }),
+		testRepData({ ID: 'rep-4', Index: 3, AverageWeight: 28, TargetWeight: 30, RightHand: false })
+	];
+
+	test('opens a logged session on the duration layout, without sensor data', async ({ page }) => {
+		const climbing = testSession({ Notes: 'Sent the project', Duration: 5400 });
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [climbing] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(climbing)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Board session' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Climbing', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('1h 30m')).toBeVisible();
+		await expect(dialog.getByText('Sent the project')).toBeVisible();
+		await expect(dialog.getByText('Performance')).toBeHidden();
+	});
+
+	test('opens a crimpy session on the performance layout', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(crimpySession, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Crimpy training')).toBeVisible();
+		await expect(dialog.getByText('Performance')).toBeVisible();
+		// One of the four reps falls under 90% of its 30 kg target.
+		await expect(dialog.getByText('3/4 on target')).toBeVisible();
+		await expect(dialog.getByText('Peak load')).toBeVisible();
+		await expect(dialog.getByText('31.0 kg')).toBeVisible();
+		// The repeater configuration splits the reps into per-hand sets.
+		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
+		await expect(dialog.getByText('Set 1 - Left')).toBeVisible();
+	});
+
+	test('closes the details view', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [testSession()] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', { body: testSessionDetail() });
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Board session' }).click();
+		await expect(page.getByRole('dialog')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Close' }).click();
+
+		await expect(page.getByRole('dialog')).toBeHidden();
+	});
+
+	test('surfaces the server error when the details cannot be loaded', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			status: 500,
+			body: { error: 'Session storage unreachable' }
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		await expect(page.getByText('Session storage unreachable')).toBeVisible();
+		// The summary from the listing still stands in for the detail.
+		await expect(page.getByRole('dialog').getByText('Repeaters 20mm')).toBeVisible();
 	});
 });
 
