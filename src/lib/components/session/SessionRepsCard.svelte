@@ -33,9 +33,13 @@
 		return kg.toFixed(1);
 	}
 
+	// A rep with no prescribed load is measured against the best rep of the
+	// session instead, since a full bar would read as having met a target that
+	// was never set.
 	function fillRatio(rep: RepData): number {
-		if (rep.TargetWeight <= 0) return 1;
-		return Math.min(1, rep.AverageWeight / rep.TargetWeight);
+		const reference = rep.TargetWeight > 0 ? rep.TargetWeight : (performance?.maxWeight ?? 0);
+		if (reference <= 0) return 0;
+		return Math.min(1, rep.AverageWeight / reference);
 	}
 
 	function setSummary(set: RepSet): string {
@@ -125,11 +129,11 @@
 				</div>
 			{:else}
 				<div style="display: flex; flex-direction: column; gap: 6px;">
-					{#each shownReps as rep (rep.ID)}
+					{#each shownReps as rep, position (rep.ID)}
 						<div style="display: flex; align-items: center; gap: 10px;">
 							<span
 								style="font-size: 11px; color: var(--tx3); font-weight: 600; width: 28px; flex-shrink: 0;"
-								>#{rep.Index + 1}</span
+								>#{position + 1}</span
 							>
 							<span
 								style="font-size: 11px; font-weight: 700; color: {accent}; width: 16px; flex-shrink: 0;"

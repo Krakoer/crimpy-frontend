@@ -70,7 +70,7 @@
 		"
 	>
 		<div
-			class="flex items-center gap-3"
+			class="flex shrink-0 items-center gap-3"
 			style="padding: 18px 20px; background: {type.tint}; border-bottom: 1px solid var(--bd);"
 		>
 			<div
@@ -102,10 +102,10 @@
 			</button>
 		</div>
 
-		<div
-			class="flex flex-col gap-3 overflow-y-auto"
-			style="padding: 18px 20px; background: var(--bg);"
-		>
+		<!-- Block flow, not a flex column: flex children would shrink below their
+		     own content instead of letting this container scroll, which clips the
+		     cards of a long session. -->
+		<div class="space-y-3 overflow-y-auto" style="padding: 18px 20px; background: var(--bg);">
 			{#if error}
 				<div
 					style="border: 1px solid var(--rd); background: var(--panel); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
