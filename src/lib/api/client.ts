@@ -81,6 +81,35 @@ export interface SessionResponse {
 	SessionType: number;
 	IsAssessment: boolean;
 	UpdatedAt: string;
+	// Only set on repeater sessions, and stored with the session so its sets can
+	// still be rebuilt after the training template it came from has changed.
+	RepeaterSets?: number | null;
+	RepeaterReps?: number | null;
+	RepeaterWorkTime?: number | null;
+	RepeaterRestTime?: number | null;
+	RepeaterSetRest?: number | null;
+	RepeaterSplitHand?: boolean | null;
+}
+
+// One repetition recorded by the force sensor, work or rest, in session order.
+export interface RepData {
+	ID: string;
+	UserID: string;
+	SessionID: string;
+	AverageWeight: number;
+	TargetWeight: number;
+	Duration: number;
+	Index: number;
+	IsRest: boolean;
+	RightHand: boolean;
+	GripPosition: number;
+	UpdatedAt: string;
+}
+
+export interface SessionDetail {
+	session: SessionResponse;
+	rep_datas: RepData[];
+	assessments: SessionAssessment[];
 }
 
 export interface EnrolledUser {
@@ -101,7 +130,7 @@ export interface UserEnrollment {
 	enrolled_at: string;
 }
 
-export interface AssessmentResponse {
+export interface SessionAssessment {
 	ID: string;
 	UserID: string;
 	Type: number;
@@ -110,6 +139,11 @@ export interface AssessmentResponse {
 	SessionID: string;
 	GripPosition: number;
 	UpdatedAt: string;
+}
+
+// The session-scoped assessment joined with the date of the session it was
+// recorded in, which only the per-user listing endpoint returns.
+export interface AssessmentResponse extends SessionAssessment {
 	SessionDate: string;
 }
 
@@ -552,6 +586,10 @@ class ApiClient {
 
 	async getClientSessions(userId: string): Promise<SessionResponse[]> {
 		return this.requestList<SessionResponse>(`/api/coach/clients/${userId}/sessions`);
+	}
+
+	async getClientSession(userId: string, sessionId: string): Promise<SessionDetail> {
+		return this.request<SessionDetail>(`/api/coach/clients/${userId}/sessions/${sessionId}`);
 	}
 
 	async getClientAssessments(userId: string): Promise<AssessmentResponse[]> {
