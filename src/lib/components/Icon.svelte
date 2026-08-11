@@ -100,6 +100,10 @@
 		<path d="M12 3c1 4 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-8Z" />
 	{:else if name === 'mountain'}
 		<path d="M3 19 10 8l4 6 2-3 5 8H3Z" />
+	{:else if name === 'figure'}
+		<circle cx="12" cy="4.5" r="2" /><path d="M12 6.5v7" /><path d="M7.5 9h9" /><path
+			d="m12 13.5-3 6M12 13.5l3 6"
+		/>
 	{:else if name === 'mail'}
 		<rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="m3.5 7 8.5 6 8.5-6" />
 	{:else if name === 'clock'}

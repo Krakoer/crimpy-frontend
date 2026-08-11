@@ -339,6 +339,12 @@ export interface TestSession {
 	SessionType: number;
 	IsAssessment: boolean;
 	UpdatedAt: string;
+	RepeaterSets?: number | null;
+	RepeaterReps?: number | null;
+	RepeaterWorkTime?: number | null;
+	RepeaterRestTime?: number | null;
+	RepeaterSetRest?: number | null;
+	RepeaterSplitHand?: boolean | null;
 }
 
 export function testSession(overrides: Partial<TestSession> = {}): TestSession {
@@ -354,6 +360,52 @@ export function testSession(overrides: Partial<TestSession> = {}): TestSession {
 		UpdatedAt: isoDaysAgo(1),
 		...overrides
 	};
+}
+
+export interface TestRepData {
+	ID: string;
+	UserID: string;
+	SessionID: string;
+	AverageWeight: number;
+	TargetWeight: number;
+	Duration: number;
+	Index: number;
+	IsRest: boolean;
+	RightHand: boolean;
+	GripPosition: number;
+	UpdatedAt: string;
+}
+
+export function testRepData(overrides: Partial<TestRepData> = {}): TestRepData {
+	return {
+		ID: 'rep-1',
+		UserID: 'coachee-1',
+		SessionID: 'session-1',
+		AverageWeight: 30,
+		TargetWeight: 30,
+		Duration: 7,
+		Index: 0,
+		IsRest: false,
+		RightHand: true,
+		GripPosition: 0,
+		UpdatedAt: isoDaysAgo(1),
+		...overrides
+	};
+}
+
+export interface TestSessionDetail {
+	session: TestSession;
+	rep_datas: TestRepData[];
+	assessments: unknown[];
+}
+
+/** Mirrors GET /api/coach/clients/:id/sessions/:id, which nests the session. */
+export function testSessionDetail(
+	session: TestSession = testSession(),
+	rep_datas: TestRepData[] = [],
+	assessments: unknown[] = []
+): TestSessionDetail {
+	return { session, rep_datas, assessments };
 }
 
 export interface TestEnrollmentTokenInfo {
