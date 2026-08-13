@@ -59,7 +59,7 @@ test.describe('exercise panel opened while its details are still loading', () =>
 		await sidebarLink(page, 'Exercises').click();
 		await expect(page).toHaveURL('/exercises');
 
-		await page.getByRole('button', { name: /Max hangs/ }).click();
+		await page.getByRole('button', { name: /^Max hangs/ }).click();
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 	}
 

@@ -152,7 +152,7 @@ test('edits an existing exercise', async ({ page }) => {
 	const updates = capture(page, 'PUT', '/api/coach/exercises/*');
 
 	await page.goto('/exercises');
-	await page.getByRole('button', { name: /Max hangs/ }).click();
+	await page.getByRole('button', { name: /^Max hangs/ }).click();
 	await page.getByRole('button', { name: 'Edit' }).click();
 
 	await expect(page.getByRole('heading', { name: 'Edit exercise' })).toBeVisible();
@@ -177,18 +177,73 @@ test('deletes an exercise only after the confirmation step', async ({ page }) =>
 	const deletes = capture(page, 'DELETE', '/api/coach/exercises/*');
 
 	await page.goto('/exercises');
-	await page.getByRole('button', { name: /Max hangs/ }).click();
+	await page.getByRole('button', { name: /^Max hangs/ }).click();
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByRole('button', { name: 'Delete exercise' }).click();
 
 	expect(deletes).toHaveLength(0);
-	await expect(page.getByText('Delete this exercise permanently?')).toBeVisible();
+	await expect(page.getByText('Delete Max hangs permanently?')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Confirm delete' }).click();
 
 	await expect(page.getByText('Exercise deleted')).toBeVisible();
 	expect(deletes).toHaveLength(1);
 	await expect(page.getByText('No exercises yet. Create your first one.')).toBeVisible();
+});
+
+test('deletes an exercise from the list row next to the favorite button', async ({ page }) => {
+	await stubSequence(page, 'GET', '/api/coach/exercises', [
+		exercisePage([maxHangs]),
+		exercisePage([])
+	]);
+	await stub(page, 'DELETE', '/api/coach/exercises/*', { body: { message: 'deleted' } });
+	const deletes = capture(page, 'DELETE', '/api/coach/exercises/*');
+
+	await page.goto('/exercises');
+	await page.getByRole('button', { name: 'Delete Max hangs' }).click();
+
+	expect(deletes).toHaveLength(0);
+	await expect(page.getByText('Delete Max hangs permanently?')).toBeVisible();
+
+	await page.getByRole('button', { name: 'Confirm delete' }).click();
+
+	await expect(page.getByText('Exercise deleted')).toBeVisible();
+	expect(deletes).toHaveLength(1);
+	expect(deletes[0].url).toContain('/api/coach/exercises/exercise-1');
+	await expect(page.getByText('No exercises yet. Create your first one.')).toBeVisible();
+});
+
+test('keeps the exercise when the delete confirmation is dismissed', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/exercises', { body: exercisePage([maxHangs]) });
+	const deletes = capture(page, 'DELETE', '/api/coach/exercises/*');
+
+	await page.goto('/exercises');
+	await page.getByRole('button', { name: 'Delete Max hangs' }).click();
+	await page.getByRole('button', { name: 'Cancel' }).click();
+
+	await expect(page.getByText('Delete Max hangs permanently?')).toBeHidden();
+
+	await page.getByRole('button', { name: 'Delete Max hangs' }).click();
+	await page.keyboard.press('Escape');
+
+	await expect(page.getByText('Delete Max hangs permanently?')).toBeHidden();
+	expect(deletes).toHaveLength(0);
+	await expect(page.getByText('Max hangs')).toBeVisible();
+});
+
+test('reports the server error when a delete fails', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/exercises', { body: exercisePage([maxHangs]) });
+	await stub(page, 'DELETE', '/api/coach/exercises/*', {
+		status: 409,
+		body: { error: 'Exercise is used in a training' }
+	});
+
+	await page.goto('/exercises');
+	await page.getByRole('button', { name: 'Delete Max hangs' }).click();
+	await page.getByRole('button', { name: 'Confirm delete' }).click();
+
+	await expect(page.getByText('Exercise is used in a training')).toBeVisible();
+	await expect(page.getByRole('button', { name: /^Max hangs/ })).toBeVisible();
 });
 
 test('toggles an exercise into the favorites', async ({ page }) => {
@@ -214,7 +269,7 @@ test('opens the detail dialog and closes it with Escape', async ({ page }) => {
 	});
 
 	await page.goto('/exercises');
-	await page.getByRole('button', { name: /Max hangs/ }).click();
+	await page.getByRole('button', { name: /^Max hangs/ }).click();
 
 	const dialog = page.getByRole('dialog');
 	await expect(dialog.getByText('Keep the shoulders engaged')).toBeVisible();
