@@ -395,6 +395,7 @@ test.describe('hangboard editing', () => {
 		const updates = await openHangboardEditor(page, hangboardItem());
 
 		await edgeField(page).fill('25');
+		await edgeField(page).blur();
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -411,6 +412,7 @@ test.describe('hangboard editing', () => {
 		await expect(page.locator('.hb-inspector-title')).toHaveText('Set 2');
 
 		await edgeField(page).fill('25');
+		await edgeField(page).blur();
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ edge_sizes_mm: [20, 20, 25, 25] });
@@ -526,6 +528,84 @@ test.describe('hangboard variation', () => {
 
 		await expect(stepTiles(page)).toHaveCount(4);
 	});
+
+	// Editing every rep through a selection moves what the item prescribes, so
+	// the base has to follow: collapsing back to one configuration keeps the
+	// value the reps hold, and has nothing to warn about since none of them
+	// departs from it.
+	test('keeps the configuration the reps hold when collapsing to one', async ({ page }) => {
+		const updates = await openHangboardEditor(page, uniformHangboardItem());
+
+		await page.getByRole('radio', { name: 'Rep', exact: true }).click();
+		await page.getByRole('button', { name: 'Select all' }).click();
+		await edgeField(page).fill('25');
+		await edgeField(page).blur();
+
+		await expect(page.locator('.hb-step.hb-custom')).toHaveCount(0);
+
+		await page.getByRole('radio', { name: 'Nothing' }).click();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			granularity: 'uniform',
+			edge_sizes_mm: [25]
+		});
+	});
+
+	// An edit that moves every rep together leaves nothing customised, so the
+	// warning and its pending change have to go with it.
+	test('drops the confirm bar when the mode it warned about is reselected', async ({ page }) => {
+		await openHangboardEditor(page, hangboardItem());
+
+		await page.getByRole('radio', { name: 'Set', exact: true }).click();
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeVisible();
+
+		await page.getByRole('radio', { name: 'Rep', exact: true }).click();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(4);
+	});
+
+	// The map shows one tile per set in this mode, so a warning that counted the
+	// reps behind them would name something the coach cannot see.
+	test('counts sets rather than reps when varying by set', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('radio', { name: 'Nothing' }).click();
+
+		await expect(page.getByText('clears 1 customised set')).toBeVisible();
+	});
+});
+
+test.describe('hangboard grid size', () => {
+	// Shrinking the grid deletes configurations the coach entered, which is a
+	// larger loss than the one the variation control already guards.
+	test('asks before dropping the sets a shrink would delete', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('spinbutton', { name: 'Sets' }).fill('1');
+		await page.getByRole('spinbutton', { name: 'Sets' }).blur();
+
+		await expect(page.getByText('Dropping to 1 sets deletes 1 customised set')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Cancel' }).click();
+
+		await expect(stepTiles(page)).toHaveCount(2);
+		await expect(page.getByRole('spinbutton', { name: 'Sets' })).toHaveValue('2');
+	});
+
+	// Growing never loses anything, so it must not stop to ask.
+	test('grows the grid without asking', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('spinbutton', { name: 'Sets' }).fill('3');
+		await page.getByRole('spinbutton', { name: 'Sets' }).blur();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(3);
+	});
 });
 
 test.describe('hangboard hand modes', () => {
@@ -573,6 +653,7 @@ test.describe('hangboard hand modes', () => {
 		await expect(page.getByText('Applies everywhere unless customised, left hand')).toBeVisible();
 
 		await loadField(page).fill('5');
+		await loadField(page).blur();
 		await saveTraining(page);
 
 		const item = savedHangboardItem(updates);
@@ -606,7 +687,8 @@ test.describe('hangboard hand modes', () => {
 	});
 
 	// Going back to a mode that hangs both hands together drops the second
-	// configuration rather than leaving a stale left hand behind.
+	// configuration rather than leaving a stale left hand behind. It is a loss
+	// the coach cannot undo, so it is confirmed first.
 	test('drops the left-hand arrays when leaving a split mode', async ({ page }) => {
 		const updates = await openHangboardEditor(
 			page,
@@ -624,6 +706,10 @@ test.describe('hangboard hand modes', () => {
 			.getByRole('radiogroup', { name: 'Hands' })
 			.getByRole('radio', { name: 'Both' })
 			.click();
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toContainText(
+			'left hand'
+		);
+		await page.getByRole('button', { name: 'Continue' }).click();
 		await saveTraining(page);
 
 		const item = savedHangboardItem(updates);
@@ -677,6 +763,9 @@ test.describe('hangboard items stored in an older shape', () => {
 			hangboardItem({ hand: 'alternate', left_loads: undefined })
 		);
 
+		// Rebuilding an item is not an edit, so there is nothing to save until
+		// the coach changes something. The rest between reps touches no load.
+		await page.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).fill('4');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates).left_loads).toEqual([kg(10), kg(12), kg(10), kg(12)]);
@@ -692,5 +781,35 @@ test.describe('hangboard items stored in an older shape', () => {
 
 		await expect(editingHands(page)).toBeVisible();
 		await expect(stepTiles(page)).toHaveCount(4);
+	});
+
+	// An item can carry one row per rep and still prescribe the same thing
+	// everywhere. What it declares is not what it varies, and the coach should
+	// read a plain prescription rather than a map of identical tiles.
+	test('reads an item whose rows all agree as varying nothing', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				hangboardItem({
+					granularity: 'rep',
+					edge_sizes_mm: [20, 20],
+					loads: [kg(10), kg(10)],
+					hand_positions: [['HC', 'HC']]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('VARIES BY SET')).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByRole('radio', { name: 'Nothing' })).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
 	});
 });

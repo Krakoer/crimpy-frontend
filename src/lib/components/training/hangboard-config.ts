@@ -84,6 +84,17 @@ export function currentLayout(item: TrainingItem, variation: HangboardVariation)
 	};
 }
 
+// The layout the arrays were actually stored in, which is what a rebuild reads
+// from and is not the layout the editor works in until the item is normalised.
+export function storedLayoutOf(item: TrainingItem): StoredLayout {
+	return {
+		granularity: hangboardGranularity(item),
+		sets: hangboardSets(item),
+		reps: hangboardReps(item),
+		twoHanded: isTwoHandedMode(hangboardHand(item))
+	};
+}
+
 export function cloneConfig(config: RepConfig): RepConfig {
 	return { ...config, loadLeft: { ...config.loadLeft }, loadRight: { ...config.loadRight } };
 }
@@ -250,6 +261,48 @@ export function repsVaryWithinSets(item: TrainingItem): boolean {
 	return false;
 }
 
+// Only called once the reps of a set are known to agree, so one rep per set
+// says whether the sets differ from each other.
+function setsVary(item: TrainingItem): boolean {
+	const twoHanded = isTwoHandedMode(hangboardHand(item));
+	const sets = hangboardSets(item);
+	const first = storedConfig(item, 0, 0);
+	for (let set = 1; set < sets; set++) {
+		if (!sameConfig(storedConfig(item, set, 0), first, twoHanded)) return true;
+	}
+	return false;
+}
+
+// What actually varies in a stored item, read from its values rather than from
+// the layout it declares: an item can carry one row per rep and still prescribe
+// the same thing everywhere, and that reads as varying by nothing.
+export function storedVariation(item: TrainingItem): HangboardVariation {
+	if (hangboardGranularity(item) === 'uniform') return 'uniform';
+	if (repsVaryWithinSets(item)) return 'rep';
+	return setsVary(item) ? 'set' : 'uniform';
+}
+
+// Rewrites an item into the layout its own values call for. The editor
+// addresses every rep of every set and the API accepts three layouts, so this
+// is what makes the two meet. It runs on the draft before the unsaved-changes
+// baseline is taken, so opening a training never counts as an edit.
+export function normalizeHangboardItem(item: TrainingItem): void {
+	if (item.type !== 'repeater') return;
+	const variation = storedVariation(item);
+	const declared = hangboardGranularity(item) === wireGranularity(variation);
+	if (declared && isStoredAsDeclared(item, variation)) return;
+	const previous = storedLayoutOf(item);
+	const seed = readConfig(item, 0, previous.twoHanded, defaultRepConfig());
+	rebuildArrays(item, variation, previous, seed);
+}
+
+export function normalizeHangboardItems(items: TrainingItem[]): void {
+	for (const item of items) {
+		normalizeHangboardItem(item);
+		if (item.items) normalizeHangboardItems(item.items);
+	}
+}
+
 // What a rep the item says nothing about falls back to. It matches the item
 // defaults, so a hangboard added to a training reads the same either way.
 export function defaultRepConfig(): RepConfig {
@@ -306,4 +359,67 @@ export function configLines(config: RepConfig, twoHanded: boolean): [string, str
 export function describeConfig(config: RepConfig, twoHanded: boolean): string {
 	const [edge, detail] = configLines(config, twoHanded);
 	return `${edge}, ${detail}`;
+}
+
+// One tile of the session map. A tile stands for a rep, or for a whole set when
+// the sets are what varies, and it only spells its values out when it departs
+// from the base.
+export interface SessionMapStep {
+	address: number;
+	selected: boolean;
+	customised: boolean;
+	showValues: boolean;
+	full: boolean;
+	badge: string;
+	edgeLine: string;
+	detailLine: string;
+	title: string;
+}
+
+export interface SessionMapRow {
+	index: number;
+	selected: boolean;
+	steps: SessionMapStep[];
+}
+
+// Built here rather than in each card so the read-only view and the editor
+// cannot drift apart: what a coach reads is what they edited.
+export function buildSessionMap(options: {
+	sets: number;
+	reps: number;
+	variation: HangboardVariation;
+	base: RepConfig;
+	twoHanded: boolean;
+	configAt: (address: number) => RepConfig;
+	selected?: ReadonlySet<number>;
+}): SessionMapRow[] {
+	const { sets, reps, variation, base, twoHanded, configAt, selected } = options;
+	if (variation === 'uniform') return [];
+	const perSet = variation === 'set';
+	return Array.from({ length: sets }, (_, index) => {
+		const start = index * reps;
+		const addresses = Array.from({ length: reps }, (_, i) => start + i);
+		return {
+			index,
+			selected: !!selected?.size && addresses.every((a) => selected.has(a)),
+			steps: (perSet ? [start] : addresses).map((address, position) => {
+				const config = configAt(address);
+				const customised = !sameConfig(config, base, twoHanded);
+				const [edgeLine, detailLine] = configLines(config, twoHanded);
+				return {
+					address,
+					selected: !!selected?.has(address),
+					customised,
+					showValues: perSet || customised,
+					full: perSet,
+					badge: perSet ? `${reps} reps` : String(position + 1),
+					edgeLine,
+					detailLine,
+					title: perSet
+						? `Set ${index + 1}: ${describeConfig(config, twoHanded)}`
+						: `Rep ${position + 1}: ${describeConfig(config, twoHanded)}`
+				};
+			})
+		};
+	});
 }

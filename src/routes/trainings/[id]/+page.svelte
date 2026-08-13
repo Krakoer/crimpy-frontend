@@ -27,6 +27,7 @@
 		applyHangboardDefaults,
 		saneCount
 	} from '$lib/components/training/hangboard-granularity';
+	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	function ensureClientIds(items: TrainingItem[]) {
@@ -455,6 +456,11 @@
 			.then(async (training) => {
 				const items = training.items ?? [];
 				ensureClientIds(items);
+				// The hangboard editor addresses every rep of every set, so items
+				// stored in another layout are rewritten here rather than on mount:
+				// the baseline below then covers the rewrite and opening a training
+				// does not count as an edit.
+				normalizeHangboardItems(items);
 				draft = {
 					title: training.title,
 					description: training.description ?? '',

@@ -6,21 +6,13 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import {
 		HANGBOARD_HANDS,
-		hangboardGranularity,
 		hangboardHand,
 		hangboardReps,
 		hangboardSets,
 		isTwoHandedMode
 	} from './hangboard-granularity';
-	import {
-		commonConfig,
-		configLines,
-		describeConfig,
-		repsVaryWithinSets,
-		sameConfig,
-		storedConfig,
-		type HangboardVariation
-	} from './hangboard-config';
+	import { buildSessionMap, commonConfig, storedConfig, storedVariation } from './hangboard-config';
+	import HangboardSessionMap from './HangboardSessionMap.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -43,37 +35,22 @@
 
 	// What varies is read from the values rather than from the declared layout,
 	// the same way the editor reads it, so both show the same shape.
-	let variation = $derived<HangboardVariation>(
-		hangboardGranularity(item) === 'uniform' ? 'uniform' : repsVaryWithinSets(item) ? 'rep' : 'set'
-	);
+	let variation = $derived(storedVariation(item));
 
 	let variationLabel = $derived(
 		variation === 'rep' ? 'VARIES BY REP' : variation === 'set' ? 'VARIES BY SET' : ''
 	);
 
-	let setRows = $derived.by(() => {
-		if (variation === 'uniform') return [];
-		return Array.from({ length: sets }, (_, index) => ({
-			index,
-			steps: Array.from({ length: variation === 'set' ? 1 : reps }, (_, position) => {
-				const config = storedConfig(item, index, position);
-				const customised = !sameConfig(config, base, twoHanded);
-				const [edgeLine, detailLine] = configLines(config, twoHanded);
-				return {
-					position,
-					customised,
-					showValues: variation === 'set' || customised,
-					badge: variation === 'set' ? `${reps} reps` : String(position + 1),
-					edgeLine,
-					detailLine,
-					title:
-						variation === 'set'
-							? `Set ${index + 1}: ${describeConfig(config, twoHanded)}`
-							: `Rep ${position + 1}: ${describeConfig(config, twoHanded)}`
-				};
-			})
-		}));
-	});
+	let setRows = $derived(
+		buildSessionMap({
+			sets,
+			reps,
+			variation,
+			base,
+			twoHanded,
+			configAt: (address) => storedConfig(item, Math.floor(address / reps), address % reps)
+		})
+	);
 
 	let collapsedSummary = $derived(
 		`${sets} sets x ${reps} reps, ${item.worktime_seconds ?? 0}s on / ${item.rest_seconds ?? 0}s off`
@@ -183,30 +160,7 @@
 			{#if variation !== 'uniform'}
 				<div class="hb-section">
 					<span class="hb-label">Session map</span>
-					<div class="hb-sets">
-						{#each setRows as row (row.index)}
-							<div class="hb-set">
-								<span class="hb-set-label">Set {row.index + 1}</span>
-								<div class="hb-steps">
-									{#each row.steps as step (step.position)}
-										<div
-											class="hb-step"
-											class:hb-wide={step.showValues}
-											class:hb-full={variation === 'set'}
-											class:hb-custom={step.customised}
-											title={step.title}
-										>
-											<span class="hb-step-badge">{step.badge}</span>
-											{#if step.showValues}
-												<span class="hb-step-edge">{step.edgeLine}</span>
-												<span class="hb-step-detail">{step.detailLine}</span>
-											{/if}
-										</div>
-									{/each}
-								</div>
-							</div>
-						{/each}
-					</div>
+					<HangboardSessionMap rows={setRows} />
 				</div>
 			{/if}
 		</div>
@@ -306,92 +260,5 @@
 		font-weight: 700;
 		letter-spacing: 0.06em;
 		color: var(--hb);
-	}
-
-	.hb-sets {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		max-height: 380px;
-		overflow: auto;
-	}
-
-	.hb-set {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-	}
-
-	.hb-set-label {
-		width: 58px;
-		flex-shrink: 0;
-		font-size: 10px;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--tx3);
-	}
-
-	.hb-steps {
-		display: flex;
-		gap: 6px;
-		flex-wrap: wrap;
-		flex: 1;
-		min-width: 0;
-	}
-
-	.hb-step {
-		width: 40px;
-		height: 40px;
-		border-radius: var(--rs);
-		border: 1px solid var(--bd);
-		background: #fff;
-		color: var(--tx2);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.hb-step.hb-wide {
-		width: auto;
-		min-width: 112px;
-		height: auto;
-		padding: 6px 10px;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 1px;
-	}
-
-	.hb-step.hb-full {
-		flex: 1;
-	}
-
-	.hb-step.hb-custom {
-		border-color: var(--hb);
-		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
-	}
-
-	.hb-step-badge {
-		font-size: 12px;
-		font-weight: 700;
-	}
-
-	.hb-step.hb-wide .hb-step-badge {
-		font-size: 9px;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		opacity: 0.75;
-	}
-
-	.hb-step-edge {
-		font-size: 11px;
-		font-weight: 700;
-	}
-
-	.hb-step-detail {
-		font-size: 10px;
-		white-space: nowrap;
-		opacity: 0.8;
 	}
 </style>

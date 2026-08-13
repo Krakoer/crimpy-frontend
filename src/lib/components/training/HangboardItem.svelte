@@ -19,26 +19,24 @@
 	import {
 		HANGBOARD_GRIPS,
 		HANGBOARD_VARIATIONS,
+		buildSessionMap,
 		cloneConfig,
 		commonConfig,
-		configLines,
 		configRow,
 		currentLayout,
-		defaultRepConfig,
-		describeConfig,
-		isStoredAsDeclared,
-		mirrorRightHand,
+		normalizeHangboardItem,
 		readConfig,
 		rebuildArrays,
 		repsVaryWithinSets,
 		sameConfig,
 		storedRowCount,
-		wireGranularity,
+		storedVariation,
 		writeConfig,
 		type HangboardVariation,
 		type RepConfig,
 		type StoredLayout
 	} from './hangboard-config';
+	import HangboardSessionMap from './HangboardSessionMap.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -105,36 +103,23 @@
 
 	// An item declares one row, one row per rep, or one row per rep of every set,
 	// and any of its arrays can be missing. The editor addresses every rep of
-	// every set, so a stored item is first rewritten into that layout; which of
-	// the two varying modes it is read back as follows from its own values.
-	function adoptStoredItem() {
-		const stored = hangboardGranularity(item);
-		const twoHandedNow = isTwoHandedMode(hangboardHand(item));
-		const storedLayout: StoredLayout = {
-			granularity: stored,
-			sets: hangboardSets(item),
-			reps: hangboardReps(item),
-			twoHanded: twoHandedNow
-		};
-		const target: HangboardVariation = stored === 'uniform' ? 'uniform' : 'rep';
-		if (stored !== wireGranularity(target) || !isStoredAsDeclared(item, target)) {
-			const seed = readConfig(item, 0, twoHandedNow, defaultRepConfig());
-			rebuildArrays(item, target, storedLayout, seed);
-		}
-		const adopted: HangboardVariation =
-			target === 'uniform' ? 'uniform' : repsVaryWithinSets(item) ? 'rep' : 'set';
-		return {
-			variation: adopted,
-			base: commonConfig(item),
-			layout: currentLayout(item, adopted)
-		};
-	}
-
-	const adopted = untrack(adoptStoredItem);
+	// every set, so a stored item is rewritten into the layout its own values
+	// call for. The draft is normalised on load, before the unsaved-changes
+	// baseline is taken, so this only has work to do for an item built here.
+	const adopted = untrack(() => {
+		normalizeHangboardItem(item);
+		const variation = storedVariation(item);
+		return { variation, layout: currentLayout(item, variation) };
+	});
 
 	let variation = $state<HangboardVariation>(adopted.variation);
-	let base = $state<RepConfig>(adopted.base);
 	let layout: StoredLayout = adopted.layout;
+
+	// The configuration most of the item uses. Deriving it rather than tracking
+	// it by hand is what keeps it honest: an edit made through a selection moves
+	// what the item mostly prescribes, and the base has to follow or a later
+	// collapse to a single configuration would resurrect a value nothing uses.
+	let base = $derived(commonConfig(item));
 
 	let sets = $derived(hangboardSets(item));
 	let reps = $derived(hangboardReps(item));
@@ -145,7 +130,19 @@
 	let anchor = $state<number | null>(null);
 	let clipboard = $state<RepConfig[] | null>(null);
 	let editHand = $state<'both' | 'left' | 'right'>('both');
-	let pendingVariation = $state<{ value: HangboardVariation; message: string } | null>(null);
+
+	// A change that would drop a configuration the coach entered is held here
+	// until they confirm it. Only the change is kept, never the sentence
+	// describing it: an edit made while the bar is up has to be reflected in
+	// what it says, or the coach confirms a loss that is no longer the one
+	// they were shown.
+	type PendingChange =
+		| { kind: 'variation'; value: HangboardVariation }
+		| { kind: 'hand'; value: HangboardHand }
+		| { kind: 'sets'; value: number }
+		| { kind: 'reps'; value: number };
+
+	let pendingChange = $state<PendingChange | null>(null);
 
 	const EDIT_HANDS = [
 		{ value: 'both' as const, label: 'Both' },
@@ -162,10 +159,13 @@
 	}
 
 	// Keep the legacy item-level flag in sync for older clients: an item counts
-	// as "max effort" only when every rep of every hand is set to max.
+	// as "max effort" only when every rep of every hand is set to max. An item
+	// that never carried the flag is left alone while it stays false, so simply
+	// opening a training does not count as an edit.
 	$effect(() => {
 		const loads = [...(item.loads ?? []), ...(item.left_loads ?? [])];
-		item.load_is_max = loads.length > 0 && loads.every((l) => l.unit === 'max');
+		const isMax = loads.length > 0 && loads.every((l) => l.unit === 'max');
+		if ((item.load_is_max ?? false) !== isMax) item.load_is_max = isMax;
 	});
 
 	// A number input holds intermediate values while being retyped: typing "12"
@@ -175,8 +175,11 @@
 	let setsField = $state<number | null>(item.cycles ?? null);
 	let repsField = $state<number | null>(item.reps ?? null);
 
-	function resizeGrid() {
-		rebuildArrays(item, variation, layout, base);
+	// The seed is read before the set count, rep count or hand changes, since
+	// the base follows the item and would otherwise be recomputed against a
+	// grid the arrays have not been rewritten for yet.
+	function resizeGrid(seed: RepConfig) {
+		rebuildArrays(item, variation, layout, seed);
 		layout = currentLayout(item, variation);
 		clearSelection();
 	}
@@ -185,25 +188,34 @@
 		const next = saneCount(setsField);
 		setsField = next;
 		if (next === item.cycles) return;
-		item.cycles = next;
-		resizeGrid();
+		requestChange({ kind: 'sets', value: next });
 	}
 
 	function commitReps() {
 		const next = saneCount(repsField);
 		repsField = next;
 		if (next === item.reps) return;
+		requestChange({ kind: 'reps', value: next });
+	}
+
+	function resizeSets(next: number) {
+		const seed = cloneConfig(base);
+		item.cycles = next;
+		resizeGrid(seed);
+	}
+
+	function resizeReps(next: number) {
+		const seed = cloneConfig(base);
 		item.reps = next;
-		resizeGrid();
+		resizeGrid(seed);
 	}
 
 	function setHand(next: HangboardHand) {
 		if (next === hangboardHand(item)) return;
-		const wasTwoHanded = twoHanded;
+		const seed = cloneConfig(base);
 		item.hand = next;
-		if (!wasTwoHanded && isTwoHandedMode(next)) base = mirrorRightHand(base);
 		editHand = 'both';
-		resizeGrid();
+		resizeGrid(seed);
 	}
 
 	function clearSelection() {
@@ -223,7 +235,14 @@
 		return Array.from({ length: reps }, (_, i) => start + i);
 	}
 
+	// Keeps the shortcuts answering after a click, on browsers that leave focus
+	// on the body when a button is pressed.
+	function focusCard() {
+		cardElement?.focus({ preventScroll: true });
+	}
+
 	function onStepClick(address: number, event: MouseEvent) {
+		focusCard();
 		const unit = selectionUnit(address);
 		if (event.shiftKey && anchor !== null) {
 			const low = Math.min(anchor, address);
@@ -251,6 +270,7 @@
 	}
 
 	function selectSet(setIndex: number) {
+		focusCard();
 		const start = setIndex * reps;
 		const range = Array.from({ length: reps }, (_, i) => start + i);
 		if (range.every((a) => selected.has(a)) && selection.length === range.length) {
@@ -262,6 +282,7 @@
 	}
 
 	function selectAll() {
+		focusCard();
 		selectAddresses(Array.from({ length: sets * reps }, (_, i) => i));
 		anchor = 0;
 	}
@@ -320,9 +341,8 @@
 	// customised on purpose stay behind.
 	function applyToBase(mutate: (config: RepConfig) => void) {
 		const previous = base;
-		const next = cloneConfig(base);
+		const next = cloneConfig(previous);
 		mutate(next);
-		base = next;
 		const rows = storedRowCount(item, variation);
 		for (let row = 0; row < rows; row++) {
 			if (sameConfig(readConfig(item, row, twoHanded, next), previous, twoHanded)) {
@@ -394,29 +414,122 @@
 		pasteOnto(targets, configs);
 	}
 
-	let customisedCount = $derived.by(() => {
-		if (variation === 'uniform') return 0;
-		let count = 0;
-		for (let address = 0; address < sets * reps; address++) if (isCustomised(address)) count++;
-		return count;
-	});
-
-	function variationLoss(next: HangboardVariation): string | null {
-		if (next === 'uniform' && customisedCount > 0) {
-			const reps = customisedCount > 1 ? 'reps' : 'rep';
-			return `Switching to a single configuration clears ${customisedCount} customised ${reps}.`;
+	// A set-by-set item shows one tile per set, so what the coach counts on
+	// screen, and what a warning has to name, is sets rather than reps.
+	function customisedAddresses(): number[] {
+		if (variation === 'uniform') return [];
+		const step = variation === 'set' ? reps : 1;
+		const found: number[] = [];
+		for (let address = 0; address < sets * reps; address += step) {
+			if (isCustomised(address)) found.push(address);
 		}
-		if (next === 'set' && variation === 'rep' && repsVaryWithinSets(item)) {
-			return 'Varying by set makes every rep of a set identical. Each rep will follow the first rep of its set.';
-		}
-		return null;
+		return found;
 	}
 
-	function requestVariation(next: HangboardVariation) {
+	let customisedCount = $derived(customisedAddresses().length);
+	let customisedUnit = $derived(variation === 'set' ? 'set' : 'rep');
+
+	function countLabel(count: number, unit: string): string {
+		return `${count} customised ${unit}${count > 1 ? 's' : ''}`;
+	}
+
+	// Sets and reps that a shrink would delete, so a warning names what is
+	// actually lost rather than everything the item has customised.
+	function customisedInDroppedSets(keep: number): number {
+		return customisedAddresses().filter((address) => Math.floor(address / reps) >= keep).length;
+	}
+
+	// Reps of a set are identical when the sets are what varies, so shortening a
+	// set only loses a configuration when every rep carries its own.
+	function customisedInDroppedReps(keep: number): number {
+		if (variation !== 'rep') return 0;
+		return customisedAddresses().filter((address) => address % reps >= keep).length;
+	}
+
+	function handsDiffer(): boolean {
+		if (!twoHanded) return false;
+		const rows = storedRowCount(item, variation);
+		for (let row = 0; row < rows; row++) {
+			const config = readConfig(item, row, true, base);
+			if (config.gripLeft !== config.gripRight) return true;
+			if (config.loadLeft.value !== config.loadRight.value) return true;
+			if (config.loadLeft.unit !== config.loadRight.unit) return true;
+		}
+		return false;
+	}
+
+	function changeLoss(change: PendingChange): string | null {
+		if (change.kind === 'variation') {
+			if (change.value === variation) return null;
+			if (change.value === 'uniform' && customisedCount > 0) {
+				return `Switching to a single configuration clears ${countLabel(customisedCount, customisedUnit)}.`;
+			}
+			if (change.value === 'set' && variation === 'rep' && repsVaryWithinSets(item)) {
+				return 'Varying by set makes every rep of a set identical. Each rep will follow the first rep of its set.';
+			}
+			return null;
+		}
+		if (change.kind === 'hand') {
+			const dropsLeftHand = twoHanded && !isTwoHandedMode(change.value);
+			return dropsLeftHand && handsDiffer()
+				? 'Working the hands together drops the separate left hand configuration.'
+				: null;
+		}
+		if (change.kind === 'sets') {
+			const lost = change.value < sets ? customisedInDroppedSets(change.value) : 0;
+			return lost > 0
+				? `Dropping to ${change.value} sets deletes ${countLabel(lost, customisedUnit)}.`
+				: null;
+		}
+		const lost = change.value < reps ? customisedInDroppedReps(change.value) : 0;
+		return lost > 0 ? `Dropping to ${change.value} reps deletes ${countLabel(lost, 'rep')}.` : null;
+	}
+
+	let pendingMessage = $derived(pendingChange ? changeLoss(pendingChange) : null);
+
+	function requestChange(change: PendingChange) {
+		if (changeLoss(change)) {
+			pendingChange = change;
+			return;
+		}
+		pendingChange = null;
+		applyChange(change);
+	}
+
+	function applyChange(change: PendingChange) {
+		pendingChange = null;
+		if (change.kind === 'variation') applyVariation(change.value);
+		else if (change.kind === 'hand') setHand(change.value);
+		else if (change.kind === 'sets') resizeSets(change.value);
+		else resizeReps(change.value);
+	}
+
+	function confirmChange() {
+		if (pendingChange) applyChange(pendingChange);
+	}
+
+	// The count fields carry the value the coach typed while the bar is up, so
+	// backing out has to put back what the item still holds.
+	function cancelChange() {
+		pendingChange = null;
+		setsField = item.cycles ?? null;
+		repsField = item.reps ?? null;
+	}
+
+	function applyVariation(next: HangboardVariation) {
 		if (next === variation) return;
-		const loss = variationLoss(next);
-		if (loss) pendingVariation = { value: next, message: loss };
-		else applyVariation(next);
+		const surviving = cloneConfig(base);
+		if (next === 'uniform') {
+			rebuildArrays(item, next, layout, surviving);
+			writeConfig(item, 0, surviving, twoHanded);
+		} else if (variation === 'uniform') {
+			rebuildArrays(item, next, layout, surviving);
+		} else if (next === 'set') {
+			flattenSetsToFirstRep();
+		}
+		variation = next;
+		layout = currentLayout(item, next);
+		clearSelection();
 	}
 
 	function flattenSetsToFirstRep() {
@@ -426,25 +539,6 @@
 				writeConfig(item, configRow(variation, set * reps + rep), first, twoHanded);
 			}
 		}
-	}
-
-	function applyVariation(next: HangboardVariation) {
-		if (next === 'uniform') {
-			rebuildArrays(item, next, layout, base);
-			writeConfig(item, 0, base, twoHanded);
-		} else if (variation === 'uniform') {
-			rebuildArrays(item, next, layout, base);
-		} else if (next === 'set') {
-			flattenSetsToFirstRep();
-		}
-		variation = next;
-		layout = currentLayout(item, next);
-		pendingVariation = null;
-		clearSelection();
-	}
-
-	function confirmVariation() {
-		if (pendingVariation) applyVariation(pendingVariation.value);
 	}
 
 	function uniqueValue<T>(values: T[]): T | null {
@@ -494,48 +588,29 @@
 			: `Applies everywhere unless customised${handSuffix}`
 	);
 
+	// A copied set carries one configuration per rep, so what the coach reads is
+	// the units they picked rather than the rows behind them.
+	let clipboardUnits = $derived(
+		!clipboard
+			? 0
+			: variation === 'set'
+				? Math.max(1, Math.round(clipboard.length / reps))
+				: clipboard.length
+	);
 	let clipboardLabel = $derived(
-		clipboard
-			? clipboard.length === 1
-				? `1 rep (${clipboard[0].edge}mm)`
-				: `${clipboard.length} reps`
-			: ''
+		!clipboard
+			? ''
+			: clipboardUnits === 1
+				? `1 ${customisedUnit} (${clipboard[0].edge}mm)`
+				: `${clipboardUnits} ${customisedUnit}s`
 	);
 	let pasteTitle = $derived(
 		clipboard ? `Paste ${clipboardLabel} onto the selection` : 'Nothing copied yet'
 	);
 
-	let setRows = $derived.by(() => {
-		if (variation === 'uniform') return [];
-		return Array.from({ length: sets }, (_, index) => {
-			const start = index * reps;
-			const addresses = setAddresses(index);
-			const stepAddresses = variation === 'set' ? [start] : addresses;
-			return {
-				index,
-				selected: selection.length > 0 && addresses.every((a) => selected.has(a)),
-				canApplyBelow: index < sets - 1,
-				steps: stepAddresses.map((address, position) => {
-					const config = configAt(address);
-					const customised = !sameConfig(config, base, twoHanded);
-					const [edgeLine, detailLine] = configLines(config, twoHanded);
-					return {
-						address,
-						selected: selected.has(address),
-						customised,
-						showValues: variation === 'set' || customised,
-						badge: variation === 'set' ? `${reps} reps` : String(position + 1),
-						edgeLine,
-						detailLine,
-						title:
-							variation === 'set'
-								? `Set ${index + 1}: ${describeConfig(config, twoHanded)}`
-								: `Rep ${position + 1}: ${describeConfig(config, twoHanded)}`
-					};
-				})
-			};
-		});
-	});
+	let setRows = $derived(
+		buildSessionMap({ sets, reps, variation, base, twoHanded, configAt, selected })
+	);
 
 	// The hint describes the selected mode, so the radiogroup points at it and a
 	// screen reader announces what the mode means, not just its label.
@@ -559,17 +634,26 @@
 		return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
 	}
 
+	// Copying a rep must not take the clipboard from a coach who highlighted
+	// text in the card and meant to copy that.
+	function hasTextSelection(): boolean {
+		return !!window.getSelection()?.toString();
+	}
+
 	// The shortcuts belong to the card the coach is working in: a training can
-	// hold several hangboard items, and only the focused one may answer.
+	// hold several hangboard items, and only the one holding focus may answer.
+	// Clicking a button does not move focus on every browser, so selecting in
+	// the map focuses the card itself rather than relying on the tile.
 	function onWindowKeyDown(event: KeyboardEvent) {
 		if (collapsed || !cardElement?.contains(document.activeElement)) return;
+		if (isTypingTarget(event.target)) return;
 		if (event.key === 'Escape' && selection.length) {
 			clearSelection();
 			return;
 		}
-		if (isTypingTarget(event.target)) return;
 		const modifier = event.metaKey || event.ctrlKey;
 		if (modifier && (event.key === 'c' || event.key === 'C') && selection.length) {
+			if (hasTextSelection()) return;
 			event.preventDefault();
 			copySelection();
 		} else if (
@@ -589,7 +673,7 @@
 
 <svelte:window onkeydown={onWindowKeyDown} />
 
-<div class="hb-card" style="--hb: {HB_COLOR};" bind:this={cardElement}>
+<div class="hb-card" style="--hb: {HB_COLOR};" bind:this={cardElement} tabindex="-1">
 	<div
 		class="hb-header"
 		style="background: {collapsed ? '#fff' : 'var(--panel2)'};"
@@ -690,7 +774,7 @@
 						<button
 							class="hb-pill"
 							class:hb-on={hangboardHand(item) === h.value}
-							onclick={() => setHand(h.value)}
+							onclick={() => requestChange({ kind: 'hand', value: h.value })}
 							title={h.hint}
 							role="radio"
 							aria-checked={hangboardHand(item) === h.value}>{h.label}</button
@@ -819,7 +903,7 @@
 						<button
 							class="hb-tab"
 							class:hb-on={variation === option.value}
-							onclick={() => requestVariation(option.value)}
+							onclick={() => requestChange({ kind: 'variation', value: option.value })}
 							title={option.hint}
 							role="radio"
 							aria-checked={variation === option.value}>{option.label}</button
@@ -829,11 +913,11 @@
 				<span class="hb-hint">{variationHint}</span>
 			</div>
 
-			{#if pendingVariation}
+			{#if pendingMessage}
 				<div class="hb-confirm" role="alertdialog" aria-label="Confirm the change">
-					<span class="hb-confirm-message">{pendingVariation.message}</span>
-					<button class="hb-pill" onclick={() => (pendingVariation = null)}>Cancel</button>
-					<button class="hb-pill hb-primary" onclick={confirmVariation}>Continue</button>
+					<span class="hb-confirm-message">{pendingMessage}</span>
+					<button class="hb-pill" onclick={cancelChange}>Cancel</button>
+					<button class="hb-pill hb-primary" onclick={confirmChange}>Continue</button>
 				</div>
 			{/if}
 
@@ -849,68 +933,39 @@
 						{/if}
 					</div>
 
-					<div class="hb-sets">
-						{#each setRows as row (row.index)}
-							<div class="hb-set">
+					<HangboardSessionMap rows={setRows} {onStepClick} onSelectSet={selectSet}>
+						{#snippet setActions(index: number)}
+							<div class="hb-set-actions">
 								<button
-									class="hb-set-label"
-									class:hb-on={row.selected}
-									onclick={() => selectSet(row.index)}
-									title="Select this whole set"
-									aria-pressed={row.selected}>Set {row.index + 1}</button
+									class="hb-act-btn"
+									onclick={() => copySet(index)}
+									title="Copy this set"
+									aria-label="Copy this set"
 								>
-								<div class="hb-steps">
-									{#each row.steps as step (step.address)}
-										<button
-											class="hb-step"
-											class:hb-wide={step.showValues}
-											class:hb-full={variation === 'set'}
-											class:hb-on={step.selected}
-											class:hb-custom={step.customised}
-											onclick={(e) => onStepClick(step.address, e)}
-											title={step.title}
-											aria-pressed={step.selected}
-										>
-											<span class="hb-step-badge">{step.badge}</span>
-											{#if step.showValues}
-												<span class="hb-step-edge">{step.edgeLine}</span>
-												<span class="hb-step-detail">{step.detailLine}</span>
-											{/if}
-										</button>
-									{/each}
-								</div>
-								<div class="hb-set-actions">
+									<Icon name="copy" size={13} color="currentColor" />
+								</button>
+								<button
+									class="hb-act-btn"
+									onclick={() => pasteSet(index)}
+									disabled={!clipboard}
+									title="Paste onto this set"
+									aria-label="Paste onto this set"
+								>
+									<Icon name="paste" size={13} color="currentColor" />
+								</button>
+								{#if index < sets - 1}
 									<button
 										class="hb-act-btn"
-										onclick={() => copySet(row.index)}
-										title="Copy this set"
-										aria-label="Copy this set"
+										onclick={() => applySetBelow(index)}
+										title="Copy this set into the sets below"
+										aria-label="Copy this set into the sets below"
 									>
-										<Icon name="copy" size={13} color="currentColor" />
+										<Icon name="arrow-down" size={13} color="currentColor" />
 									</button>
-									<button
-										class="hb-act-btn"
-										onclick={() => pasteSet(row.index)}
-										disabled={!clipboard}
-										title="Paste onto this set"
-										aria-label="Paste onto this set"
-									>
-										<Icon name="paste" size={13} color="currentColor" />
-									</button>
-									{#if row.canApplyBelow}
-										<button
-											class="hb-act-btn"
-											onclick={() => applySetBelow(row.index)}
-											title="Copy this set into the sets below"
-											aria-label="Copy this set into the sets below"
-										>
-											<Icon name="arrow-down" size={13} color="currentColor" />
-										</button>
-									{/if}
-								</div>
+								{/if}
 							</div>
-						{/each}
-					</div>
+						{/snippet}
+					</HangboardSessionMap>
 
 					<div class="hb-legend">
 						<span><span class="hb-swatch"></span>base configuration</span>
@@ -926,12 +981,15 @@
 </div>
 
 <style>
+	/* Focusable so the card owns the map shortcuts, but never drawn as focused:
+	   it is a container the coach never tabs to. */
 	.hb-card {
 		background: #fff;
 		border-radius: var(--rl);
 		border: 1px solid color-mix(in srgb, var(--hb) 30%, transparent);
 		box-shadow: var(--sh);
 		overflow: hidden;
+		outline: none;
 	}
 
 	.hb-header {
@@ -1201,119 +1259,6 @@
 		gap: 10px;
 	}
 
-	.hb-sets {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		max-height: 380px;
-		overflow: auto;
-		padding: 2px;
-	}
-
-	.hb-set {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-	}
-
-	.hb-set-label {
-		width: 58px;
-		flex-shrink: 0;
-		padding: 5px 6px;
-		border-radius: var(--rs);
-		border: 1px solid transparent;
-		background: transparent;
-		color: var(--tx3);
-		font-size: 10px;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		text-align: left;
-		cursor: pointer;
-		font-family: var(--font);
-	}
-
-	.hb-set-label.hb-on {
-		border-color: var(--hb);
-		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
-	}
-
-	.hb-steps {
-		display: flex;
-		gap: 6px;
-		flex-wrap: wrap;
-		flex: 1;
-		min-width: 0;
-	}
-
-	.hb-step {
-		width: 40px;
-		height: 40px;
-		padding: 0;
-		border-radius: var(--rs);
-		border: 1px solid var(--bd);
-		background: #fff;
-		color: var(--tx2);
-		cursor: pointer;
-		font-family: var(--font);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.hb-step.hb-wide {
-		width: auto;
-		min-width: 112px;
-		height: auto;
-		padding: 6px 10px;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 1px;
-		text-align: left;
-	}
-
-	.hb-step.hb-full {
-		flex: 1;
-	}
-
-	.hb-step.hb-custom {
-		border-color: var(--hb);
-		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
-	}
-
-	.hb-step.hb-on {
-		border-color: var(--hb);
-		background: var(--hb);
-		color: #fff;
-	}
-
-	.hb-step-badge {
-		font-size: 12px;
-		font-weight: 700;
-		color: inherit;
-	}
-
-	.hb-step.hb-wide .hb-step-badge {
-		font-size: 9px;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		opacity: 0.75;
-	}
-
-	.hb-step-edge {
-		font-size: 11px;
-		font-weight: 700;
-		color: inherit;
-	}
-
-	.hb-step-detail {
-		font-size: 10px;
-		white-space: nowrap;
-		opacity: 0.8;
-	}
-
 	/* Fixed so the tiles of every set end on the same edge, whether or not the
 	   set carries the "apply below" action. */
 	.hb-set-actions {
@@ -1374,8 +1319,6 @@
 		background: color-mix(in srgb, var(--hb) 12%, transparent);
 	}
 
-	.hb-step:focus-visible,
-	.hb-set-label:focus-visible,
 	.hb-pill:focus-visible,
 	.hb-tab:focus-visible,
 	.hb-act-btn:focus-visible {
