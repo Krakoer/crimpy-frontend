@@ -46,7 +46,7 @@ test.describe('exercise panel opened while its details are still loading', () =>
 	}
 
 	/**
-	 * The editor panel covers the shell, so the sidebar cannot be clicked while it
+	 * The editor modal covers the shell, so the sidebar cannot be clicked while it
 	 * is open. Coming from another page makes the back button the way out.
 	 */
 	async function openEditorWhileDetailLoads(page: Page): Promise<void> {

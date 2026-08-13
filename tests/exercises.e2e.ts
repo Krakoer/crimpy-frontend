@@ -93,7 +93,7 @@ test('switches to the favorites endpoint when favorites only is enabled', async 
 	await expect(page.getByText('1 exercise', { exact: false })).toBeVisible();
 });
 
-test('creates an exercise from the side panel', async ({ page }) => {
+test('creates an exercise from the modal', async ({ page }) => {
 	const created = testExercise({
 		id: 'exercise-3',
 		name: 'Repeaters',
