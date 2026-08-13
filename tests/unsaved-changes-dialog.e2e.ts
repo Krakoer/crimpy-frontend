@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 /**
- * The editor panel covers the shell, so the sidebar cannot be clicked while it
+ * The editor modal covers the shell, so the sidebar cannot be clicked while it
  * is open. Coming from another page makes the back button the way out.
  */
 async function openLibraryFromTrainings(page: Page): Promise<void> {

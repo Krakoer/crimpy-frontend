@@ -653,21 +653,19 @@
 	</div>
 {/if}
 
-<!-- Edit/Create panel -->
+<!-- Edit/Create modal -->
 {#if panel !== null}
-	<div style="position: fixed; inset: 0; z-index: 40; display: flex;">
-		<button
-			style="flex: 1; background: rgba(45,36,29,0.2); border: none; cursor: pointer;"
-			onclick={closePanel}
-			aria-label="Close panel"
-		></button>
-
+	<div
+		style="position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(45,36,29,0.4);"
+		role="dialog"
+		aria-modal="true"
+	>
 		<div
 			style="
 				display: flex; flex-direction: column;
-				width: 100%; max-width: 440px;
-				border-left: 1px solid var(--bd); background: #fff;
-				box-shadow: var(--sh-hi);
+				width: 100%; max-width: 460px; max-height: 88vh;
+				border: 1px solid var(--bd); border-radius: var(--rl); background: #fff;
+				box-shadow: var(--sh-hi); overflow: hidden;
 			"
 		>
 			<div
