@@ -9,6 +9,7 @@
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
 	const PAGE_SIZE = 20;
 
@@ -32,7 +33,7 @@
 	let selectedTags = $state<Tag[]>([]);
 	let saving = $state(false);
 	let saveError = $state('');
-	let confirmDelete = $state(false);
+	let deleteTarget = $state<Exercise | null>(null);
 	let deleting = $state(false);
 
 	let panelBaseline = $state<string | null>(null);
@@ -150,7 +151,6 @@
 		form = { name: '', description: '', comment: '', video_link: '' };
 		selectedTags = [];
 		saveError = '';
-		confirmDelete = false;
 		panel = 'new';
 		panelBaseline = panelSnapshot();
 	}
@@ -166,7 +166,6 @@
 		form = { ...savedForm };
 		selectedTags = savedTags;
 		saveError = '';
-		confirmDelete = false;
 		panel = exercise;
 		panelBaseline = snapshotOf(savedForm, savedTags);
 		try {
@@ -242,15 +241,18 @@
 	}
 
 	async function handleDelete() {
-		if (!panel || panel === 'new' || typeof panel !== 'object') return;
+		const target = deleteTarget;
+		if (!target) return;
 		deleting = true;
 		try {
-			await apiClient.deleteExercise(panel.id);
+			await apiClient.deleteExercise(target.id);
 			snackbar.show('Exercise deleted');
+			deleteTarget = null;
+			if (viewExercise?.id === target.id) viewExercise = null;
+			if (panel && typeof panel === 'object' && panel.id === target.id) closePanel();
 			await loadExercises();
-			closePanel();
 		} catch (e) {
-			saveError = e instanceof Error ? e.message : 'Failed to delete exercise.';
+			snackbar.show(e instanceof Error ? e.message : 'Failed to delete exercise.', 'error');
 		} finally {
 			deleting = false;
 		}
@@ -459,6 +461,17 @@
 									fill={exercise.is_favorite ? 'var(--pr)' : 'none'}
 								/>
 							</button>
+							<button
+								onclick={() => (deleteTarget = exercise)}
+								title="Delete {exercise.name}"
+								style="
+									border-left: 1px solid var(--bd2); padding: 0 16px;
+									background: none; cursor: pointer; color: var(--tx3);
+									font-size: 12px; font-family: var(--font); font-weight: 600;
+								"
+							>
+								<Icon name="trash" size={16} color="var(--tx3)" />
+							</button>
 						</div>
 					{/each}
 				</div>
@@ -485,6 +498,18 @@
 </AppShell>
 
 <UnsavedChangesGuard dirty={isDirty} />
+
+{#if deleteTarget !== null}
+	<ConfirmDialog
+		title="Delete exercise"
+		message="Delete {deleteTarget.name} permanently?"
+		confirmLabel="Confirm delete"
+		busyLabel="Deleting..."
+		busy={deleting}
+		onconfirm={handleDelete}
+		oncancel={() => (deleteTarget = null)}
+	/>
+{/if}
 
 <!-- View exercise dialog -->
 {#if viewExercise !== null}
@@ -796,45 +821,14 @@
 				</div>
 
 				{#if panel !== 'new' && typeof panel === 'object'}
+					{@const editedExercise = panel}
 					<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bd2);">
-						{#if confirmDelete}
-							<p style="font-size: 12.5px; color: var(--tx2); margin-bottom: 10px;">
-								Delete this exercise permanently?
-							</p>
-							<div style="display: flex; gap: 8px;">
-								<button
-									onclick={handleDelete}
-									disabled={deleting}
-									style="
-										padding: 7px 14px; border-radius: var(--rs);
-										border: 1px solid var(--rd); color: var(--rd);
-										background: #fff5f5; font-size: 12.5px; font-weight: 600;
-										cursor: pointer; font-family: var(--font);
-										opacity: {deleting ? 0.6 : 1};
-									"
-								>
-									{deleting ? 'Deleting...' : 'Confirm delete'}
-								</button>
-								<button
-									onclick={() => (confirmDelete = false)}
-									style="
-										padding: 7px 14px; border-radius: var(--rs);
-										border: 1px solid var(--bd); color: var(--tx2);
-										background: #fff; font-size: 12.5px; font-weight: 600;
-										cursor: pointer; font-family: var(--font);
-									"
-								>
-									Cancel
-								</button>
-							</div>
-						{:else}
-							<button
-								onclick={() => (confirmDelete = true)}
-								style="font-size: 12.5px; color: var(--rd); background: none; border: none; cursor: pointer; font-family: var(--font);"
-							>
-								Delete exercise
-							</button>
-						{/if}
+						<button
+							onclick={() => (deleteTarget = editedExercise)}
+							style="font-size: 12.5px; color: var(--rd); background: none; border: none; cursor: pointer; font-family: var(--font);"
+						>
+							Delete exercise
+						</button>
 					</div>
 				{/if}
 			</div>
