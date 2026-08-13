@@ -26,8 +26,14 @@ export const HANGBOARD_LOAD_UNITS: { value: LoadUnit; label: string }[] = [
 	{ value: 'max', label: LOAD_UNIT_LABELS.max }
 ];
 
-/// A load as the coach reads it, e.g. "80 % BW" or "MAX".
+/// Whether a unit prescribes a number. Hanging on body weight or pulling as
+/// hard as possible is the whole prescription, so neither carries a value.
+export function loadUnitHasValue(unit: LoadUnit): boolean {
+	return unit !== 'bw' && unit !== 'max';
+}
+
+/// A load as the coach reads it, e.g. "80 % BW", "BW" or "MAX".
 export function fmtLoad(value: number, unit: LoadUnit): string {
-	if (unit === 'max') return LOAD_UNIT_LABELS.max;
+	if (!loadUnitHasValue(unit)) return LOAD_UNIT_LABELS[unit];
 	return `${value} ${LOAD_UNIT_LABELS[unit]}`;
 }

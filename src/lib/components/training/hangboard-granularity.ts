@@ -22,13 +22,6 @@ export function hangboardGranularity(item: TrainingItem): HangboardGranularity {
 	return item.granularity ?? 'uniform';
 }
 
-// Number of configuration rows the item carries for the given granularity.
-export function hangboardRowCount(item: TrainingItem, granularity: HangboardGranularity): number {
-	if (granularity === 'uniform') return 1;
-	const reps = hangboardReps(item);
-	return granularity === 'set' ? hangboardSets(item) * reps : reps;
-}
-
 export function hangboardHand(item: TrainingItem): HangboardHand {
 	return item.hand ?? 'both';
 }
@@ -50,12 +43,6 @@ export const HANGBOARD_HANDS: { value: HangboardHand; label: string; hint: strin
 	{ value: 'split', label: 'Split', hint: 'A whole set on one hand, then the other' },
 	{ value: 'left', label: 'Left', hint: 'Left hand only' },
 	{ value: 'right', label: 'Right', hint: 'Right hand only' }
-];
-
-export const HANGBOARD_GRANULARITIES: { value: HangboardGranularity; label: string }[] = [
-	{ value: 'uniform', label: 'Uniform' },
-	{ value: 'rep', label: 'Per-rep' },
-	{ value: 'set', label: 'Per-set' }
 ];
 
 // Fields a new hangboard item starts with. The declared shape lives here rather

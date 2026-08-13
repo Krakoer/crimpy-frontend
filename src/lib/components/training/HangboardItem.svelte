@@ -1,25 +1,44 @@
 <script lang="ts">
-	import type { TrainingItem, LoadUnit, Load } from '$lib/api/client';
+	import type { TrainingItem, Load, LoadUnit } from '$lib/api/client';
 	import { getContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
-	import { HANGBOARD_LOAD_UNITS } from './load-units';
+	import { HANGBOARD_LOAD_UNITS, loadUnitHasValue } from './load-units';
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { assessmentTypesForField } from '$lib/assessments';
 	import {
-		HANGBOARD_GRANULARITIES,
 		HANGBOARD_HANDS,
 		hangboardGranularity,
 		hangboardHand,
-		hangboardHandCount,
 		hangboardReps,
-		hangboardRowCount,
 		hangboardSets,
 		isTwoHandedMode,
 		saneCount,
-		type HangboardGranularity,
 		type HangboardHand
 	} from './hangboard-granularity';
+	import {
+		HANGBOARD_GRIPS,
+		HANGBOARD_VARIATIONS,
+		cloneConfig,
+		commonConfig,
+		configLines,
+		configRow,
+		currentLayout,
+		defaultRepConfig,
+		describeConfig,
+		isStoredAsDeclared,
+		mirrorRightHand,
+		readConfig,
+		rebuildArrays,
+		repsVaryWithinSets,
+		sameConfig,
+		storedRowCount,
+		wireGranularity,
+		writeConfig,
+		type HangboardVariation,
+		type RepConfig,
+		type StoredLayout
+	} from './hangboard-config';
 
 	interface Props {
 		item: TrainingItem;
@@ -31,6 +50,7 @@
 
 	let collapsed = $state(false);
 	let confirmDelete = $state(false);
+	let cardElement = $state<HTMLDivElement | null>(null);
 
 	const HB_COLOR = '#4A7C8C';
 
@@ -46,15 +66,11 @@
 		if (collapseSignals?.expand) collapsed = false;
 	});
 
-	const HAND_POSITIONS = ['3FD', 'HC', 'FC', 'OC'];
-
-	const GRANULARITIES = HANGBOARD_GRANULARITIES;
-
 	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
 
 	// Every assessment-relative load of an item shares one assessment and one
-	// fallback: only the percentage varies from rep to rep, so the per-rep grid
-	// keeps a single column per load.
+	// fallback: only the percentage varies from rep to rep, so the editor keeps a
+	// single reference for the whole item.
 	// Both hands share that assessment and fallback, so the loads of either hand
 	// are driven by the same pair of fields and must be kept in step together.
 	let assessmentLoads = $derived([...(item.loads ?? []), ...(item.left_loads ?? [])]);
@@ -87,145 +103,62 @@
 	if (!item.rest_seconds) item.rest_seconds = 3;
 	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
 
-	const initialGranularity = hangboardGranularity(item);
-	let granularity = $state<HangboardGranularity>(initialGranularity);
-
-	// Index of each hand inside hand_positions, which stores the left hand first.
-	const LEFT = 0;
-	const RIGHT = 1;
-
-	let uniformEdge = $state(item.edge_sizes_mm?.[0] ?? 20);
-	// loads is the right hand of a two-handed mode and the only load otherwise,
-	// so the primary uniform fields always feed it.
-	let uniformLoadValue = $state(item.loads?.[0]?.value ?? 0);
-	let uniformLoadUnit = $state<LoadUnit>(item.loads?.[0]?.unit ?? 'percent_bw');
-	let uniformLoadValueL = $state(item.left_loads?.[0]?.value ?? item.loads?.[0]?.value ?? 0);
-	let uniformLoadUnitL = $state<LoadUnit>(
-		item.left_loads?.[0]?.unit ?? item.loads?.[0]?.unit ?? 'percent_bw'
-	);
-	let uniformHandPos = $state(
-		item.hand_positions?.[isTwoHandedMode(hangboardHand(item)) ? RIGHT : LEFT]?.[0] ?? 'HC'
-	);
-
-	// Layout the stored arrays were built for, so a rebuild can read every value
-	// back by its (set, rep) coordinates rather than by raw index.
-	let layout = {
-		granularity: initialGranularity,
-		reps: hangboardReps(item),
-		sets: hangboardSets(item),
-		twoHanded: isTwoHandedMode(hangboardHand(item))
-	};
-
-	// The API validates each configuration array on its own and accepts an absent
-	// one, so an item can arrive with any of them missing or sized for another
-	// layout. The editor indexes all of them by row, so it normalises whatever it
-	// is handed before rendering rather than trusting the stored shape.
-	function isNormalized(): boolean {
-		const rows = hangboardRowCount(item, granularity);
-		const hand = hangboardHand(item);
-		if (item.edge_sizes_mm?.length !== rows) return false;
-		if (item.loads?.length !== rows) return false;
-		if (isTwoHandedMode(hand)) {
-			if (item.left_loads?.length !== rows) return false;
-		} else if (item.left_loads) {
-			return false;
-		}
-		const grips = item.hand_positions;
-		if (grips?.length !== hangboardHandCount(hand)) return false;
-		return grips.every((perHand) => perHand?.length === rows);
-	}
-
-	untrack(() => {
-		if (!isNormalized()) rebuild(granularity);
-	});
-
-	function rebuild(next: HangboardGranularity) {
-		const reps = hangboardReps(item);
-		const sets = hangboardSets(item);
-		const twoHanded = isTwoHandedMode(hangboardHand(item));
-		const prev = layout;
-		const prevEdges = item.edge_sizes_mm ?? [];
-		const prevLoads = item.loads ?? [];
-		const prevLeftLoads = item.left_loads ?? [];
-		const prevGrips = item.hand_positions ?? [];
-
-		const prevIndex = (s: number, r: number) => {
-			if (prev.granularity === 'uniform') return 0;
-			const rep = Math.min(r, prev.reps - 1);
-			if (prev.granularity === 'rep') return rep;
-			return Math.min(s, prev.sets - 1) * prev.reps + rep;
+	// An item declares one row, one row per rep, or one row per rep of every set,
+	// and any of its arrays can be missing. The editor addresses every rep of
+	// every set, so a stored item is first rewritten into that layout; which of
+	// the two varying modes it is read back as follows from its own values.
+	function adoptStoredItem() {
+		const stored = hangboardGranularity(item);
+		const twoHandedNow = isTwoHandedMode(hangboardHand(item));
+		const storedLayout: StoredLayout = {
+			granularity: stored,
+			sets: hangboardSets(item),
+			reps: hangboardReps(item),
+			twoHanded: twoHandedNow
 		};
-		// A mode that used to share one load between the hands keeps feeding both
-		// of them from loads, so switching to a split configuration starts from
-		// the value that was already there.
-		const prevLoad = (s: number, r: number, hand: number) => {
-			const i = prevIndex(s, r);
-			if (hand === LEFT && prev.twoHanded) return prevLeftLoads[i] ?? prevLoads[i];
-			return prevLoads[i];
+		const target: HangboardVariation = stored === 'uniform' ? 'uniform' : 'rep';
+		if (stored !== wireGranularity(target) || !isStoredAsDeclared(item, target)) {
+			const seed = readConfig(item, 0, twoHandedNow, defaultRepConfig());
+			rebuildArrays(item, target, storedLayout, seed);
+		}
+		const adopted: HangboardVariation =
+			target === 'uniform' ? 'uniform' : repsVaryWithinSets(item) ? 'rep' : 'set';
+		return {
+			variation: adopted,
+			base: commonConfig(item),
+			layout: currentLayout(item, adopted)
 		};
-		const prevGrip = (s: number, r: number, hand: number) =>
-			(prevGrips[hand] ?? prevGrips[0])?.[prevIndex(s, r)];
-		const defaultLoad = (hand: number): Load =>
-			hand === LEFT
-				? { value: uniformLoadValueL, unit: uniformLoadUnitL }
-				: { value: uniformLoadValue, unit: uniformLoadUnit };
-
-		const rows = next === 'uniform' ? 1 : next === 'set' ? sets * reps : reps;
-		const coord = (i: number): [number, number] =>
-			next === 'uniform' ? [0, 0] : next === 'set' ? [Math.floor(i / reps), i % reps] : [0, i];
-
-		item.edge_sizes_mm = Array.from({ length: rows }, (_, i) => {
-			const [s, r] = coord(i);
-			return prevEdges[prevIndex(s, r)] ?? uniformEdge;
-		});
-		item.loads = Array.from({ length: rows }, (_, i) => {
-			const [s, r] = coord(i);
-			return { ...(prevLoad(s, r, RIGHT) ?? defaultLoad(RIGHT)) };
-		});
-		item.left_loads = twoHanded
-			? Array.from({ length: rows }, (_, i) => {
-					const [s, r] = coord(i);
-					return { ...(prevLoad(s, r, LEFT) ?? defaultLoad(LEFT)) };
-				})
-			: undefined;
-		item.hand_positions = Array.from(
-			{ length: hangboardHandCount(hangboardHand(item)) },
-			(_, hand) =>
-				Array.from({ length: rows }, (_, i) => {
-					const [s, r] = coord(i);
-					return prevGrip(s, r, hand) ?? uniformHandPos;
-				})
-		);
-
-		layout = { granularity: next, reps, sets, twoHanded };
-		granularity = next;
-		item.granularity = next;
 	}
 
-	// Downgrading to uniform replaces every row with the uniform fields, which
-	// were captured at mount: seed them from the first row so the value left
-	// behind is the one the coach was looking at.
-	function seedUniformFromFirstRow() {
-		uniformEdge = item.edge_sizes_mm?.[0] ?? uniformEdge;
-		const primary = item.loads?.[0];
-		if (primary) {
-			uniformLoadValue = primary.value;
-			uniformLoadUnit = primary.unit;
-		}
-		// A mode that shared one load between the hands has no left row to read, so
-		// the left field starts from the shared value rather than a stale one.
-		const left = item.left_loads?.[0] ?? item.loads?.[0];
-		if (left) {
-			uniformLoadValueL = left.value;
-			uniformLoadUnitL = left.unit;
-		}
-		uniformHandPos = item.hand_positions?.[handGripIndex]?.[0] ?? uniformHandPos;
+	const adopted = untrack(adoptStoredItem);
+
+	let variation = $state<HangboardVariation>(adopted.variation);
+	let base = $state<RepConfig>(adopted.base);
+	let layout: StoredLayout = adopted.layout;
+
+	let sets = $derived(hangboardSets(item));
+	let reps = $derived(hangboardReps(item));
+	let twoHanded = $derived(isTwoHandedMode(hangboardHand(item)));
+
+	let selection = $state<number[]>([]);
+	let selected = $derived(new Set(selection));
+	let anchor = $state<number | null>(null);
+	let clipboard = $state<RepConfig[] | null>(null);
+	let editHand = $state<'both' | 'left' | 'right'>('both');
+	let pendingVariation = $state<{ value: HangboardVariation; message: string } | null>(null);
+
+	const EDIT_HANDS = [
+		{ value: 'both' as const, label: 'Both' },
+		{ value: 'left' as const, label: 'Left' },
+		{ value: 'right' as const, label: 'Right' }
+	];
+
+	function configAt(address: number): RepConfig {
+		return readConfig(item, configRow(variation, address), twoHanded, base);
 	}
 
-	function setGranularity(next: HangboardGranularity) {
-		if (next === granularity) return;
-		if (next === 'uniform') seedUniformFromFirstRow();
-		rebuild(next);
+	function isCustomised(address: number): boolean {
+		return !sameConfig(configAt(address), base, twoHanded);
 	}
 
 	// Keep the legacy item-level flag in sync for older clients: an item counts
@@ -236,149 +169,430 @@
 	});
 
 	// A number input holds intermediate values while being retyped: typing "12"
-	// over a "3" goes through "1", and rebuilding then would truncate the grid
-	// and lose every value in it. These fields are only committed to the item on
+	// over a "3" goes through "1", and resizing then would truncate the grid and
+	// lose every value in it. These fields are only committed to the item on
 	// blur or Enter, which is when the grid is resized.
 	let setsField = $state<number | null>(item.cycles ?? null);
 	let repsField = $state<number | null>(item.reps ?? null);
 
+	function resizeGrid() {
+		rebuildArrays(item, variation, layout, base);
+		layout = currentLayout(item, variation);
+		clearSelection();
+	}
+
 	function commitSets() {
-		const sets = saneCount(setsField);
-		setsField = sets;
-		if (sets === item.cycles) return;
-		item.cycles = sets;
-		if (granularity === 'set') rebuild(granularity);
+		const next = saneCount(setsField);
+		setsField = next;
+		if (next === item.cycles) return;
+		item.cycles = next;
+		resizeGrid();
 	}
 
 	function commitReps() {
-		const reps = saneCount(repsField);
-		repsField = reps;
-		if (reps === item.reps) return;
-		item.reps = reps;
-		rebuild(granularity);
+		const next = saneCount(repsField);
+		repsField = next;
+		if (next === item.reps) return;
+		item.reps = next;
+		resizeGrid();
 	}
 
 	function setHand(next: HangboardHand) {
-		if (next === item.hand) return;
-		seedUniformFromFirstRow();
+		if (next === hangboardHand(item)) return;
+		const wasTwoHanded = twoHanded;
 		item.hand = next;
-		rebuild(granularity);
+		if (!wasTwoHanded && isTwoHandedMode(next)) base = mirrorRightHand(base);
+		editHand = 'both';
+		resizeGrid();
 	}
 
-	// A uniform item is exactly one row, and the uniform fields are that row. They
-	// are written straight in: going through rebuild would read the row back over
-	// the edit that just happened and discard it.
-	function onUniformChange() {
-		if (granularity !== 'uniform') return;
-		item.edge_sizes_mm = [uniformEdge];
-		item.loads = [{ value: uniformLoadValue, unit: uniformLoadUnit }];
-		item.left_loads = twoHanded
-			? [{ value: uniformLoadValueL, unit: uniformLoadUnitL }]
-			: undefined;
-		item.hand_positions = Array.from({ length: hangboardHandCount(hangboardHand(item)) }, () => [
-			uniformHandPos
-		]);
+	function clearSelection() {
+		selection = [];
+		anchor = null;
 	}
 
-	type RowSettings = {
-		edge: number;
-		grip: string;
-		load: Load;
-		loadLeft?: Load;
-		gripLeft?: string;
-	};
+	function selectAddresses(addresses: number[]) {
+		selection = [...new Set(addresses)].sort((a, b) => a - b);
+	}
 
-	let rowClipboard = $state<RowSettings | null>(null);
-	let copiedRow = $state<number | null>(null);
+	// A set-by-set item is edited one set at a time, so a click anywhere in a set
+	// takes the whole set with it.
+	function selectionUnit(address: number): number[] {
+		if (variation !== 'set') return [address];
+		const start = Math.floor(address / reps) * reps;
+		return Array.from({ length: reps }, (_, i) => start + i);
+	}
 
-	function captureRow(ri: number): RowSettings {
-		return {
-			edge: item.edge_sizes_mm![ri],
-			grip: item.hand_positions![handGripIndex][ri],
-			load: { ...item.loads![ri] },
-			...(twoHanded
-				? { loadLeft: { ...item.left_loads![ri] }, gripLeft: item.hand_positions![LEFT][ri] }
-				: {})
+	function onStepClick(address: number, event: MouseEvent) {
+		const unit = selectionUnit(address);
+		if (event.shiftKey && anchor !== null) {
+			const low = Math.min(anchor, address);
+			const high = Math.max(anchor, address);
+			const from = variation === 'set' ? Math.floor(low / reps) * reps : low;
+			const to = variation === 'set' ? (Math.floor(high / reps) + 1) * reps - 1 : high;
+			selectAddresses(Array.from({ length: to - from + 1 }, (_, i) => from + i));
+			return;
+		}
+		if (event.metaKey || event.ctrlKey) {
+			const present = unit.every((a) => selected.has(a));
+			selectAddresses(
+				present ? selection.filter((a) => !unit.includes(a)) : [...selection, ...unit]
+			);
+			anchor = address;
+			return;
+		}
+		const same = selection.length === unit.length && unit.every((a) => selected.has(a));
+		if (same) {
+			clearSelection();
+			return;
+		}
+		selectAddresses(unit);
+		anchor = address;
+	}
+
+	function selectSet(setIndex: number) {
+		const start = setIndex * reps;
+		const range = Array.from({ length: reps }, (_, i) => start + i);
+		if (range.every((a) => selected.has(a)) && selection.length === range.length) {
+			clearSelection();
+			return;
+		}
+		selectAddresses(range);
+		anchor = start;
+	}
+
+	function selectAll() {
+		selectAddresses(Array.from({ length: sets * reps }, (_, i) => i));
+		anchor = 0;
+	}
+
+	type EditSide = 'left' | 'right';
+
+	let editSides = $derived<EditSide[]>(
+		!twoHanded || editHand === 'right'
+			? ['right']
+			: editHand === 'left'
+				? ['left']
+				: ['left', 'right']
+	);
+
+	function loadOf(config: RepConfig, side: EditSide): Load {
+		return side === 'left' ? config.loadLeft : config.loadRight;
+	}
+
+	function assignGrip(config: RepConfig, side: EditSide, grip: string) {
+		if (side === 'left') config.gripLeft = grip;
+		else config.gripRight = grip;
+	}
+
+	function assignLoad(config: RepConfig, side: EditSide, load: Load) {
+		if (side === 'left') config.loadLeft = load;
+		else config.loadRight = load;
+	}
+
+	type ConfigField = 'edge' | 'grip' | 'loadValue' | 'loadUnit';
+
+	function change(field: ConfigField, value: number | string): (config: RepConfig) => void {
+		return (config) => {
+			if (field === 'edge') {
+				config.edge = value as number;
+				return;
+			}
+			for (const side of editSides) {
+				if (field === 'grip') {
+					assignGrip(config, side, value as string);
+				} else if (field === 'loadValue') {
+					assignLoad(config, side, { ...loadOf(config, side), value: value as number });
+				} else {
+					const unit = value as LoadUnit;
+					assignLoad(config, side, {
+						...loadOf(config, side),
+						unit,
+						value: loadUnitHasValue(unit) ? loadOf(config, side).value : 0
+					});
+				}
+			}
 		};
 	}
 
-	function applyRow(ri: number, src: RowSettings) {
-		item.edge_sizes_mm![ri] = src.edge;
-		item.hand_positions![handGripIndex][ri] = src.grip;
-		item.loads![ri] = { ...src.load };
-		if (twoHanded) {
-			item.left_loads![ri] = { ...(src.loadLeft ?? src.load) };
-			item.hand_positions![LEFT][ri] = src.gripLeft ?? src.grip;
+	// Editing with nothing selected moves the base everything falls back to. Reps
+	// that were sitting on the old base follow it, so only the ones the coach
+	// customised on purpose stay behind.
+	function applyToBase(mutate: (config: RepConfig) => void) {
+		const previous = base;
+		const next = cloneConfig(base);
+		mutate(next);
+		base = next;
+		const rows = storedRowCount(item, variation);
+		for (let row = 0; row < rows; row++) {
+			if (sameConfig(readConfig(item, row, twoHanded, next), previous, twoHanded)) {
+				writeConfig(item, row, next, twoHanded);
+			}
 		}
 	}
 
-	function copyRow(ri: number) {
-		rowClipboard = captureRow(ri);
-		copiedRow = ri;
+	function applyToSelection(mutate: (config: RepConfig) => void) {
+		for (const address of selection) {
+			const next = configAt(address);
+			mutate(next);
+			writeConfig(item, configRow(variation, address), next, twoHanded);
+		}
 	}
 
-	function pasteRow(ri: number) {
-		if (rowClipboard) applyRow(ri, rowClipboard);
+	function applyField(field: ConfigField, value: number | string) {
+		const mutate = change(field, value);
+		if (selection.length) applyToSelection(mutate);
+		else applyToBase(mutate);
 	}
 
-	let rowCount = $derived(hangboardRowCount(item, granularity));
-	let repsPerSet = $derived(hangboardReps(item));
-	let twoHanded = $derived(isTwoHandedMode(hangboardHand(item)));
-	// Grips of the hand that loads feeds: the right one when the hands are
-	// configured separately, the single shared array otherwise.
-	let handGripIndex = $derived(twoHanded ? RIGHT : LEFT);
-	let columnCount = $derived(twoHanded ? 9 : 6);
+	function resetToBase() {
+		for (const address of selection) {
+			writeConfig(item, configRow(variation, address), base, twoHanded);
+		}
+	}
+
+	function copySelection() {
+		if (!selection.length) return;
+		clipboard = selection.map(configAt);
+	}
+
+	// A clipboard shorter than the target repeats over it, so a single rep fills
+	// a whole selection and a copied set tiles over the sets it is pasted onto.
+	function pasteOnto(addresses: number[], configs: RepConfig[]) {
+		if (!configs.length) return;
+		addresses.forEach((address, position) => {
+			writeConfig(
+				item,
+				configRow(variation, address),
+				configs[position % configs.length],
+				twoHanded
+			);
+		});
+	}
+
+	function pasteSelection() {
+		if (clipboard) pasteOnto(selection, clipboard);
+	}
+
+	function setAddresses(setIndex: number): number[] {
+		const start = setIndex * reps;
+		return Array.from({ length: reps }, (_, i) => start + i);
+	}
+
+	function copySet(setIndex: number) {
+		clipboard = setAddresses(setIndex).map(configAt);
+	}
+
+	function pasteSet(setIndex: number) {
+		if (clipboard) pasteOnto(setAddresses(setIndex), clipboard);
+	}
+
+	function applySetBelow(setIndex: number) {
+		const configs = setAddresses(setIndex).map(configAt);
+		const targets: number[] = [];
+		for (let set = setIndex + 1; set < sets; set++) targets.push(...setAddresses(set));
+		pasteOnto(targets, configs);
+	}
+
+	let customisedCount = $derived.by(() => {
+		if (variation === 'uniform') return 0;
+		let count = 0;
+		for (let address = 0; address < sets * reps; address++) if (isCustomised(address)) count++;
+		return count;
+	});
+
+	function variationLoss(next: HangboardVariation): string | null {
+		if (next === 'uniform' && customisedCount > 0) {
+			const reps = customisedCount > 1 ? 'reps' : 'rep';
+			return `Switching to a single configuration clears ${customisedCount} customised ${reps}.`;
+		}
+		if (next === 'set' && variation === 'rep' && repsVaryWithinSets(item)) {
+			return 'Varying by set makes every rep of a set identical. Each rep will follow the first rep of its set.';
+		}
+		return null;
+	}
+
+	function requestVariation(next: HangboardVariation) {
+		if (next === variation) return;
+		const loss = variationLoss(next);
+		if (loss) pendingVariation = { value: next, message: loss };
+		else applyVariation(next);
+	}
+
+	function flattenSetsToFirstRep() {
+		for (let set = 0; set < sets; set++) {
+			const first = configAt(set * reps);
+			for (let rep = 1; rep < reps; rep++) {
+				writeConfig(item, configRow(variation, set * reps + rep), first, twoHanded);
+			}
+		}
+	}
+
+	function applyVariation(next: HangboardVariation) {
+		if (next === 'uniform') {
+			rebuildArrays(item, next, layout, base);
+			writeConfig(item, 0, base, twoHanded);
+		} else if (variation === 'uniform') {
+			rebuildArrays(item, next, layout, base);
+		} else if (next === 'set') {
+			flattenSetsToFirstRep();
+		}
+		variation = next;
+		layout = currentLayout(item, next);
+		pendingVariation = null;
+		clearSelection();
+	}
+
+	function confirmVariation() {
+		if (pendingVariation) applyVariation(pendingVariation.value);
+	}
+
+	function uniqueValue<T>(values: T[]): T | null {
+		return values.every((value) => value === values[0]) ? values[0] : null;
+	}
+
+	let inspected = $derived(selection.length ? selection.map(configAt) : [base]);
+	let inspectedLoads = $derived(inspected.flatMap((c) => editSides.map((side) => loadOf(c, side))));
+	let edgeValue = $derived(uniqueValue(inspected.map((c) => c.edge)));
+	let gripValue = $derived(
+		uniqueValue(
+			inspected.flatMap((c) =>
+				editSides.map((side) => (side === 'left' ? c.gripLeft : c.gripRight))
+			)
+		)
+	);
+	let loadUnitValue = $derived(uniqueValue(inspectedLoads.map((l) => l.unit)));
+	let loadNumberValue = $derived(uniqueValue(inspectedLoads.map((l) => l.value)));
+
+	let hasSelection = $derived(selection.length > 0);
+	let canReset = $derived(selection.some(isCustomised));
+	let selectedSets = $derived(new Set(selection.map((a) => Math.floor(a / reps))).size);
+
+	let inspectorTitle = $derived.by(() => {
+		if (!hasSelection) return 'Base configuration';
+		const firstSet = Math.floor(selection[0] / reps) + 1;
+		if (variation === 'set') {
+			return selectedSets === 1 ? `Set ${firstSet}` : `${selectedSets} sets selected`;
+		}
+		return selection.length === 1
+			? `Set ${firstSet}, rep ${(selection[0] % reps) + 1}`
+			: `${selection.length} reps selected`;
+	});
+
+	let handSuffix = $derived(
+		twoHanded
+			? editHand === 'left'
+				? ', left hand'
+				: editHand === 'right'
+					? ', right hand'
+					: ', both hands'
+			: ''
+	);
+	let inspectorSubtitle = $derived(
+		hasSelection
+			? `Edits apply to the selection${handSuffix}`
+			: `Applies everywhere unless customised${handSuffix}`
+	);
+
+	let clipboardLabel = $derived(
+		clipboard
+			? clipboard.length === 1
+				? `1 rep (${clipboard[0].edge}mm)`
+				: `${clipboard.length} reps`
+			: ''
+	);
+	let pasteTitle = $derived(
+		clipboard ? `Paste ${clipboardLabel} onto the selection` : 'Nothing copied yet'
+	);
+
+	let setRows = $derived.by(() => {
+		if (variation === 'uniform') return [];
+		return Array.from({ length: sets }, (_, index) => {
+			const start = index * reps;
+			const addresses = setAddresses(index);
+			const stepAddresses = variation === 'set' ? [start] : addresses;
+			return {
+				index,
+				selected: selection.length > 0 && addresses.every((a) => selected.has(a)),
+				canApplyBelow: index < sets - 1,
+				steps: stepAddresses.map((address, position) => {
+					const config = configAt(address);
+					const customised = !sameConfig(config, base, twoHanded);
+					const [edgeLine, detailLine] = configLines(config, twoHanded);
+					return {
+						address,
+						selected: selected.has(address),
+						customised,
+						showValues: variation === 'set' || customised,
+						badge: variation === 'set' ? `${reps} reps` : String(position + 1),
+						edgeLine,
+						detailLine,
+						title:
+							variation === 'set'
+								? `Set ${index + 1}: ${describeConfig(config, twoHanded)}`
+								: `Rep ${position + 1}: ${describeConfig(config, twoHanded)}`
+					};
+				})
+			};
+		});
+	});
+
 	// The hint describes the selected mode, so the radiogroup points at it and a
 	// screen reader announces what the mode means, not just its label.
 	const handHintId = `hangboard-hand-hint-${crypto.randomUUID()}`;
+	const edgeFieldId = `hangboard-edge-${crypto.randomUUID()}`;
 	let handHint = $derived(HANGBOARD_HANDS.find((h) => h.value === hangboardHand(item))?.hint ?? '');
-
-	// Per-set rows belong to a set, so filling down stays inside it: propagating
-	// across sets is what the set header button is for.
-	function fillDownLimit(ri: number): number {
-		if (granularity !== 'set') return rowCount;
-		return (Math.floor(ri / repsPerSet) + 1) * repsPerSet;
-	}
-
-	let fillDownLabel = $derived(
-		granularity === 'set'
-			? 'Fill the rows below in this set with this one'
-			: 'Fill all rows below with this one'
+	let variationHint = $derived(HANGBOARD_VARIATIONS.find((v) => v.value === variation)?.hint ?? '');
+	let mapHint = $derived(
+		variation === 'set'
+			? 'Click a set to edit it. Shift-click for a range.'
+			: 'Click reps to edit. Shift-click for a range, ctrl-click to add.'
 	);
 
-	function fillDown(ri: number) {
-		const src = captureRow(ri);
-		rowClipboard = src;
-		copiedRow = ri;
-		for (let r = ri + 1; r < fillDownLimit(ri); r++) applyRow(r, src);
-	}
-
-	function fillSetsBelow(setIdx: number) {
-		for (let s = setIdx + 1; s < hangboardSets(item); s++) {
-			for (let r = 0; r < repsPerSet; r++)
-				applyRow(s * repsPerSet + r, captureRow(setIdx * repsPerSet + r));
-		}
-	}
-
 	let collapsedSummary = $derived.by(() => {
-		const edge = item.edge_sizes_mm?.[0] ?? 20;
-		const grip = item.hand_positions?.[handGripIndex]?.[0] ?? 'HC';
-		return `${item.cycles}x${item.reps} · ${item.worktime_seconds}s on / ${item.rest_seconds}s off · ${edge}mm ${grip}`;
+		const custom = customisedCount ? `, ${customisedCount} custom` : '';
+		return `${item.cycles}x${item.reps}, ${item.worktime_seconds}s on / ${item.rest_seconds}s off, ${base.edge}mm ${base.gripRight}${custom}`;
 	});
 
-	const inputStyle =
-		'width: 44px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;';
-	const labelStyle =
-		'font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;';
+	function isTypingTarget(target: EventTarget | null): boolean {
+		const tag = (target as HTMLElement | null)?.tagName;
+		return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+	}
+
+	// The shortcuts belong to the card the coach is working in: a training can
+	// hold several hangboard items, and only the focused one may answer.
+	function onWindowKeyDown(event: KeyboardEvent) {
+		if (collapsed || !cardElement?.contains(document.activeElement)) return;
+		if (event.key === 'Escape' && selection.length) {
+			clearSelection();
+			return;
+		}
+		if (isTypingTarget(event.target)) return;
+		const modifier = event.metaKey || event.ctrlKey;
+		if (modifier && (event.key === 'c' || event.key === 'C') && selection.length) {
+			event.preventDefault();
+			copySelection();
+		} else if (
+			modifier &&
+			(event.key === 'v' || event.key === 'V') &&
+			selection.length &&
+			clipboard
+		) {
+			event.preventDefault();
+			pasteSelection();
+		} else if ((event.key === 'Backspace' || event.key === 'Delete') && canReset) {
+			event.preventDefault();
+			resetToBase();
+		}
+	}
 </script>
 
-<div
-	style="background: #fff; border-radius: var(--rl); border: 1px solid color-mix(in srgb, {HB_COLOR} 30%, transparent); box-shadow: var(--sh); overflow: hidden;"
->
+<svelte:window onkeydown={onWindowKeyDown} />
+
+<div class="hb-card" style="--hb: {HB_COLOR};" bind:this={cardElement}>
 	<div
-		style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; background: {collapsed
-			? '#fff'
-			: 'var(--panel2)'};"
+		class="hb-header"
+		style="background: {collapsed ? '#fff' : 'var(--panel2)'};"
 		onclick={() => {
 			if (!confirmDelete) collapsed = !collapsed;
 		}}
@@ -386,9 +600,7 @@
 		tabindex="0"
 		onkeydown={(e) => e.key === 'Enter' && !confirmDelete && (collapsed = !collapsed)}
 	>
-		<div
-			style="width: 4px; height: 20px; background: {HB_COLOR}; border-radius: 2px; flex-shrink: 0;"
-		></div>
+		<div class="hb-accent"></div>
 		<div
 			style="transform: {collapsed
 				? 'rotate(0deg)'
@@ -396,11 +608,9 @@
 		>
 			<Icon name="chevron" size={12} color="var(--tx3)" />
 		</div>
-		<span
-			style="font-size: 13px; font-weight: 700; color: {HB_COLOR}; flex: 1; display: flex; align-items: center; gap: 8px;"
-		>
+		<span class="hb-title">
 			Hangboard
-			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
+			<span class="hb-summary">{collapsedSummary}</span>
 		</span>
 		<div
 			style="display: flex; gap: 3px; flex-shrink: 0;"
@@ -408,447 +618,307 @@
 			role="none"
 		>
 			{#if confirmDelete}
-				<button
-					onclick={onRemove}
-					style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-					>Delete</button
-				>
-				<button
-					onclick={() => (confirmDelete = false)}
-					style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
-					>Cancel</button
-				>
+				<button class="hb-pill hb-danger" onclick={onRemove}>Delete</button>
+				<button class="hb-pill" onclick={() => (confirmDelete = false)}>Cancel</button>
 			{:else}
-				<button
-					onclick={onDuplicate}
-					title="Duplicate"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-				>
-					<Icon name="copy" size={11} color="var(--tx3)" />
+				<button class="hb-act-btn" onclick={onDuplicate} title="Duplicate" aria-label="Duplicate">
+					<Icon name="copy" size={11} color="currentColor" />
 				</button>
 				<button
+					class="hb-act-btn"
 					onclick={() => (confirmDelete = true)}
 					title="Delete"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+					aria-label="Delete"
 				>
-					<Icon name="trash" size={11} color="var(--tx3)" />
+					<Icon name="trash" size={11} color="currentColor" />
 				</button>
 			{/if}
 		</div>
 	</div>
 
 	{#if !collapsed}
-		<div style="border-top: 1px solid var(--bd2); padding: 14px 18px;">
-			<!-- Row 1: sets x reps, work/rest, set rest, hands -->
-			<div
-				style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end;"
-			>
-				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style={labelStyle}>SETS</span>
-					<input
-						type="number"
-						min="1"
-						aria-label="Sets"
-						bind:value={setsField}
-						onchange={commitSets}
-						onclick={(e) => e.stopPropagation()}
-						style={inputStyle}
-					/>
-				</div>
-				<span style="font-size: 16px; color: var(--tx3); padding-bottom: 6px;">x</span>
-				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style={labelStyle}>REPS</span>
-					<input
-						type="number"
-						min="1"
-						aria-label="Reps"
-						bind:value={repsField}
-						onchange={commitReps}
-						onclick={(e) => e.stopPropagation()}
-						style={inputStyle}
-					/>
-				</div>
-				<div style="width: 1px; height: 30px; background: var(--bd);"></div>
-				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style={labelStyle}>WORK</span>
-					<div style="display: flex; align-items: center; gap: 2px;">
-						<input
-							type="number"
-							min="1"
-							bind:value={item.worktime_seconds}
-							onclick={(e) => e.stopPropagation()}
-							style={inputStyle}
-						/>
-						<span style="font-size: 10px; color: var(--tx3);">s</span>
-					</div>
-				</div>
-				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style={labelStyle}>REP REST</span>
-					<div style="display: flex; align-items: center; gap: 2px;">
-						<input
-							type="number"
-							min="0"
-							bind:value={item.rest_seconds}
-							onclick={(e) => e.stopPropagation()}
-							style={inputStyle}
-						/>
-						<span style="font-size: 10px; color: var(--tx3);">s</span>
-					</div>
-				</div>
-				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-					<span style={labelStyle}>SET REST</span>
-					<div style="display: flex; align-items: center; gap: 2px;">
-						<input
-							type="number"
-							min="0"
-							bind:value={item.cycle_rest_seconds}
-							onclick={(e) => e.stopPropagation()}
-							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-						/>
-						<span style="font-size: 10px; color: var(--tx3);">s</span>
-					</div>
-				</div>
-				<div style="width: 1px; height: 30px; background: var(--bd);"></div>
-				<div style="display: flex; flex-direction: column; gap: 2px;">
-					<span style={labelStyle}>HANDS</span>
-					<div
-						style="display: flex; gap: 3px;"
-						role="radiogroup"
-						aria-label="Hands"
-						aria-describedby={handHintId}
-					>
-						{#each HANGBOARD_HANDS as h (h.value)}
-							<button
-								onclick={() => setHand(h.value)}
-								title={h.hint}
-								role="radio"
-								aria-checked={hangboardHand(item) === h.value}
-								style="
-									padding: 5px 9px; border-radius: 5px;
-									border: 1px solid {hangboardHand(item) === h.value ? HB_COLOR : 'var(--bd)'};
-									background: {hangboardHand(item) === h.value ? HB_COLOR + '18' : '#fff'};
-									color: {hangboardHand(item) === h.value ? HB_COLOR : 'var(--tx3)'};
-									font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);
-								">{h.label}</button
-							>
-						{/each}
-					</div>
-				</div>
+		<div class="hb-body">
+			<div class="hb-sentence">
+				<input
+					class="hb-count"
+					type="number"
+					min="1"
+					aria-label="Sets"
+					bind:value={setsField}
+					onchange={commitSets}
+				/>
+				<span>sets of</span>
+				<input
+					class="hb-count"
+					type="number"
+					min="1"
+					aria-label="Reps"
+					bind:value={repsField}
+					onchange={commitReps}
+				/>
+				<span>reps,</span>
+				<input
+					class="hb-count"
+					type="number"
+					min="1"
+					aria-label="Work seconds"
+					bind:value={item.worktime_seconds}
+				/>
+				<span>s hang /</span>
+				<input
+					class="hb-count"
+					type="number"
+					min="0"
+					aria-label="Rest seconds"
+					bind:value={item.rest_seconds}
+				/>
+				<span>s rest,</span>
+				<input
+					class="hb-count hb-count-wide"
+					type="number"
+					min="0"
+					aria-label="Set rest seconds"
+					bind:value={item.cycle_rest_seconds}
+				/>
+				<span>s between sets</span>
 			</div>
 
-			<div id={handHintId} style="font-size: 11px; color: var(--tx3); margin-bottom: 14px;">
-				{handHint}
-			</div>
-
-			<!-- Row 2: config granularity + uniform or per-row grid -->
-			<div
-				style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;"
-			>
-				<span style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
-					>CONFIG GRANULARITY</span
-				>
-				<div style="display: flex; gap: 4px;">
-					{#each GRANULARITIES as g (g.value)}
+			<div class="hb-row">
+				<span class="hb-label">Hands</span>
+				<div class="hb-pills" role="radiogroup" aria-label="Hands" aria-describedby={handHintId}>
+					{#each HANGBOARD_HANDS as h (h.value)}
 						<button
-							onclick={() => setGranularity(g.value)}
-							style="
-								padding: 3px 10px; font-size: 11px; font-weight: 600;
-								border-radius: 999px; border: 1px solid {granularity === g.value ? HB_COLOR : 'var(--bd)'};
-								background: {granularity === g.value ? HB_COLOR + '15' : '#fff'};
-								color: {granularity === g.value ? HB_COLOR : 'var(--tx3)'};
-								cursor: pointer; font-family: var(--font);
-							">{g.label}</button
+							class="hb-pill"
+							class:hb-on={hangboardHand(item) === h.value}
+							onclick={() => setHand(h.value)}
+							title={h.hint}
+							role="radio"
+							aria-checked={hangboardHand(item) === h.value}>{h.label}</button
 						>
 					{/each}
 				</div>
+				<span id={handHintId} class="hb-hint">{handHint}</span>
 			</div>
 
-			{#if usesAssessmentLoad}
-				<div
-					style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 10px; border-radius: var(--rs); background: var(--pr-fog);"
-				>
-					<span style="font-size: 11px; color: var(--tx2);">Loads set in percent</span>
-					<AssessmentRefFields
-						field="load"
-						bind:assessmentType={loadAssessmentType}
-						bind:fallback={loadFallbackKg}
-						fallbackUnit="kg"
-					/>
+			<div class="hb-inspector" class:hb-focused={hasSelection}>
+				<div class="hb-row">
+					<span class="hb-inspector-title">{inspectorTitle}</span>
+					<span class="hb-hint">{inspectorSubtitle}</span>
+					<span class="hb-spacer"></span>
+					{#if hasSelection}
+						<button class="hb-pill" onclick={copySelection} title="Copy this configuration"
+							>Copy</button
+						>
+						<button
+							class="hb-pill"
+							onclick={pasteSelection}
+							disabled={!clipboard}
+							title={pasteTitle}>Paste</button
+						>
+					{/if}
+					{#if canReset}
+						<button class="hb-pill" onclick={resetToBase}>Reset to base</button>
+					{/if}
+				</div>
+
+				{#if twoHanded}
+					<div class="hb-row">
+						<span class="hb-label">Editing</span>
+						<div class="hb-tabs" role="radiogroup" aria-label="Hand being edited">
+							{#each EDIT_HANDS as tab (tab.value)}
+								<button
+									class="hb-tab"
+									class:hb-on={editHand === tab.value}
+									onclick={() => (editHand = tab.value)}
+									role="radio"
+									aria-checked={editHand === tab.value}>{tab.label}</button
+								>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<div class="hb-fields">
+					<div class="hb-field">
+						<label class="hb-label" for={edgeFieldId}>Edge (mm)</label>
+						<input
+							id={edgeFieldId}
+							class="hb-input"
+							type="number"
+							min="1"
+							value={edgeValue ?? ''}
+							placeholder={edgeValue === null ? 'Mixed' : ''}
+							onchange={(e) => applyField('edge', saneCount(e.currentTarget.valueAsNumber))}
+						/>
+					</div>
+
+					<div class="hb-field">
+						<span class="hb-label">Grip</span>
+						<div class="hb-pills" role="radiogroup" aria-label="Grip">
+							{#each HANGBOARD_GRIPS as grip (grip.value)}
+								<button
+									class="hb-pill"
+									class:hb-on={gripValue === grip.value}
+									onclick={() => applyField('grip', grip.value)}
+									title={grip.hint}
+									role="radio"
+									aria-checked={gripValue === grip.value}>{grip.value}</button
+								>
+							{/each}
+						</div>
+					</div>
+
+					<div class="hb-field">
+						<span class="hb-label">Load</span>
+						<div class="hb-load">
+							{#if loadUnitValue === null || loadUnitHasValue(loadUnitValue)}
+								<input
+									class="hb-input"
+									type="number"
+									min="0"
+									aria-label="Load"
+									value={loadNumberValue ?? ''}
+									placeholder={loadNumberValue === null ? 'Mixed' : ''}
+									onchange={(e) => applyField('loadValue', e.currentTarget.valueAsNumber || 0)}
+								/>
+							{/if}
+							<select
+								class="hb-select"
+								aria-label="Load unit"
+								value={loadUnitValue ?? ''}
+								onchange={(e) => applyField('loadUnit', e.currentTarget.value)}
+							>
+								{#if loadUnitValue === null}
+									<option value="" disabled>Mixed</option>
+								{/if}
+								{#each HANGBOARD_LOAD_UNITS as unit (unit.value)}
+									<option value={unit.value}>{unit.label}</option>
+								{/each}
+							</select>
+						</div>
+					</div>
+				</div>
+
+				{#if usesAssessmentLoad}
+					<div class="hb-assessment">
+						<span class="hb-hint">Loads set in percent</span>
+						<AssessmentRefFields
+							field="load"
+							bind:assessmentType={loadAssessmentType}
+							bind:fallback={loadFallbackKg}
+							fallbackUnit="kg"
+						/>
+					</div>
+				{/if}
+			</div>
+
+			<div class="hb-row">
+				<span class="hb-label">Vary by</span>
+				<div class="hb-tabs" role="radiogroup" aria-label="What can vary">
+					{#each HANGBOARD_VARIATIONS as option (option.value)}
+						<button
+							class="hb-tab"
+							class:hb-on={variation === option.value}
+							onclick={() => requestVariation(option.value)}
+							title={option.hint}
+							role="radio"
+							aria-checked={variation === option.value}>{option.label}</button
+						>
+					{/each}
+				</div>
+				<span class="hb-hint">{variationHint}</span>
+			</div>
+
+			{#if pendingVariation}
+				<div class="hb-confirm" role="alertdialog" aria-label="Confirm the change">
+					<span class="hb-confirm-message">{pendingVariation.message}</span>
+					<button class="hb-pill" onclick={() => (pendingVariation = null)}>Cancel</button>
+					<button class="hb-pill hb-primary" onclick={confirmVariation}>Continue</button>
 				</div>
 			{/if}
 
-			{#if granularity === 'uniform'}
-				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
-					<div style="display: flex; flex-direction: column; gap: 2px;">
-						<label for="hb-edge" style={labelStyle}>EDGE (mm)</label>
-						<input
-							id="hb-edge"
-							type="number"
-							min="1"
-							bind:value={uniformEdge}
-							oninput={onUniformChange}
-							style="width: 64px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-						/>
-					</div>
-					<div style="display: flex; flex-direction: column; gap: 2px;">
-						<span style={labelStyle}>LOAD</span>
-						{#if !twoHanded}
-							<div style="display: flex; gap: 4px;">
-								{#if uniformLoadUnit !== 'max'}
-									<input
-										type="number"
-										min="0"
-										aria-label="Load"
-										bind:value={uniformLoadValue}
-										oninput={onUniformChange}
-										style="width: 56px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-									/>
-								{/if}
-								<select
-									aria-label="Load unit"
-									bind:value={uniformLoadUnit}
-									onchange={onUniformChange}
-									style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
-								>
-									{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
-											>{u.label}</option
-										>{/each}
-								</select>
-							</div>
-						{:else}
-							<div style="display: flex; flex-direction: column; gap: 3px;">
-								<div style="display: flex; align-items: center; gap: 4px;">
-									<span style="font-size: 10px; color: var(--tx3); width: 10px;">L</span>
-									{#if uniformLoadUnitL !== 'max'}
-										<input
-											type="number"
-											min="0"
-											aria-label="Left load"
-											bind:value={uniformLoadValueL}
-											oninput={onUniformChange}
-											style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-										/>
-									{/if}
-									<select
-										aria-label="Left load unit"
-										bind:value={uniformLoadUnitL}
-										onchange={onUniformChange}
-										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
-									>
-										{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
-												>{u.label}</option
-											>{/each}
-									</select>
-								</div>
-								<div style="display: flex; align-items: center; gap: 4px;">
-									<span style="font-size: 10px; color: var(--tx3); width: 10px;">R</span>
-									{#if uniformLoadUnit !== 'max'}
-										<input
-											type="number"
-											min="0"
-											aria-label="Right load"
-											bind:value={uniformLoadValue}
-											oninput={onUniformChange}
-											style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-										/>
-									{/if}
-									<select
-										aria-label="Right load unit"
-										bind:value={uniformLoadUnit}
-										onchange={onUniformChange}
-										style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
-									>
-										{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
-												>{u.label}</option
-											>{/each}
-									</select>
-								</div>
-							</div>
+			{#if variation !== 'uniform'}
+				<div class="hb-map">
+					<div class="hb-row">
+						<span class="hb-label">Session map</span>
+						<span class="hb-hint">{mapHint} Ctrl-C and Ctrl-V copy and paste, Esc clears.</span>
+						<span class="hb-spacer"></span>
+						<button class="hb-pill" onclick={selectAll}>Select all</button>
+						{#if hasSelection}
+							<button class="hb-pill" onclick={clearSelection}>Clear</button>
 						{/if}
 					</div>
-					<div style="display: flex; flex-direction: column; gap: 2px;">
-						<label for="hb-grip" style={labelStyle}>GRIP</label>
-						<select
-							id="hb-grip"
-							bind:value={uniformHandPos}
-							onchange={onUniformChange}
-							style="padding: 5px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
-						>
-							{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
-						</select>
-					</div>
-				</div>
-			{:else}
-				<div class="hb-rep-hint">
-					{#if granularity === 'set'}
-						Copy a row, then paste it onto another, or fill the rows below it in the same set. Each
-						set is configured on its own; use the set header to copy a whole set into the ones
-						below.
-					{:else}
-						Copy a row, then paste it onto another, or fill all rows below it.
-					{/if}
-				</div>
-				<div style="overflow-x: auto;">
-					<table class="hb-table" style="--hb: {HB_COLOR};">
-						<thead>
-							<tr>
-								<th class="hb-rep-col">Rep</th>
-								<th>Edge<span class="hb-unit">mm</span></th>
-								{#if !twoHanded}
-									<th>Load</th>
-									<th>Unit</th>
-									<th>Grip</th>
-								{:else}
-									<th>L Load</th>
-									<th>L Unit</th>
-									<th>R Load</th>
-									<th>R Unit</th>
-									<th>L Grip</th>
-									<th>R Grip</th>
-								{/if}
-								<th class="hb-act-col"></th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each Array.from({ length: rowCount }, (_, i) => i) as ri (ri)}
-								{#if granularity === 'set' && ri % repsPerSet === 0}
-									<tr class="hb-set-row">
-										<td class="hb-set-cell" colspan={columnCount}>
-											<span>Set {ri / repsPerSet + 1}</span>
-											{#if ri + repsPerSet < rowCount}
-												<button
-													type="button"
-													class="hb-act-btn"
-													title="Copy this set into the sets below"
-													aria-label="Copy this set into the sets below"
-													onclick={() => fillSetsBelow(ri / repsPerSet)}
-												>
-													<Icon name="arrow-down" size={13} color="currentColor" />
-												</button>
-											{/if}
-										</td>
-									</tr>
-								{/if}
-								<tr class:hb-copied={copiedRow === ri}>
-									<td class="hb-rep">{(ri % repsPerSet) + 1}</td>
-									<td>
-										<input
-											class="hb-in"
-											type="number"
-											min="1"
-											bind:value={item.edge_sizes_mm![ri]}
-										/>
-									</td>
-									{#if !twoHanded}
-										<td>
-											{#if item.loads![ri].unit === 'max'}
-												<span class="hb-max">MAX</span>
-											{:else}
-												<input
-													class="hb-in"
-													type="number"
-													min="0"
-													bind:value={item.loads![ri].value}
-												/>
-											{/if}
-										</td>
-										<td>
-											<select class="hb-sel" bind:value={item.loads![ri].unit}>
-												{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
-														>{u.label}</option
-													>{/each}
-											</select>
-										</td>
-										<td>
-											<select class="hb-sel" bind:value={item.hand_positions![LEFT][ri]}>
-												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
-											</select>
-										</td>
-									{:else}
-										<td>
-											{#if item.left_loads![ri].unit === 'max'}
-												<span class="hb-max">MAX</span>
-											{:else}
-												<input
-													class="hb-in"
-													type="number"
-													min="0"
-													bind:value={item.left_loads![ri].value}
-												/>
-											{/if}
-										</td>
-										<td>
-											<select class="hb-sel" bind:value={item.left_loads![ri].unit}>
-												{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
-														>{u.label}</option
-													>{/each}
-											</select>
-										</td>
-										<td>
-											{#if item.loads![ri].unit === 'max'}
-												<span class="hb-max">MAX</span>
-											{:else}
-												<input
-													class="hb-in"
-													type="number"
-													min="0"
-													bind:value={item.loads![ri].value}
-												/>
-											{/if}
-										</td>
-										<td>
-											<select class="hb-sel" bind:value={item.loads![ri].unit}>
-												{#each HANGBOARD_LOAD_UNITS as u (u.value)}<option value={u.value}
-														>{u.label}</option
-													>{/each}
-											</select>
-										</td>
-										<td>
-											<select class="hb-sel" bind:value={item.hand_positions![LEFT][ri]}>
-												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
-											</select>
-										</td>
-										<td>
-											<select class="hb-sel" bind:value={item.hand_positions![RIGHT][ri]}>
-												{#each HAND_POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
-											</select>
-										</td>
-									{/if}
-									<td class="hb-act">
+
+					<div class="hb-sets">
+						{#each setRows as row (row.index)}
+							<div class="hb-set">
+								<button
+									class="hb-set-label"
+									class:hb-on={row.selected}
+									onclick={() => selectSet(row.index)}
+									title="Select this whole set"
+									aria-pressed={row.selected}>Set {row.index + 1}</button
+								>
+								<div class="hb-steps">
+									{#each row.steps as step (step.address)}
 										<button
-											type="button"
-											class="hb-act-btn"
-											class:hb-on={copiedRow === ri}
-											title="Copy this row"
-											aria-label="Copy this row"
-											onclick={() => copyRow(ri)}
+											class="hb-step"
+											class:hb-wide={step.showValues}
+											class:hb-full={variation === 'set'}
+											class:hb-on={step.selected}
+											class:hb-custom={step.customised}
+											onclick={(e) => onStepClick(step.address, e)}
+											title={step.title}
+											aria-pressed={step.selected}
 										>
-											<Icon name="copy" size={13} color="currentColor" />
+											<span class="hb-step-badge">{step.badge}</span>
+											{#if step.showValues}
+												<span class="hb-step-edge">{step.edgeLine}</span>
+												<span class="hb-step-detail">{step.detailLine}</span>
+											{/if}
 										</button>
+									{/each}
+								</div>
+								<div class="hb-set-actions">
+									<button
+										class="hb-act-btn"
+										onclick={() => copySet(row.index)}
+										title="Copy this set"
+										aria-label="Copy this set"
+									>
+										<Icon name="copy" size={13} color="currentColor" />
+									</button>
+									<button
+										class="hb-act-btn"
+										onclick={() => pasteSet(row.index)}
+										disabled={!clipboard}
+										title="Paste onto this set"
+										aria-label="Paste onto this set"
+									>
+										<Icon name="paste" size={13} color="currentColor" />
+									</button>
+									{#if row.canApplyBelow}
 										<button
-											type="button"
 											class="hb-act-btn"
-											disabled={rowClipboard === null}
-											title="Paste onto this row"
-											aria-label="Paste onto this row"
-											onclick={() => pasteRow(ri)}
-										>
-											<Icon name="paste" size={13} color="currentColor" />
-										</button>
-										<button
-											type="button"
-											class="hb-act-btn"
-											title={fillDownLabel}
-											aria-label={fillDownLabel}
-											onclick={() => fillDown(ri)}
+											onclick={() => applySetBelow(row.index)}
+											title="Copy this set into the sets below"
+											aria-label="Copy this set into the sets below"
 										>
 											<Icon name="arrow-down" size={13} color="currentColor" />
 										</button>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
+									{/if}
+								</div>
+							</div>
+						{/each}
+					</div>
+
+					<div class="hb-legend">
+						<span><span class="hb-swatch"></span>base configuration</span>
+						<span><span class="hb-swatch hb-swatch-custom"></span>customised, values shown</span>
+						{#if clipboard}
+							<span>Clipboard: {clipboardLabel}</span>
+						{/if}
+					</div>
 				</div>
 			{/if}
 		</div>
@@ -856,150 +926,406 @@
 </div>
 
 <style>
-	.hb-rep-hint {
-		font-size: 11px;
-		color: var(--tx3);
-		margin-bottom: 10px;
+	.hb-card {
+		background: #fff;
+		border-radius: var(--rl);
+		border: 1px solid color-mix(in srgb, var(--hb) 30%, transparent);
+		box-shadow: var(--sh);
+		overflow: hidden;
 	}
 
-	.hb-table {
-		border-collapse: separate;
-		border-spacing: 0;
-		width: 100%;
-		min-width: 360px;
-		font-family: var(--font);
+	.hb-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 14px;
+		cursor: pointer;
+	}
+
+	.hb-accent {
+		width: 4px;
+		height: 20px;
+		background: var(--hb);
+		border-radius: 2px;
+		flex-shrink: 0;
+	}
+
+	.hb-title {
 		font-size: 13px;
+		font-weight: 700;
+		color: var(--hb);
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.hb-summary {
+		font-size: 11px;
+		color: var(--tx3);
+		font-weight: 500;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.hb-body {
+		border-top: 1px solid var(--bd2);
+		padding: 16px 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.hb-sentence {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+		color: var(--tx2);
+		line-height: 2;
+	}
+
+	.hb-count {
+		width: 44px;
+		padding: 3px 2px;
+		text-align: center;
+		border: none;
+		border-bottom: 1.5px solid var(--bd);
+		background: transparent;
+		font-family: var(--font);
+		font-size: 15px;
+		font-weight: 700;
+		color: var(--tx);
+		outline: none;
+	}
+
+	.hb-count-wide {
+		width: 52px;
+	}
+
+	.hb-count:focus {
+		border-bottom-color: var(--hb);
+	}
+
+	.hb-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.hb-spacer {
+		flex: 1;
+	}
+
+	.hb-label {
+		font-size: 10px;
+		color: var(--tx3);
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.hb-hint {
+		font-size: 11px;
+		color: var(--tx3);
+	}
+
+	.hb-pills {
+		display: flex;
+		gap: 4px;
+		flex-wrap: wrap;
+	}
+
+	.hb-pill {
+		padding: 4px 10px;
+		border-radius: 999px;
+		border: 1px solid var(--bd);
+		background: #fff;
+		color: var(--tx2);
+		font-size: 11px;
+		font-weight: 600;
+		cursor: pointer;
+		font-family: var(--font);
+	}
+
+	.hb-pill.hb-on {
+		border-color: var(--hb);
+		background: color-mix(in srgb, var(--hb) 12%, transparent);
+		color: var(--hb);
+		font-weight: 700;
+	}
+
+	.hb-pill.hb-primary {
+		border-color: var(--hb);
+		background: var(--hb);
+		color: #fff;
+		font-weight: 700;
+	}
+
+	.hb-pill.hb-danger {
+		border-color: #e57373;
+		color: #e57373;
+	}
+
+	.hb-pill:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+
+	.hb-tabs {
+		display: flex;
+		gap: 3px;
+		background: var(--panel2);
+		padding: 3px;
+		border-radius: 999px;
+	}
+
+	.hb-tab {
+		padding: 4px 12px;
+		border-radius: 999px;
+		border: none;
+		background: transparent;
+		color: var(--tx3);
+		font-size: 11px;
+		font-weight: 600;
+		cursor: pointer;
+		font-family: var(--font);
+	}
+
+	.hb-tab.hb-on {
+		background: #fff;
+		color: var(--hb);
+		font-weight: 700;
+		box-shadow: var(--sh);
+	}
+
+	.hb-inspector {
+		border: 1px solid var(--bd2);
+		border-radius: var(--rl);
+		background: var(--panel2);
+		padding: 12px 14px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.hb-inspector.hb-focused {
+		border-color: var(--hb);
+		background: color-mix(in srgb, var(--hb) 6%, transparent);
+	}
+
+	.hb-inspector-title {
+		font-size: 13px;
+		font-weight: 700;
 		color: var(--tx);
 	}
 
-	.hb-table th {
-		padding: 6px 8px;
-		font-size: 10px;
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--tx3);
-		text-align: center;
-		white-space: nowrap;
-		border-bottom: 1px solid var(--bd);
+	.hb-fields {
+		display: flex;
+		gap: 18px;
+		flex-wrap: wrap;
+		align-items: flex-end;
 	}
 
-	.hb-table th .hb-unit {
-		margin-left: 3px;
-		font-weight: 500;
-		text-transform: none;
-		opacity: 0.7;
+	.hb-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
 	}
 
-	.hb-rep-col {
-		width: 34px;
+	.hb-load {
+		display: flex;
+		align-items: center;
+		gap: 4px;
 	}
 
-	.hb-act-col {
-		width: 92px;
-	}
-
-	.hb-table td {
-		padding: 3px 4px;
-		border-bottom: 1px solid var(--bd2);
-		vertical-align: middle;
-	}
-
-	.hb-table tbody tr:last-child td {
-		border-bottom: none;
-	}
-
-	.hb-table tbody tr:hover td {
-		background: var(--panel2);
-	}
-
-	.hb-table tbody tr.hb-copied td {
-		background: color-mix(in srgb, var(--hb) 10%, transparent);
-	}
-
-	.hb-rep {
-		text-align: center;
-		font-weight: 700;
-		color: var(--tx2);
-	}
-
-	.hb-set-row td {
-		border-bottom: 1px solid var(--bd);
-	}
-
-	.hb-table tbody tr.hb-set-row:hover td {
-		background: color-mix(in srgb, var(--hb) 8%, transparent);
-	}
-
-	.hb-set-cell {
-		padding: 8px 8px 4px;
-		background: color-mix(in srgb, var(--hb) 8%, transparent);
-		font-size: 10px;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--hb);
-	}
-
-	.hb-set-cell span {
-		margin-right: 8px;
-		vertical-align: middle;
-	}
-
-	.hb-max {
-		display: inline-block;
-		width: 100%;
-		text-align: center;
-		font-weight: 700;
-		letter-spacing: 0.04em;
-		color: var(--hb);
-	}
-
-	.hb-in,
-	.hb-sel {
-		width: 100%;
-		min-width: 44px;
-		box-sizing: border-box;
-		padding: 5px 4px;
-		text-align: center;
-		border: 1px solid transparent;
-		border-radius: 6px;
-		background: transparent;
+	.hb-input,
+	.hb-select {
+		padding: 5px 6px;
+		border: 1px solid var(--bd);
+		border-radius: var(--rs);
+		background: #fff;
 		font-family: var(--font);
 		font-size: 13px;
 		color: var(--tx);
 		outline: none;
-		transition:
-			border-color 0.12s,
-			background 0.12s;
 	}
 
-	.hb-sel {
-		cursor: pointer;
-		font-size: 12px;
-	}
-
-	.hb-in:hover,
-	.hb-sel:hover {
-		background: #fff;
-		border-color: var(--bd);
-	}
-
-	.hb-in:focus,
-	.hb-sel:focus {
-		background: #fff;
-		border-color: var(--hb);
-	}
-
-	.hb-act {
-		white-space: nowrap;
+	.hb-input {
+		width: 72px;
 		text-align: center;
 	}
 
+	.hb-select {
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.hb-input:focus,
+	.hb-select:focus {
+		border-color: var(--hb);
+	}
+
+	.hb-assessment {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.hb-confirm {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+		border: 1px solid var(--gd);
+		border-radius: var(--r);
+		background: var(--panel2);
+		padding: 10px 14px;
+	}
+
+	.hb-confirm-message {
+		flex: 1;
+		min-width: 220px;
+		font-size: 12px;
+		color: var(--tx2);
+	}
+
+	.hb-map {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.hb-sets {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		max-height: 380px;
+		overflow: auto;
+		padding: 2px;
+	}
+
+	.hb-set {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.hb-set-label {
+		width: 58px;
+		flex-shrink: 0;
+		padding: 5px 6px;
+		border-radius: var(--rs);
+		border: 1px solid transparent;
+		background: transparent;
+		color: var(--tx3);
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		text-align: left;
+		cursor: pointer;
+		font-family: var(--font);
+	}
+
+	.hb-set-label.hb-on {
+		border-color: var(--hb);
+		background: color-mix(in srgb, var(--hb) 12%, transparent);
+		color: var(--hb);
+	}
+
+	.hb-steps {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.hb-step {
+		width: 40px;
+		height: 40px;
+		padding: 0;
+		border-radius: var(--rs);
+		border: 1px solid var(--bd);
+		background: #fff;
+		color: var(--tx2);
+		cursor: pointer;
+		font-family: var(--font);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.hb-step.hb-wide {
+		width: auto;
+		min-width: 112px;
+		height: auto;
+		padding: 6px 10px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 1px;
+		text-align: left;
+	}
+
+	.hb-step.hb-full {
+		flex: 1;
+	}
+
+	.hb-step.hb-custom {
+		border-color: var(--hb);
+		background: color-mix(in srgb, var(--hb) 12%, transparent);
+		color: var(--hb);
+	}
+
+	.hb-step.hb-on {
+		border-color: var(--hb);
+		background: var(--hb);
+		color: #fff;
+	}
+
+	.hb-step-badge {
+		font-size: 12px;
+		font-weight: 700;
+		color: inherit;
+	}
+
+	.hb-step.hb-wide .hb-step-badge {
+		font-size: 9px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.75;
+	}
+
+	.hb-step-edge {
+		font-size: 11px;
+		font-weight: 700;
+		color: inherit;
+	}
+
+	.hb-step-detail {
+		font-size: 10px;
+		white-space: nowrap;
+		opacity: 0.8;
+	}
+
+	/* Fixed so the tiles of every set end on the same edge, whether or not the
+	   set carries the "apply below" action. */
+	.hb-set-actions {
+		display: flex;
+		gap: 4px;
+		flex-shrink: 0;
+		width: 80px;
+	}
+
 	.hb-act-btn {
-		width: 26px;
-		height: 26px;
-		margin: 0 1px;
+		width: 24px;
+		height: 24px;
 		border-radius: 6px;
 		border: 1px solid var(--bd);
 		background: #fff;
@@ -1008,27 +1334,52 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		vertical-align: middle;
-		transition:
-			color 0.12s,
-			border-color 0.12s,
-			background 0.12s;
 	}
 
 	.hb-act-btn:hover:not(:disabled) {
 		color: var(--hb);
 		border-color: var(--hb);
-		background: color-mix(in srgb, var(--hb) 8%, #fff);
-	}
-
-	.hb-act-btn.hb-on {
-		color: var(--hb);
-		border-color: var(--hb);
-		background: color-mix(in srgb, var(--hb) 12%, #fff);
 	}
 
 	.hb-act-btn:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+
+	.hb-legend {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		flex-wrap: wrap;
+		font-size: 10px;
+		color: var(--tx3);
+	}
+
+	.hb-legend span {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.hb-swatch {
+		width: 9px;
+		height: 9px;
+		border-radius: 3px;
+		border: 1px solid var(--bd);
+		background: #fff;
+	}
+
+	.hb-swatch-custom {
+		border-color: var(--hb);
+		background: color-mix(in srgb, var(--hb) 12%, transparent);
+	}
+
+	.hb-step:focus-visible,
+	.hb-set-label:focus-visible,
+	.hb-pill:focus-visible,
+	.hb-tab:focus-visible,
+	.hb-act-btn:focus-visible {
+		outline: 2px solid var(--hb);
+		outline-offset: 2px;
 	}
 </style>
