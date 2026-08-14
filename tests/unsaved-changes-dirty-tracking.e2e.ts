@@ -121,6 +121,48 @@ test.describe('program duration field', () => {
 	});
 });
 
+test.describe('hangboard item stored in another layout', () => {
+	// The editor works on one row per rep of every set, so an item the app wrote
+	// per rep is rewritten when the training loads. That rewrite is not an edit
+	// and must not arm the unsaved-changes guard.
+	test('opens a per-rep item without marking the training dirty', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-1',
+					type: 'repeater',
+					position: 0,
+					cycles: 2,
+					reps: 2,
+					worktime_seconds: 7,
+					rest_seconds: 3,
+					cycle_rest_seconds: 120,
+					hand: 'both',
+					granularity: 'rep',
+					edge_sizes_mm: [20, 18],
+					loads: [
+						{ value: 10, unit: 'kg' },
+						{ value: 12, unit: 'kg' }
+					],
+					hand_positions: [['HC', 'FC']]
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'GET', '/api/coach/exercises', { body: exercisePage([testExercise()]) });
+		await stub(page, 'GET', '/api/coach/tags', { body: [testTag()] });
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await expect(page.locator('.hb-step')).toHaveCount(4);
+
+		await sidebarLink(page, 'Trainings').click();
+
+		await expect(page).toHaveURL('/trainings');
+		await expect(leaveDialog(page)).toBeHidden();
+	});
+});
+
 test.describe('new program duration field', () => {
 	test('stops asking once the duration is cleared again', async ({ page }) => {
 		await stub(page, 'GET', '/api/coach/enrollments', { body: [testEnrolledUser()] });

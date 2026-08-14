@@ -266,7 +266,9 @@ test.describe('training editor', () => {
 	});
 });
 
-/** A hangboard item whose edge, load and grip vary from rep to rep only. */
+const kg = (value: number) => ({ value, unit: 'kg' });
+
+/** A hangboard item stored as one row per rep, the same rows in every set. */
 function hangboardItem(overrides: Record<string, unknown> = {}) {
 	return {
 		id: 'item-1',
@@ -280,189 +282,335 @@ function hangboardItem(overrides: Record<string, unknown> = {}) {
 		hand: 'both',
 		granularity: 'rep',
 		edge_sizes_mm: [20, 18],
-		loads: [
-			{ value: 10, unit: 'kg' },
-			{ value: 12, unit: 'kg' }
-		],
+		loads: [kg(10), kg(12)],
 		hand_positions: [['HC', 'FC']],
 		...overrides
 	};
 }
 
-/** The same item configured set by set: set 1 hangs 20 then 18mm, set 2 15 then 12mm. */
+/** An item whose sets differ but whose reps do not: set 1 hangs 20mm, set 2 15mm. */
 function perSetHangboardItem(overrides: Record<string, unknown> = {}) {
 	return hangboardItem({
 		granularity: 'set',
-		edge_sizes_mm: [20, 18, 15, 12],
-		loads: [
-			{ value: 10, unit: 'kg' },
-			{ value: 12, unit: 'kg' },
-			{ value: 14, unit: 'kg' },
-			{ value: 16, unit: 'kg' }
-		],
-		hand_positions: [['HC', 'FC', 'OC', '3FD']],
+		edge_sizes_mm: [20, 20, 15, 15],
+		loads: [kg(10), kg(10), kg(14), kg(14)],
+		hand_positions: [['HC', 'HC', 'OC', 'OC']],
 		...overrides
 	});
 }
 
-/**
- * The value rows of the hangboard editor grid, in set then rep order. The set
- * bands live in the same tbody, so they are excluded by their class.
- */
-function editorRows(page: Page) {
-	return page.locator('.hb-table tbody tr:not(.hb-set-row)');
+/** An item that hangs the same configuration from the first rep to the last. */
+function uniformHangboardItem(overrides: Record<string, unknown> = {}) {
+	return hangboardItem({
+		granularity: 'uniform',
+		edge_sizes_mm: [20],
+		loads: [{ value: 100, unit: 'percent_bw' }],
+		hand_positions: [['HC']],
+		...overrides
+	});
 }
 
-/** Edge is the first input of a grid row, and the only one on every layout. */
-function edgeInput(page: Page, rowIndex: number) {
-	return editorRows(page).nth(rowIndex).locator('input').first();
+/** The rep tiles of the session map, in set then rep order. */
+function stepTiles(page: Page) {
+	return page.locator('.hb-step');
 }
 
-test.describe('hangboard granularity', () => {
-	test('renders a per-set hangboard item set by set', async ({ page }) => {
-		const perSet = testTraining({ items: [perSetHangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
+function edgeField(page: Page) {
+	return page.getByRole('spinbutton', { name: 'Edge (mm)' });
+}
+
+function loadField(page: Page) {
+	return page.getByRole('spinbutton', { name: 'Load', exact: true });
+}
+
+function editingHands(page: Page) {
+	return page.getByRole('radiogroup', { name: 'Hand being edited' });
+}
+
+/** Opens the training editor on a single hangboard item and captures its saves. */
+async function openHangboardEditor(page: Page, item: Record<string, unknown>) {
+	const training = testTraining({ items: [item] });
+	await stub(page, 'GET', '/api/trainings/*', { body: training });
+	await stub(page, 'PUT', '/api/trainings/*', { body: training });
+	await stubEditorPalette(page);
+	const updates = capture(page, 'PUT', '/api/trainings/*');
+
+	await page.goto('/trainings/training-1');
+	await page.getByRole('button', { name: 'Edit' }).click();
+
+	return updates;
+}
+
+async function saveTraining(page: Page) {
+	await page.getByRole('button', { name: 'Save training' }).click();
+	await expect(page.getByText('Training saved')).toBeVisible();
+}
+
+function savedHangboardItem(updates: ReturnType<typeof capture>) {
+	expect(updates).toHaveLength(1);
+	return (updates[0].body as { items: Record<string, unknown>[] }).items[0];
+}
+
+test.describe('hangboard session map', () => {
+	test('reads a set-by-set item back as one tile per set', async ({ page }) => {
+		const training = testTraining({ items: [perSetHangboardItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
 		await stubEditorPalette(page);
 
 		await page.goto('/trainings/training-1');
 
-		await expect(page.getByText('PER-SET', { exact: true })).toBeVisible();
-		await expect(page.getByText('Set 1', { exact: true })).toBeVisible();
-		await expect(page.getByText('Set 2', { exact: true })).toBeVisible();
-		await expect(page.getByText('16 kg')).toBeVisible();
+		await expect(page.getByText('VARIES BY SET')).toBeVisible();
+		await expect(stepTiles(page)).toHaveCount(2);
+		await expect(page.getByText('15mm')).toBeVisible();
 	});
 
-	test('repeats the per-rep values in every set when switching to per-set', async ({ page }) => {
-		const perRep = testTraining({ items: [hangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: perRep });
-		await stub(page, 'PUT', '/api/trainings/*', { body: perRep });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+	test('shows values on the customised reps only', async ({ page }) => {
+		await openHangboardEditor(page, hangboardItem());
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('button', { name: 'Per-set', exact: true }).click();
-
-		await expect(page.getByText('Set 2', { exact: true })).toBeVisible();
-
-		await page.getByRole('button', { name: 'Save training' }).click();
-
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		expect(updates[0].body).toMatchObject({
-			items: [
-				{
-					granularity: 'set',
-					edge_sizes_mm: [20, 18, 20, 18],
-					loads: [
-						{ value: 10, unit: 'kg' },
-						{ value: 12, unit: 'kg' },
-						{ value: 10, unit: 'kg' },
-						{ value: 12, unit: 'kg' }
-					],
-					hand_positions: [['HC', 'FC', 'HC', 'FC']]
-				}
-			]
-		});
+		await expect(stepTiles(page)).toHaveCount(4);
+		await expect(page.locator('.hb-step.hb-custom')).toHaveCount(2);
+		await expect(page.getByText('18mm').first()).toBeVisible();
 	});
 
-	test('copies a set into the sets below it', async ({ page }) => {
-		const perSet = testTraining({ items: [perSetHangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
-		await stub(page, 'PUT', '/api/trainings/*', { body: perSet });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
-
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-
-		await expect(edgeInput(page, 2)).toHaveValue('15');
-
-		await page.getByRole('button', { name: 'Copy this set into the sets below' }).click();
-
-		await expect(edgeInput(page, 2)).toHaveValue('20');
-		await expect(edgeInput(page, 3)).toHaveValue('18');
-
-		await page.getByRole('button', { name: 'Save training' }).click();
-
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		expect(updates[0].body).toMatchObject({
-			items: [
-				{
-					granularity: 'set',
-					edge_sizes_mm: [20, 18, 20, 18],
-					loads: [
-						{ value: 10, unit: 'kg' },
-						{ value: 12, unit: 'kg' },
-						{ value: 10, unit: 'kg' },
-						{ value: 12, unit: 'kg' }
-					],
-					hand_positions: [['HC', 'FC', 'HC', 'FC']]
-				}
-			]
-		});
-	});
-
-	test('saves an edit made inside a later set and reads it back', async ({ page }) => {
-		const perSet = testTraining({ items: [perSetHangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
-		await stub(page, 'PUT', '/api/trainings/*', { body: perSet });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
-
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-		await edgeInput(page, 2).fill('25');
-		await page.getByRole('button', { name: 'Save training' }).click();
-
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		expect(updates[0].body).toMatchObject({
-			items: [{ cycles: 2, reps: 2, edge_sizes_mm: [20, 18, 25, 12] }]
-		});
-
-		const stored = (updates[0].body as { items: unknown[] }).items;
-		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ items: stored }) });
-		await page.reload();
-		await page.getByRole('button', { name: 'Edit' }).click();
-
-		await expect(edgeInput(page, 2)).toHaveValue('25');
-	});
-
-	test('resizes the grid on the committed set count, not on every keystroke', async ({ page }) => {
-		const perSet = testTraining({ items: [perSetHangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: perSet });
-		await stubEditorPalette(page);
-
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
+	test('resizes the map on the committed set count, not on every keystroke', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
 
 		const sets = page.getByRole('spinbutton', { name: 'Sets' });
 		await sets.selectText();
 		await sets.pressSequentially('12');
 
-		await expect(editorRows(page)).toHaveCount(4);
+		await expect(stepTiles(page)).toHaveCount(2);
 
 		await sets.blur();
 
 		await expect(page.getByText('Set 12', { exact: true })).toBeVisible();
-		await expect(editorRows(page)).toHaveCount(24);
-		await expect(edgeInput(page, 0)).toHaveValue('20');
-		await expect(edgeInput(page, 1)).toHaveValue('18');
-		await expect(edgeInput(page, 2)).toHaveValue('15');
-		await expect(edgeInput(page, 3)).toHaveValue('12');
+		await expect(stepTiles(page)).toHaveCount(12);
+	});
+});
+
+test.describe('hangboard editing', () => {
+	// The base is what every rep falls back to, so moving it has to carry the
+	// reps that were sitting on it and leave the customised ones alone.
+	test('carries the reps sitting on the base when the base is edited', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await edgeField(page).fill('25');
+		await edgeField(page).blur();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			granularity: 'set',
+			edge_sizes_mm: [25, 18, 25, 18]
+		});
+	});
+
+	test('applies an edit to the selected set only', async ({ page }) => {
+		const updates = await openHangboardEditor(page, perSetHangboardItem());
+
+		await stepTiles(page).nth(1).click();
+
+		await expect(page.locator('.hb-inspector-title')).toHaveText('Set 2');
+
+		await edgeField(page).fill('25');
+		await edgeField(page).blur();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ edge_sizes_mm: [20, 20, 25, 25] });
+	});
+
+	test('copies a set into the sets below it', async ({ page }) => {
+		const updates = await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('button', { name: 'Copy this set into the sets below' }).click();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			edge_sizes_mm: [20, 20, 20, 20],
+			loads: [kg(10), kg(10), kg(10), kg(10)]
+		});
+	});
+
+	test('copies a set and pastes it onto another from the keyboard', async ({ page }) => {
+		const updates = await openHangboardEditor(page, perSetHangboardItem());
+
+		await stepTiles(page).nth(0).click();
+		await page.keyboard.press('ControlOrMeta+c');
+		await stepTiles(page).nth(1).click();
+		await page.keyboard.press('ControlOrMeta+v');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			edge_sizes_mm: [20, 20, 20, 20],
+			loads: [kg(10), kg(10), kg(10), kg(10)]
+		});
+	});
+
+	test('resets a customised rep to the base from the keyboard', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await page.locator('.hb-step.hb-custom').first().click();
+		await page.keyboard.press('Backspace');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			edge_sizes_mm: [20, 20, 20, 18],
+			loads: [kg(10), kg(10), kg(10), kg(12)]
+		});
+	});
+
+	test('clears the selection with Escape', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await stepTiles(page).nth(0).click();
+
+		await expect(page.locator('.hb-inspector-title')).toHaveText('Set 1');
+
+		await page.keyboard.press('Escape');
+
+		await expect(page.locator('.hb-inspector-title')).toHaveText('Base configuration');
+	});
+});
+
+test.describe('hangboard variation', () => {
+	test('asks before dropping the customised reps', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await page.getByRole('radio', { name: 'Nothing' }).click();
+
+		await expect(page.getByText('clears 2 customised reps')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Continue' }).click();
+
+		await expect(stepTiles(page)).toHaveCount(0);
+
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			granularity: 'uniform',
+			edge_sizes_mm: [20],
+			loads: [kg(10)],
+			hand_positions: [['HC']]
+		});
+	});
+
+	test('keeps the customised reps when the change is cancelled', async ({ page }) => {
+		await openHangboardEditor(page, hangboardItem());
+
+		await page.getByRole('radio', { name: 'Nothing' }).click();
+		await page.getByRole('button', { name: 'Cancel' }).click();
+
+		await expect(stepTiles(page)).toHaveCount(4);
+	});
+
+	test('makes every rep of a set follow its first rep when varying by set', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await page.getByRole('radio', { name: 'Set', exact: true }).click();
+
+		await expect(page.getByText('follow the first rep of its set')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Continue' }).click();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			granularity: 'set',
+			edge_sizes_mm: [20, 20, 20, 20],
+			loads: [kg(10), kg(10), kg(10), kg(10)]
+		});
+	});
+
+	test('expands a single configuration into a map when varying by rep', async ({ page }) => {
+		await openHangboardEditor(page, uniformHangboardItem());
+
+		await expect(stepTiles(page)).toHaveCount(0);
+
+		await page.getByRole('radio', { name: 'Rep', exact: true }).click();
+
+		await expect(stepTiles(page)).toHaveCount(4);
+	});
+
+	// Editing every rep through a selection moves what the item prescribes, so
+	// the base has to follow: collapsing back to one configuration keeps the
+	// value the reps hold, and has nothing to warn about since none of them
+	// departs from it.
+	test('keeps the configuration the reps hold when collapsing to one', async ({ page }) => {
+		const updates = await openHangboardEditor(page, uniformHangboardItem());
+
+		await page.getByRole('radio', { name: 'Rep', exact: true }).click();
+		await page.getByRole('button', { name: 'Select all' }).click();
+		await edgeField(page).fill('25');
+		await edgeField(page).blur();
+
+		await expect(page.locator('.hb-step.hb-custom')).toHaveCount(0);
+
+		await page.getByRole('radio', { name: 'Nothing' }).click();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			granularity: 'uniform',
+			edge_sizes_mm: [25]
+		});
+	});
+
+	// An edit that moves every rep together leaves nothing customised, so the
+	// warning and its pending change have to go with it.
+	test('drops the confirm bar when the mode it warned about is reselected', async ({ page }) => {
+		await openHangboardEditor(page, hangboardItem());
+
+		await page.getByRole('radio', { name: 'Set', exact: true }).click();
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeVisible();
+
+		await page.getByRole('radio', { name: 'Rep', exact: true }).click();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(4);
+	});
+
+	// The map shows one tile per set in this mode, so a warning that counted the
+	// reps behind them would name something the coach cannot see.
+	test('counts sets rather than reps when varying by set', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('radio', { name: 'Nothing' }).click();
+
+		await expect(page.getByText('clears 1 customised set')).toBeVisible();
+	});
+});
+
+test.describe('hangboard grid size', () => {
+	// Shrinking the grid deletes configurations the coach entered, which is a
+	// larger loss than the one the variation control already guards.
+	test('asks before dropping the sets a shrink would delete', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('spinbutton', { name: 'Sets' }).fill('1');
+		await page.getByRole('spinbutton', { name: 'Sets' }).blur();
+
+		await expect(page.getByText('Dropping to 1 sets deletes 1 customised set')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Cancel' }).click();
+
+		await expect(stepTiles(page)).toHaveCount(2);
+		await expect(page.getByRole('spinbutton', { name: 'Sets' })).toHaveValue('2');
+	});
+
+	// Growing never loses anything, so it must not stop to ask.
+	test('grows the grid without asking', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('spinbutton', { name: 'Sets' }).fill('3');
+		await page.getByRole('spinbutton', { name: 'Sets' }).blur();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(3);
 	});
 });
 
 test.describe('hangboard hand modes', () => {
 	test('describes what the selected hand mode does', async ({ page }) => {
-		const training = testTraining({ items: [hangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
+		await openHangboardEditor(page, hangboardItem());
 
 		await expect(page.getByText('Both hands on the board at once')).toBeVisible();
 
@@ -474,91 +622,64 @@ test.describe('hangboard hand modes', () => {
 	// The alternating mode is the one the app used to store as 'both', so it has
 	// to survive a round trip under its own name.
 	test('saves the alternating mode without splitting the loads', async ({ page }) => {
-		const training = testTraining({ items: [hangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stub(page, 'PUT', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+		const updates = await openHangboardEditor(page, hangboardItem());
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
 		await page.getByRole('radio', { name: 'Alternate', exact: true }).click();
-		await page.getByRole('button', { name: 'Save training' }).click();
+		await saveTraining(page);
 
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		const item = savedHangboardItem(updates);
 		expect(item).toMatchObject({
 			hand: 'alternate',
-			granularity: 'rep',
-			edge_sizes_mm: [20, 18],
-			loads: [
-				{ value: 10, unit: 'kg' },
-				{ value: 12, unit: 'kg' }
-			]
+			granularity: 'set',
+			edge_sizes_mm: [20, 18, 20, 18],
+			loads: [kg(10), kg(12), kg(10), kg(12)]
 		});
-		expect(item.left_loads).toHaveLength(2);
+		expect(item.left_loads).toHaveLength(4);
 		expect(item.hand_positions).toEqual([
-			['HC', 'FC'],
-			['HC', 'FC']
+			['HC', 'FC', 'HC', 'FC'],
+			['HC', 'FC', 'HC', 'FC']
 		]);
 	});
 
 	// Splitting the hands must never interleave the two into loads: each hand
 	// keeps its own array of one entry per row.
-	test('gives each hand its own loads and grips when split', async ({ page }) => {
-		const training = testTraining({ items: [hangboardItem()] });
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stub(page, 'PUT', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+	test('writes to the hand the inspector is scoped to', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem({ hand: 'split' }));
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('radio', { name: 'Split', exact: true }).click();
+		await expect(page.getByText('Applies everywhere unless customised, both hands')).toBeVisible();
 
-		await expect(page.getByRole('columnheader', { name: 'L Load' })).toBeVisible();
-		await expect(page.getByRole('columnheader', { name: 'R Grip' })).toBeVisible();
+		await editingHands(page).getByRole('radio', { name: 'Left' }).click();
 
-		await page.getByRole('button', { name: 'Save training' }).click();
+		await expect(page.getByText('Applies everywhere unless customised, left hand')).toBeVisible();
 
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
-		expect(item).toMatchObject({ hand: 'split', granularity: 'rep' });
-		expect(item.loads).toHaveLength(2);
-		expect(item.left_loads).toHaveLength(2);
-		expect(item.hand_positions).toHaveLength(2);
+		await loadField(page).fill('5');
+		await loadField(page).blur();
+		await saveTraining(page);
+
+		const item = savedHangboardItem(updates);
+		expect(item).toMatchObject({ hand: 'split', granularity: 'set' });
+		expect(item.left_loads).toMatchObject([kg(5), kg(12), kg(5), kg(12)]);
+		expect(item.loads).toMatchObject([kg(10), kg(12), kg(10), kg(12)]);
 	});
 
 	// The left hand offers the same assessment-relative unit as the right, so a
 	// percentage set there has to carry the reference the API requires of it.
 	test('gives a left-hand assessment load its assessment reference', async ({ page }) => {
-		const training = testTraining({
-			items: [
-				hangboardItem({
-					granularity: 'uniform',
-					hand: 'split',
-					edge_sizes_mm: [20],
-					loads: [{ value: 10, unit: 'kg' }],
-					left_loads: [{ value: 10, unit: 'kg' }],
-					hand_positions: [['HC'], ['HC']]
-				})
-			]
-		});
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stub(page, 'PUT', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+		const updates = await openHangboardEditor(
+			page,
+			uniformHangboardItem({
+				hand: 'split',
+				loads: [kg(10)],
+				left_loads: [kg(10)],
+				hand_positions: [['HC'], ['HC']]
+			})
+		);
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('combobox', { name: 'Left load unit' }).selectOption('percent_assessment');
-		await page.getByRole('button', { name: 'Save training' }).click();
+		await editingHands(page).getByRole('radio', { name: 'Left' }).click();
+		await page.getByRole('combobox', { name: 'Load unit' }).selectOption('percent_assessment');
+		await saveTraining(page);
 
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		const item = savedHangboardItem(updates);
 		const [leftLoad] = item.left_loads as Record<string, unknown>[];
 		expect(leftLoad.unit).toBe('percent_assessment');
 		expect(leftLoad.assessment_type).toBeDefined();
@@ -566,73 +687,50 @@ test.describe('hangboard hand modes', () => {
 	});
 
 	// Going back to a mode that hangs both hands together drops the second
-	// configuration rather than leaving a stale left hand behind.
+	// configuration rather than leaving a stale left hand behind. It is a loss
+	// the coach cannot undo, so it is confirmed first.
 	test('drops the left-hand arrays when leaving a split mode', async ({ page }) => {
-		const split = testTraining({
-			items: [
-				hangboardItem({
-					hand: 'split',
-					left_loads: [
-						{ value: 5, unit: 'kg' },
-						{ value: 6, unit: 'kg' }
-					],
-					hand_positions: [
-						['HC', 'FC'],
-						['OC', '3FD']
-					]
-				})
-			]
-		});
-		await stub(page, 'GET', '/api/trainings/*', { body: split });
-		await stub(page, 'PUT', '/api/trainings/*', { body: split });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+		const updates = await openHangboardEditor(
+			page,
+			hangboardItem({
+				hand: 'split',
+				left_loads: [kg(5), kg(6)],
+				hand_positions: [
+					['HC', 'FC'],
+					['OC', '3FD']
+				]
+			})
+		);
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('radio', { name: 'Both', exact: true }).click();
-		await page.getByRole('button', { name: 'Save training' }).click();
+		await page
+			.getByRole('radiogroup', { name: 'Hands' })
+			.getByRole('radio', { name: 'Both' })
+			.click();
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toContainText(
+			'left hand'
+		);
+		await page.getByRole('button', { name: 'Continue' }).click();
+		await saveTraining(page);
 
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
+		const item = savedHangboardItem(updates);
 		expect(item).toMatchObject({ hand: 'both' });
 		expect(item.left_loads).toBeUndefined();
 		expect(item.hand_positions).toHaveLength(1);
 	});
 });
 
-test.describe('hangboard uniform editing', () => {
-	// A uniform item is a single row, and the uniform fields are that row. What
-	// the coach types has to be what gets saved.
-	test('saves the edge, load and grip typed in the uniform panel', async ({ page }) => {
-		const training = testTraining({
-			items: [
-				hangboardItem({
-					granularity: 'uniform',
-					edge_sizes_mm: [20],
-					loads: [{ value: 100, unit: 'percent_bw' }],
-					hand_positions: [['HC']]
-				})
-			]
-		});
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stub(page, 'PUT', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+test.describe('hangboard base configuration', () => {
+	// The base is the whole prescription of an item that varies nothing. What the
+	// coach types has to be what gets saved.
+	test('saves the edge, load and grip typed in the inspector', async ({ page }) => {
+		const updates = await openHangboardEditor(page, uniformHangboardItem());
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
+		await edgeField(page).fill('25');
+		await loadField(page).fill('80');
+		await page.getByRole('radio', { name: 'OC' }).click();
+		await saveTraining(page);
 
-		await page.getByLabel('EDGE (mm)').fill('25');
-		await page.getByLabel('Load', { exact: true }).fill('80');
-		await page.getByLabel('GRIP').selectOption('OC');
-		await page.getByRole('button', { name: 'Save training' }).click();
-
-		await expect(page.getByText('Training saved')).toBeVisible();
-		expect(updates).toHaveLength(1);
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
-		expect(item).toMatchObject({
+		expect(savedHangboardItem(updates)).toMatchObject({
 			granularity: 'uniform',
 			edge_sizes_mm: [25],
 			loads: [{ value: 80, unit: 'percent_bw' }],
@@ -642,74 +740,76 @@ test.describe('hangboard uniform editing', () => {
 
 	// The Max unit has no value input, so it only reaches the item through the
 	// same path the numbers take.
-	test('flags the item as max effort from the uniform load unit', async ({ page }) => {
-		const training = testTraining({
-			items: [
-				hangboardItem({
-					granularity: 'uniform',
-					edge_sizes_mm: [20],
-					loads: [{ value: 100, unit: 'percent_bw' }],
-					hand_positions: [['HC']]
-				})
-			]
+	test('flags the item as max effort from the load unit', async ({ page }) => {
+		const updates = await openHangboardEditor(page, uniformHangboardItem());
+
+		await page.getByRole('combobox', { name: 'Load unit' }).selectOption('max');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			load_is_max: true,
+			loads: [{ unit: 'max' }]
 		});
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stub(page, 'PUT', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
-
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-
-		await page.getByLabel('Load unit', { exact: true }).selectOption('max');
-		await page.getByRole('button', { name: 'Save training' }).click();
-
-		await expect(page.getByText('Training saved')).toBeVisible();
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
-		expect(item).toMatchObject({ load_is_max: true, loads: [{ unit: 'max' }] });
 	});
 });
 
 test.describe('hangboard items stored in an older shape', () => {
 	// The API validates every configuration array on its own and accepts an
 	// absent one, so a two-handed item can arrive with no left_loads at all.
-	// Rebuilding must give the left hand each row's own load, not row 0 for all.
-	test('gives the left hand its per-row load when left_loads is missing', async ({ page }) => {
-		const training = testTraining({
-			items: [hangboardItem({ hand: 'alternate', left_loads: undefined })]
-		});
-		await stub(page, 'GET', '/api/trainings/*', { body: training });
-		await stub(page, 'PUT', '/api/trainings/*', { body: training });
-		await stubEditorPalette(page);
-		const updates = capture(page, 'PUT', '/api/trainings/*');
+	// Rebuilding must give the left hand each rep's own load, not rep 0 for all.
+	test('gives the left hand its per-rep load when left_loads is missing', async ({ page }) => {
+		const updates = await openHangboardEditor(
+			page,
+			hangboardItem({ hand: 'alternate', left_loads: undefined })
+		);
 
-		await page.goto('/trainings/training-1');
-		await page.getByRole('button', { name: 'Edit' }).click();
-		await page.getByRole('button', { name: 'Save training' }).click();
+		// Rebuilding an item is not an edit, so there is nothing to save until
+		// the coach changes something. The rest between reps touches no load.
+		await page.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).fill('4');
+		await saveTraining(page);
 
-		await expect(page.getByText('Training saved')).toBeVisible();
-		const [item] = (updates[0].body as { items: Record<string, unknown>[] }).items;
-		expect(item.left_loads).toEqual([
-			{ value: 10, unit: 'kg' },
-			{ value: 12, unit: 'kg' }
-		]);
+		expect(savedHangboardItem(updates).left_loads).toEqual([kg(10), kg(12), kg(10), kg(12)]);
 	});
 
 	// A two-handed item missing its second grip array used to throw while
 	// rendering, taking the whole editor down with it.
 	test('renders a split item that carries a single grip array', async ({ page }) => {
+		await openHangboardEditor(
+			page,
+			hangboardItem({ hand: 'split', left_loads: undefined, hand_positions: [['HC', 'FC']] })
+		);
+
+		await expect(editingHands(page)).toBeVisible();
+		await expect(stepTiles(page)).toHaveCount(4);
+	});
+
+	// An item can carry one row per rep and still prescribe the same thing
+	// everywhere. What it declares is not what it varies, and the coach should
+	// read a plain prescription rather than a map of identical tiles.
+	test('reads an item whose rows all agree as varying nothing', async ({ page }) => {
 		const training = testTraining({
 			items: [
-				hangboardItem({ hand: 'split', left_loads: undefined, hand_positions: [['HC', 'FC']] })
+				hangboardItem({
+					granularity: 'rep',
+					edge_sizes_mm: [20, 20],
+					loads: [kg(10), kg(10)],
+					hand_positions: [['HC', 'HC']]
+				})
 			]
 		});
 		await stub(page, 'GET', '/api/trainings/*', { body: training });
 		await stubEditorPalette(page);
 
 		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('VARIES BY SET')).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(0);
+
 		await page.getByRole('button', { name: 'Edit' }).click();
 
-		await expect(page.getByRole('columnheader', { name: 'L Load' })).toBeVisible();
-		await expect(edgeInput(page, 0)).toHaveValue('20');
+		await expect(page.getByRole('radio', { name: 'Nothing' })).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
 	});
 });
