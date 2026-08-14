@@ -6,6 +6,7 @@
 	let pendingCoaches = $state<CoachResponse[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let warning = $state('');
 	let processingId = $state<string | null>(null);
 
 	onMount(async () => {
@@ -25,11 +26,20 @@
 		}
 	}
 
-	async function validateCoach(id: string) {
-		processingId = id;
+	function warnIfEmailNotSent(coach: CoachResponse, emailSent: boolean, decision: string) {
+		if (emailSent) {
+			return;
+		}
+		warning = `${coach.firstname} ${coach.lastname} was ${decision}, but the notification email could not be sent to ${coach.email}. Contact them directly.`;
+	}
+
+	async function validateCoach(coach: CoachResponse) {
+		processingId = coach.id;
 		error = '';
+		warning = '';
 		try {
-			await apiClient.validateCoach(id);
+			const result = await apiClient.validateCoach(coach.id);
+			warnIfEmailNotSent(coach, result.email_sent, 'approved');
 			await loadPendingCoaches();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to validate coach';
@@ -38,11 +48,13 @@
 		}
 	}
 
-	async function rejectCoach(id: string) {
-		processingId = id;
+	async function rejectCoach(coach: CoachResponse) {
+		processingId = coach.id;
 		error = '';
+		warning = '';
 		try {
-			await apiClient.rejectCoach(id);
+			const result = await apiClient.rejectCoach(coach.id);
+			warnIfEmailNotSent(coach, result.email_sent, 'rejected');
 			await loadPendingCoaches();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to reject coach';
@@ -70,6 +82,15 @@
 				style="font-family: monospace; font-size: 13px; color: #B85450;"
 			>
 				{error}
+			</div>
+		{/if}
+
+		{#if warning}
+			<div
+				class="mb-6 border-2 p-4"
+				style="font-family: monospace; font-size: 13px; border-color: var(--gd); background-color: var(--gd-lt); color: var(--tx);"
+			>
+				{warning}
 			</div>
 		{/if}
 
@@ -133,7 +154,7 @@
 
 							<div class="ml-4 flex gap-2">
 								<button
-									onclick={() => validateCoach(coach.id)}
+									onclick={() => validateCoach(coach)}
 									disabled={processingId === coach.id}
 									class="px-4 py-2 font-medium transition-opacity"
 									style="font-family: monospace; font-size: 13px; background-color: #4A7C4A; color: white; opacity: {processingId ===
@@ -144,7 +165,7 @@
 									{processingId === coach.id ? 'PROCESSING...' : 'APPROVE'}
 								</button>
 								<button
-									onclick={() => rejectCoach(coach.id)}
+									onclick={() => rejectCoach(coach)}
 									disabled={processingId === coach.id}
 									class="border-2 border-black px-4 py-2 font-medium transition-colors hover:bg-gray-100"
 									style="font-family: monospace; font-size: 13px; opacity: {processingId ===

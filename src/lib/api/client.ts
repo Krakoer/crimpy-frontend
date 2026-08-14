@@ -53,6 +53,11 @@ export interface CoachResponse {
 	created_at: string;
 }
 
+export interface CoachDecisionResponse {
+	message: string;
+	email_sent: boolean;
+}
+
 export interface ResendVerificationRequest {
 	email: string;
 }
@@ -514,14 +519,14 @@ class ApiClient {
 		return this.requestList<CoachResponse>('/api/admin/coaches/pending');
 	}
 
-	async validateCoach(id: string): Promise<{ message: string }> {
-		return this.request<{ message: string }>(`/api/admin/coaches/${id}/validate`, {
+	async validateCoach(id: string): Promise<CoachDecisionResponse> {
+		return this.request<CoachDecisionResponse>(`/api/admin/coaches/${id}/validate`, {
 			method: 'PUT'
 		});
 	}
 
-	async rejectCoach(id: string): Promise<{ message: string }> {
-		return this.request<{ message: string }>(`/api/admin/coaches/${id}/reject`, {
+	async rejectCoach(id: string): Promise<CoachDecisionResponse> {
+		return this.request<CoachDecisionResponse>(`/api/admin/coaches/${id}/reject`, {
 			method: 'PUT'
 		});
 	}
