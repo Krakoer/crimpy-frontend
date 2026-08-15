@@ -3,6 +3,7 @@
 	import type { Exercise, TrainingItemType } from '$lib/api/client';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { HANGBOARD_COLOR } from './hangboard-config';
 
 	interface Props {
 		containerId: string;
@@ -21,23 +22,28 @@
 	let expanded = $state(false);
 	let showExerciseModal = $state(false);
 
+	// Keyed by the item type the button creates: a key that does not match one
+	// leaves the button with no name and no icon.
 	const typeLabels: Record<string, string> = {
 		circuit: 'Circuit',
 		group: 'Group',
-		hangboard: 'Hangboard',
+		repeater: 'Hangboard',
+		hangboard_rep: 'Hang rep',
 		exercise: 'Exercise'
 	};
 	const typeIcons: Record<string, string> = {
 		circuit: 'link',
 		group: 'layers',
-		hangboard: 'grip',
+		repeater: 'grip',
+		hangboard_rep: 'clock',
 		exercise: 'dumbbell'
 	};
 	const typeColors: Record<string, string> = {
 		exercise: 'var(--pr)',
 		circuit: 'var(--pr)',
 		group: 'var(--tx2)',
-		hangboard: '#4A7C8C'
+		repeater: HANGBOARD_COLOR,
+		hangboard_rep: HANGBOARD_COLOR
 	};
 
 	function handleTypeClick(type: TrainingItemType) {

@@ -25,9 +25,14 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import {
 		applyHangboardDefaults,
+		applyHangboardRepDefaults,
+		isHangboardItem,
 		saneCount
 	} from '$lib/components/training/hangboard-granularity';
-	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
+	import {
+		HANGBOARD_COLOR,
+		normalizeHangboardItems
+	} from '$lib/components/training/hangboard-config';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	function ensureClientIds(items: TrainingItem[]) {
@@ -110,7 +115,7 @@
 
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (draft.training_type === 'stretching') {
-			if (movedItem.type === 'group' || movedItem.type === 'repeater') return false;
+			if (movedItem.type === 'group' || isHangboardItem(movedItem)) return false;
 			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit'))
 				return false;
 		}
@@ -423,13 +428,15 @@
 			base.items = [];
 		} else if (type === 'repeater') {
 			applyHangboardDefaults(base);
+		} else if (type === 'hangboard_rep') {
+			applyHangboardRepDefaults(base);
 		}
 		return base;
 	}
 
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		if (draft.training_type === 'stretching') {
-			if (type === 'group' || type === 'repeater') return;
+			if (type === 'group' || type === 'repeater' || type === 'hangboard_rep') return;
 			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
 		}
 		draft.items.push(createNewItem(type, exerciseId));
@@ -528,7 +535,18 @@
 	const structureButtons = [
 		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
 		{ type: 'group' as TrainingItemType, label: 'Group', icon: 'filter', color: 'var(--tx2)' },
-		{ type: 'repeater' as TrainingItemType, label: 'Hangboard', icon: 'grip', color: '#4A7C8C' }
+		{
+			type: 'repeater' as TrainingItemType,
+			label: 'Hangboard',
+			icon: 'grip',
+			color: HANGBOARD_COLOR
+		},
+		{
+			type: 'hangboard_rep' as TrainingItemType,
+			label: 'Hang rep',
+			icon: 'clock',
+			color: HANGBOARD_COLOR
+		}
 	];
 
 	let allowedStructureButtons = $derived(
@@ -758,7 +776,7 @@
 							? draft.items.some((i) => i.type === 'circuit')
 								? ['exercise']
 								: ['exercise', 'circuit']
-							: ['exercise', 'circuit', 'group', 'repeater']}
+							: ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep']}
 						circuitInnerAllowedTypes={draft.training_type === 'stretching'
 							? ['exercise']
 							: undefined}

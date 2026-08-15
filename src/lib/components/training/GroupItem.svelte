@@ -114,7 +114,7 @@
 				<ItemList
 					bind:items={item.items!}
 					{exercises}
-					allowedTypes={['exercise', 'repeater']}
+					allowedTypes={['exercise', 'repeater', 'hangboard_rep']}
 					depth={depth + 1}
 					containerId={'container:' + item._id}
 				/>

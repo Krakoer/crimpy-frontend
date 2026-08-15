@@ -2,11 +2,12 @@
 	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ExerciseItem from './ExerciseItem.svelte';
 	import HangboardItem from './HangboardItem.svelte';
+	import HangboardRepItem from './HangboardRepItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
 	import GroupItem from './GroupItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
-	import { applyHangboardDefaults } from './hangboard-granularity';
+	import { applyHangboardDefaults, applyHangboardRepDefaults } from './hangboard-granularity';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -22,7 +23,7 @@
 	let {
 		items = $bindable(),
 		exercises,
-		allowedTypes = ['exercise', 'circuit', 'group', 'repeater'],
+		allowedTypes = ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep'],
 		circuitInnerAllowedTypes,
 		depth = 0,
 		containerId = 'root'
@@ -49,6 +50,8 @@
 			base.items = [];
 		} else if (type === 'repeater') {
 			applyHangboardDefaults(base);
+		} else if (type === 'hangboard_rep') {
+			applyHangboardRepDefaults(base);
 		}
 		items.push(base);
 	}
@@ -107,6 +110,12 @@
 				/>
 			{:else if item.type === 'repeater'}
 				<HangboardItem
+					bind:item={items[i]}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
+			{:else if item.type === 'hangboard_rep'}
+				<HangboardRepItem
 					bind:item={items[i]}
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}

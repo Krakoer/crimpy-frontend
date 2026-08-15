@@ -813,3 +813,161 @@ test.describe('hangboard items stored in an older shape', () => {
 		);
 	});
 });
+
+/** A single hang as the flutter app writes it: no edge, its own grip names. */
+function hangRepItem(overrides: Record<string, unknown> = {}) {
+	return {
+		id: 'item-1',
+		type: 'hangboard_rep',
+		position: 0,
+		worktime_seconds: 10,
+		rest_seconds: 5,
+		hand: 'right',
+		granularity: 'uniform',
+		loads: [kg(20)],
+		hand_positions: [['halfCrimp']],
+		...overrides
+	};
+}
+
+test.describe('hang rep items', () => {
+	test('builds a training rep by rep from the palette', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Max hangs');
+		await page.getByRole('button', { name: 'Circuit', exact: true }).click();
+		await page.getByRole('button', { name: 'Hang rep', exact: true }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training created')).toBeVisible();
+		expect(posted).toHaveLength(1);
+		const items = (posted[0].body as { items: Record<string, unknown>[] }).items;
+		expect(items[0]).toMatchObject({ type: 'circuit', cycles: 3 });
+		expect(items[1]).toMatchObject({
+			type: 'hangboard_rep',
+			granularity: 'uniform',
+			hand: 'both',
+			worktime_seconds: 7,
+			rest_seconds: 3,
+			edge_sizes_mm: [20],
+			hand_positions: [['HC']],
+			loads: [{ value: 100, unit: 'percent_bw' }]
+		});
+	});
+
+	test('adds a hang rep inside a circuit, which is where its cycles come from', async ({
+		page
+	}) => {
+		const training = testTraining({
+			items: [{ id: 'item-1', type: 'circuit', position: 0, cycles: 4, items: [] }]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+		await page.getByRole('button', { name: 'Hang rep', exact: true }).first().click();
+		await saveTraining(page);
+
+		const saved = (updates[0].body as { items: Record<string, unknown>[] }).items[0];
+		expect(saved).toMatchObject({ type: 'circuit', cycles: 4 });
+		expect((saved.items as Record<string, unknown>[])[0]).toMatchObject({
+			type: 'hangboard_rep',
+			granularity: 'uniform'
+		});
+	});
+
+	test('reads a hang rep built in the app, whatever it left out', async ({ page }) => {
+		const training = testTraining({ items: [hangRepItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('Hang rep')).toBeVisible();
+		await expect(page.getByText('20 kg')).toBeVisible();
+		await expect(page.getByText('Right', { exact: true })).toBeVisible();
+		await expect(page.getByText('HC', { exact: true })).toBeVisible();
+	});
+
+	test('edits a hang rep and stores one configuration row per array', async ({ page }) => {
+		const training = testTraining({ items: [hangRepItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await edgeField(page).fill('14');
+		await edgeField(page).blur();
+		await page.getByRole('radio', { name: 'Both' }).click();
+		await page.getByRole('radio', { name: 'FC' }).click();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			type: 'hangboard_rep',
+			granularity: 'uniform',
+			hand: 'both',
+			edge_sizes_mm: [14],
+			hand_positions: [['FC']],
+			loads: [{ value: 20, unit: 'kg' }]
+		});
+	});
+
+	test('drops the separate left hand of a mode a single hang cannot run', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				hangRepItem({
+					hand: 'alternate',
+					loads: [kg(20)],
+					left_loads: [kg(15)],
+					hand_positions: [['halfCrimp'], ['fullCrimp']]
+				})
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('spinbutton', { name: 'Work seconds' }).fill('8');
+		await saveTraining(page);
+
+		const saved = savedHangboardItem(updates);
+		expect(saved).toMatchObject({
+			hand: 'both',
+			hand_positions: [['FC']],
+			loads: [{ value: 20, unit: 'kg' }]
+		});
+		expect(saved.left_loads).toBeUndefined();
+	});
+
+	test('sets a hang as a percentage of an assessment result', async ({ page }) => {
+		const training = testTraining({ items: [hangRepItem()] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByLabel('Load unit').selectOption('percent_assessment');
+		await loadField(page).fill('80');
+		await loadField(page).blur();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			loads: [{ value: 80, unit: 'percent_assessment', assessment_type: 0, fallback: 0 }]
+		});
+	});
+});
