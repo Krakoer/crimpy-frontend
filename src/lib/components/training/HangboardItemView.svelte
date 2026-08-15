@@ -11,7 +11,13 @@
 		hangboardSets,
 		isTwoHandedMode
 	} from './hangboard-granularity';
-	import { buildSessionMap, commonConfig, storedConfig, storedVariation } from './hangboard-config';
+	import {
+		HANGBOARD_COLOR,
+		buildSessionMap,
+		commonConfig,
+		storedConfig,
+		storedVariation
+	} from './hangboard-config';
 	import HangboardSessionMap from './HangboardSessionMap.svelte';
 
 	interface Props {
@@ -21,8 +27,6 @@
 	let { item }: Props = $props();
 
 	let collapsed = $state(false);
-
-	const HB_COLOR = '#4A7C8C';
 
 	let sets = $derived(hangboardSets(item));
 	let reps = $derived(hangboardReps(item));
@@ -69,7 +73,7 @@
 	});
 </script>
 
-<div class="hb-card" style="--hb: {HB_COLOR};">
+<div class="hb-card" style="--hb: {HANGBOARD_COLOR};">
 	<div
 		class="hb-header"
 		style="background: {collapsed ? '#fff' : 'var(--panel2)'};"

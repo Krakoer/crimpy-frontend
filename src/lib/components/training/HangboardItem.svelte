@@ -17,6 +17,7 @@
 		type HangboardHand
 	} from './hangboard-granularity';
 	import {
+		HANGBOARD_COLOR,
 		HANGBOARD_GRIPS,
 		HANGBOARD_VARIATIONS,
 		buildSessionMap,
@@ -49,8 +50,6 @@
 	let collapsed = $state(false);
 	let confirmDelete = $state(false);
 	let cardElement = $state<HTMLDivElement | null>(null);
-
-	const HB_COLOR = '#4A7C8C';
 
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(
 		COLLAPSE_KEY
@@ -673,7 +672,7 @@
 
 <svelte:window onkeydown={onWindowKeyDown} />
 
-<div class="hb-card" style="--hb: {HB_COLOR};" bind:this={cardElement} tabindex="-1">
+<div class="hb-card" style="--hb: {HANGBOARD_COLOR};" bind:this={cardElement} tabindex="-1">
 	<div
 		class="hb-header"
 		style="background: {collapsed ? '#fff' : 'var(--panel2)'};"

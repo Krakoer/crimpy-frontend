@@ -6,6 +6,7 @@ import {
 	hangboardHandCount,
 	hangboardReps,
 	hangboardSets,
+	isHangboardItem,
 	isTwoHandedMode,
 	type HangboardGranularity
 } from './hangboard-granularity';
@@ -38,6 +39,10 @@ export interface StoredLayout {
 const LEFT = 0;
 const RIGHT = 1;
 
+// The colour every hangboard block is drawn in, shared by the cards and by the
+// palette buttons that create them.
+export const HANGBOARD_COLOR = '#4A7C8C';
+
 export const HANGBOARD_GRIPS: { value: string; hint: string }[] = [
 	{ value: '3FD', hint: 'Three-finger drag' },
 	{ value: 'HC', hint: 'Half crimp' },
@@ -54,6 +59,21 @@ export const HANGBOARD_VARIATIONS: {
 	{ value: 'set', label: 'Set', hint: 'Each set can differ, reps inside a set are identical' },
 	{ value: 'rep', label: 'Rep', hint: 'Every rep can differ' }
 ];
+
+// The app writes its own enum names where the portal writes short codes, so a
+// hangboard item built on a phone reads back as one of the grips offered here.
+const GRIP_ALIASES: Record<string, string> = {
+	threeFinger: '3FD',
+	halfCrimp: 'HC',
+	fullCrimp: 'FC',
+	openHand: 'OC',
+	OH: 'OC'
+};
+
+function readGrip(stored: string | undefined, fallback: string): string {
+	if (stored === undefined) return fallback;
+	return GRIP_ALIASES[stored] ?? stored;
+}
 
 // Grips of the hand that loads feeds: the right one when the hands are
 // configured separately, the single shared array otherwise.
@@ -125,12 +145,12 @@ export function readConfig(
 	fallback: RepConfig
 ): RepConfig {
 	const grips = item.hand_positions ?? [];
-	const gripRight = grips[gripHandIndex(twoHanded)]?.[row] ?? fallback.gripRight;
+	const gripRight = readGrip(grips[gripHandIndex(twoHanded)]?.[row], fallback.gripRight);
 	const loadRight = item.loads?.[row] ?? fallback.loadRight;
 	return {
 		edge: item.edge_sizes_mm?.[row] ?? fallback.edge,
 		gripRight,
-		gripLeft: twoHanded ? (grips[LEFT]?.[row] ?? gripRight) : gripRight,
+		gripLeft: twoHanded ? readGrip(grips[LEFT]?.[row], gripRight) : gripRight,
 		loadRight: { ...loadRight },
 		loadLeft: { ...(twoHanded ? (item.left_loads?.[row] ?? loadRight) : loadRight) }
 	};
@@ -210,7 +230,10 @@ export function rebuildArrays(
 	item.hand_positions = Array.from({ length: hangboardHandCount(hangboardHand(item)) }, (_, hand) =>
 		Array.from({ length: rows }, (_, row) => {
 			const [set, rep] = coordinates(row);
-			return storedGrip(set, rep, hand) ?? (hand === LEFT ? fallback.gripLeft : fallback.gripRight);
+			return readGrip(
+				storedGrip(set, rep, hand),
+				hand === LEFT ? fallback.gripLeft : fallback.gripRight
+			);
 		})
 	);
 	item.granularity = wireGranularity(variation);
@@ -282,16 +305,25 @@ export function storedVariation(item: TrainingItem): HangboardVariation {
 	return setsVary(item) ? 'set' : 'uniform';
 }
 
+// A single hang is one rep of one set, so it always carries exactly one
+// configuration row whatever layout it arrived in.
+function normalizedVariation(item: TrainingItem): HangboardVariation {
+	return item.type === 'hangboard_rep' ? 'uniform' : storedVariation(item);
+}
+
 // Rewrites an item into the layout its own values call for. The editor
 // addresses every rep of every set and the API accepts three layouts, so this
 // is what makes the two meet. It runs on the draft before the unsaved-changes
 // baseline is taken, so opening a training never counts as an edit.
 export function normalizeHangboardItem(item: TrainingItem): void {
-	if (item.type !== 'repeater') return;
-	const variation = storedVariation(item);
+	if (!isHangboardItem(item)) return;
+	const previous = storedLayoutOf(item);
+	// One hang cannot order the two hands, so a mode that does is read as both
+	// hands together and its separate left configuration is dropped.
+	if (item.type === 'hangboard_rep' && previous.twoHanded) item.hand = 'both';
+	const variation = normalizedVariation(item);
 	const declared = hangboardGranularity(item) === wireGranularity(variation);
 	if (declared && isStoredAsDeclared(item, variation)) return;
-	const previous = storedLayoutOf(item);
 	const seed = readConfig(item, 0, previous.twoHanded, defaultRepConfig());
 	rebuildArrays(item, variation, previous, seed);
 }

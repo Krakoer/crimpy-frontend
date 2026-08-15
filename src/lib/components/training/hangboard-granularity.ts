@@ -45,13 +45,21 @@ export const HANGBOARD_HANDS: { value: HangboardHand; label: string; hint: strin
 	{ value: 'right', label: 'Right', hint: 'Right hand only' }
 ];
 
-// Fields a new hangboard item starts with. The declared shape lives here rather
+// Modes a single hang can take: the ones that order the two hands across the
+// reps of a set only mean something on a repeater.
+export const HANGBOARD_REP_HANDS = HANGBOARD_HANDS.filter((h) => !isTwoHandedMode(h.value));
+
+// The item types carrying a hangboard configuration, which the API validates as
+// one shape: a repeater runs its own sets and reps, a hang rep is a single hang
+// the coach places by hand.
+export function isHangboardItem(item: TrainingItem): boolean {
+	return item.type === 'repeater' || item.type === 'hangboard_rep';
+}
+
+// Fields a new single hang starts with. The declared shape lives here rather
 // than in each place that can create one: they drifted apart the last time it
 // changed.
-export function applyHangboardDefaults(item: TrainingItem): TrainingItem {
-	item.cycles = 3;
-	item.cycle_rest_seconds = 180;
-	item.reps = 6;
+export function applyHangboardRepDefaults(item: TrainingItem): TrainingItem {
 	item.worktime_seconds = 7;
 	item.rest_seconds = 3;
 	item.hand = 'both';
@@ -59,5 +67,14 @@ export function applyHangboardDefaults(item: TrainingItem): TrainingItem {
 	item.edge_sizes_mm = [20];
 	item.loads = [{ value: 100, unit: 'percent_bw' }];
 	item.hand_positions = [['HC']];
+	return item;
+}
+
+// A repeater starts from the same hang, plus the sets and reps it runs itself.
+export function applyHangboardDefaults(item: TrainingItem): TrainingItem {
+	applyHangboardRepDefaults(item);
+	item.cycles = 3;
+	item.cycle_rest_seconds = 180;
+	item.reps = 6;
 	return item;
 }
