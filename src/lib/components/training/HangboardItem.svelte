@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { TrainingItem, Load, LoadUnit } from '$lib/api/client';
-	import { getContext, untrack } from 'svelte';
-	import { COLLAPSE_KEY } from './collapse-context';
+	import { untrack } from 'svelte';
 	import { HANGBOARD_LOAD_UNITS, loadUnitHasValue } from './load-units';
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
+	import HangboardCard from './HangboardCard.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { assessmentTypesForField } from '$lib/assessments';
 	import {
@@ -17,7 +17,6 @@
 		type HangboardHand
 	} from './hangboard-granularity';
 	import {
-		HANGBOARD_COLOR,
 		HANGBOARD_GRIPS,
 		HANGBOARD_VARIATIONS,
 		buildSessionMap,
@@ -48,20 +47,7 @@
 	let { item = $bindable(), onRemove, onDuplicate }: Props = $props();
 
 	let collapsed = $state(false);
-	let confirmDelete = $state(false);
 	let cardElement = $state<HTMLDivElement | null>(null);
-
-	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(
-		COLLAPSE_KEY
-	);
-
-	$effect(() => {
-		if (collapseSignals?.collapse) collapsed = true;
-	});
-
-	$effect(() => {
-		if (collapseSignals?.expand) collapsed = false;
-	});
 
 	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
 
@@ -672,369 +658,270 @@
 
 <svelte:window onkeydown={onWindowKeyDown} />
 
-<div class="hb-card" style="--hb: {HANGBOARD_COLOR};" bind:this={cardElement} tabindex="-1">
-	<div
-		class="hb-header"
-		style="background: {collapsed ? '#fff' : 'var(--panel2)'};"
-		onclick={() => {
-			if (!confirmDelete) collapsed = !collapsed;
-		}}
-		role="button"
-		tabindex="0"
-		onkeydown={(e) => e.key === 'Enter' && !confirmDelete && (collapsed = !collapsed)}
-	>
-		<div class="hb-accent"></div>
-		<div
-			style="transform: {collapsed
-				? 'rotate(0deg)'
-				: 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;"
-		>
-			<Icon name="chevron" size={12} color="var(--tx3)" />
+<HangboardCard
+	title="Hangboard"
+	summary={collapsedSummary}
+	{onRemove}
+	{onDuplicate}
+	bind:element={cardElement}
+	bind:collapsed
+>
+	{#snippet body()}
+		<div class="hb-sentence">
+			<input
+				class="hb-count"
+				type="number"
+				min="1"
+				aria-label="Sets"
+				bind:value={setsField}
+				onchange={commitSets}
+			/>
+			<span>sets of</span>
+			<input
+				class="hb-count"
+				type="number"
+				min="1"
+				aria-label="Reps"
+				bind:value={repsField}
+				onchange={commitReps}
+			/>
+			<span>reps,</span>
+			<input
+				class="hb-count"
+				type="number"
+				min="1"
+				aria-label="Work seconds"
+				bind:value={item.worktime_seconds}
+			/>
+			<span>s hang /</span>
+			<input
+				class="hb-count"
+				type="number"
+				min="0"
+				aria-label="Rest seconds"
+				bind:value={item.rest_seconds}
+			/>
+			<span>s rest,</span>
+			<input
+				class="hb-count hb-count-wide"
+				type="number"
+				min="0"
+				aria-label="Set rest seconds"
+				bind:value={item.cycle_rest_seconds}
+			/>
+			<span>s between sets</span>
 		</div>
-		<span class="hb-title">
-			Hangboard
-			<span class="hb-summary">{collapsedSummary}</span>
-		</span>
-		<div
-			style="display: flex; gap: 3px; flex-shrink: 0;"
-			onclick={(e) => e.stopPropagation()}
-			role="none"
-		>
-			{#if confirmDelete}
-				<button class="hb-pill hb-danger" onclick={onRemove}>Delete</button>
-				<button class="hb-pill" onclick={() => (confirmDelete = false)}>Cancel</button>
-			{:else}
-				<button class="hb-act-btn" onclick={onDuplicate} title="Duplicate" aria-label="Duplicate">
-					<Icon name="copy" size={11} color="currentColor" />
-				</button>
-				<button
-					class="hb-act-btn"
-					onclick={() => (confirmDelete = true)}
-					title="Delete"
-					aria-label="Delete"
-				>
-					<Icon name="trash" size={11} color="currentColor" />
-				</button>
-			{/if}
-		</div>
-	</div>
 
-	{#if !collapsed}
-		<div class="hb-body">
-			<div class="hb-sentence">
-				<input
-					class="hb-count"
-					type="number"
-					min="1"
-					aria-label="Sets"
-					bind:value={setsField}
-					onchange={commitSets}
-				/>
-				<span>sets of</span>
-				<input
-					class="hb-count"
-					type="number"
-					min="1"
-					aria-label="Reps"
-					bind:value={repsField}
-					onchange={commitReps}
-				/>
-				<span>reps,</span>
-				<input
-					class="hb-count"
-					type="number"
-					min="1"
-					aria-label="Work seconds"
-					bind:value={item.worktime_seconds}
-				/>
-				<span>s hang /</span>
-				<input
-					class="hb-count"
-					type="number"
-					min="0"
-					aria-label="Rest seconds"
-					bind:value={item.rest_seconds}
-				/>
-				<span>s rest,</span>
-				<input
-					class="hb-count hb-count-wide"
-					type="number"
-					min="0"
-					aria-label="Set rest seconds"
-					bind:value={item.cycle_rest_seconds}
-				/>
-				<span>s between sets</span>
+		<div class="hb-row">
+			<span class="hb-label">Hands</span>
+			<div class="hb-pills" role="radiogroup" aria-label="Hands" aria-describedby={handHintId}>
+				{#each HANGBOARD_HANDS as h (h.value)}
+					<button
+						class="hb-pill"
+						class:hb-on={hangboardHand(item) === h.value}
+						onclick={() => requestChange({ kind: 'hand', value: h.value })}
+						title={h.hint}
+						role="radio"
+						aria-checked={hangboardHand(item) === h.value}>{h.label}</button
+					>
+				{/each}
 			</div>
+			<span id={handHintId} class="hb-hint">{handHint}</span>
+		</div>
 
+		<div class="hb-inspector" class:hb-focused={hasSelection}>
 			<div class="hb-row">
-				<span class="hb-label">Hands</span>
-				<div class="hb-pills" role="radiogroup" aria-label="Hands" aria-describedby={handHintId}>
-					{#each HANGBOARD_HANDS as h (h.value)}
-						<button
-							class="hb-pill"
-							class:hb-on={hangboardHand(item) === h.value}
-							onclick={() => requestChange({ kind: 'hand', value: h.value })}
-							title={h.hint}
-							role="radio"
-							aria-checked={hangboardHand(item) === h.value}>{h.label}</button
-						>
-					{/each}
-				</div>
-				<span id={handHintId} class="hb-hint">{handHint}</span>
+				<span class="hb-inspector-title">{inspectorTitle}</span>
+				<span class="hb-hint">{inspectorSubtitle}</span>
+				<span class="hb-spacer"></span>
+				{#if hasSelection}
+					<button class="hb-pill" onclick={copySelection} title="Copy this configuration"
+						>Copy</button
+					>
+					<button class="hb-pill" onclick={pasteSelection} disabled={!clipboard} title={pasteTitle}
+						>Paste</button
+					>
+				{/if}
+				{#if canReset}
+					<button class="hb-pill" onclick={resetToBase}>Reset to base</button>
+				{/if}
 			</div>
 
-			<div class="hb-inspector" class:hb-focused={hasSelection}>
+			{#if twoHanded}
 				<div class="hb-row">
-					<span class="hb-inspector-title">{inspectorTitle}</span>
-					<span class="hb-hint">{inspectorSubtitle}</span>
-					<span class="hb-spacer"></span>
-					{#if hasSelection}
-						<button class="hb-pill" onclick={copySelection} title="Copy this configuration"
-							>Copy</button
-						>
-						<button
-							class="hb-pill"
-							onclick={pasteSelection}
-							disabled={!clipboard}
-							title={pasteTitle}>Paste</button
-						>
-					{/if}
-					{#if canReset}
-						<button class="hb-pill" onclick={resetToBase}>Reset to base</button>
-					{/if}
-				</div>
-
-				{#if twoHanded}
-					<div class="hb-row">
-						<span class="hb-label">Editing</span>
-						<div class="hb-tabs" role="radiogroup" aria-label="Hand being edited">
-							{#each EDIT_HANDS as tab (tab.value)}
-								<button
-									class="hb-tab"
-									class:hb-on={editHand === tab.value}
-									onclick={() => (editHand = tab.value)}
-									role="radio"
-									aria-checked={editHand === tab.value}>{tab.label}</button
-								>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<div class="hb-fields">
-					<div class="hb-field">
-						<label class="hb-label" for={edgeFieldId}>Edge (mm)</label>
-						<input
-							id={edgeFieldId}
-							class="hb-input"
-							type="number"
-							min="1"
-							value={edgeValue ?? ''}
-							placeholder={edgeValue === null ? 'Mixed' : ''}
-							onchange={(e) => applyField('edge', saneCount(e.currentTarget.valueAsNumber))}
-						/>
-					</div>
-
-					<div class="hb-field">
-						<span class="hb-label">Grip</span>
-						<div class="hb-pills" role="radiogroup" aria-label="Grip">
-							{#each HANGBOARD_GRIPS as grip (grip.value)}
-								<button
-									class="hb-pill"
-									class:hb-on={gripValue === grip.value}
-									onclick={() => applyField('grip', grip.value)}
-									title={grip.hint}
-									role="radio"
-									aria-checked={gripValue === grip.value}>{grip.value}</button
-								>
-							{/each}
-						</div>
-					</div>
-
-					<div class="hb-field">
-						<span class="hb-label">Load</span>
-						<div class="hb-load">
-							{#if loadUnitValue === null || loadUnitHasValue(loadUnitValue)}
-								<input
-									class="hb-input"
-									type="number"
-									min="0"
-									aria-label="Load"
-									value={loadNumberValue ?? ''}
-									placeholder={loadNumberValue === null ? 'Mixed' : ''}
-									onchange={(e) => applyField('loadValue', e.currentTarget.valueAsNumber || 0)}
-								/>
-							{/if}
-							<select
-								class="hb-select"
-								aria-label="Load unit"
-								value={loadUnitValue ?? ''}
-								onchange={(e) => applyField('loadUnit', e.currentTarget.value)}
+					<span class="hb-label">Editing</span>
+					<div class="hb-tabs" role="radiogroup" aria-label="Hand being edited">
+						{#each EDIT_HANDS as tab (tab.value)}
+							<button
+								class="hb-tab"
+								class:hb-on={editHand === tab.value}
+								onclick={() => (editHand = tab.value)}
+								role="radio"
+								aria-checked={editHand === tab.value}>{tab.label}</button
 							>
-								{#if loadUnitValue === null}
-									<option value="" disabled>Mixed</option>
-								{/if}
-								{#each HANGBOARD_LOAD_UNITS as unit (unit.value)}
-									<option value={unit.value}>{unit.label}</option>
-								{/each}
-							</select>
-						</div>
+						{/each}
 					</div>
-				</div>
-
-				{#if usesAssessmentLoad}
-					<div class="hb-assessment">
-						<span class="hb-hint">Loads set in percent</span>
-						<AssessmentRefFields
-							field="load"
-							bind:assessmentType={loadAssessmentType}
-							bind:fallback={loadFallbackKg}
-							fallbackUnit="kg"
-						/>
-					</div>
-				{/if}
-			</div>
-
-			<div class="hb-row">
-				<span class="hb-label">Vary by</span>
-				<div class="hb-tabs" role="radiogroup" aria-label="What can vary">
-					{#each HANGBOARD_VARIATIONS as option (option.value)}
-						<button
-							class="hb-tab"
-							class:hb-on={variation === option.value}
-							onclick={() => requestChange({ kind: 'variation', value: option.value })}
-							title={option.hint}
-							role="radio"
-							aria-checked={variation === option.value}>{option.label}</button
-						>
-					{/each}
-				</div>
-				<span class="hb-hint">{variationHint}</span>
-			</div>
-
-			{#if pendingMessage}
-				<div class="hb-confirm" role="alertdialog" aria-label="Confirm the change">
-					<span class="hb-confirm-message">{pendingMessage}</span>
-					<button class="hb-pill" onclick={cancelChange}>Cancel</button>
-					<button class="hb-pill hb-primary" onclick={confirmChange}>Continue</button>
 				</div>
 			{/if}
 
-			{#if variation !== 'uniform'}
-				<div class="hb-map">
-					<div class="hb-row">
-						<span class="hb-label">Session map</span>
-						<span class="hb-hint">{mapHint} Ctrl-C and Ctrl-V copy and paste, Esc clears.</span>
-						<span class="hb-spacer"></span>
-						<button class="hb-pill" onclick={selectAll}>Select all</button>
-						{#if hasSelection}
-							<button class="hb-pill" onclick={clearSelection}>Clear</button>
-						{/if}
-					</div>
+			<div class="hb-fields">
+				<div class="hb-field">
+					<label class="hb-label" for={edgeFieldId}>Edge (mm)</label>
+					<input
+						id={edgeFieldId}
+						class="hb-input"
+						type="number"
+						min="1"
+						value={edgeValue ?? ''}
+						placeholder={edgeValue === null ? 'Mixed' : ''}
+						onchange={(e) => applyField('edge', saneCount(e.currentTarget.valueAsNumber))}
+					/>
+				</div>
 
-					<HangboardSessionMap rows={setRows} {onStepClick} onSelectSet={selectSet}>
-						{#snippet setActions(index: number)}
-							<div class="hb-set-actions">
-								<button
-									class="hb-act-btn"
-									onclick={() => copySet(index)}
-									title="Copy this set"
-									aria-label="Copy this set"
-								>
-									<Icon name="copy" size={13} color="currentColor" />
-								</button>
-								<button
-									class="hb-act-btn"
-									onclick={() => pasteSet(index)}
-									disabled={!clipboard}
-									title="Paste onto this set"
-									aria-label="Paste onto this set"
-								>
-									<Icon name="paste" size={13} color="currentColor" />
-								</button>
-								{#if index < sets - 1}
-									<button
-										class="hb-act-btn"
-										onclick={() => applySetBelow(index)}
-										title="Copy this set into the sets below"
-										aria-label="Copy this set into the sets below"
-									>
-										<Icon name="arrow-down" size={13} color="currentColor" />
-									</button>
-								{/if}
-							</div>
-						{/snippet}
-					</HangboardSessionMap>
-
-					<div class="hb-legend">
-						<span><span class="hb-swatch"></span>base configuration</span>
-						<span><span class="hb-swatch hb-swatch-custom"></span>customised, values shown</span>
-						{#if clipboard}
-							<span>Clipboard: {clipboardLabel}</span>
-						{/if}
+				<div class="hb-field">
+					<span class="hb-label">Grip</span>
+					<div class="hb-pills" role="radiogroup" aria-label="Grip">
+						{#each HANGBOARD_GRIPS as grip (grip.value)}
+							<button
+								class="hb-pill"
+								class:hb-on={gripValue === grip.value}
+								onclick={() => applyField('grip', grip.value)}
+								title={grip.hint}
+								role="radio"
+								aria-checked={gripValue === grip.value}>{grip.value}</button
+							>
+						{/each}
 					</div>
+				</div>
+
+				<div class="hb-field">
+					<span class="hb-label">Load</span>
+					<div class="hb-load">
+						{#if loadUnitValue === null || loadUnitHasValue(loadUnitValue)}
+							<input
+								class="hb-input"
+								type="number"
+								min="0"
+								aria-label="Load"
+								value={loadNumberValue ?? ''}
+								placeholder={loadNumberValue === null ? 'Mixed' : ''}
+								onchange={(e) => applyField('loadValue', e.currentTarget.valueAsNumber || 0)}
+							/>
+						{/if}
+						<select
+							class="hb-select"
+							aria-label="Load unit"
+							value={loadUnitValue ?? ''}
+							onchange={(e) => applyField('loadUnit', e.currentTarget.value)}
+						>
+							{#if loadUnitValue === null}
+								<option value="" disabled>Mixed</option>
+							{/if}
+							{#each HANGBOARD_LOAD_UNITS as unit (unit.value)}
+								<option value={unit.value}>{unit.label}</option>
+							{/each}
+						</select>
+					</div>
+				</div>
+			</div>
+
+			{#if usesAssessmentLoad}
+				<div class="hb-assessment">
+					<span class="hb-hint">Loads set in percent</span>
+					<AssessmentRefFields
+						field="load"
+						bind:assessmentType={loadAssessmentType}
+						bind:fallback={loadFallbackKg}
+						fallbackUnit="kg"
+					/>
 				</div>
 			{/if}
 		</div>
-	{/if}
-</div>
+
+		<div class="hb-row">
+			<span class="hb-label">Vary by</span>
+			<div class="hb-tabs" role="radiogroup" aria-label="What can vary">
+				{#each HANGBOARD_VARIATIONS as option (option.value)}
+					<button
+						class="hb-tab"
+						class:hb-on={variation === option.value}
+						onclick={() => requestChange({ kind: 'variation', value: option.value })}
+						title={option.hint}
+						role="radio"
+						aria-checked={variation === option.value}>{option.label}</button
+					>
+				{/each}
+			</div>
+			<span class="hb-hint">{variationHint}</span>
+		</div>
+
+		{#if pendingMessage}
+			<div class="hb-confirm" role="alertdialog" aria-label="Confirm the change">
+				<span class="hb-confirm-message">{pendingMessage}</span>
+				<button class="hb-pill" onclick={cancelChange}>Cancel</button>
+				<button class="hb-pill hb-primary" onclick={confirmChange}>Continue</button>
+			</div>
+		{/if}
+
+		{#if variation !== 'uniform'}
+			<div class="hb-map">
+				<div class="hb-row">
+					<span class="hb-label">Session map</span>
+					<span class="hb-hint">{mapHint} Ctrl-C and Ctrl-V copy and paste, Esc clears.</span>
+					<span class="hb-spacer"></span>
+					<button class="hb-pill" onclick={selectAll}>Select all</button>
+					{#if hasSelection}
+						<button class="hb-pill" onclick={clearSelection}>Clear</button>
+					{/if}
+				</div>
+
+				<HangboardSessionMap rows={setRows} {onStepClick} onSelectSet={selectSet}>
+					{#snippet setActions(index: number)}
+						<div class="hb-set-actions">
+							<button
+								class="hb-act-btn"
+								onclick={() => copySet(index)}
+								title="Copy this set"
+								aria-label="Copy this set"
+							>
+								<Icon name="copy" size={13} color="currentColor" />
+							</button>
+							<button
+								class="hb-act-btn"
+								onclick={() => pasteSet(index)}
+								disabled={!clipboard}
+								title="Paste onto this set"
+								aria-label="Paste onto this set"
+							>
+								<Icon name="paste" size={13} color="currentColor" />
+							</button>
+							{#if index < sets - 1}
+								<button
+									class="hb-act-btn"
+									onclick={() => applySetBelow(index)}
+									title="Copy this set into the sets below"
+									aria-label="Copy this set into the sets below"
+								>
+									<Icon name="arrow-down" size={13} color="currentColor" />
+								</button>
+							{/if}
+						</div>
+					{/snippet}
+				</HangboardSessionMap>
+
+				<div class="hb-legend">
+					<span><span class="hb-swatch"></span>base configuration</span>
+					<span><span class="hb-swatch hb-swatch-custom"></span>customised, values shown</span>
+					{#if clipboard}
+						<span>Clipboard: {clipboardLabel}</span>
+					{/if}
+				</div>
+			</div>
+		{/if}
+	{/snippet}
+</HangboardCard>
 
 <style>
-	/* Focusable so the card owns the map shortcuts, but never drawn as focused:
-	   it is a container the coach never tabs to. */
-	.hb-card {
-		background: #fff;
-		border-radius: var(--rl);
-		border: 1px solid color-mix(in srgb, var(--hb) 30%, transparent);
-		box-shadow: var(--sh);
-		overflow: hidden;
-		outline: none;
-	}
-
-	.hb-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 14px;
-		cursor: pointer;
-	}
-
-	.hb-accent {
-		width: 4px;
-		height: 20px;
-		background: var(--hb);
-		border-radius: 2px;
-		flex-shrink: 0;
-	}
-
-	.hb-title {
-		font-size: 13px;
-		font-weight: 700;
-		color: var(--hb);
-		flex: 1;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-	}
-
-	.hb-summary {
-		font-size: 11px;
-		color: var(--tx3);
-		font-weight: 500;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.hb-body {
-		border-top: 1px solid var(--bd2);
-		padding: 16px 18px;
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
 	.hb-sentence {
 		display: flex;
 		flex-wrap: wrap;
@@ -1121,11 +1008,6 @@
 		background: var(--hb);
 		color: #fff;
 		font-weight: 700;
-	}
-
-	.hb-pill.hb-danger {
-		border-color: #e57373;
-		color: #e57373;
 	}
 
 	.hb-pill:disabled {

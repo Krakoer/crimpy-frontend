@@ -18,7 +18,7 @@
 		applyHangboardRepDefaults,
 		isHangboardItem
 	} from '$lib/components/training/hangboard-granularity';
-	import { HANGBOARD_COLOR } from '$lib/components/training/hangboard-config';
+	import { STRUCTURE_BLOCKS } from '$lib/components/training/block-presentation';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
@@ -427,29 +427,12 @@
 		}
 	}
 
-	const structureButtons = [
-		{ type: 'circuit' as TrainingItemType, label: 'Circuit', icon: 'link', color: 'var(--pr)' },
-		{ type: 'group' as TrainingItemType, label: 'Group', icon: 'filter', color: 'var(--tx2)' },
-		{
-			type: 'repeater' as TrainingItemType,
-			label: 'Hangboard',
-			icon: 'grip',
-			color: HANGBOARD_COLOR
-		},
-		{
-			type: 'hangboard_rep' as TrainingItemType,
-			label: 'Hang rep',
-			icon: 'clock',
-			color: HANGBOARD_COLOR
-		}
-	];
-
 	let allowedStructureButtons = $derived(
 		draft.training_type === 'stretching'
-			? structureButtons.filter(
+			? STRUCTURE_BLOCKS.filter(
 					(b) => b.type === 'circuit' && !draft.items.some((i) => i.type === 'circuit')
 				)
-			: structureButtons
+			: STRUCTURE_BLOCKS
 	);
 </script>
 
@@ -560,9 +543,7 @@
 								? ['exercise']
 								: ['exercise', 'circuit']
 							: ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep']}
-						circuitInnerAllowedTypes={draft.training_type === 'stretching'
-							? ['exercise']
-							: undefined}
+						innerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
 					/>
 				</div>
 

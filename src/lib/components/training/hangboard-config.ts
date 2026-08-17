@@ -39,10 +39,6 @@ export interface StoredLayout {
 const LEFT = 0;
 const RIGHT = 1;
 
-// The colour every hangboard block is drawn in, shared by the cards and by the
-// palette buttons that create them.
-export const HANGBOARD_COLOR = '#4A7C8C';
-
 export const HANGBOARD_GRIPS: { value: string; hint: string }[] = [
 	{ value: '3FD', hint: 'Three-finger drag' },
 	{ value: 'HC', hint: 'Half crimp' },

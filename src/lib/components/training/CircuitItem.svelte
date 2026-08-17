@@ -178,6 +178,7 @@
 						(depth < 1
 							? ['exercise', 'group', 'repeater', 'hangboard_rep']
 							: ['exercise', 'repeater', 'hangboard_rep'])}
+					{innerAllowedTypes}
 					depth={depth + 1}
 					containerId={'container:' + item._id}
 				/>
