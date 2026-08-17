@@ -2,11 +2,12 @@
 	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ExerciseItem from './ExerciseItem.svelte';
 	import HangboardItem from './HangboardItem.svelte';
+	import HangboardRepItem from './HangboardRepItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
 	import GroupItem from './GroupItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
-	import { applyHangboardDefaults } from './hangboard-granularity';
+	import { applyHangboardDefaults, applyHangboardRepDefaults } from './hangboard-granularity';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -14,7 +15,10 @@
 		items: TrainingItem[];
 		exercises: Exercise[];
 		allowedTypes?: TrainingItemType[];
-		circuitInnerAllowedTypes?: TrainingItemType[];
+		// What every container nested below may hold, when the training restricts
+		// it. Circuits and groups both honour it, and both pass it further down, so
+		// a training type that forbids a block forbids it at every depth.
+		innerAllowedTypes?: TrainingItemType[];
 		depth?: number;
 		containerId?: string;
 	}
@@ -22,8 +26,8 @@
 	let {
 		items = $bindable(),
 		exercises,
-		allowedTypes = ['exercise', 'circuit', 'group', 'repeater'],
-		circuitInnerAllowedTypes,
+		allowedTypes = ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep'],
+		innerAllowedTypes,
 		depth = 0,
 		containerId = 'root'
 	}: Props = $props();
@@ -49,6 +53,8 @@
 			base.items = [];
 		} else if (type === 'repeater') {
 			applyHangboardDefaults(base);
+		} else if (type === 'hangboard_rep') {
+			applyHangboardRepDefaults(base);
 		}
 		items.push(base);
 	}
@@ -111,6 +117,12 @@
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 				/>
+			{:else if item.type === 'hangboard_rep'}
+				<HangboardRepItem
+					bind:item={items[i]}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
 			{:else if item.type === 'circuit'}
 				<CircuitItem
 					bind:item={items[i]}
@@ -118,7 +130,7 @@
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 					{depth}
-					innerAllowedTypes={circuitInnerAllowedTypes}
+					{innerAllowedTypes}
 				/>
 			{:else if item.type === 'group'}
 				<GroupItem
@@ -127,6 +139,7 @@
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 					{depth}
+					{innerAllowedTypes}
 				/>
 			{/if}
 		</SortableWrapper>

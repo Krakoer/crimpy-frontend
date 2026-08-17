@@ -2,6 +2,7 @@
 	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import ExerciseItemView from './ExerciseItemView.svelte';
 	import HangboardItemView from './HangboardItemView.svelte';
+	import HangboardRepItemView from './HangboardRepItemView.svelte';
 	import CircuitItemView from './CircuitItemView.svelte';
 	import GroupItemView from './GroupItemView.svelte';
 	import { setContext, untrack } from 'svelte';
@@ -55,6 +56,8 @@
 			<ExerciseItemView {item} {exercises} />
 		{:else if item.type === 'repeater'}
 			<HangboardItemView {item} />
+		{:else if item.type === 'hangboard_rep'}
+			<HangboardRepItemView {item} />
 		{:else if item.type === 'circuit'}
 			<CircuitItemView {item} {exercises} {depth} />
 		{:else if item.type === 'group'}

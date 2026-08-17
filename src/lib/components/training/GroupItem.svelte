@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem } from '$lib/api/client';
+	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ItemList from './ItemList.svelte';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
@@ -11,9 +11,17 @@
 		onRemove: () => void;
 		onDuplicate: () => void;
 		depth: number;
+		innerAllowedTypes?: TrainingItemType[];
 	}
 
-	let { item = $bindable(), exercises, onRemove, onDuplicate, depth }: Props = $props();
+	let {
+		item = $bindable(),
+		exercises,
+		onRemove,
+		onDuplicate,
+		depth,
+		innerAllowedTypes
+	}: Props = $props();
 
 	let collapsed = $state(false);
 	let confirmDelete = $state(false);
@@ -114,7 +122,8 @@
 				<ItemList
 					bind:items={item.items!}
 					{exercises}
-					allowedTypes={['exercise', 'repeater']}
+					allowedTypes={innerAllowedTypes ?? ['exercise', 'repeater', 'hangboard_rep']}
+					{innerAllowedTypes}
 					depth={depth + 1}
 					containerId={'container:' + item._id}
 				/>

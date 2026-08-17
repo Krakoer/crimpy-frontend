@@ -1,9 +1,7 @@
 <script lang="ts">
 	import type { TrainingItem } from '$lib/api/client';
 	import { formatLoad } from '$lib/assessments';
-	import { getContext } from 'svelte';
-	import { COLLAPSE_KEY } from './collapse-context';
-	import Icon from '$lib/components/Icon.svelte';
+	import HangboardCard from './HangboardCard.svelte';
 	import {
 		HANGBOARD_HANDS,
 		hangboardHand,
@@ -19,10 +17,6 @@
 	}
 
 	let { item }: Props = $props();
-
-	let collapsed = $state(false);
-
-	const HB_COLOR = '#4A7C8C';
 
 	let sets = $derived(hangboardSets(item));
 	let reps = $derived(hangboardReps(item));
@@ -55,168 +49,81 @@
 	let collapsedSummary = $derived(
 		`${sets} sets x ${reps} reps, ${item.worktime_seconds ?? 0}s on / ${item.rest_seconds ?? 0}s off`
 	);
-
-	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(
-		COLLAPSE_KEY
-	);
-
-	$effect(() => {
-		if (collapseSignals?.collapse) collapsed = true;
-	});
-
-	$effect(() => {
-		if (collapseSignals?.expand) collapsed = false;
-	});
 </script>
 
-<div class="hb-card" style="--hb: {HB_COLOR};">
-	<div
-		class="hb-header"
-		style="background: {collapsed ? '#fff' : 'var(--panel2)'};"
-		onclick={() => (collapsed = !collapsed)}
-		role="button"
-		tabindex="0"
-		onkeydown={(e) => e.key === 'Enter' && (collapsed = !collapsed)}
-	>
-		<div class="hb-accent"></div>
-		<div
-			style="transform: {collapsed
-				? 'rotate(0deg)'
-				: 'rotate(90deg)'}; transition: transform 0.15s; flex-shrink: 0;"
-		>
-			<Icon name="chevron" size={12} color="var(--tx3)" />
+<HangboardCard title="Hangboard" summary={collapsedSummary} summaryOnlyWhenCollapsed>
+	{#snippet body()}
+		<div class="hb-facts">
+			<div class="hb-fact">
+				<span class="hb-label">Sets</span>
+				<span class="hb-value">{sets}</span>
+			</div>
+			<div class="hb-fact">
+				<span class="hb-label">Reps</span>
+				<span class="hb-value">{reps}</span>
+			</div>
+			<div class="hb-fact">
+				<span class="hb-label">Work</span>
+				<span class="hb-value">{item.worktime_seconds ?? 0}s</span>
+			</div>
+			<div class="hb-fact">
+				<span class="hb-label">Rep rest</span>
+				<span class="hb-value">{item.rest_seconds ?? 0}s</span>
+			</div>
+			<div class="hb-fact">
+				<span class="hb-label">Set rest</span>
+				<span class="hb-value">{item.cycle_rest_seconds ?? 0}s</span>
+			</div>
+			<div class="hb-fact">
+				<span class="hb-label">Hand</span>
+				<span class="hb-value" title={handHint}>{handLabel}</span>
+			</div>
 		</div>
-		<span class="hb-title">
-			Hangboard
-			{#if collapsed}
-				<span class="hb-summary">{collapsedSummary}</span>
-			{/if}
-		</span>
-	</div>
 
-	{#if !collapsed}
-		<div class="hb-body">
+		<div class="hb-section">
+			<div class="hb-section-head">
+				<span class="hb-label">Base configuration</span>
+				{#if variationLabel}
+					<span class="hb-tag">{variationLabel}</span>
+				{/if}
+			</div>
 			<div class="hb-facts">
 				<div class="hb-fact">
-					<span class="hb-label">Sets</span>
-					<span class="hb-value">{sets}</span>
+					<span class="hb-label">Edge (mm)</span>
+					<span class="hb-value">{base.edge}</span>
 				</div>
-				<div class="hb-fact">
-					<span class="hb-label">Reps</span>
-					<span class="hb-value">{reps}</span>
-				</div>
-				<div class="hb-fact">
-					<span class="hb-label">Work</span>
-					<span class="hb-value">{item.worktime_seconds ?? 0}s</span>
-				</div>
-				<div class="hb-fact">
-					<span class="hb-label">Rep rest</span>
-					<span class="hb-value">{item.rest_seconds ?? 0}s</span>
-				</div>
-				<div class="hb-fact">
-					<span class="hb-label">Set rest</span>
-					<span class="hb-value">{item.cycle_rest_seconds ?? 0}s</span>
-				</div>
-				<div class="hb-fact">
-					<span class="hb-label">Hand</span>
-					<span class="hb-value" title={handHint}>{handLabel}</span>
-				</div>
-			</div>
-
-			<div class="hb-section">
-				<div class="hb-section-head">
-					<span class="hb-label">Base configuration</span>
-					{#if variationLabel}
-						<span class="hb-tag">{variationLabel}</span>
-					{/if}
-				</div>
-				<div class="hb-facts">
+				{#if !twoHanded}
 					<div class="hb-fact">
-						<span class="hb-label">Edge (mm)</span>
-						<span class="hb-value">{base.edge}</span>
+						<span class="hb-label">Grip</span>
+						<span class="hb-value">{base.gripRight}</span>
 					</div>
-					{#if !twoHanded}
-						<div class="hb-fact">
-							<span class="hb-label">Grip</span>
-							<span class="hb-value">{base.gripRight}</span>
-						</div>
-						<div class="hb-fact">
-							<span class="hb-label">Load</span>
-							<span class="hb-value">{formatLoad(base.loadRight)}</span>
-						</div>
-					{:else}
-						<div class="hb-fact">
-							<span class="hb-label">Left</span>
-							<span class="hb-value">{base.gripLeft} {formatLoad(base.loadLeft)}</span>
-						</div>
-						<div class="hb-fact">
-							<span class="hb-label">Right</span>
-							<span class="hb-value">{base.gripRight} {formatLoad(base.loadRight)}</span>
-						</div>
-					{/if}
-				</div>
+					<div class="hb-fact">
+						<span class="hb-label">Load</span>
+						<span class="hb-value">{formatLoad(base.loadRight)}</span>
+					</div>
+				{:else}
+					<div class="hb-fact">
+						<span class="hb-label">Left</span>
+						<span class="hb-value">{base.gripLeft} {formatLoad(base.loadLeft)}</span>
+					</div>
+					<div class="hb-fact">
+						<span class="hb-label">Right</span>
+						<span class="hb-value">{base.gripRight} {formatLoad(base.loadRight)}</span>
+					</div>
+				{/if}
 			</div>
-
-			{#if variation !== 'uniform'}
-				<div class="hb-section">
-					<span class="hb-label">Session map</span>
-					<HangboardSessionMap rows={setRows} />
-				</div>
-			{/if}
 		</div>
-	{/if}
-</div>
+
+		{#if variation !== 'uniform'}
+			<div class="hb-section">
+				<span class="hb-label">Session map</span>
+				<HangboardSessionMap rows={setRows} />
+			</div>
+		{/if}
+	{/snippet}
+</HangboardCard>
 
 <style>
-	.hb-card {
-		background: #fff;
-		border-radius: var(--rl);
-		border: 1px solid color-mix(in srgb, var(--hb) 30%, transparent);
-		box-shadow: var(--sh);
-		overflow: hidden;
-	}
-
-	.hb-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 14px;
-		cursor: pointer;
-	}
-
-	.hb-accent {
-		width: 4px;
-		height: 20px;
-		background: var(--hb);
-		border-radius: 2px;
-		flex-shrink: 0;
-	}
-
-	.hb-title {
-		font-size: 13px;
-		font-weight: 700;
-		color: var(--hb);
-		flex: 1;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-	}
-
-	.hb-summary {
-		font-size: 11px;
-		color: var(--tx3);
-		font-weight: 500;
-	}
-
-	.hb-body {
-		border-top: 1px solid var(--bd2);
-		padding: 14px 18px;
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
 	.hb-facts {
 		display: flex;
 		flex-wrap: wrap;

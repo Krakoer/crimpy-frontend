@@ -3,6 +3,7 @@
 	import type { Exercise, TrainingItemType } from '$lib/api/client';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { BLOCK_PRESENTATION } from './block-presentation';
 
 	interface Props {
 		containerId: string;
@@ -20,25 +21,6 @@
 
 	let expanded = $state(false);
 	let showExerciseModal = $state(false);
-
-	const typeLabels: Record<string, string> = {
-		circuit: 'Circuit',
-		group: 'Group',
-		hangboard: 'Hangboard',
-		exercise: 'Exercise'
-	};
-	const typeIcons: Record<string, string> = {
-		circuit: 'link',
-		group: 'layers',
-		hangboard: 'grip',
-		exercise: 'dumbbell'
-	};
-	const typeColors: Record<string, string> = {
-		exercise: 'var(--pr)',
-		circuit: 'var(--pr)',
-		group: 'var(--tx2)',
-		hangboard: '#4A7C8C'
-	};
 
 	function handleTypeClick(type: TrainingItemType) {
 		if (type === 'exercise') {
@@ -83,6 +65,7 @@
 		"
 		>
 			{#each allowedTypes as type (type)}
+				{@const block = BLOCK_PRESENTATION[type]}
 				<button
 					onclick={() => handleTypeClick(type)}
 					style="
@@ -90,11 +73,11 @@
 						padding: 6px 12px; border-radius: var(--rs);
 						border: 1px solid var(--bd); background: #fff;
 						cursor: pointer; font-family: var(--font); font-size: 12px; font-weight: 600;
-						color: {typeColors[type]};
+						color: {block.color};
 					"
 				>
-					<Icon name={typeIcons[type]} size={12} color={typeColors[type]} />
-					{typeLabels[type]}
+					<Icon name={block.icon} size={12} color={block.color} />
+					{block.label}
 				</button>
 			{/each}
 			<span
