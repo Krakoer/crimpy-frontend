@@ -971,3 +971,75 @@ test.describe('hang rep items', () => {
 		});
 	});
 });
+
+test.describe('hangboard card chrome', () => {
+	// The colour lives in one custom property on :root rather than in a constant
+	// each card sets inline, so it is worth proving it still reaches them.
+	const HANGBOARD_ACCENT = 'rgb(74, 124, 140)';
+
+	async function accentColours(page: Page) {
+		return page
+			.locator('.hb-accent')
+			.evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+	}
+
+	test('draws every hangboard card in the hangboard colour, read only and editing', async ({
+		page
+	}) => {
+		const training = testTraining({ items: [hangRepItem(), hangboardItem({ id: 'item-2' })] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await expect(page.getByText('Hang rep')).toBeVisible();
+
+		const readOnly = await accentColours(page);
+		expect(readOnly).toHaveLength(2);
+		expect(readOnly).toEqual([HANGBOARD_ACCENT, HANGBOARD_ACCENT]);
+
+		await page.getByRole('button', { name: 'Edit' }).first().click();
+		await expect(page.getByLabel('Work seconds').first()).toBeVisible();
+
+		const editing = await accentColours(page);
+		expect(editing).toHaveLength(2);
+		expect(editing).toEqual([HANGBOARD_ACCENT, HANGBOARD_ACCENT]);
+	});
+});
+
+/**
+ * A stretching session is not performed on a board, so no hangboard block may be
+ * added to one. The rule is enforced in several places at once, so it is pinned
+ * where a coach can actually reach it rather than on any single code path.
+ */
+test.describe('stretching trainings exclude hangboard blocks', () => {
+	const hangboardButtons = /^(Hangboard|Hang rep)$/;
+
+	test('offers no hangboard block in the palette', async ({ page }) => {
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/new');
+		await expect(page.getByRole('button', { name: 'Hang rep', exact: true })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Stretching' }).click();
+
+		await expect(page.getByRole('button', { name: hangboardButtons })).toHaveCount(0);
+	});
+
+	test('offers no hangboard block inside a group the training already carries', async ({
+		page
+	}) => {
+		const training = testTraining({
+			items: [{ id: 'item-1', type: 'group', position: 0, group_title: 'Warm up', items: [] }]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Stretching' }).click();
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+
+		await expect(page.getByRole('button', { name: 'Exercise', exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: hangboardButtons })).toHaveCount(0);
+	});
+});
