@@ -1,66 +1,66 @@
 import type { RepData, SessionResponse } from '$lib/api/client';
 
-export interface SessionTypeInfo {
+// What the athlete did. A label only: whether a session has rep measurements to
+// show is decided by the reps it carries, never by this.
+export interface SessionActivityInfo {
 	label: string;
 	short: string;
 	icon: string;
 	color: string;
 	tint: string;
-	// Crimpy trainings are driven by the force sensor and come back with rep by
-	// rep measurements. The other types are logged by hand and only carry a
-	// duration and the athlete's notes, so they get a different detail layout.
-	sensorRecorded: boolean;
 }
 
-// Session discriminators shared with the app, stored on sessions.session_type.
-export const SESSION_TYPES: Record<number, SessionTypeInfo> = {
+// Activity discriminators shared with the app, stored on sessions.activity.
+export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 	0: {
-		label: 'Crimpy training',
-		short: 'CR',
+		label: 'Hangboard',
+		short: 'HB',
 		icon: 'flame',
 		color: 'var(--pr)',
-		tint: 'var(--pr-lt)',
-		sensorRecorded: true
+		tint: 'var(--pr-lt)'
 	},
 	1: {
 		label: 'Climbing',
 		short: 'CL',
 		icon: 'mountain',
 		color: 'var(--gd)',
-		tint: 'var(--gd-lt)',
-		sensorRecorded: false
+		tint: 'var(--gd-lt)'
 	},
 	2: {
 		label: 'Stretching',
 		short: 'ST',
 		icon: 'figure',
 		color: 'var(--gn)',
-		tint: 'var(--gn-lt)',
-		sensorRecorded: false
+		tint: 'var(--gn-lt)'
 	},
 	3: {
 		label: 'Workout',
 		short: 'WO',
 		icon: 'dumbbell',
 		color: 'var(--pl)',
-		tint: 'var(--pl-lt)',
-		sensorRecorded: false
+		tint: 'var(--pl-lt)'
+	},
+	4: {
+		label: 'Other',
+		short: 'OT',
+		icon: 'clock',
+		color: 'var(--hb)',
+		tint: 'var(--panel2)'
 	}
 };
 
-const UNKNOWN_SESSION_TYPE: SessionTypeInfo = {
+const UNKNOWN_SESSION_ACTIVITY: SessionActivityInfo = {
 	label: 'Session',
 	short: '--',
 	icon: 'clock',
 	color: 'var(--tx2)',
-	tint: 'var(--panel2)',
-	sensorRecorded: false
+	tint: 'var(--panel2)'
 };
 
-// A type the app added before this portal knew about it degrades to a neutral
-// entry rather than breaking the list.
-export function sessionTypeInfo(type: number): SessionTypeInfo {
-	return SESSION_TYPES[type] ?? UNKNOWN_SESSION_TYPE;
+// An activity the app added before this portal knew about it degrades to a
+// neutral entry rather than breaking the list.
+export function sessionActivityInfo(activity: number): SessionActivityInfo {
+	return SESSION_ACTIVITIES[activity] ?? UNKNOWN_SESSION_ACTIVITY;
 }
 
 export const GRIP_POSITIONS: Record<number, { label: string; short: string }> = {

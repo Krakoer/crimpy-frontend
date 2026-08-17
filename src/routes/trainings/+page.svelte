@@ -14,10 +14,11 @@
 		workout: { bg: 'var(--pr)', tint: '#fbebe2', label: 'Workout', initials: 'WO' },
 		climbing: { bg: 'var(--gd)', tint: '#fbf1de', label: 'Climbing', initials: 'CL' },
 		stretching: { bg: 'var(--gn)', tint: '#e6efe6', label: 'Stretching', initials: 'ST' },
-		crimpy: { bg: 'var(--pl)', tint: '#efeaf1', label: 'Crimpy', initials: 'CR' }
+		hangboard: { bg: 'var(--hb)', tint: '#e4edf0', label: 'Hangboard', initials: 'HB' },
+		other: { bg: 'var(--pl)', tint: '#efeaf1', label: 'Other', initials: 'OT' }
 	};
 
-	const ALL_TYPES: TrainingType[] = ['workout', 'stretching', 'climbing'];
+	const ALL_TYPES: TrainingType[] = ['hangboard', 'workout', 'stretching', 'climbing', 'other'];
 
 	let trainings = $state<TrainingSummary[]>([]);
 	let loading = $state(false);

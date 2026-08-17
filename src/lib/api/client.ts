@@ -83,9 +83,18 @@ export interface SessionResponse {
 	Date: string;
 	Duration: number;
 	Notes: string;
-	SessionType: number;
+	// What was done, as a label. See SESSION_ACTIVITIES in $lib/sessions.
+	Activity: number;
+	// How the session came to exist. Played sessions were run step by step in the
+	// app and own their reps and timings; logged ones were entered by hand.
+	Origin: 'played' | 'logged';
+	// What the session was played from, both absent when it was logged by hand.
+	TrainingID?: string | null;
+	ProgramSessionID?: string | null;
 	IsAssessment: boolean;
 	UpdatedAt: string;
+	// Only on the list endpoint, which does not carry the reps themselves.
+	RepCount?: number;
 	// Only set on repeater sessions, and stored with the session so its sets can
 	// still be rebuilt after the training template it came from has changed.
 	RepeaterSets?: number | null;
@@ -267,7 +276,9 @@ export type HangboardHand = 'both' | 'alternate' | 'split' | 'left' | 'right';
 // row per rep, or one row per set and rep.
 export type HangboardGranularity = 'uniform' | 'rep' | 'set';
 
-export type TrainingType = 'workout' | 'stretching' | 'climbing';
+// What a training is about. A label only: what the athlete's app lets them do
+// with it comes from the items it holds, never from this.
+export type TrainingType = 'hangboard' | 'workout' | 'stretching' | 'climbing' | 'other';
 
 export interface TrainingSummary {
 	id: string;

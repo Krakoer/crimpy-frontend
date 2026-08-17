@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type { TrainingRequest } from '../src/lib/api/client';
 import {
 	capture,
 	exercisePage,
@@ -181,6 +182,41 @@ test.describe('training editor', () => {
 
 		await expect.poll(() => posted.length).toBe(1);
 		expect(posted[0].body).toMatchObject({ training_type: 'stretching' });
+	});
+
+	// Log only used to be implied by the climbing type, which meant a coach could
+	// not have a climbing session with exercises nor a log-only workout.
+	test('saves a log only training with no items, whatever its type', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Long run');
+		await page.getByRole('button', { name: 'Other' }).click();
+		await page.getByRole('checkbox').first().check();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect.poll(() => posted.length).toBe(1);
+		expect(posted[0].body).toMatchObject({ training_type: 'other', items: [] });
+	});
+
+	test('keeps the items of a climbing training that is not log only', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Board session');
+		await page.getByRole('button', { name: 'Climbing' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Hang rep' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect.poll(() => posted.length).toBe(1);
+		expect(posted[0].body).toMatchObject({ training_type: 'climbing' });
+		expect((posted[0].body as TrainingRequest).items).toHaveLength(1);
 	});
 
 	test('reports the server error when a create fails', async ({ page }) => {
@@ -1018,11 +1054,14 @@ test.describe('stretching trainings exclude hangboard blocks', () => {
 		await stubEditorPalette(page);
 
 		await page.goto('/trainings/new');
-		await expect(page.getByRole('button', { name: 'Hang rep', exact: true })).toBeVisible();
+		// Scoped to the palette: the training type picker carries a Hangboard
+		// button of its own, which says nothing about the blocks on offer.
+		const palette = page.getByTestId('block-palette');
+		await expect(palette.getByRole('button', { name: 'Hang rep', exact: true })).toBeVisible();
 
 		await page.getByRole('button', { name: 'Stretching' }).click();
 
-		await expect(page.getByRole('button', { name: hangboardButtons })).toHaveCount(0);
+		await expect(palette.getByRole('button', { name: hangboardButtons })).toHaveCount(0);
 	});
 
 	test('offers no hangboard block inside a group the training already carries', async ({
@@ -1039,7 +1078,8 @@ test.describe('stretching trainings exclude hangboard blocks', () => {
 		await page.getByRole('button', { name: 'Stretching' }).click();
 		await page.getByRole('button', { name: 'Add item' }).first().click();
 
-		await expect(page.getByRole('button', { name: 'Exercise', exact: true })).toBeVisible();
-		await expect(page.getByRole('button', { name: hangboardButtons })).toHaveCount(0);
+		const palette = page.getByTestId('block-palette');
+		await expect(palette.getByRole('button', { name: 'Exercise', exact: true })).toBeVisible();
+		await expect(palette.getByRole('button', { name: hangboardButtons })).toHaveCount(0);
 	});
 });

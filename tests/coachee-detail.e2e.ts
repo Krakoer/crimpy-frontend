@@ -86,7 +86,8 @@ test.describe('session details', () => {
 	const crimpySession = testSession({
 		ID: 'session-crimpy',
 		Name: 'Repeaters 20mm',
-		SessionType: 0,
+		Activity: 0,
+		Origin: 'played',
 		Duration: 900,
 		RepeaterSets: 1,
 		RepeaterReps: 2,
@@ -121,7 +122,7 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('Performance')).toBeHidden();
 	});
 
-	test('opens a crimpy session on the performance layout', async ({ page }) => {
+	test('opens a hangboard session on the performance layout', async ({ page }) => {
 		await stubCoacheeDetail(page);
 		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
 		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
@@ -132,7 +133,7 @@ test.describe('session details', () => {
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
 		const dialog = page.getByRole('dialog');
-		await expect(dialog.getByText('Crimpy training')).toBeVisible();
+		await expect(dialog.getByText('Hangboard')).toBeVisible();
 		await expect(dialog.getByText('Performance')).toBeVisible();
 		// One of the four reps falls under 90% of its 30 kg target.
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();

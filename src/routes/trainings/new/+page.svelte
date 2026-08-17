@@ -209,14 +209,18 @@
 	];
 
 	const TYPE_COLORS: Record<TrainingType, string> = {
+		hangboard: 'var(--hb)',
 		workout: 'var(--pr)',
 		climbing: 'var(--gd)',
-		stretching: 'var(--gn)'
+		stretching: 'var(--gn)',
+		other: 'var(--pl)'
 	};
 	const TYPE_LABELS: Record<TrainingType, string> = {
+		hangboard: 'Hangboard',
 		workout: 'Workout',
 		climbing: 'Climbing',
-		stretching: 'Stretching'
+		stretching: 'Stretching',
+		other: 'Other'
 	};
 
 	function emptyDraft(): TrainingRequest {
@@ -234,6 +238,10 @@
 	let draft = $state<TrainingRequest>(emptyDraft());
 	let saving = $state(false);
 	let saveError = $state('');
+	// A log-only training carries no items, so there is nothing for the athlete to
+	// step through and their app offers to log it as done instead of running it.
+	// Kept apart from the type, so any label can be either.
+	let logOnly = $state(false);
 	let showCreateExerciseModal = $state(false);
 	let createExerciseModalDirty = $state(false);
 	let leavingAfterCreate = $state(false);
@@ -416,7 +424,7 @@
 				training_type: draft.training_type,
 				goal: draft.goal?.trim() || undefined,
 				comment: draft.comment?.trim() || undefined,
-				items: draft.training_type === 'climbing' ? [] : draft.items
+				items: logOnly ? [] : draft.items
 			});
 			snackbar.show('Training created');
 			leavingAfterCreate = true;
@@ -461,7 +469,7 @@
 		</button>
 	{/snippet}
 
-	{#if draft.training_type !== 'climbing'}
+	{#if !logOnly}
 		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 			<div class="flex items-start">
 				<!-- Main content -->
@@ -498,7 +506,7 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 4px; align-self: flex-start;">
-								{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t (t)}
+								{#each ['hangboard', 'workout', 'climbing', 'stretching', 'other'] as TrainingType[] as t (t)}
 									<button
 										onclick={() => handleTypeChange(t)}
 										style="
@@ -512,6 +520,16 @@
 									>
 								{/each}
 							</div>
+							<label
+								style="
+									display: flex; align-items: center; gap: 7px; cursor: pointer;
+									font-size: 12px; color: var(--tx2); font-family: var(--font);
+									align-self: flex-start; margin-top: 8px;
+								"
+							>
+								<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
+								Log only (nothing to run, the athlete just marks it as done)
+							</label>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
@@ -563,7 +581,7 @@
 							>
 								ADD BLOCK
 							</div>
-							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+							<div data-testid="block-palette" style="display: flex; flex-wrap: wrap; gap: 6px;">
 								{#each allowedStructureButtons as btn (btn.type)}
 									<SidePanelDraggable
 										id={'__new__:' + btn.type}
@@ -749,7 +767,7 @@
 						/>
 					</div>
 					<div style="display: flex; gap: 4px; align-self: flex-start;">
-						{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t (t)}
+						{#each ['hangboard', 'workout', 'climbing', 'stretching', 'other'] as TrainingType[] as t (t)}
 							<button
 								onclick={() => handleTypeChange(t)}
 								style="
@@ -763,6 +781,16 @@
 							>
 						{/each}
 					</div>
+					<label
+						style="
+							display: flex; align-items: center; gap: 7px; cursor: pointer;
+							font-size: 12px; color: var(--tx2); font-family: var(--font);
+							align-self: flex-start; margin-top: 8px;
+						"
+					>
+						<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
+						Log only (nothing to run, the athlete just marks it as done)
+					</label>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
 					<span

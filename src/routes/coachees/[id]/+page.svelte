@@ -13,7 +13,7 @@
 	} from '$lib/api/client';
 	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
 	import { ASSESSMENT_TYPES } from '$lib/assessments';
-	import { formatDuration, formatSessionTime, gripLabel, sessionTypeInfo } from '$lib/sessions';
+	import { formatDuration, formatSessionTime, gripLabel, sessionActivityInfo } from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -134,7 +134,7 @@
 				day: date.getDate(),
 				isToday: isSameDay(date, today),
 				isSelected: selectedDay !== null && isSameDay(date, selectedDay),
-				dots: daySessions.map((s) => sessionTypeInfo(s.SessionType).color)
+				dots: daySessions.map((s) => sessionActivityInfo(s.Activity).color)
 			};
 		});
 	});
@@ -603,7 +603,7 @@
 											{group.label}
 										</div>
 										{#each group.items as session (session.ID)}
-											{@const type = sessionTypeInfo(session.SessionType)}
+											{@const type = sessionActivityInfo(session.Activity)}
 											<button
 												onclick={() => (openedSession = session)}
 												aria-label="Open {session.Name}"

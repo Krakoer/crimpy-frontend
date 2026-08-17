@@ -405,21 +405,27 @@
 	}
 
 	const TYPE_COLORS: Record<TrainingType, string> = {
+		hangboard: '#4a7c8c',
 		workout: '#c2714f',
 		climbing: '#d4a15e',
-		stretching: '#6b8f71'
+		stretching: '#6b8f71',
+		other: '#907b99'
 	};
 
 	const TYPE_TINTS: Record<TrainingType, string> = {
+		hangboard: '#e4edf0',
 		workout: '#f5e2d7',
 		climbing: '#faf0dc',
-		stretching: '#e3ede4'
+		stretching: '#e3ede4',
+		other: '#efeaf1'
 	};
 
 	const TYPE_LABELS: Record<string, string> = {
+		hangboard: 'HB',
 		workout: 'WO',
 		climbing: 'CL',
-		stretching: 'ST'
+		stretching: 'ST',
+		other: 'OT'
 	};
 
 	const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

@@ -11,7 +11,7 @@
 		formatSessionDateShort,
 		formatSessionTime,
 		gripLabel,
-		sessionTypeInfo
+		sessionActivityInfo
 	} from '$lib/sessions';
 
 	interface Props {
@@ -30,8 +30,14 @@
 
 	const detail = $derived<SessionResponse>(loaded?.session ?? session);
 	const reps = $derived<RepData[]>(loaded?.rep_datas ?? []);
+	// Whether there are measurements to show is decided by the reps the session
+	// carries, not by what it was labelled: a hangboard block a coach filed under
+	// any activity still comes back with every rep the sensor recorded. Played
+	// sessions with no reps yet still get the layout, so the empty state below can
+	// say so rather than the session looking like a hand-written log.
+	const hasRepData = $derived(reps.length > 0 || detail.Origin === 'played');
 	const assessments = $derived<SessionAssessment[]>(loaded?.assessments ?? []);
-	const type = $derived(sessionTypeInfo(detail.SessionType));
+	const type = $derived(sessionActivityInfo(detail.Activity));
 
 	onMount(async () => {
 		try {
@@ -114,7 +120,7 @@
 				</div>
 			{/if}
 
-			{#if type.sensorRecorded}
+			{#if hasRepData}
 				<div
 					class="grid grid-cols-4"
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
@@ -179,7 +185,7 @@
 					Loading session details...
 				</div>
 			{:else}
-				{#if type.sensorRecorded}
+				{#if hasRepData}
 					<SessionRepsCard session={detail} {reps} accent={type.color} />
 				{/if}
 
@@ -228,7 +234,7 @@
 					</div>
 				{/if}
 
-				{#if type.sensorRecorded && reps.length === 0 && !error}
+				{#if hasRepData && reps.length === 0 && !error}
 					<div
 						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3);"
 					>

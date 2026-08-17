@@ -279,7 +279,7 @@ export interface TestTraining {
 	user_id: string;
 	title: string;
 	description?: string | null;
-	training_type?: 'workout' | 'stretching' | 'climbing';
+	training_type?: 'hangboard' | 'workout' | 'stretching' | 'climbing' | 'other';
 	goal?: string;
 	comment?: string;
 	is_favorite?: boolean;
@@ -336,7 +336,8 @@ export interface TestSession {
 	Date: string;
 	Duration: number;
 	Notes: string;
-	SessionType: number;
+	Activity: number;
+	Origin: 'played' | 'logged';
 	IsAssessment: boolean;
 	UpdatedAt: string;
 	RepeaterSets?: number | null;
@@ -355,7 +356,8 @@ export function testSession(overrides: Partial<TestSession> = {}): TestSession {
 		Date: isoDaysAgo(1),
 		Duration: 3600,
 		Notes: '',
-		SessionType: 1,
+		Activity: 1,
+		Origin: 'logged',
 		IsAssessment: false,
 		UpdatedAt: isoDaysAgo(1),
 		...overrides
