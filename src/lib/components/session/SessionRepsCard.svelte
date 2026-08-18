@@ -24,7 +24,7 @@
 	const sets = $derived<RepSet[]>(config ? groupRepsIntoSets(reps, config) : []);
 
 	let expanded = $state(false);
-	const workReps = $derived(reps.filter((rep) => !rep.IsRest));
+	const workReps = $derived(reps.filter((rep) => !rep.is_rest));
 	const shownReps = $derived(
 		expanded ? workReps : workReps.slice(0, Math.min(INDIVIDUAL_REPS_PREVIEW, workReps.length))
 	);
@@ -37,16 +37,16 @@
 	// session instead, since a full bar would read as having met a target that
 	// was never set.
 	function fillRatio(rep: RepData): number {
-		const reference = rep.TargetWeight > 0 ? rep.TargetWeight : (performance?.maxWeight ?? 0);
+		const reference = rep.target_weight > 0 ? rep.target_weight : (performance?.maxWeight ?? 0);
 		if (reference <= 0) return 0;
-		return Math.min(1, rep.AverageWeight / reference);
+		return Math.min(1, rep.average_weight / reference);
 	}
 
 	function setSummary(set: RepSet): string {
-		const work = set.reps.filter((rep) => !rep.IsRest);
+		const work = set.reps.filter((rep) => !rep.is_rest);
 		if (work.length === 0) return 'rest only';
-		const avg = work.reduce((sum, rep) => sum + rep.AverageWeight, 0) / work.length;
-		const target = work[0].TargetWeight;
+		const avg = work.reduce((sum, rep) => sum + rep.average_weight, 0) / work.length;
+		const target = work[0].target_weight;
 		if (target > 0) return `avg ${formatWeight(avg)} / ${formatWeight(target)} kg`;
 		return `avg ${formatWeight(avg)} kg`;
 	}
@@ -111,16 +111,16 @@
 								<span style="font-size: 11.5px; color: var(--tx2);">{setSummary(set)}</span>
 							</div>
 							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
-								{#each set.reps.filter((rep) => !rep.IsRest) as rep (rep.ID)}
+								{#each set.reps.filter((rep) => !rep.is_rest) as rep (rep.id)}
 									{@const onTarget = isOnTarget(rep)}
 									<span
-										title="{gripShort(rep.GripPosition)} - {rep.Duration}s"
+										title="{gripShort(rep.grip_position)} - {rep.duration}s"
 										style="
 											font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: var(--rs);
 											color: {onTarget ? 'var(--gn)' : 'var(--tx2)'};
 											background: {onTarget ? 'var(--gn-lt)' : 'var(--panel)'};
 											border: 1px solid {onTarget ? 'var(--gn-lt)' : 'var(--bd)'};
-										">{formatWeight(rep.AverageWeight)}</span
+										">{formatWeight(rep.average_weight)}</span
 									>
 								{/each}
 							</div>
@@ -129,7 +129,7 @@
 				</div>
 			{:else}
 				<div style="display: flex; flex-direction: column; gap: 6px;">
-					{#each shownReps as rep, position (rep.ID)}
+					{#each shownReps as rep, position (rep.id)}
 						<div style="display: flex; align-items: center; gap: 10px;">
 							<span
 								style="font-size: 11px; color: var(--tx3); font-weight: 600; width: 28px; flex-shrink: 0;"
@@ -137,11 +137,11 @@
 							>
 							<span
 								style="font-size: 11px; font-weight: 700; color: {accent}; width: 16px; flex-shrink: 0;"
-								>{rep.RightHand ? 'R' : 'L'}</span
+								>{rep.right_hand ? 'R' : 'L'}</span
 							>
 							<span
 								style="font-size: 11px; color: var(--tx3); width: 32px; flex-shrink: 0;"
-								title={gripShort(rep.GripPosition)}>{gripShort(rep.GripPosition)}</span
+								title={gripShort(rep.grip_position)}>{gripShort(rep.grip_position)}</span
 							>
 							<div
 								style="flex: 1; height: 6px; border-radius: 999px; background: var(--bd2); overflow: hidden;"
@@ -155,8 +155,8 @@
 							<span
 								style="font-size: 12px; font-weight: 600; color: var(--tx); width: 92px; text-align: right; flex-shrink: 0;"
 							>
-								{formatWeight(rep.AverageWeight)}{rep.TargetWeight > 0
-									? ` / ${formatWeight(rep.TargetWeight)}`
+								{formatWeight(rep.average_weight)}{rep.target_weight > 0
+									? ` / ${formatWeight(rep.target_weight)}`
 									: ''} kg
 							</span>
 						</div>

@@ -31,7 +31,7 @@ test.describe('coachee detail', () => {
 	test('shows the coachee and their session count', async ({ page }) => {
 		await stubCoacheeDetail(page);
 		await stub(page, 'GET', '/api/coach/clients/*/sessions', {
-			body: [testSession(), testSession({ ID: 'session-2', Name: 'Hangboard' })]
+			body: [testSession(), testSession({ id: 'session-2', name: 'Hangboard' })]
 		});
 
 		await page.goto('/coachees/coachee-1');
@@ -84,28 +84,34 @@ test.describe('coachee detail', () => {
 
 test.describe('session details', () => {
 	const crimpySession = testSession({
-		ID: 'session-crimpy',
-		Name: 'Repeaters 20mm',
-		Activity: 0,
-		Origin: 'played',
-		Duration: 900,
-		RepeaterSets: 1,
-		RepeaterReps: 2,
-		RepeaterWorkTime: 7,
-		RepeaterRestTime: 3,
-		RepeaterSetRest: 120,
-		RepeaterSplitHand: false
+		id: 'session-crimpy',
+		name: 'Repeaters 20mm',
+		activity: 0,
+		origin: 'played',
+		duration: 900,
+		repeater_sets: 1,
+		repeater_reps: 2,
+		repeater_work_time: 7,
+		repeater_rest_time: 3,
+		repeater_set_rest: 120,
+		repeater_split_hand: false
 	});
 
 	const crimpyReps = [
-		testRepData({ ID: 'rep-1', Index: 0, AverageWeight: 31, TargetWeight: 30, RightHand: true }),
-		testRepData({ ID: 'rep-2', Index: 1, AverageWeight: 29, TargetWeight: 30, RightHand: false }),
-		testRepData({ ID: 'rep-3', Index: 2, AverageWeight: 22, TargetWeight: 30, RightHand: true }),
-		testRepData({ ID: 'rep-4', Index: 3, AverageWeight: 28, TargetWeight: 30, RightHand: false })
+		testRepData({ id: 'rep-1', index: 0, average_weight: 31, target_weight: 30, right_hand: true }),
+		testRepData({
+			id: 'rep-2',
+			index: 1,
+			average_weight: 29,
+			target_weight: 30,
+			right_hand: false
+		}),
+		testRepData({ id: 'rep-3', index: 2, average_weight: 22, target_weight: 30, right_hand: true }),
+		testRepData({ id: 'rep-4', index: 3, average_weight: 28, target_weight: 30, right_hand: false })
 	];
 
 	test('opens a logged session on the duration layout, without sensor data', async ({ page }) => {
-		const climbing = testSession({ Notes: 'Sent the project', Duration: 5400 });
+		const climbing = testSession({ notes: 'Sent the project', duration: 5400 });
 		await stubCoacheeDetail(page);
 		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [climbing] });
 		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {

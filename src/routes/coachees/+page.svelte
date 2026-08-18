@@ -72,9 +72,9 @@
 						apiClient.listPrograms(c.user_id).catch(() => [] as Program[])
 					]);
 					const sorted = sessions.sort(
-						(a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()
+						(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 					);
-					const lastActivity = sorted[0]?.Date ?? null;
+					const lastActivity = sorted[0]?.date ?? null;
 					const active =
 						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active') ??
 						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');

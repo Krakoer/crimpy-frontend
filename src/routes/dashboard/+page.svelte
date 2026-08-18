@@ -82,12 +82,12 @@
 				const endOfWeek = new Date(startOfWeek);
 				endOfWeek.setDate(startOfWeek.getDate() + 7);
 				const weekSessions = flat.filter((s) => {
-					const d = new Date(s.Date);
+					const d = new Date(s.date);
 					return d >= startOfWeek && d < endOfWeek;
 				});
 				thisWeekCount = weekSessions.length;
 				recentSessions = flat
-					.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime())
+					.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 					.slice(0, 8);
 			} else {
 				thisWeekCount = 0;
@@ -269,7 +269,7 @@
 									Recent sessions
 								</h3>
 							</div>
-							{#each recentSessions as s, i (s.ID)}
+							{#each recentSessions as s, i (s.id)}
 								<button
 									onclick={() => goto(`/coachees/${s.coachee.user_id}`)}
 									style="
@@ -302,11 +302,11 @@
 										<div
 											style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 										>
-											{s.Name || 'Training session'}
+											{s.name || 'Training session'}
 										</div>
 									</div>
 									<div style="font-size: 11.5px; color: var(--tx3); white-space: nowrap;">
-										{formatDate(s.Date)}
+										{formatDate(s.date)}
 									</div>
 								</button>
 							{/each}

@@ -91,6 +91,6 @@ export function missingAssessmentTypes(
 	items: TrainingItem[],
 	assessments: AssessmentResponse[]
 ): number[] {
-	const done = new Set(assessments.map((a) => a.Type));
+	const done = new Set(assessments.map((a) => a.type));
 	return referencedAssessmentTypes(items).filter((type) => !done.has(type));
 }
