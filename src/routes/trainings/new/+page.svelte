@@ -26,6 +26,7 @@
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
+	import { TRAINING_TYPES, TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 
@@ -207,21 +208,6 @@
 			activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
 		})
 	];
-
-	const TYPE_COLORS: Record<TrainingType, string> = {
-		hangboard: 'var(--hb)',
-		workout: 'var(--pr)',
-		climbing: 'var(--gd)',
-		stretching: 'var(--gn)',
-		other: 'var(--pl)'
-	};
-	const TYPE_LABELS: Record<TrainingType, string> = {
-		hangboard: 'Hangboard',
-		workout: 'Workout',
-		climbing: 'Climbing',
-		stretching: 'Stretching',
-		other: 'Other'
-	};
 
 	function emptyDraft(): TrainingRequest {
 		return {
@@ -506,17 +492,17 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 4px; align-self: flex-start;">
-								{#each ['hangboard', 'workout', 'climbing', 'stretching', 'other'] as TrainingType[] as t (t)}
+								{#each TRAINING_TYPES as t (t)}
 									<button
 										onclick={() => handleTypeChange(t)}
 										style="
 											padding: 5px 12px; font-size: 12px; font-weight: 600;
 											border-radius: var(--rs); font-family: var(--font);
-											border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
-											background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+											border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
+											background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
 											color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 											cursor: pointer; transition: all 0.15s;
-										">{TYPE_LABELS[t]}</button
+										">{TRAINING_TYPE_INFO[t].label}</button
 									>
 								{/each}
 							</div>
@@ -735,7 +721,7 @@
 		</DragDropProvider>
 	{:else}
 		<div style="padding: 20px 28px 40px;">
-			<!-- Meta card (climbing - no item tree) -->
+			<!-- Meta card (log only - no item tree) -->
 			<div
 				style="
 				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
@@ -767,17 +753,17 @@
 						/>
 					</div>
 					<div style="display: flex; gap: 4px; align-self: flex-start;">
-						{#each ['hangboard', 'workout', 'climbing', 'stretching', 'other'] as TrainingType[] as t (t)}
+						{#each TRAINING_TYPES as t (t)}
 							<button
 								onclick={() => handleTypeChange(t)}
 								style="
 									padding: 5px 12px; font-size: 12px; font-weight: 600;
 									border-radius: var(--rs); font-family: var(--font);
-									border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
-									background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+									border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
+									background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
 									color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 									cursor: pointer; transition: all 0.15s;
-								">{TYPE_LABELS[t]}</button
+								">{TRAINING_TYPE_INFO[t].label}</button
 							>
 						{/each}
 					</div>

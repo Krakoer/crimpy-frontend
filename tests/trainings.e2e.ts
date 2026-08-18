@@ -20,6 +20,9 @@ const morningMobility = testTraining({
 	training_type: 'stretching'
 });
 
+/** A block that needs no exercise lookup, so a stored training is easy to fake. */
+const warmupGroup = { id: 'item-1', type: 'group', position: 0, group_title: 'Warmup', items: [] };
+
 /** The training editor fills its exercise palette from the library. */
 async function stubEditorPalette(page: Page): Promise<void> {
 	await stub(page, 'GET', '/api/coach/exercises', { body: exercisePage([testExercise()]) });
@@ -279,6 +282,97 @@ test.describe('training editor', () => {
 		await expect(page).toHaveTitle('Power endurance v2 - Crimpy');
 		expect(updates).toHaveLength(1);
 		expect(updates[0].body).toMatchObject({ title: 'Power endurance v2' });
+	});
+
+	// A training is log only when it has no items, whatever its type, so the
+	// editor has to key its layout off that rather than off the climbing type.
+	test('shows the comment of a log only training instead of an empty preview', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({
+				training_type: 'other',
+				items: [],
+				comment: 'Ten kilometres, easy pace'
+			})
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('Ten kilometres, easy pace')).toBeVisible();
+	});
+
+	test('edits the comment of a log only training', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ training_type: 'other', items: [], comment: 'Ten kilometres' })
+		});
+		await stub(page, 'PUT', '/api/trainings/*', { body: testTraining() });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByPlaceholder(/Describe the session/).fill('Twelve kilometres');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({ comment: 'Twelve kilometres', items: [] });
+	});
+
+	test('opens a climbing training that has items in the full editor', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ training_type: 'climbing', items: [warmupGroup] })
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByTestId('block-palette')).toBeVisible();
+	});
+
+	test('saves the items a coach adds to a training that is not log only', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ training_type: 'climbing', items: [warmupGroup] })
+		});
+		await stub(page, 'PUT', '/api/trainings/*', { body: testTraining() });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Hang rep' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect((updates[0].body as TrainingRequest).items).toHaveLength(2);
+	});
+
+	test('drops the items once log only is ticked and marks the training unsaved', async ({
+		page
+	}) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ items: [warmupGroup] })
+		});
+		await stub(page, 'PUT', '/api/trainings/*', { body: testTraining() });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByRole('button', { name: 'Saved' })).toBeVisible();
+
+		await page.getByRole('checkbox').first().check();
+
+		await expect(page.getByRole('button', { name: 'Save training' })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({ items: [] });
 	});
 
 	test('deletes a training from the editor and returns to the list', async ({ page }) => {

@@ -32,6 +32,7 @@
 	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
 	import { STRUCTURE_BLOCKS } from '$lib/components/training/block-presentation';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
+	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
 
 	function ensureClientIds(items: TrainingItem[]) {
 		for (const item of items) {
@@ -246,21 +247,6 @@
 
 	let trainingId = $derived($page.params.id as string);
 
-	const TYPE_COLORS: Record<TrainingType, string> = {
-		hangboard: 'var(--hb)',
-		workout: 'var(--pr)',
-		climbing: 'var(--gd)',
-		stretching: 'var(--gn)',
-		other: 'var(--pl)'
-	};
-	const TYPE_LABELS: Record<TrainingType, string> = {
-		hangboard: 'Hangboard',
-		workout: 'Workout',
-		climbing: 'Climbing',
-		stretching: 'Stretching',
-		other: 'Other'
-	};
-
 	let exercises = $state<Exercise[]>([]);
 	let draft = $state<TrainingRequest>({
 		title: '',
@@ -270,21 +256,25 @@
 		comment: '',
 		items: []
 	});
+	// A log-only training carries no items, so there is nothing for the athlete to
+	// step through and their app offers to log it as done instead of running it.
+	// Kept apart from the type, so any label can be either.
+	let logOnly = $state(false);
 	let savedSnapshot = $state<string | null>(null);
 
-	let isDirty = $derived(
-		savedSnapshot !== null && JSON.stringify($state.snapshot(draft)) !== savedSnapshot
-	);
+	// The toggle lives outside the draft yet decides what gets sent, so the dirty
+	// check has to cover it or ticking it alone would look already saved.
+	function currentSnapshot(): string {
+		return JSON.stringify({ draft: $state.snapshot(draft), logOnly });
+	}
+
+	let isDirty = $derived(savedSnapshot !== null && currentSnapshot() !== savedSnapshot);
 
 	let showCreateExerciseModal = $state(false);
 	let isEditing = $state(false);
 	let loading = $state(true);
 	let saving = $state(false);
 	let saveError = $state('');
-	// A log-only training carries no items, so there is nothing for the athlete to
-	// step through and their app offers to log it as done instead of running it.
-	// Kept apart from the type, so any label can be either.
-	let logOnly = $state(false);
 	let confirmDelete = $state(false);
 	let deleting = $state(false);
 	let createExerciseModalDirty = $state(false);
@@ -492,7 +482,7 @@
 				// Having no items is what makes a training log only, so that is what
 				// the toggle is restored from rather than a flag of its own.
 				logOnly = items.length === 0;
-				savedSnapshot = JSON.stringify($state.snapshot(draft));
+				savedSnapshot = currentSnapshot();
 				loading = false;
 				if (draft.training_type === 'stretching') {
 					applyStretchingFilter();
@@ -519,7 +509,7 @@
 				comment: draft.comment?.trim() || undefined,
 				items: logOnly ? [] : stripClientIds(draft.items)
 			});
-			savedSnapshot = JSON.stringify($state.snapshot(draft));
+			savedSnapshot = currentSnapshot();
 			snackbar.show('Training saved');
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : 'Failed to save training.';
@@ -669,25 +659,24 @@
 					</p>
 				{/if}
 			</div>
-			{#if draft.training_type === 'climbing'}
-				{#if draft.comment}
-					<div
-						style="
-						background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
-						padding: 20px 24px; box-shadow: var(--sh);
-						border-left: 3px solid var(--gd);
-					"
-					>
-						<p style="font-size: 13px; color: var(--tx); line-height: 1.6; white-space: pre-wrap;">
-							{draft.comment}
-						</p>
-					</div>
-				{/if}
-			{:else}
+			{#if draft.comment}
+				<div
+					style="
+					background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
+					padding: 20px 24px; box-shadow: var(--sh); margin-bottom: 16px;
+					border-left: 3px solid {trainingTypeInfo(draft.training_type).color};
+				"
+				>
+					<p style="font-size: 13px; color: var(--tx); line-height: 1.6; white-space: pre-wrap;">
+						{draft.comment}
+					</p>
+				</div>
+			{/if}
+			{#if !logOnly}
 				<TrainingPreview items={draft.items} {exercises} />
 			{/if}
 		</div>
-	{:else if draft.training_type !== 'climbing'}
+	{:else if !logOnly}
 		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 			<div class="flex items-start">
 				<!-- Main content -->
@@ -724,17 +713,17 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 4px; align-self: flex-start;">
-								{#each ['hangboard', 'workout', 'climbing', 'stretching', 'other'] as TrainingType[] as t (t)}
+								{#each TRAINING_TYPES as t (t)}
 									<button
 										onclick={() => handleTypeChange(t)}
 										style="
 											padding: 5px 12px; font-size: 12px; font-weight: 600;
 											border-radius: var(--rs); font-family: var(--font);
-											border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
-											background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+											border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
+											background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
 											color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 											cursor: pointer; transition: all 0.15s;
-										">{TYPE_LABELS[t]}</button
+										">{TRAINING_TYPE_INFO[t].label}</button
 									>
 								{/each}
 							</div>
@@ -950,7 +939,7 @@
 			</div>
 		</DragDropProvider>
 	{:else}
-		<!-- Climbing type: show meta + comment editor -->
+		<!-- Log only: nothing to build, so only the meta and the comment are edited -->
 		<div style="padding: 20px 28px 40px;">
 			<div
 				style="
@@ -983,17 +972,17 @@
 						/>
 					</div>
 					<div style="display: flex; gap: 4px; align-self: flex-start;">
-						{#each ['hangboard', 'workout', 'climbing', 'stretching', 'other'] as TrainingType[] as t (t)}
+						{#each TRAINING_TYPES as t (t)}
 							<button
 								onclick={() => handleTypeChange(t)}
 								style="
 									padding: 5px 12px; font-size: 12px; font-weight: 600;
 									border-radius: var(--rs); font-family: var(--font);
-									border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
-									background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+									border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
+									background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
 									color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 									cursor: pointer; transition: all 0.15s;
-								">{TYPE_LABELS[t]}</button
+								">{TRAINING_TYPE_INFO[t].label}</button
 							>
 						{/each}
 					</div>
