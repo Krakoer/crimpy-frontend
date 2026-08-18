@@ -39,10 +39,11 @@ Font: Figtree (Google Fonts, loaded in `app.html`). CSS variables defined in `la
 - Borders: `--bd: #e8e0d6`, `--bd2: #f0eadf`
 - Text: `--tx: #2d241d`, `--tx2: #7a6e62`, `--tx3: #b0a496`
 - Primary (terracotta): `--pr: #c2714f`, light: `--pr-lt: #f5e2d7`, fog: `--pr-fog: #fbf1ea`
-- Accent: sage `--gn: #6b8f71`, gold `--gd: #d4a15e`, plum `--pl: #907b99`
+- Accent: sage `--gn: #6b8f71`, gold `--gd: #d4a15e`, plum `--pl: #907b99`, blue `--bl: #5b7fa6`
+- Hangboard editor accent: `--hb: #4a7c8c` (hangboard blocks only, not the training type)
 - Radii: `--r: 10px`, `--rs: 8px`, `--rl: 14px`; Shadow: `--sh`
 
-Type-specific colors (pill + icon): workout `--pr`, climbing `--gd`, stretching `--gn`, crimpy `--pl`.
+Training type and session activity colors (pill + icon), shared with the app: hangboard `--pr`, climbing `--gd`, stretching `--gn`, workout `--pl`, other `--bl`. The one map is `src/lib/trainingTypes.ts` for trainings and `src/lib/sessions.ts` for logged sessions; do not redeclare it in a page.
 
 Use Tailwind for structural layout (flex, grid, overflow). Use `style` attributes with CSS variables for colors, borders, shadows. No monospace font; no black borders.
 

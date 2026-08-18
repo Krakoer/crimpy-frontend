@@ -44,8 +44,8 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		label: 'Other',
 		short: 'OT',
 		icon: 'clock',
-		color: 'var(--hb)',
-		tint: 'var(--panel2)'
+		color: 'var(--bl)',
+		tint: 'var(--bl-lt)'
 	}
 };
 

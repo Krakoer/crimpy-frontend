@@ -22,10 +22,10 @@
 		SessionOverride,
 		SessionRequest,
 		TrainingItem,
-		TrainingSummary,
-		TrainingType
+		TrainingSummary
 	} from '$lib/api/client';
 	import { ASSESSMENT_TYPES, missingAssessmentTypes } from '$lib/assessments';
+	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
 
 	let { data } = $props();
 	const userId = $derived(data.userId as string);
@@ -404,42 +404,23 @@
 		snackbar.show(`Week ${sourceWn} duplicated to week ${targetWn}`);
 	}
 
-	const TYPE_COLORS: Record<TrainingType, string> = {
-		hangboard: '#4a7c8c',
-		workout: '#c2714f',
-		climbing: '#d4a15e',
-		stretching: '#6b8f71',
-		other: '#907b99'
-	};
-
-	const TYPE_TINTS: Record<TrainingType, string> = {
-		hangboard: '#e4edf0',
-		workout: '#f5e2d7',
-		climbing: '#faf0dc',
-		stretching: '#e3ede4',
-		other: '#efeaf1'
-	};
-
-	const TYPE_LABELS: Record<string, string> = {
-		hangboard: 'HB',
-		workout: 'WO',
-		climbing: 'CL',
-		stretching: 'ST',
-		other: 'OT'
-	};
-
 	const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+	const TRAINING_FILTERS: { id: string; label: string }[] = [
+		{ id: 'all', label: 'All' },
+		...TRAINING_TYPES.map((type) => ({ id: type as string, label: TRAINING_TYPE_INFO[type].label }))
+	];
 
 	function trainingById(id: string): TrainingSummary | undefined {
 		return trainings.find((t) => t.id === id);
 	}
 
 	function trainingColor(id: string): string {
-		return TYPE_COLORS[(trainingById(id)?.training_type ?? 'workout') as TrainingType] ?? '#c2714f';
+		return trainingTypeInfo(trainingById(id)?.training_type).color;
 	}
 
 	function trainingTint(id: string): string {
-		return TYPE_TINTS[(trainingById(id)?.training_type ?? 'workout') as TrainingType] ?? '#f5e2d7';
+		return trainingTypeInfo(trainingById(id)?.training_type).tint;
 	}
 
 	function formatDate(d: string): string {
@@ -1470,7 +1451,7 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 3px; flex-wrap: wrap;">
-								{#each [{ id: 'all', label: 'All' }, { id: 'workout', label: 'Workout' }, { id: 'climbing', label: 'Climb' }, { id: 'stretching', label: 'Stretch' }] as f (f.id)}
+								{#each TRAINING_FILTERS as f (f.id)}
 									<button
 										onclick={() => (trainingTypeFilter = f.id)}
 										style="
@@ -1489,11 +1470,7 @@
 							style="flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;"
 						>
 							{#each filteredTrainings as t (t.id)}
-								{@const color =
-									TYPE_COLORS[(t.training_type ?? 'workout') as TrainingType] ?? '#c2714f'}
-								{@const tint =
-									TYPE_TINTS[(t.training_type ?? 'workout') as TrainingType] ?? '#f5e2d7'}
-								{@const label = TYPE_LABELS[t.training_type ?? 'workout'] ?? 'WO'}
+								{@const info = trainingTypeInfo(t.training_type)}
 								<SidePanelDraggable
 									id="__new__:{t.id}"
 									style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--rs); background: var(--panel); border: 1px solid var(--bd); cursor: grab; font-size: 12px; color: var(--tx); width: 100%; text-align: left;"
@@ -1501,12 +1478,12 @@
 									<div
 										style="
 								width: 24px; height: 24px; border-radius: 5px;
-								background: {tint}; color: {color};
+								background: {info.tint}; color: {info.color};
 								display: flex; align-items: center; justify-content: center;
 								font-size: 8.5px; font-weight: 700; flex-shrink: 0;
 							"
 									>
-										{label}
+										{info.short}
 									</div>
 									<div style="flex: 1; min-width: 0;">
 										<div

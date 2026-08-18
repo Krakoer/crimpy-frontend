@@ -7,18 +7,12 @@
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-
-	type TypeInfo = { bg: string; tint: string; label: string; initials: string };
-
-	const TYPE_INFO: Record<string, TypeInfo> = {
-		workout: { bg: 'var(--pr)', tint: '#fbebe2', label: 'Workout', initials: 'WO' },
-		climbing: { bg: 'var(--gd)', tint: '#fbf1de', label: 'Climbing', initials: 'CL' },
-		stretching: { bg: 'var(--gn)', tint: '#e6efe6', label: 'Stretching', initials: 'ST' },
-		hangboard: { bg: 'var(--hb)', tint: '#e4edf0', label: 'Hangboard', initials: 'HB' },
-		other: { bg: 'var(--pl)', tint: '#efeaf1', label: 'Other', initials: 'OT' }
-	};
-
-	const ALL_TYPES: TrainingType[] = ['hangboard', 'workout', 'stretching', 'climbing', 'other'];
+	import {
+		TRAINING_TYPES,
+		TRAINING_TYPE_INFO,
+		trainingTypeInfo,
+		type TrainingTypeInfo
+	} from '$lib/trainingTypes';
 
 	let trainings = $state<TrainingSummary[]>([]);
 	let loading = $state(false);
@@ -90,8 +84,8 @@
 		});
 	}
 
-	function typeInfo(t: TrainingSummary): TypeInfo {
-		return TYPE_INFO[t.training_type ?? 'workout'] ?? TYPE_INFO.workout;
+	function typeInfo(t: TrainingSummary): TrainingTypeInfo {
+		return trainingTypeInfo(t.training_type);
 	}
 </script>
 
@@ -137,7 +131,7 @@
 				>
 					All
 				</button>
-				{#each ALL_TYPES as t (t)}
+				{#each TRAINING_TYPES as t (t)}
 					<button
 						onclick={() => (typeFilter = typeFilter === t ? null : t)}
 						style="
@@ -148,7 +142,7 @@
 							font-family: var(--font);
 						"
 					>
-						{TYPE_INFO[t]?.label ?? t}
+						{TRAINING_TYPE_INFO[t].label}
 					</button>
 				{/each}
 			</div>
@@ -258,7 +252,7 @@
 						onmouseenter={(e) => (e.currentTarget.style.borderColor = 'var(--pr-lt)')}
 						onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
 					>
-						<div style="height: 4px; background: {tc.bg};"></div>
+						<div style="height: 4px; background: {tc.color};"></div>
 						<div
 							style="padding: 16px 18px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px;"
 						>
@@ -268,7 +262,7 @@
 								<span
 									style="
 										display: inline-flex; align-items: center;
-										background: {tc.tint}; color: {tc.bg};
+										background: {tc.tint}; color: {tc.color};
 										font-size: 11px; font-weight: 600;
 										padding: 3px 9px; border-radius: 999px;
 									"
@@ -399,12 +393,12 @@
 						<div
 							style="
 								width: 48px; height: 48px; border-radius: var(--rs);
-								background: {tc.tint}; color: {tc.bg};
+								background: {tc.tint}; color: {tc.color};
 								display: flex; align-items: center; justify-content: center;
 								font-size: 12px; font-weight: 700;
 							"
 						>
-							{tc.initials}
+							{tc.short}
 						</div>
 						<div style="font-family: var(--font);">
 							<div style="font-size: 14px; font-weight: 600; color: var(--tx);">
@@ -422,7 +416,7 @@
 							<span
 								style="
 									display: inline-flex; align-items: center;
-									background: {tc.tint}; color: {tc.bg};
+									background: {tc.tint}; color: {tc.color};
 									font-size: 11px; font-weight: 600;
 									padding: 3px 9px; border-radius: 999px;
 								"
