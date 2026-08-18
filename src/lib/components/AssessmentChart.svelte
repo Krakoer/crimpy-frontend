@@ -18,11 +18,11 @@
 
 	function buildOptions(data: AssessmentResponse[]) {
 		const leftData = data
-			.filter((a) => a.LeftValue !== null)
-			.map((a) => [new Date(a.UpdatedAt).getTime(), a.LeftValue as number]);
+			.filter((a) => a.left_value !== null)
+			.map((a) => [new Date(a.updated_at).getTime(), a.left_value as number]);
 		const rightData = data
-			.filter((a) => a.RightValue !== null)
-			.map((a) => [new Date(a.UpdatedAt).getTime(), a.RightValue as number]);
+			.filter((a) => a.right_value !== null)
+			.map((a) => [new Date(a.updated_at).getTime(), a.right_value as number]);
 
 		return {
 			textStyle: { fontFamily: 'monospace', fontSize: 11 },

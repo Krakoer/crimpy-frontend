@@ -58,6 +58,7 @@
 		</button>
 	{:else}
 		<div
+			data-testid="block-palette"
 			style="
 			padding: 10px 14px; border-radius: var(--rl);
 			border: 1px solid var(--bd); background: var(--panel2);

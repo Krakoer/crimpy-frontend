@@ -11,7 +11,7 @@
 		formatSessionDateShort,
 		formatSessionTime,
 		gripLabel,
-		sessionTypeInfo
+		sessionActivityInfo
 	} from '$lib/sessions';
 
 	interface Props {
@@ -30,12 +30,18 @@
 
 	const detail = $derived<SessionResponse>(loaded?.session ?? session);
 	const reps = $derived<RepData[]>(loaded?.rep_datas ?? []);
+	// Whether there are measurements to show is decided by the reps the session
+	// carries, not by what it was labelled: a hangboard block a coach filed under
+	// any activity still comes back with every rep the sensor recorded. Played
+	// sessions with no reps yet still get the layout, so the empty state below can
+	// say so rather than the session looking like a hand-written log.
+	const hasRepData = $derived(reps.length > 0 || detail.origin === 'played');
 	const assessments = $derived<SessionAssessment[]>(loaded?.assessments ?? []);
-	const type = $derived(sessionTypeInfo(detail.SessionType));
+	const type = $derived(sessionActivityInfo(detail.activity));
 
 	onMount(async () => {
 		try {
-			loaded = await apiClient.getClientSession(userId, session.ID);
+			loaded = await apiClient.getClientSession(userId, session.id);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load the session.';
 		} finally {
@@ -83,13 +89,13 @@
 				<div
 					style="font-size: 11px; font-weight: 700; color: {type.color}; letter-spacing: 0.06em; text-transform: uppercase;"
 				>
-					{type.label}{detail.IsAssessment ? ' - Assessment' : ''}
+					{type.label}{detail.is_assessment ? ' - Assessment' : ''}
 				</div>
 				<h2
 					class="truncate"
 					style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 1px;"
 				>
-					{detail.Name}
+					{detail.name}
 				</h2>
 			</div>
 			<button
@@ -114,12 +120,12 @@
 				</div>
 			{/if}
 
-			{#if type.sensorRecorded}
+			{#if hasRepData}
 				<div
 					class="grid grid-cols-4"
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
 				>
-					{#each [{ k: 'Date', v: formatSessionDateShort(detail.Date) }, { k: 'Time', v: formatSessionTime(detail.Date) }, { k: 'Duration', v: formatDuration(detail.Duration) }, { k: 'Reps', v: loading ? '--' : String(reps.filter((rep) => !rep.IsRest).length) }] as stat (stat.k)}
+					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading ? '--' : String(reps.filter((rep) => !rep.is_rest).length) }] as stat (stat.k)}
 						<div style="padding: 14px 16px;">
 							<div
 								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
@@ -143,7 +149,7 @@
 				>
 					<div style="flex-shrink: 0;">
 						<div style="font-size: 32px; font-weight: 700; color: {type.color}; line-height: 1;">
-							{formatDuration(detail.Duration)}
+							{formatDuration(detail.duration)}
 						</div>
 						<div
 							style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px;"
@@ -156,13 +162,13 @@
 						<div class="flex items-center gap-2">
 							<Icon name="calendar" size={15} color="var(--tx3)" />
 							<span style="font-size: 13px; color: var(--tx);"
-								>{formatSessionDate(detail.Date)}</span
+								>{formatSessionDate(detail.date)}</span
 							>
 						</div>
 						<div class="flex items-center gap-2">
 							<Icon name="clock" size={15} color="var(--tx3)" />
 							<span style="font-size: 13px; color: var(--tx);"
-								>{formatSessionTime(detail.Date)}</span
+								>{formatSessionTime(detail.date)}</span
 							>
 						</div>
 						<div style="font-size: 11.5px; color: var(--tx3);">
@@ -179,7 +185,7 @@
 					Loading session details...
 				</div>
 			{:else}
-				{#if type.sensorRecorded}
+				{#if hasRepData}
 					<SessionRepsCard session={detail} {reps} accent={type.color} />
 				{/if}
 
@@ -192,8 +198,8 @@
 								Assessment results
 							</h3>
 						</div>
-						{#each assessments as assessment (assessment.ID)}
-							{@const info = ASSESSMENT_TYPES[assessment.Type]}
+						{#each assessments as assessment (assessment.id)}
+							{@const info = ASSESSMENT_TYPES[assessment.type]}
 							<div
 								class="flex items-center justify-between"
 								style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);"
@@ -203,11 +209,11 @@
 										{info?.label ?? 'Assessment'}
 									</div>
 									<div style="font-size: 11.5px; color: var(--tx3);">
-										{gripLabel(assessment.GripPosition)}
+										{gripLabel(assessment.grip_position)}
 									</div>
 								</div>
 								<div class="flex gap-6" style="flex-shrink: 0;">
-									{#each [{ hand: 'Left', value: assessment.LeftValue, color: 'var(--gn)' }, { hand: 'Right', value: assessment.RightValue, color: 'var(--pl)' }] as side (side.hand)}
+									{#each [{ hand: 'Left', value: assessment.left_value, color: 'var(--gn)' }, { hand: 'Right', value: assessment.right_value, color: 'var(--pl)' }] as side (side.hand)}
 										<div style="text-align: right;">
 											<div
 												style="font-size: 10px; font-weight: 700; color: {side.color}; letter-spacing: 0.06em; text-transform: uppercase;"
@@ -215,7 +221,7 @@
 												{side.hand}
 											</div>
 											<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
-												{formatAssessmentValue(side.value, assessment.Type)}
+												{formatAssessmentValue(side.value, assessment.type)}
 												<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
 													>{info?.unit ?? ''}</span
 												>
@@ -228,7 +234,7 @@
 					</div>
 				{/if}
 
-				{#if type.sensorRecorded && reps.length === 0 && !error}
+				{#if hasRepData && reps.length === 0 && !error}
 					<div
 						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3);"
 					>
@@ -237,7 +243,7 @@
 				{/if}
 			{/if}
 
-			{#if detail.Notes?.trim()}
+			{#if detail.notes?.trim()}
 				<div
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
 				>
@@ -247,7 +253,7 @@
 					<p
 						style="padding: 14px 18px; font-size: 13px; color: var(--tx2); line-height: 1.6; white-space: pre-wrap;"
 					>
-						{detail.Notes}
+						{detail.notes}
 					</p>
 				</div>
 			{/if}

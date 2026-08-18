@@ -13,7 +13,7 @@
 	} from '$lib/api/client';
 	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
 	import { ASSESSMENT_TYPES } from '$lib/assessments';
-	import { formatDuration, formatSessionTime, gripLabel, sessionTypeInfo } from '$lib/sessions';
+	import { formatDuration, formatSessionTime, gripLabel, sessionActivityInfo } from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -67,14 +67,14 @@
 
 	function availableGrips(type: number): number[] {
 		return [0, 1, 2, 3].filter((g) =>
-			assessments.some((a) => a.Type === type && a.GripPosition === g)
+			assessments.some((a) => a.type === type && a.grip_position === g)
 		);
 	}
 
 	function historyForGrip(type: number, grip: number): AssessmentResponse[] {
 		return assessments
-			.filter((a) => a.Type === type && a.GripPosition === grip)
-			.sort((a, b) => new Date(a.UpdatedAt).getTime() - new Date(b.UpdatedAt).getTime());
+			.filter((a) => a.type === type && a.grip_position === grip)
+			.sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
 	}
 
 	function latestForGrip(type: number, grip: number): AssessmentResponse | undefined {
@@ -82,7 +82,7 @@
 	}
 
 	function hasAnyAssessment(type: number): boolean {
-		return assessments.some((a) => a.Type === type);
+		return assessments.some((a) => a.type === type);
 	}
 
 	let selectedGrip = $state<Record<number, number>>({ 0: 0, 1: 0, 2: 0 });
@@ -127,14 +127,14 @@
 		return Array.from({ length: 7 }, (_, i) => {
 			const date = new Date(weekStart);
 			date.setDate(weekStart.getDate() + i);
-			const daySessions = sessions.filter((s) => isSameDay(new Date(s.Date), date));
+			const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), date));
 			return {
 				date,
 				dayLabel: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
 				day: date.getDate(),
 				isToday: isSameDay(date, today),
 				isSelected: selectedDay !== null && isSameDay(date, selectedDay),
-				dots: daySessions.map((s) => sessionTypeInfo(s.SessionType).color)
+				dots: daySessions.map((s) => sessionActivityInfo(s.activity).color)
 			};
 		});
 	});
@@ -159,7 +159,7 @@
 	}
 
 	const displayedSessions = $derived(
-		selectedDay ? sessions.filter((s) => isSameDay(new Date(s.Date), selectedDay!)) : sessions
+		selectedDay ? sessions.filter((s) => isSameDay(new Date(s.date), selectedDay!)) : sessions
 	);
 
 	type ProgramStatus = { state: 'upcoming' | 'active' | 'completed'; week: number };
@@ -186,12 +186,12 @@
 		yesterday.setDate(today.getDate() - 1);
 
 		const sorted = [...items].sort(
-			(a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()
+			(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 		);
 
 		const groups = new Map<string, SessionResponse[]>();
 		for (const session of sorted) {
-			const d = new Date(session.Date);
+			const d = new Date(session.date);
 			let key: string;
 			if (isSameDay(d, today)) key = 'Today';
 			else if (isSameDay(d, yesterday)) key = 'Yesterday';
@@ -307,7 +307,7 @@
 
 	const assessmentHistory = $derived(
 		[...assessments]
-			.sort((a, b) => new Date(b.UpdatedAt).getTime() - new Date(a.UpdatedAt).getTime())
+			.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 			.slice(0, 8)
 	);
 </script>
@@ -602,11 +602,11 @@
 										>
 											{group.label}
 										</div>
-										{#each group.items as session (session.ID)}
-											{@const type = sessionTypeInfo(session.SessionType)}
+										{#each group.items as session (session.id)}
+											{@const type = sessionActivityInfo(session.activity)}
 											<button
 												onclick={() => (openedSession = session)}
-												aria-label="Open {session.Name}"
+												aria-label="Open {session.name}"
 												style="
 											display: grid; grid-template-columns: 44px 1fr auto; width: 100%;
 											padding: 12px 20px; align-items: center; gap: 12px; text-align: left;
@@ -630,16 +630,16 @@
 													<div
 														style="font-size: 13.5px; font-weight: 600; color: var(--tx); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 													>
-														{session.Name}
+														{session.name}
 													</div>
 													<div style="font-size: 12px; color: var(--tx2);">
-														{formatSessionTime(session.Date)} · {formatDuration(session.Duration)}
+														{formatSessionTime(session.date)} · {formatDuration(session.duration)}
 													</div>
-													{#if session.Notes?.trim()}
+													{#if session.notes?.trim()}
 														<div
 															style="font-size: 11.5px; color: var(--tx3); margin-top: 3px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 														>
-															"{session.Notes}"
+															"{session.notes}"
 														</div>
 													{/if}
 												</div>
@@ -704,7 +704,7 @@
 											<div
 												style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;"
 											>
-												{formatVal(latest?.LeftValue, type)}
+												{formatVal(latest?.left_value, type)}
 											</div>
 										</div>
 										<div>
@@ -716,7 +716,7 @@
 											<div
 												style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;"
 											>
-												{formatVal(latest?.RightValue, type)}
+												{formatVal(latest?.right_value, type)}
 											</div>
 										</div>
 									</div>
@@ -1189,7 +1189,7 @@
 												<div
 													style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;"
 												>
-													{formatVal(latest?.LeftValue, type)}
+													{formatVal(latest?.left_value, type)}
 												</div>
 											</div>
 											<div>
@@ -1201,7 +1201,7 @@
 												<div
 													style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;"
 												>
-													{formatVal(latest?.RightValue, type)}
+													{formatVal(latest?.right_value, type)}
 												</div>
 											</div>
 										</div>
@@ -1229,11 +1229,11 @@
 
 										{#if history.length >= 2}
 											{@const first =
-												type === 0 ? (history[0].RightValue ?? 0) : (history[0].RightValue ?? 0)}
+												type === 0 ? (history[0].right_value ?? 0) : (history[0].right_value ?? 0)}
 											{@const last =
 												type === 0
-													? (history[history.length - 1].RightValue ?? 0)
-													: (history[history.length - 1].RightValue ?? 0)}
+													? (history[history.length - 1].right_value ?? 0)
+													: (history[history.length - 1].right_value ?? 0)}
 											{@const delta = last - first}
 											<div
 												style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3); margin-top: 6px;"
@@ -1285,8 +1285,8 @@
 								<div style="text-align: right;">Left</div>
 								<div style="text-align: right;">Right</div>
 							</div>
-							{#each assessmentHistory as a, i (a.ID)}
-								{@const typeInfo = ASSESSMENT_TYPES[a.Type]}
+							{#each assessmentHistory as a, i (a.id)}
+								{@const typeInfo = ASSESSMENT_TYPES[a.type]}
 								<div
 									style="
 								display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;
@@ -1296,19 +1296,19 @@
 							"
 								>
 									<div style="color: var(--tx2); font-size: 12px;">
-										{formatAssessmentDate(a.UpdatedAt)}
+										{formatAssessmentDate(a.updated_at)}
 									</div>
 									<div style="font-weight: 600; color: var(--tx);">
-										{typeInfo?.label ?? `Type ${a.Type}`}
+										{typeInfo?.label ?? `Type ${a.type}`}
 									</div>
 									<div style="color: var(--tx3); font-size: 12px;">
-										{gripLabel(a.GripPosition)}
+										{gripLabel(a.grip_position)}
 									</div>
 									<div style="text-align: right; font-weight: 600;">
-										{a.LeftValue !== null ? typeInfo?.format(a.LeftValue) : '--'}
+										{a.left_value !== null ? typeInfo?.format(a.left_value) : '--'}
 									</div>
 									<div style="text-align: right; font-weight: 600;">
-										{a.RightValue !== null ? typeInfo?.format(a.RightValue) : '--'}
+										{a.right_value !== null ? typeInfo?.format(a.right_value) : '--'}
 									</div>
 								</div>
 							{/each}

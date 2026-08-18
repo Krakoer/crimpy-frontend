@@ -77,38 +77,47 @@ export interface EnrollmentTokenInfo {
 }
 
 export interface SessionResponse {
-	ID: string;
-	UserID: string;
-	Name: string;
-	Date: string;
-	Duration: number;
-	Notes: string;
-	SessionType: number;
-	IsAssessment: boolean;
-	UpdatedAt: string;
+	id: string;
+	user_id: string;
+	name: string;
+	date: string;
+	duration: number;
+	notes: string;
+	// What was done, as a label. See SESSION_ACTIVITIES in $lib/sessions.
+	activity: number;
+	// How the session came to exist. Played sessions were run step by step in the
+	// app and own their reps and timings; logged ones were entered by hand.
+	origin: 'played' | 'logged';
+	// What the session was played from, both absent when it was logged by hand.
+	training_id?: string | null;
+	program_session_id?: string | null;
+	is_assessment: boolean;
+	updated_at: string;
+	// Only on the list endpoint, which does not carry the reps themselves.
+	rep_count?: number;
 	// Only set on repeater sessions, and stored with the session so its sets can
 	// still be rebuilt after the training template it came from has changed.
-	RepeaterSets?: number | null;
-	RepeaterReps?: number | null;
-	RepeaterWorkTime?: number | null;
-	RepeaterRestTime?: number | null;
-	RepeaterSetRest?: number | null;
-	RepeaterSplitHand?: boolean | null;
+	repeater_sets?: number | null;
+	repeater_reps?: number | null;
+	repeater_work_time?: number | null;
+	repeater_rest_time?: number | null;
+	repeater_set_rest?: number | null;
+	repeater_split_hand?: boolean | null;
 }
 
 // One repetition recorded by the force sensor, work or rest, in session order.
 export interface RepData {
-	ID: string;
-	UserID: string;
-	SessionID: string;
-	AverageWeight: number;
-	TargetWeight: number;
-	Duration: number;
-	Index: number;
-	IsRest: boolean;
-	RightHand: boolean;
-	GripPosition: number;
-	UpdatedAt: string;
+	id: string;
+	user_id: string;
+	session_id: string;
+	average_weight: number;
+	target_weight: number;
+	duration: number;
+	index: number;
+	is_rest: boolean;
+	right_hand: boolean;
+	grip_position: number;
+	updated_at: string;
 }
 
 export interface SessionDetail {
@@ -136,20 +145,20 @@ export interface UserEnrollment {
 }
 
 export interface SessionAssessment {
-	ID: string;
-	UserID: string;
-	Type: number;
-	RightValue: number | null;
-	LeftValue: number | null;
-	SessionID: string;
-	GripPosition: number;
-	UpdatedAt: string;
+	id: string;
+	user_id: string;
+	type: number;
+	right_value: number | null;
+	left_value: number | null;
+	session_id: string;
+	grip_position: number;
+	updated_at: string;
 }
 
 // The session-scoped assessment joined with the date of the session it was
 // recorded in, which only the per-user listing endpoint returns.
 export interface AssessmentResponse extends SessionAssessment {
-	SessionDate: string;
+	session_date: string;
 }
 
 export interface Tag {
@@ -267,7 +276,9 @@ export type HangboardHand = 'both' | 'alternate' | 'split' | 'left' | 'right';
 // row per rep, or one row per set and rep.
 export type HangboardGranularity = 'uniform' | 'rep' | 'set';
 
-export type TrainingType = 'workout' | 'stretching' | 'climbing';
+// What a training is about. A label only: what the athlete's app lets them do
+// with it comes from the items it holds, never from this.
+export type TrainingType = 'hangboard' | 'workout' | 'stretching' | 'climbing' | 'other';
 
 export interface TrainingSummary {
 	id: string;

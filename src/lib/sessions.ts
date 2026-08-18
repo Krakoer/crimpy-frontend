@@ -1,66 +1,66 @@
 import type { RepData, SessionResponse } from '$lib/api/client';
 
-export interface SessionTypeInfo {
+// What the athlete did. A label only: whether a session has rep measurements to
+// show is decided by the reps it carries, never by this.
+export interface SessionActivityInfo {
 	label: string;
 	short: string;
 	icon: string;
 	color: string;
 	tint: string;
-	// Crimpy trainings are driven by the force sensor and come back with rep by
-	// rep measurements. The other types are logged by hand and only carry a
-	// duration and the athlete's notes, so they get a different detail layout.
-	sensorRecorded: boolean;
 }
 
-// Session discriminators shared with the app, stored on sessions.session_type.
-export const SESSION_TYPES: Record<number, SessionTypeInfo> = {
+// Activity discriminators shared with the app, stored on sessions.activity.
+export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 	0: {
-		label: 'Crimpy training',
-		short: 'CR',
+		label: 'Hangboard',
+		short: 'HB',
 		icon: 'flame',
 		color: 'var(--pr)',
-		tint: 'var(--pr-lt)',
-		sensorRecorded: true
+		tint: 'var(--pr-lt)'
 	},
 	1: {
 		label: 'Climbing',
 		short: 'CL',
 		icon: 'mountain',
 		color: 'var(--gd)',
-		tint: 'var(--gd-lt)',
-		sensorRecorded: false
+		tint: 'var(--gd-lt)'
 	},
 	2: {
 		label: 'Stretching',
 		short: 'ST',
 		icon: 'figure',
 		color: 'var(--gn)',
-		tint: 'var(--gn-lt)',
-		sensorRecorded: false
+		tint: 'var(--gn-lt)'
 	},
 	3: {
 		label: 'Workout',
 		short: 'WO',
 		icon: 'dumbbell',
 		color: 'var(--pl)',
-		tint: 'var(--pl-lt)',
-		sensorRecorded: false
+		tint: 'var(--pl-lt)'
+	},
+	4: {
+		label: 'Other',
+		short: 'OT',
+		icon: 'clock',
+		color: 'var(--bl)',
+		tint: 'var(--bl-lt)'
 	}
 };
 
-const UNKNOWN_SESSION_TYPE: SessionTypeInfo = {
+const UNKNOWN_SESSION_ACTIVITY: SessionActivityInfo = {
 	label: 'Session',
 	short: '--',
 	icon: 'clock',
 	color: 'var(--tx2)',
-	tint: 'var(--panel2)',
-	sensorRecorded: false
+	tint: 'var(--panel2)'
 };
 
-// A type the app added before this portal knew about it degrades to a neutral
-// entry rather than breaking the list.
-export function sessionTypeInfo(type: number): SessionTypeInfo {
-	return SESSION_TYPES[type] ?? UNKNOWN_SESSION_TYPE;
+// An activity the app added before this portal knew about it degrades to a
+// neutral entry rather than breaking the list.
+export function sessionActivityInfo(activity: number): SessionActivityInfo {
+	return SESSION_ACTIVITIES[activity] ?? UNKNOWN_SESSION_ACTIVITY;
 }
 
 export const GRIP_POSITIONS: Record<number, { label: string; short: string }> = {
@@ -122,30 +122,30 @@ export interface RepeaterConfig {
 // repeater. The API leaves every field null in that case.
 export function repeaterConfigOf(session: SessionResponse): RepeaterConfig | null {
 	const {
-		RepeaterSets,
-		RepeaterReps,
-		RepeaterWorkTime,
-		RepeaterRestTime,
-		RepeaterSetRest,
-		RepeaterSplitHand
+		repeater_sets,
+		repeater_reps,
+		repeater_work_time,
+		repeater_rest_time,
+		repeater_set_rest,
+		repeater_split_hand
 	} = session;
 	if (
-		RepeaterSets == null ||
-		RepeaterReps == null ||
-		RepeaterWorkTime == null ||
-		RepeaterRestTime == null ||
-		RepeaterSetRest == null ||
-		RepeaterSplitHand == null
+		repeater_sets == null ||
+		repeater_reps == null ||
+		repeater_work_time == null ||
+		repeater_rest_time == null ||
+		repeater_set_rest == null ||
+		repeater_split_hand == null
 	) {
 		return null;
 	}
 	return {
-		sets: RepeaterSets,
-		repsPerSet: RepeaterReps,
-		workTime: RepeaterWorkTime,
-		restTime: RepeaterRestTime,
-		setRest: RepeaterSetRest,
-		splitHand: RepeaterSplitHand
+		sets: repeater_sets,
+		repsPerSet: repeater_reps,
+		workTime: repeater_work_time,
+		restTime: repeater_rest_time,
+		setRest: repeater_set_rest,
+		splitHand: repeater_split_hand
 	};
 }
 
@@ -163,10 +163,10 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 	let index = 0;
 
 	const isSetBoundary = () =>
-		index < reps.length && reps[index].IsRest && reps[index].Duration >= config.setRest;
+		index < reps.length && reps[index].is_rest && reps[index].duration >= config.setRest;
 
 	const takeInterHandRest = (into: RepData[]) => {
-		if (index < reps.length && reps[index].IsRest && reps[index].Duration < config.setRest) {
+		if (index < reps.length && reps[index].is_rest && reps[index].duration < config.setRest) {
 			into.push(reps[index]);
 			index += 1;
 		}
@@ -181,7 +181,7 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 				while (index < reps.length && workReps < config.repsPerSet) {
 					const rep = reps[index];
 					handReps.push(rep);
-					if (!rep.IsRest) workReps += 1;
+					if (!rep.is_rest) workReps += 1;
 					index += 1;
 				}
 				takeInterHandRest(handReps);
@@ -197,8 +197,8 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 			const expectedWorkReps = config.repsPerSet * 2;
 			while (index < reps.length && workReps < expectedWorkReps && !isSetBoundary()) {
 				const rep = reps[index];
-				(rep.RightHand ? rightHand : leftHand).push(rep);
-				if (!rep.IsRest) workReps += 1;
+				(rep.right_hand ? rightHand : leftHand).push(rep);
+				if (!rep.is_rest) workReps += 1;
 				index += 1;
 			}
 			if (rightHand.length > 0) sets.push({ label: `Set ${set + 1} - Right`, reps: rightHand });
@@ -229,18 +229,18 @@ export interface SessionPerformance {
 export const ON_TARGET_RATIO = 0.9;
 
 export function isOnTarget(rep: RepData): boolean {
-	return rep.TargetWeight > 0 && rep.AverageWeight / rep.TargetWeight >= ON_TARGET_RATIO;
+	return rep.target_weight > 0 && rep.average_weight / rep.target_weight >= ON_TARGET_RATIO;
 }
 
 export function sessionPerformance(reps: RepData[]): SessionPerformance | null {
-	const workReps = reps.filter((rep) => !rep.IsRest);
+	const workReps = reps.filter((rep) => !rep.is_rest);
 	if (workReps.length === 0) return null;
 	return {
 		workReps: workReps.length,
-		avgWeight: workReps.reduce((sum, rep) => sum + rep.AverageWeight, 0) / workReps.length,
-		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.AverageWeight), 0),
-		workTime: workReps.reduce((sum, rep) => sum + rep.Duration, 0),
+		avgWeight: workReps.reduce((sum, rep) => sum + rep.average_weight, 0) / workReps.length,
+		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.average_weight), 0),
+		workTime: workReps.reduce((sum, rep) => sum + rep.duration, 0),
 		onTargetReps: workReps.filter(isOnTarget).length,
-		hasTargets: workReps.some((rep) => rep.TargetWeight > 0)
+		hasTargets: workReps.some((rep) => rep.target_weight > 0)
 	};
 }

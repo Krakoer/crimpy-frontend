@@ -26,6 +26,7 @@
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
+	import { TRAINING_TYPES, TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 
@@ -208,17 +209,6 @@
 		})
 	];
 
-	const TYPE_COLORS: Record<TrainingType, string> = {
-		workout: 'var(--pr)',
-		climbing: 'var(--gd)',
-		stretching: 'var(--gn)'
-	};
-	const TYPE_LABELS: Record<TrainingType, string> = {
-		workout: 'Workout',
-		climbing: 'Climbing',
-		stretching: 'Stretching'
-	};
-
 	function emptyDraft(): TrainingRequest {
 		return {
 			title: '',
@@ -234,6 +224,10 @@
 	let draft = $state<TrainingRequest>(emptyDraft());
 	let saving = $state(false);
 	let saveError = $state('');
+	// A log-only training carries no items, so there is nothing for the athlete to
+	// step through and their app offers to log it as done instead of running it.
+	// Kept apart from the type, so any label can be either.
+	let logOnly = $state(false);
 	let showCreateExerciseModal = $state(false);
 	let createExerciseModalDirty = $state(false);
 	let leavingAfterCreate = $state(false);
@@ -416,7 +410,7 @@
 				training_type: draft.training_type,
 				goal: draft.goal?.trim() || undefined,
 				comment: draft.comment?.trim() || undefined,
-				items: draft.training_type === 'climbing' ? [] : draft.items
+				items: logOnly ? [] : draft.items
 			});
 			snackbar.show('Training created');
 			leavingAfterCreate = true;
@@ -461,7 +455,7 @@
 		</button>
 	{/snippet}
 
-	{#if draft.training_type !== 'climbing'}
+	{#if !logOnly}
 		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 			<div class="flex items-start">
 				<!-- Main content -->
@@ -498,20 +492,30 @@
 								/>
 							</div>
 							<div style="display: flex; gap: 4px; align-self: flex-start;">
-								{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t (t)}
+								{#each TRAINING_TYPES as t (t)}
 									<button
 										onclick={() => handleTypeChange(t)}
 										style="
 											padding: 5px 12px; font-size: 12px; font-weight: 600;
 											border-radius: var(--rs); font-family: var(--font);
-											border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
-											background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+											border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
+											background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
 											color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 											cursor: pointer; transition: all 0.15s;
-										">{TYPE_LABELS[t]}</button
+										">{TRAINING_TYPE_INFO[t].label}</button
 									>
 								{/each}
 							</div>
+							<label
+								style="
+									display: flex; align-items: center; gap: 7px; cursor: pointer;
+									font-size: 12px; color: var(--tx2); font-family: var(--font);
+									align-self: flex-start; margin-top: 8px;
+								"
+							>
+								<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
+								Log only (nothing to run, the athlete just marks it as done)
+							</label>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
@@ -563,7 +567,7 @@
 							>
 								ADD BLOCK
 							</div>
-							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+							<div data-testid="block-palette" style="display: flex; flex-wrap: wrap; gap: 6px;">
 								{#each allowedStructureButtons as btn (btn.type)}
 									<SidePanelDraggable
 										id={'__new__:' + btn.type}
@@ -717,7 +721,7 @@
 		</DragDropProvider>
 	{:else}
 		<div style="padding: 20px 28px 40px;">
-			<!-- Meta card (climbing - no item tree) -->
+			<!-- Meta card (log only - no item tree) -->
 			<div
 				style="
 				background: #fff; border-radius: var(--rl); border: 1px solid var(--bd);
@@ -749,20 +753,30 @@
 						/>
 					</div>
 					<div style="display: flex; gap: 4px; align-self: flex-start;">
-						{#each ['workout', 'climbing', 'stretching'] as TrainingType[] as t (t)}
+						{#each TRAINING_TYPES as t (t)}
 							<button
 								onclick={() => handleTypeChange(t)}
 								style="
 									padding: 5px 12px; font-size: 12px; font-weight: 600;
 									border-radius: var(--rs); font-family: var(--font);
-									border: 1.5px solid {draft.training_type === t ? TYPE_COLORS[t] : 'var(--bd)'};
-									background: {draft.training_type === t ? TYPE_COLORS[t] : '#fff'};
+									border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
+									background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
 									color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
 									cursor: pointer; transition: all 0.15s;
-								">{TYPE_LABELS[t]}</button
+								">{TRAINING_TYPE_INFO[t].label}</button
 							>
 						{/each}
 					</div>
+					<label
+						style="
+							display: flex; align-items: center; gap: 7px; cursor: pointer;
+							font-size: 12px; color: var(--tx2); font-family: var(--font);
+							align-self: flex-start; margin-top: 8px;
+						"
+					>
+						<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
+						Log only (nothing to run, the athlete just marks it as done)
+					</label>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
 					<span

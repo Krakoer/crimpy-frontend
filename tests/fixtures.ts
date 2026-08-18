@@ -279,7 +279,7 @@ export interface TestTraining {
 	user_id: string;
 	title: string;
 	description?: string | null;
-	training_type?: 'workout' | 'stretching' | 'climbing';
+	training_type?: 'hangboard' | 'workout' | 'stretching' | 'climbing' | 'other';
 	goal?: string;
 	comment?: string;
 	is_favorite?: boolean;
@@ -330,65 +330,67 @@ export function testProgram(overrides: Partial<TestProgram> = {}): TestProgram {
 }
 
 export interface TestSession {
-	ID: string;
-	UserID: string;
-	Name: string;
-	Date: string;
-	Duration: number;
-	Notes: string;
-	SessionType: number;
-	IsAssessment: boolean;
-	UpdatedAt: string;
-	RepeaterSets?: number | null;
-	RepeaterReps?: number | null;
-	RepeaterWorkTime?: number | null;
-	RepeaterRestTime?: number | null;
-	RepeaterSetRest?: number | null;
-	RepeaterSplitHand?: boolean | null;
+	id: string;
+	user_id: string;
+	name: string;
+	date: string;
+	duration: number;
+	notes: string;
+	activity: number;
+	origin: 'played' | 'logged';
+	is_assessment: boolean;
+	updated_at: string;
+	repeater_sets?: number | null;
+	repeater_reps?: number | null;
+	repeater_work_time?: number | null;
+	repeater_rest_time?: number | null;
+	repeater_set_rest?: number | null;
+	repeater_split_hand?: boolean | null;
 }
 
 export function testSession(overrides: Partial<TestSession> = {}): TestSession {
 	return {
-		ID: 'session-1',
-		UserID: 'coachee-1',
-		Name: 'Board session',
-		Date: isoDaysAgo(1),
-		Duration: 3600,
-		Notes: '',
-		SessionType: 1,
-		IsAssessment: false,
-		UpdatedAt: isoDaysAgo(1),
+		id: 'session-1',
+		user_id: 'coachee-1',
+		name: 'Board session',
+		date: isoDaysAgo(1),
+		duration: 3600,
+		notes: '',
+		activity: 1,
+		origin: 'logged',
+		is_assessment: false,
+		updated_at: isoDaysAgo(1),
 		...overrides
 	};
 }
 
 export interface TestRepData {
-	ID: string;
-	UserID: string;
-	SessionID: string;
-	AverageWeight: number;
-	TargetWeight: number;
-	Duration: number;
-	Index: number;
-	IsRest: boolean;
-	RightHand: boolean;
-	GripPosition: number;
-	UpdatedAt: string;
+	id: string;
+	user_id: string;
+	session_id: string;
+	average_weight: number;
+	target_weight: number;
+	duration: number;
+	index: number;
+	is_rest: boolean;
+	right_hand: boolean;
+	grip_position: number;
+	updated_at: string;
 }
 
 export function testRepData(overrides: Partial<TestRepData> = {}): TestRepData {
 	return {
-		ID: 'rep-1',
-		UserID: 'coachee-1',
-		SessionID: 'session-1',
-		AverageWeight: 30,
-		TargetWeight: 30,
-		Duration: 7,
-		Index: 0,
-		IsRest: false,
-		RightHand: true,
-		GripPosition: 0,
-		UpdatedAt: isoDaysAgo(1),
+		id: 'rep-1',
+		user_id: 'coachee-1',
+		session_id: 'session-1',
+		average_weight: 30,
+		target_weight: 30,
+		duration: 7,
+		index: 0,
+		is_rest: false,
+		right_hand: true,
+		grip_position: 0,
+		updated_at: isoDaysAgo(1),
 		...overrides
 	};
 }
