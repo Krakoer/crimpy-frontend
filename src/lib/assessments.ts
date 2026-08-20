@@ -1,4 +1,10 @@
-import type { AssessmentResponse, Load, TrainingItem, VariableTarget } from '$lib/api/client';
+import type {
+	AssessmentResponse,
+	AssessmentResultSnapshot,
+	Load,
+	TrainingItem,
+	VariableTarget
+} from '$lib/api/client';
 import { fmtLoad } from '$lib/components/training/load-units';
 
 // The unit an assessment result is measured in. It decides which item field
@@ -93,4 +99,91 @@ export function missingAssessmentTypes(
 ): number[] {
 	const done = new Set(assessments.map((a) => a.type));
 	return referencedAssessmentTypes(items).filter((type) => !done.has(type));
+}
+
+// One value a training prescribes as a percentage of an assessment, whether it
+// drives a load, a duration or a rep count. The same percentage of the same
+// assessment is one entry however many items ask for it.
+export interface AssessmentRelativeValue {
+	field: VariableField;
+	assessment_type: number;
+	percent: number;
+	fallback: number;
+}
+
+export function collectAssessmentRelativeValues(items: TrainingItem[]): AssessmentRelativeValue[] {
+	const byKey = new Map<string, AssessmentRelativeValue>();
+
+	function add(value: AssessmentRelativeValue) {
+		byKey.set(`${value.field}:${value.assessment_type}:${value.percent}:${value.fallback}`, value);
+	}
+
+	function visit(item: TrainingItem) {
+		for (const load of [...(item.loads ?? []), ...(item.left_loads ?? [])]) {
+			if (load.unit === 'percent_assessment' && load.assessment_type !== undefined) {
+				add({
+					field: 'load',
+					assessment_type: load.assessment_type,
+					percent: load.value,
+					fallback: load.fallback ?? 0
+				});
+			}
+		}
+		for (const [field, target] of Object.entries(item.variable_targets ?? {})) {
+			if (target) {
+				add({
+					field: field as VariableField,
+					assessment_type: target.assessment_type,
+					percent: target.percent,
+					fallback: target.fallback
+				});
+			}
+		}
+		for (const child of item.items ?? []) visit(child);
+	}
+
+	items.forEach(visit);
+	return [...byKey.values()];
+}
+
+// What a percentage came out to for one hand. fromFallback marks the hand the
+// athlete had never measured, where the coach's fixed value was used instead of
+// a percentage of anything.
+export interface ResolvedHandValue {
+	value: number;
+	fromFallback: boolean;
+}
+
+export interface ResolvedPrescribedValue {
+	right: ResolvedHandValue;
+	left: ResolvedHandValue;
+}
+
+// A percentage read against the results frozen with the prescription, which are
+// the athlete's numbers as they stood when the session was played rather than
+// the ones they have now.
+export function resolveAgainstFrozenResults(
+	relative: AssessmentRelativeValue,
+	results: AssessmentResultSnapshot[]
+): ResolvedPrescribedValue {
+	const measured = results.find((result) => result.type === relative.assessment_type);
+
+	function forHand(value: number | null | undefined): ResolvedHandValue {
+		if (value === null || value === undefined) {
+			return { value: relative.fallback, fromFallback: true };
+		}
+		return { value: (value * relative.percent) / 100, fromFallback: false };
+	}
+
+	return {
+		right: forHand(measured?.right_value),
+		left: forHand(measured?.left_value)
+	};
+}
+
+export function formatResolvedValue(value: number, field: VariableField): string {
+	const unit = FIELD_UNITS[field];
+	if (unit === 'reps') return String(Math.round(value));
+	if (unit === 's') return `${value.toFixed(0)}s`;
+	return `${value.toFixed(1)} kg`;
 }

@@ -7,6 +7,7 @@ import {
 	testEnrolledUser,
 	testProgram,
 	testRepData,
+	testPrescription,
 	testSession,
 	testSessionDetail,
 	testUser
@@ -148,6 +149,47 @@ test.describe('session details', () => {
 		// The repeater configuration splits the reps into per-hand sets.
 		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
 		await expect(dialog.getByText('Set 1 - Left')).toBeVisible();
+	});
+
+	test('shows what was prescribed against the measured reps', async ({ page }) => {
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription()
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByRole('heading', { name: 'Prescribed' })).toBeVisible();
+		await expect(dialog.getByText('From the program')).toBeVisible();
+		await expect(dialog.getByText('Stop the set if you drop below the target.')).toBeVisible();
+		// 85% of the max force frozen with the session, per hand: 40 kg and 38 kg.
+		await expect(dialog.getByText('85% Max force (load)')).toBeVisible();
+		await expect(dialog.getByText('R 34.0 kg')).toBeVisible();
+		await expect(dialog.getByText('L 32.3 kg')).toBeVisible();
+		// The measurements stay on their own card rather than being paired rep by rep.
+		await expect(dialog.getByText('3/4 on target')).toBeVisible();
+	});
+
+	test('says so when a played session had nothing prescribed', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(crimpySession, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Played from the athlete')).toBeVisible();
+		await expect(dialog.getByRole('heading', { name: 'Prescribed' })).toBeHidden();
 	});
 
 	test('closes the details view', async ({ page }) => {

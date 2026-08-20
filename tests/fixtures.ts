@@ -346,6 +346,50 @@ export interface TestSession {
 	repeater_rest_time?: number | null;
 	repeater_set_rest?: number | null;
 	repeater_split_hand?: boolean | null;
+	prescription?: TestPrescription | null;
+}
+
+/**
+ * Mirrors the prescription frozen onto a played session, which the detail
+ * endpoint returns and the list endpoint leaves out.
+ */
+export interface TestPrescription {
+	id: string;
+	title: string;
+	training_type: string;
+	goal?: string | null;
+	coach_notes?: string | null;
+	program_session_id?: string | null;
+	items: unknown[];
+	resolved_against: { assessments: unknown[] };
+}
+
+export function testPrescription(overrides: Partial<TestPrescription> = {}): TestPrescription {
+	return {
+		id: 'training-1',
+		title: 'Repeaters 20mm',
+		training_type: 'hangboard',
+		program_session_id: 'week-session-1',
+		coach_notes: 'Stop the set if you drop below the target.',
+		items: [
+			{
+				id: 'item-1',
+				type: 'repeater',
+				cycles: 1,
+				reps: 2,
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				cycle_rest_seconds: 120,
+				hand: 'both',
+				granularity: 'uniform',
+				edge_sizes_mm: [20],
+				loads: [{ value: 85, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }]
+			}
+		],
+		// Max force, measured before the session was played.
+		resolved_against: { assessments: [{ type: 1, right_value: 40, left_value: 38 }] },
+		...overrides
+	};
 }
 
 export function testSession(overrides: Partial<TestSession> = {}): TestSession {
