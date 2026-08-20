@@ -171,6 +171,52 @@ test('loads the sessions already planned in a week', async ({ page }) => {
 	await expect(page.getByText('Deload the second half').first()).toBeVisible();
 });
 
+test('sends existing sessions back with their id so the server keeps the row', async ({ page }) => {
+	const weekDetail = {
+		id: 'week-1',
+		program_id: 'program-1',
+		week_number: 1,
+		notes: 'Deload the second half',
+		created_at: '',
+		updated_at: '',
+		sessions: [
+			{
+				id: 'ws-1',
+				training_id: 'training-1',
+				training_title: 'Power endurance block',
+				training_type: 'workout',
+				day_of_week: 1,
+				is_everyday: false,
+				position: 0,
+				overrides: []
+			}
+		]
+	};
+
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', { body: weekDetail });
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', { body: weekDetail });
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await page.getByPlaceholder('Week notes...').first().fill('Typo fixed');
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	await expect(page.getByText('Program saved')).toBeVisible();
+	expect(saves).toHaveLength(1);
+	expect(saves[0].body).toMatchObject({
+		notes: 'Typo fixed',
+		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }]
+	});
+});
+
 /** Drives the dnd-kit pointer sensor, which only activates after 8px of travel. */
 async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
 	const from = await source.boundingBox();
@@ -213,4 +259,125 @@ test('warns when a dropped training needs an assessment the coachee has not done
 	);
 
 	await expect(page.getByText(/has not done Max force yet/)).toBeVisible();
+});
+
+/** A week whose only session is the row a played session would point at. */
+function weekOneWithSession() {
+	return {
+		id: 'week-1',
+		program_id: 'program-1',
+		week_number: 1,
+		notes: '',
+		created_at: '',
+		updated_at: '',
+		sessions: [
+			{
+				id: 'ws-1',
+				training_id: 'training-1',
+				training_title: 'Power endurance block',
+				training_type: 'workout',
+				day_of_week: 1,
+				is_everyday: false,
+				position: 0,
+				overrides: []
+			}
+		]
+	};
+}
+
+test('keeps the session id when it is dragged within its own week', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithSession()
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithSession()
+	});
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:1:3')
+	);
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	await expect(page.getByText('Program saved')).toBeVisible();
+	expect(saves).toHaveLength(1);
+	expect(saves[0].body).toMatchObject({
+		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 3 }]
+	});
+});
+
+test('keeps the session id when it is dragged to another week and back', async ({ page }) => {
+	const weekTwo = {
+		id: 'week-2',
+		program_id: 'program-1',
+		week_number: 2,
+		notes: '',
+		created_at: '',
+		updated_at: '',
+		sessions: []
+	};
+
+	// Both weeks have to be on screen at once for a cross-week drag, so the
+	// program is two weeks long and the viewport is tall enough to hold them.
+	await page.setViewportSize({ width: 1280, height: 1400 });
+	await stubProgram(page, testProgram({ duration_weeks: 2 }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' },
+			{ id: 'week-2', program_id: 'program-1', week_number: 2, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithSession()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', { body: weekTwo });
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithSession()
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/2', { body: weekTwo });
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	// Both weeks must be open at once, and which one starts expanded depends on
+	// the program's start date, so expand all rather than toggling each.
+	await page.getByTitle('Expand all').click();
+
+	// The mis-drop, then the correction. The row must survive both.
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:2:0')
+	);
+	// dnd-kit animates the dropped card back into place, and dragging again while
+	// that clone is still mounted picks up a stale position, so wait it out.
+	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
+	await dragOnto(
+		page,
+		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:1:1')
+	);
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const weekOneSave = saves.find((s) => s.url.endsWith('/weeks/1'));
+	expect(weekOneSave?.body).toMatchObject({
+		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }]
+	});
 });

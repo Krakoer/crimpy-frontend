@@ -31,8 +31,14 @@
 	const userId = $derived(data.userId as string);
 	const programId = $derived(data.programId as string);
 
+	// _id is a local key for drag and drop only. id is the server row the session
+	// came from, and sending it back is what stops the save from recreating the
+	// row played sessions point at. originWn is the week that row belongs to, so
+	// a session dragged to another week and back still saves under its own id.
 	type DraftSession = {
 		_id: string;
+		id?: string;
+		originWn?: number;
 		training_id: string;
 		notes?: string;
 		overrides: SessionOverride[];
@@ -71,9 +77,14 @@
 		);
 	}
 
+	// The id is kept as the session moves. Whether it is sent is decided at save
+	// time by comparing originWn to the week being saved, so a mis-drop into
+	// another week that the coach immediately undoes does not lose the row.
 	function movedDraftSession(session: DraftSession): DraftSession {
 		return {
 			_id: session._id,
+			id: session.id,
+			originWn: session.originWn,
 			training_id: session.training_id,
 			notes: session.notes,
 			overrides: session.overrides
@@ -91,6 +102,11 @@
 		deleting: boolean;
 	};
 
+	// A duplicate is a new row in the target week, so it starts without an id.
+	function duplicatedDraftSession<T extends DraftSession>(session: T): T {
+		return { ...session, _id: crypto.randomUUID(), id: undefined, originWn: undefined };
+	}
+
 	function emptyDraft(): WeekDraft {
 		return {
 			notes: '',
@@ -105,13 +121,15 @@
 		};
 	}
 
-	function weekDetailToDraft(detail: WeekDetail): WeekDraft {
+	function weekDetailToDraft(detail: WeekDetail, wn: number): WeekDraft {
 		const days: DaySession[][] = Array.from({ length: 7 }, () => []);
 		const freqSessions: FreqSession[] = [];
 		const everydaySessions: EverydaySession[] = [];
 		for (const s of detail.sessions) {
 			const preserved = {
 				_id: crypto.randomUUID(),
+				id: s.id,
+				originWn: wn,
 				training_id: s.training_id,
 				notes: s.notes,
 				overrides: s.overrides ?? []
@@ -137,11 +155,19 @@
 		};
 	}
 
-	function draftToSessionRequests(draft: WeekDraft): SessionRequest[] {
+	// A session only carries its id back when it is being saved into the week that
+	// row belongs to. Anywhere else it is a new row, and sending the id would ask
+	// the server to move a row between weeks, which it refuses.
+	function savedID(session: DraftSession, wn: number): string | undefined {
+		return session.originWn === wn ? session.id : undefined;
+	}
+
+	function draftToSessionRequests(draft: WeekDraft, wn: number): SessionRequest[] {
 		const reqs: SessionRequest[] = [];
 		for (let day = 0; day < 7; day++) {
 			for (const s of draft.days[day]) {
 				reqs.push({
+					id: savedID(s, wn),
 					training_id: s.training_id,
 					day_of_week: day,
 					notes: s.notes,
@@ -151,6 +177,7 @@
 		}
 		for (const s of draft.freqSessions) {
 			reqs.push({
+				id: savedID(s, wn),
 				training_id: s.training_id,
 				times_per_week: s.times_per_week,
 				notes: s.notes,
@@ -159,6 +186,7 @@
 		}
 		for (const s of draft.everydaySessions) {
 			reqs.push({
+				id: savedID(s, wn),
 				training_id: s.training_id,
 				is_everyday: true,
 				notes: s.notes,
@@ -232,7 +260,7 @@
 
 	function findAndRemoveSession(
 		sessionId: string
-	): DaySession | FreqSession | EverydaySession | null {
+	): { session: DaySession | FreqSession | EverydaySession; weekNumber: number } | null {
 		for (const wnStr of Object.keys(weekDrafts)) {
 			const wn = parseInt(wnStr);
 			const draft = weekDrafts[wn];
@@ -241,20 +269,20 @@
 				if (idx !== -1) {
 					const [session] = draft.days[day].splice(idx, 1);
 					draft.dirty = true;
-					return session;
+					return { session, weekNumber: wn };
 				}
 			}
 			const freqIdx = draft.freqSessions.findIndex((s) => s._id === sessionId);
 			if (freqIdx !== -1) {
 				const [session] = draft.freqSessions.splice(freqIdx, 1);
 				draft.dirty = true;
-				return session;
+				return { session, weekNumber: wn };
 			}
 			const everydayIdx = draft.everydaySessions.findIndex((s) => s._id === sessionId);
 			if (everydayIdx !== -1) {
 				const [session] = draft.everydaySessions.splice(everydayIdx, 1);
 				draft.dirty = true;
-				return session;
+				return { session, weekNumber: wn };
 			}
 		}
 		return null;
@@ -299,8 +327,9 @@
 				!targetId.startsWith('everyday:')
 			)
 				return;
-			const session = findAndRemoveSession(sourceId);
-			if (!session) return;
+			const moved = findAndRemoveSession(sourceId);
+			if (!moved) return;
+			const { session } = moved;
 			if (targetId.startsWith('cell:')) {
 				const [, wnStr, dayStr] = targetId.split(':');
 				const wn = parseInt(wnStr);
@@ -312,7 +341,10 @@
 				const wn = parseInt(targetId.slice(5));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
 				const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
-				weekDrafts[wn].freqSessions.push({ ...movedDraftSession(session), times_per_week: times });
+				weekDrafts[wn].freqSessions.push({
+					...movedDraftSession(session),
+					times_per_week: times
+				});
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('everyday:')) {
 				const wn = parseInt(targetId.slice(9));
@@ -347,6 +379,21 @@
 		}
 	}
 
+	// The server refuses an id it no longer holds, which happens when the week was
+	// rebuilt somewhere else while this draft was open. Dropping the stale ids
+	// lets the coach save the edits they still have on screen as new rows,
+	// instead of retrying the same rejected payload until they reload the page.
+	function forgetSessionIDs(draft: WeekDraft) {
+		for (const session of [
+			...draft.days.flat(),
+			...draft.freqSessions,
+			...draft.everydaySessions
+		]) {
+			session.id = undefined;
+			session.originWn = undefined;
+		}
+	}
+
 	async function saveWeek(wn: number) {
 		const draft = weekDrafts[wn];
 		if (!draft) return;
@@ -355,9 +402,9 @@
 		try {
 			const detail = await apiClient.upsertWeek(userId, programId, wn, {
 				notes: draft.notes.trim() || undefined,
-				sessions: draftToSessionRequests(draft)
+				sessions: draftToSessionRequests(draft, wn)
 			});
-			weekDrafts[wn] = weekDetailToDraft(detail);
+			weekDrafts[wn] = weekDetailToDraft(detail, wn);
 			if (!weeks.some((w) => w.week_number === wn)) {
 				weeks.push({
 					id: detail.id,
@@ -369,8 +416,19 @@
 				});
 			}
 		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Failed to save.';
 			weekDrafts[wn].saving = false;
-			weekDrafts[wn].saveError = e instanceof Error ? e.message : 'Failed to save.';
+			if (message.includes('does not belong to this week')) {
+				forgetSessionIDs(weekDrafts[wn]);
+				weekDrafts[wn].saveError =
+					'This week was changed somewhere else. Your edits are still here, save again to apply them.';
+				snackbar.show(
+					'This week was changed somewhere else, so it could not be saved on top. Save again to apply your edits as new sessions.',
+					'warning'
+				);
+			} else {
+				weekDrafts[wn].saveError = message;
+			}
 			throw e;
 		}
 	}
@@ -395,9 +453,9 @@
 		weekDrafts[targetWn] = {
 			...weekDrafts[targetWn],
 			notes: src.notes,
-			days: src.days.map((d) => d.map((s) => ({ ...s, _id: crypto.randomUUID() }))),
-			freqSessions: src.freqSessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
-			everydaySessions: src.everydaySessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
+			days: src.days.map((d) => d.map(duplicatedDraftSession)),
+			freqSessions: src.freqSessions.map(duplicatedDraftSession),
+			everydaySessions: src.everydaySessions.map(duplicatedDraftSession),
 			dirty: true
 		};
 		dupModalSourceWn = null;
@@ -582,7 +640,7 @@
 				const details = await Promise.all(
 					w.map((ws) => apiClient.getWeek(userId, programId, ws.week_number))
 				);
-				for (const d of details) allDrafts[d.week_number] = weekDetailToDraft(d);
+				for (const d of details) allDrafts[d.week_number] = weekDetailToDraft(d, d.week_number);
 			}
 			weekDrafts = allDrafts;
 
