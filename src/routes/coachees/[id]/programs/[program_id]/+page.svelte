@@ -31,8 +31,12 @@
 	const userId = $derived(data.userId as string);
 	const programId = $derived(data.programId as string);
 
+	// _id is a local key for drag and drop only. id is the server row the session
+	// came from, and sending it back is what stops the save from recreating the
+	// row played sessions point at.
 	type DraftSession = {
 		_id: string;
+		id?: string;
 		training_id: string;
 		notes?: string;
 		overrides: SessionOverride[];
@@ -71,9 +75,16 @@
 		);
 	}
 
-	function movedDraftSession(session: DraftSession): DraftSession {
+	// A session dragged into another week cannot keep its id, since that row
+	// belongs to the week it came from.
+	function movedDraftSession(
+		session: DraftSession,
+		sourceWn: number,
+		targetWn: number
+	): DraftSession {
 		return {
 			_id: session._id,
+			id: sourceWn === targetWn ? session.id : undefined,
 			training_id: session.training_id,
 			notes: session.notes,
 			overrides: session.overrides
@@ -90,6 +101,11 @@
 		deleteConfirm: boolean;
 		deleting: boolean;
 	};
+
+	// A duplicate is a new row in the target week, so it starts without an id.
+	function duplicatedDraftSession<T extends DraftSession>(session: T): T {
+		return { ...session, _id: crypto.randomUUID(), id: undefined };
+	}
 
 	function emptyDraft(): WeekDraft {
 		return {
@@ -112,6 +128,7 @@
 		for (const s of detail.sessions) {
 			const preserved = {
 				_id: crypto.randomUUID(),
+				id: s.id,
 				training_id: s.training_id,
 				notes: s.notes,
 				overrides: s.overrides ?? []
@@ -142,6 +159,7 @@
 		for (let day = 0; day < 7; day++) {
 			for (const s of draft.days[day]) {
 				reqs.push({
+					id: s.id,
 					training_id: s.training_id,
 					day_of_week: day,
 					notes: s.notes,
@@ -151,6 +169,7 @@
 		}
 		for (const s of draft.freqSessions) {
 			reqs.push({
+				id: s.id,
 				training_id: s.training_id,
 				times_per_week: s.times_per_week,
 				notes: s.notes,
@@ -159,6 +178,7 @@
 		}
 		for (const s of draft.everydaySessions) {
 			reqs.push({
+				id: s.id,
 				training_id: s.training_id,
 				is_everyday: true,
 				notes: s.notes,
@@ -232,7 +252,7 @@
 
 	function findAndRemoveSession(
 		sessionId: string
-	): DaySession | FreqSession | EverydaySession | null {
+	): { session: DaySession | FreqSession | EverydaySession; weekNumber: number } | null {
 		for (const wnStr of Object.keys(weekDrafts)) {
 			const wn = parseInt(wnStr);
 			const draft = weekDrafts[wn];
@@ -241,20 +261,20 @@
 				if (idx !== -1) {
 					const [session] = draft.days[day].splice(idx, 1);
 					draft.dirty = true;
-					return session;
+					return { session, weekNumber: wn };
 				}
 			}
 			const freqIdx = draft.freqSessions.findIndex((s) => s._id === sessionId);
 			if (freqIdx !== -1) {
 				const [session] = draft.freqSessions.splice(freqIdx, 1);
 				draft.dirty = true;
-				return session;
+				return { session, weekNumber: wn };
 			}
 			const everydayIdx = draft.everydaySessions.findIndex((s) => s._id === sessionId);
 			if (everydayIdx !== -1) {
 				const [session] = draft.everydaySessions.splice(everydayIdx, 1);
 				draft.dirty = true;
-				return session;
+				return { session, weekNumber: wn };
 			}
 		}
 		return null;
@@ -299,25 +319,29 @@
 				!targetId.startsWith('everyday:')
 			)
 				return;
-			const session = findAndRemoveSession(sourceId);
-			if (!session) return;
+			const moved = findAndRemoveSession(sourceId);
+			if (!moved) return;
+			const { session, weekNumber: sourceWn } = moved;
 			if (targetId.startsWith('cell:')) {
 				const [, wnStr, dayStr] = targetId.split(':');
 				const wn = parseInt(wnStr);
 				const day = parseInt(dayStr);
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].days[day].push(movedDraftSession(session));
+				weekDrafts[wn].days[day].push(movedDraftSession(session, sourceWn, wn));
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('freq:')) {
 				const wn = parseInt(targetId.slice(5));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
 				const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
-				weekDrafts[wn].freqSessions.push({ ...movedDraftSession(session), times_per_week: times });
+				weekDrafts[wn].freqSessions.push({
+					...movedDraftSession(session, sourceWn, wn),
+					times_per_week: times
+				});
 				weekDrafts[wn].dirty = true;
 			} else if (targetId.startsWith('everyday:')) {
 				const wn = parseInt(targetId.slice(9));
 				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].everydaySessions.push(movedDraftSession(session));
+				weekDrafts[wn].everydaySessions.push(movedDraftSession(session, sourceWn, wn));
 				weekDrafts[wn].dirty = true;
 			}
 		}
@@ -395,9 +419,9 @@
 		weekDrafts[targetWn] = {
 			...weekDrafts[targetWn],
 			notes: src.notes,
-			days: src.days.map((d) => d.map((s) => ({ ...s, _id: crypto.randomUUID() }))),
-			freqSessions: src.freqSessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
-			everydaySessions: src.everydaySessions.map((s) => ({ ...s, _id: crypto.randomUUID() })),
+			days: src.days.map((d) => d.map(duplicatedDraftSession)),
+			freqSessions: src.freqSessions.map(duplicatedDraftSession),
+			everydaySessions: src.everydaySessions.map(duplicatedDraftSession),
 			dirty: true
 		};
 		dupModalSourceWn = null;

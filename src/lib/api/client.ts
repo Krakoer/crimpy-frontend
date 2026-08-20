@@ -359,6 +359,7 @@ export interface WeekDetail extends WeekSummary {
 }
 
 export interface SessionRequest {
+	id?: string;
 	training_id: string;
 	day_of_week?: number;
 	times_per_week?: number;
