@@ -301,6 +301,24 @@
 		return null;
 	}
 
+	// The week a drop target belongs to, or null when it is not a session target.
+	function targetWeekNumber(targetId: string): number | null {
+		if (targetId.startsWith('cell:')) return parseInt(targetId.split(':')[1]);
+		if (targetId.startsWith('freq:')) return parseInt(targetId.slice(5));
+		if (targetId.startsWith('everyday:')) return parseInt(targetId.slice(9));
+		return null;
+	}
+
+	// The week holding this session when it is locked, null when it is free to move.
+	function lockedSessionWeek(sessionId: string): number | null {
+		for (const wnStr of Object.keys(weekDrafts)) {
+			const wn = parseInt(wnStr);
+			const session = draftSessions(weekDrafts[wn]).find((s) => s._id === sessionId);
+			if (session) return session.locked ? wn : null;
+		}
+		return null;
+	}
+
 	function onDragEnd(event: {
 		canceled: boolean;
 		operation: { source: unknown; target: unknown };
@@ -334,12 +352,15 @@
 				weekDrafts[wn].dirty = true;
 			}
 		} else {
-			if (
-				!targetId.startsWith('cell:') &&
-				!targetId.startsWith('freq:') &&
-				!targetId.startsWith('everyday:')
-			)
+			const targetWn = targetWeekNumber(targetId);
+			if (targetWn === null) return;
+			// Rescheduling a played session is fine, moving it to another week is
+			// not: it would drop the row out of the week it was prescribed in.
+			const lockedWn = lockedSessionWeek(sourceId);
+			if (lockedWn !== null && lockedWn !== targetWn) {
+				snackbar.show(LOCKED_SESSION_MOVE_REASON, 'warning');
 				return;
+			}
 			const moved = findAndRemoveSession(sourceId);
 			if (!moved) return;
 			const { session } = moved;
@@ -377,7 +398,13 @@
 	}
 
 	const LOCKED_SESSION_REASON =
-		'This session has already been played, so what was prescribed cannot be changed any more.';
+		'This session has already been played, so its training and its overrides cannot be changed and it cannot be removed from the week.';
+
+	// Its day, its frequency and its order say when it happens, not what was
+	// prescribed, so those stay editable. Leaving the week does not: that drops
+	// the row the played session points at.
+	const LOCKED_SESSION_MOVE_REASON =
+		'This session has already been played, so it can only be moved inside its own week.';
 
 	function removeSession(wn: number, sessionId: string) {
 		const draft = weekDrafts[wn];
@@ -411,12 +438,15 @@
 	// rebuilt somewhere else while this draft was open. Dropping the stale ids
 	// lets the coach save the edits they still have on screen as new rows,
 	// instead of retrying the same rejected payload until they reload the page.
+	// A played session keeps its id: resending it without one reads as a removal
+	// to the server, which refuses it and leaves the week unsaveable.
 	function forgetSessionIDs(draft: WeekDraft) {
 		for (const session of [
 			...draft.days.flat(),
 			...draft.freqSessions,
 			...draft.everydaySessions
 		]) {
+			if (session.locked) continue;
 			session.id = undefined;
 			session.originWn = undefined;
 		}
@@ -1246,8 +1276,9 @@
 												style="padding: 6px 12px; background: var(--pr-fog); color: var(--tx2); font-size: 11.5px; border-bottom: 1px solid var(--bd2); display: flex; align-items: center; gap: 6px;"
 											>
 												<Icon name="lock" size={11} color="var(--tx3)" />
-												Sessions already played are locked: what was prescribed cannot be changed and
-												they cannot be removed from the week.
+												Sessions already played are locked: their training and their overrides cannot
+												be changed and they cannot leave the week. Rescheduling them inside it is still
+												fine.
 											</div>
 										{/if}
 
@@ -1287,17 +1318,13 @@
 														{#each draft.days[dayIndex] as session (session._id)}
 															{@const color = trainingColor(session.training_id)}
 															{@const tint = trainingTint(session.training_id)}
-															<DraggableSession
-																id={session._id}
-																disabled={!editMode}
-																locked={session.locked}
-															>
+															<DraggableSession id={session._id} disabled={!editMode}>
 																<div
 																	style="
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
 																background: {tint}; border: 1px solid {color}30;
-																cursor: {editMode && !session.locked ? 'grab' : 'default'}; font-size: 10.5px;
+																cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
 															"
 																>
 																	<div
@@ -1311,7 +1338,7 @@
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
-																			style="display: flex; flex-shrink: 0;"
+																			style="display: flex; flex-shrink: 0; pointer-events: auto;"
 																		>
 																			<Icon name="lock" size={10} color="var(--tx3)" />
 																		</div>
@@ -1383,11 +1410,7 @@
 													{#each draft.freqSessions as session (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession
-															id={session._id}
-															disabled={!editMode}
-															locked={session.locked}
-														>
+														<DraggableSession id={session._id} disabled={!editMode}>
 															<div
 																style="
 															padding: 4px 5px; border-radius: 5px;
@@ -1427,7 +1450,7 @@
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
-																			style="display: flex; flex-shrink: 0;"
+																			style="display: flex; flex-shrink: 0; pointer-events: auto;"
 																		>
 																			<Icon name="lock" size={10} color="var(--tx3)" />
 																		</div>
@@ -1469,17 +1492,13 @@
 													{#each draft.everydaySessions as session (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession
-															id={session._id}
-															disabled={!editMode}
-															locked={session.locked}
-														>
+														<DraggableSession id={session._id} disabled={!editMode}>
 															<div
 																style="
 															display: flex; align-items: center; gap: 4px;
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
-															cursor: {editMode && !session.locked ? 'grab' : 'default'}; font-size: 10.5px;
+															cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
 														"
 															>
 																<div
@@ -1493,7 +1512,7 @@
 																{#if session.locked}
 																	<div
 																		title={LOCKED_SESSION_REASON}
-																		style="display: flex; flex-shrink: 0;"
+																		style="display: flex; flex-shrink: 0; pointer-events: auto;"
 																	>
 																		<Icon name="lock" size={10} color="var(--tx3)" />
 																	</div>

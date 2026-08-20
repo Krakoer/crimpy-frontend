@@ -390,6 +390,30 @@ function weekOneWithPlayedSession() {
 	return week;
 }
 
+async function stubTwoWeeksWithPlayedSession(page: Page): Promise<void> {
+	await stubProgram(page, testProgram({ duration_weeks: 2 }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' },
+			{ id: 'week-2', program_id: 'program-1', week_number: 2, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithPlayedSession()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', {
+		body: {
+			id: 'week-2',
+			program_id: 'program-1',
+			week_number: 2,
+			notes: '',
+			created_at: '',
+			updated_at: '',
+			sessions: []
+		}
+	});
+}
+
 async function stubPlayedWeek(page: Page): Promise<void> {
 	await stubProgram(page);
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
@@ -417,7 +441,9 @@ test('says why a played session is locked and offers no way to remove it', async
 	await expect(page.getByRole('button', { name: 'Remove session' })).toHaveCount(0);
 });
 
-test('refuses to drag a played session out of its day', async ({ page }) => {
+// The day a session sits on is not part of what was prescribed, so a played
+// session still reschedules inside its own week.
+test('reschedules a played session within its own week', async ({ page }) => {
 	await stubPlayedWeek(page);
 	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
@@ -427,13 +453,62 @@ test('refuses to drag a played session out of its day', async ({ page }) => {
 
 	await dragOnto(
 		page,
-		page.getByTestId('cell:1:1').getByText('Power endurance block'),
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:3')
 	);
 
-	await expect(page.getByTestId('cell:1:1').getByText('Power endurance block')).toBeVisible();
-	await expect(page.getByTestId('cell:1:3').getByText('Power endurance block')).toHaveCount(0);
-	expect(saves).toHaveLength(0);
+	await expect(
+		page.getByTestId('cell:1:3').getByRole('button', { name: 'Power endurance block' })
+	).toBeVisible();
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' })
+	).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	// The id has to survive, it is what the played session points at.
+	const weekOneSave = saves.find((s) => s.url.endsWith('/weeks/1'));
+	expect(weekOneSave?.body).toMatchObject({
+		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 3 }]
+	});
+});
+
+// Leaving the week does drop the row, which is the removal the server refuses.
+test('refuses to drag a played session into another week', async ({ page }) => {
+	await stubTwoWeeksWithPlayedSession(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByTitle('Expand all').click();
+
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:2:0')
+	);
+
+	await expect(page.getByText(/can only be moved inside its own week/)).toBeVisible();
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' })
+	).toBeVisible();
+	await expect(
+		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' })
+	).toHaveCount(0);
+});
+
+// The padlock is rendered before the coach enters edit mode, so its reason has
+// to be reachable there too.
+test('explains the lock before edit mode is entered', async ({ page }) => {
+	await stubPlayedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTitle(/already been played/)).toBeVisible();
+	// trial mode asserts the tooltip is a hit target without clicking it: the
+	// wrapper drops pointer events outside edit mode and the padlock opts back in.
+	await page.getByTitle(/already been played/).hover({ trial: true });
 });
 
 test('keeps a played session when the week is cleared', async ({ page }) => {
@@ -479,4 +554,80 @@ test('refuses to duplicate a week onto one holding a played session', async ({ p
 
 	const targetWeekOne = page.getByRole('button', { name: '1 played' });
 	await expect(targetWeekOne).toBeDisabled();
+});
+
+// The stale-week recovery drops the ids so the edits can be resaved as new rows.
+// A played session must keep its id through that: sending it back without one
+// reads as a removal, which the server refuses, and the week would never save.
+test('keeps a played session saveable after the stale week recovery', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithPlayedSession()
+	});
+
+	let firstSave = true;
+	const saves: { body: Record<string, unknown> }[] = [];
+	await page.route('**/api/coach/clients/*/programs/*/weeks/1', async (route) => {
+		if (route.request().method() !== 'PUT') return route.fallback();
+		saves.push({ body: route.request().postDataJSON() });
+		if (firstSave) {
+			firstSave = false;
+			return route.fulfill({
+				status: 400,
+				contentType: 'application/json',
+				body: JSON.stringify({ error: 'session 0: id ws-1 does not belong to this week' })
+			});
+		}
+		return route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(weekOneWithPlayedSession())
+		});
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:1:4')
+	);
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText(/changed somewhere else/).first()).toBeVisible();
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(saves).toHaveLength(2);
+	expect(saves[1].body).toMatchObject({
+		sessions: [{ id: 'ws-1', day_of_week: 4 }]
+	});
+});
+
+// Copies are new rows in the target week, so nobody has played them.
+test('duplicating a week holding a played session yields an unlocked copy', async ({ page }) => {
+	await stubTwoWeeksWithPlayedSession(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByTitle('Expand all').click();
+	await page.getByRole('button', { name: 'Duplicate' }).first().click();
+	await page.getByRole('button', { name: '2', exact: true }).click();
+
+	// The copy landed in week 2 and carries no padlock, so it can still be removed.
+	await expect(
+		page.getByTestId('cell:2:1').getByRole('button', { name: 'Power endurance block' })
+	).toBeVisible();
+	await expect(page.getByTestId('cell:2:1').getByTitle(/already been played/)).toHaveCount(0);
+	await expect(
+		page.getByTestId('cell:2:1').getByRole('button', { name: 'Remove session', exact: true })
+	).toBeVisible();
 });
