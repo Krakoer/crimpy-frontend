@@ -13,10 +13,16 @@
 	const draggable = createDraggable({
 		get id() {
 			return id;
+		},
+		get disabled() {
+			return disabled;
 		}
 	});
 </script>
 
+<!-- A played session still drags: its day and its order are not part of what was
+	prescribed. Only leaving its own week is refused, and the page checks that on
+	drop. -->
 <div
 	{@attach draggable.attach}
 	style="touch-action: none; cursor: {disabled ? 'default' : 'grab'};"
