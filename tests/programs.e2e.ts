@@ -279,6 +279,7 @@ function weekOneWithSession() {
 				day_of_week: 1,
 				is_everyday: false,
 				position: 0,
+				is_locked: false,
 				overrides: []
 			}
 		]
@@ -380,4 +381,102 @@ test('keeps the session id when it is dragged to another week and back', async (
 	expect(weekOneSave?.body).toMatchObject({
 		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }]
 	});
+});
+
+/** A week whose session the coachee has already played, so the server locks it. */
+function weekOneWithPlayedSession() {
+	const week = weekOneWithSession();
+	week.sessions[0] = { ...week.sessions[0], is_locked: true };
+	return week;
+}
+
+async function stubPlayedWeek(page: Page): Promise<void> {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithPlayedSession()
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithPlayedSession()
+	});
+}
+
+test('says why a played session is locked and offers no way to remove it', async ({ page }) => {
+	await stubPlayedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByText(/Sessions already played are locked/)).toBeVisible();
+	await expect(page.getByTitle(/already been played/)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Remove session' })).toHaveCount(0);
+});
+
+test('refuses to drag a played session out of its day', async ({ page }) => {
+	await stubPlayedWeek(page);
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByText('Power endurance block'),
+		page.getByTestId('cell:1:3')
+	);
+
+	await expect(page.getByTestId('cell:1:1').getByText('Power endurance block')).toBeVisible();
+	await expect(page.getByTestId('cell:1:3').getByText('Power endurance block')).toHaveCount(0);
+	expect(saves).toHaveLength(0);
+});
+
+test('keeps a played session when the week is cleared', async ({ page }) => {
+	await stubPlayedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await page.getByRole('button', { name: 'Clear', exact: true }).first().click();
+	await page.getByRole('button', { name: 'Confirm clear' }).click();
+
+	await expect(page.getByText(/Sessions already played were kept/)).toBeVisible();
+	await expect(page.getByTestId('cell:1:1').getByText('Power endurance block')).toBeVisible();
+});
+
+test('refuses to duplicate a week onto one holding a played session', async ({ page }) => {
+	const weekTwo = {
+		id: 'week-2',
+		program_id: 'program-1',
+		week_number: 2,
+		notes: '',
+		created_at: '',
+		updated_at: '',
+		sessions: []
+	};
+
+	await stubProgram(page, testProgram({ duration_weeks: 2 }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' },
+			{ id: 'week-2', program_id: 'program-1', week_number: 2, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithPlayedSession()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', { body: weekTwo });
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByTitle('Expand all').click();
+	await page.getByRole('button', { name: 'Duplicate' }).nth(1).click();
+
+	const targetWeekOne = page.getByRole('button', { name: '1 played' });
+	await expect(targetWeekOne).toBeDisabled();
 });

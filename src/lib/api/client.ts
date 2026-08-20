@@ -351,6 +351,7 @@ export interface WeekSession {
 	is_everyday: boolean;
 	position: number;
 	notes?: string;
+	is_locked: boolean;
 	overrides: SessionOverride[];
 }
 

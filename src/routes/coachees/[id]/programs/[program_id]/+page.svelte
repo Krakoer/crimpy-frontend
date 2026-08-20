@@ -35,12 +35,16 @@
 	// came from, and sending it back is what stops the save from recreating the
 	// row played sessions point at. originWn is the week that row belongs to, so
 	// a session dragged to another week and back still saves under its own id.
+	// locked is set by the server on a session the coachee has already played.
+	// What was prescribed then must keep describing what was played, so its
+	// training and its overrides are frozen and the row may not be dropped.
 	type DraftSession = {
 		_id: string;
 		id?: string;
 		originWn?: number;
 		training_id: string;
 		notes?: string;
+		locked?: boolean;
 		overrides: SessionOverride[];
 	};
 	type DaySession = DraftSession;
@@ -87,6 +91,7 @@
 			originWn: session.originWn,
 			training_id: session.training_id,
 			notes: session.notes,
+			locked: session.locked,
 			overrides: session.overrides
 		};
 	}
@@ -102,9 +107,16 @@
 		deleting: boolean;
 	};
 
-	// A duplicate is a new row in the target week, so it starts without an id.
+	// A duplicate is a new row in the target week, so it starts without an id and
+	// nobody has played it yet.
 	function duplicatedDraftSession<T extends DraftSession>(session: T): T {
-		return { ...session, _id: crypto.randomUUID(), id: undefined, originWn: undefined };
+		return {
+			...session,
+			_id: crypto.randomUUID(),
+			id: undefined,
+			originWn: undefined,
+			locked: false
+		};
 	}
 
 	function emptyDraft(): WeekDraft {
@@ -132,6 +144,7 @@
 				originWn: wn,
 				training_id: s.training_id,
 				notes: s.notes,
+				locked: s.is_locked,
 				overrides: s.overrides ?? []
 			};
 			if (s.is_everyday) {
@@ -355,9 +368,24 @@
 		}
 	}
 
+	function draftSessions(draft: WeekDraft): DraftSession[] {
+		return [...draft.days.flat(), ...draft.freqSessions, ...draft.everydaySessions];
+	}
+
+	function hasLockedSessions(draft: WeekDraft | undefined): boolean {
+		return draft ? draftSessions(draft).some((s) => s.locked) : false;
+	}
+
+	const LOCKED_SESSION_REASON =
+		'This session has already been played, so what was prescribed cannot be changed any more.';
+
 	function removeSession(wn: number, sessionId: string) {
 		const draft = weekDrafts[wn];
 		if (!draft) return;
+		if (draftSessions(draft).some((s) => s._id === sessionId && s.locked)) {
+			snackbar.show(LOCKED_SESSION_REASON, 'warning');
+			return;
+		}
 		for (let day = 0; day < 7; day++) {
 			const idx = draft.days[day].findIndex((s) => s._id === sessionId);
 			if (idx !== -1) {
@@ -446,9 +474,18 @@
 		}
 	}
 
+	// A duplicate replaces the target week with id-less copies, so a played
+	// session in that week would lose its row.
 	function executeDuplicate(sourceWn: number, targetWn: number) {
 		const src = weekDrafts[sourceWn];
 		if (!src) return;
+		if (hasLockedSessions(weekDrafts[targetWn])) {
+			snackbar.show(
+				`Week ${targetWn} holds sessions already played, so it cannot be replaced.`,
+				'warning'
+			);
+			return;
+		}
 		if (!weekDrafts[targetWn]) weekDrafts[targetWn] = emptyDraft();
 		weekDrafts[targetWn] = {
 			...weekDrafts[targetWn],
@@ -565,17 +602,24 @@
 		expandedWeeks = new Set();
 	}
 
+	// Played sessions survive a clear: dropping them would null the link they
+	// carry, which is exactly what the freeze is there to prevent.
 	function clearWeek(wn: number) {
-		if (!weekDrafts[wn]) return;
+		const draft = weekDrafts[wn];
+		if (!draft) return;
+		const kept = hasLockedSessions(draft);
 		weekDrafts[wn] = {
-			...weekDrafts[wn],
-			days: Array.from({ length: 7 }, () => []),
-			freqSessions: [],
-			everydaySessions: [],
+			...draft,
+			days: draft.days.map((day) => day.filter((s) => s.locked)),
+			freqSessions: draft.freqSessions.filter((s) => s.locked),
+			everydaySessions: draft.everydaySessions.filter((s) => s.locked),
 			notes: '',
 			dirty: true,
 			deleteConfirm: false
 		};
+		if (kept) {
+			snackbar.show('Sessions already played were kept, they can no longer be removed.', 'warning');
+		}
 	}
 
 	const computedCurrentWeek = $derived.by(() => {
@@ -1197,6 +1241,16 @@
 											</div>
 										{/if}
 
+										{#if editMode && hasLockedSessions(draft)}
+											<div
+												style="padding: 6px 12px; background: var(--pr-fog); color: var(--tx2); font-size: 11.5px; border-bottom: 1px solid var(--bd2); display: flex; align-items: center; gap: 6px;"
+											>
+												<Icon name="lock" size={11} color="var(--tx3)" />
+												Sessions already played are locked: what was prescribed cannot be changed and
+												they cannot be removed from the week.
+											</div>
+										{/if}
+
 										<!-- Day grid -->
 										<div
 											style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px; min-height: 72px;"
@@ -1233,13 +1287,17 @@
 														{#each draft.days[dayIndex] as session (session._id)}
 															{@const color = trainingColor(session.training_id)}
 															{@const tint = trainingTint(session.training_id)}
-															<DraggableSession id={session._id} disabled={!editMode}>
+															<DraggableSession
+																id={session._id}
+																disabled={!editMode}
+																locked={session.locked}
+															>
 																<div
 																	style="
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
 																background: {tint}; border: 1px solid {color}30;
-																cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
+																cursor: {editMode && !session.locked ? 'grab' : 'default'}; font-size: 10.5px;
 															"
 																>
 																	<div
@@ -1250,9 +1308,17 @@
 																	>
 																		{trainingById(session.training_id)?.title ?? '?'}
 																	</span>
-																	{#if editMode}
+																	{#if session.locked}
+																		<div
+																			title={LOCKED_SESSION_REASON}
+																			style="display: flex; flex-shrink: 0;"
+																		>
+																			<Icon name="lock" size={10} color="var(--tx3)" />
+																		</div>
+																	{:else if editMode}
 																		<button
 																			onclick={() => removeSession(wn, session._id)}
+																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
 																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
 																			onmouseenter={(e) => {
@@ -1317,7 +1383,11 @@
 													{#each draft.freqSessions as session (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession id={session._id} disabled={!editMode}>
+														<DraggableSession
+															id={session._id}
+															disabled={!editMode}
+															locked={session.locked}
+														>
 															<div
 																style="
 															padding: 4px 5px; border-radius: 5px;
@@ -1354,9 +1424,17 @@
 																		>x/wk</span
 																	>
 																	<div style="flex: 1;"></div>
-																	{#if editMode}
+																	{#if session.locked}
+																		<div
+																			title={LOCKED_SESSION_REASON}
+																			style="display: flex; flex-shrink: 0;"
+																		>
+																			<Icon name="lock" size={10} color="var(--tx3)" />
+																		</div>
+																	{:else if editMode}
 																		<button
 																			onclick={() => removeSession(wn, session._id)}
+																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
 																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
 																			onmouseenter={(e) => {
@@ -1391,13 +1469,17 @@
 													{#each draft.everydaySessions as session (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession id={session._id} disabled={!editMode}>
+														<DraggableSession
+															id={session._id}
+															disabled={!editMode}
+															locked={session.locked}
+														>
 															<div
 																style="
 															display: flex; align-items: center; gap: 4px;
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
-															cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
+															cursor: {editMode && !session.locked ? 'grab' : 'default'}; font-size: 10.5px;
 														"
 															>
 																<div
@@ -1408,9 +1490,17 @@
 																>
 																	{trainingById(session.training_id)?.title ?? '?'}
 																</span>
-																{#if editMode}
+																{#if session.locked}
+																	<div
+																		title={LOCKED_SESSION_REASON}
+																		style="display: flex; flex-shrink: 0;"
+																	>
+																		<Icon name="lock" size={10} color="var(--tx3)" />
+																	</div>
+																{:else if editMode}
 																	<button
 																		onclick={() => removeSession(wn, session._id)}
+																		aria-label="Remove session"
 																		onpointerdown={(e) => e.stopPropagation()}
 																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
 																		onmouseenter={(e) => {
@@ -1621,37 +1711,44 @@
 					{#each weekNumbers() as wn (wn)}
 						{@const isSource = wn === sourceWn}
 						{@const hasDraft = weekDrafts[wn]?.days.some((d) => d.length > 0)}
+						{@const isPlayed = hasLockedSessions(weekDrafts[wn])}
+						{@const isBlocked = isSource || isPlayed}
 						<button
-							onclick={() => !isSource && executeDuplicate(sourceWn, wn)}
-							disabled={isSource}
+							onclick={() => !isBlocked && executeDuplicate(sourceWn, wn)}
+							disabled={isBlocked}
+							title={isPlayed
+								? 'This week holds sessions already played, so it cannot be replaced.'
+								: undefined}
 							style="
 								width: 52px; height: 44px; border-radius: var(--rs);
-								border: 1.5px solid {isSource ? 'var(--bd)' : hasDraft ? 'rgba(212,161,94,0.4)' : 'var(--bd)'};
-								background: {isSource ? 'var(--panel2)' : '#fff'};
-								cursor: {isSource ? 'default' : 'pointer'};
-								opacity: {isSource ? 0.5 : 1};
+								border: 1.5px solid {isBlocked ? 'var(--bd)' : hasDraft ? 'rgba(212,161,94,0.4)' : 'var(--bd)'};
+								background: {isBlocked ? 'var(--panel2)' : '#fff'};
+								cursor: {isBlocked ? 'default' : 'pointer'};
+								opacity: {isBlocked ? 0.5 : 1};
 								display: flex; flex-direction: column; align-items: center; justify-content: center;
 								gap: 2px; font-family: var(--font); transition: border-color 0.15s;
 							"
 							onmouseenter={(e) => {
-								if (!isSource) e.currentTarget.style.borderColor = 'var(--pr)';
+								if (!isBlocked) e.currentTarget.style.borderColor = 'var(--pr)';
 							}}
 							onmouseleave={(e) => {
-								if (!isSource)
+								if (!isBlocked)
 									e.currentTarget.style.borderColor = hasDraft
 										? 'rgba(212,161,94,0.4)'
 										: 'var(--bd)';
 							}}
 						>
 							<span
-								style="font-size: 13px; font-weight: 700; color: {isSource
+								style="font-size: 13px; font-weight: 700; color: {isBlocked
 									? 'var(--tx3)'
 									: 'var(--tx)'};">{wn}</span
 							>
-							{#if hasDraft && !isSource}
-								<span style="font-size: 8px; color: var(--gd); font-weight: 600;">data</span>
-							{:else if isSource}
+							{#if isSource}
 								<span style="font-size: 8px; color: var(--tx3);">source</span>
+							{:else if isPlayed}
+								<span style="font-size: 8px; color: var(--tx3);">played</span>
+							{:else if hasDraft}
+								<span style="font-size: 8px; color: var(--gd); font-weight: 600;">data</span>
 							{/if}
 						</button>
 					{/each}
