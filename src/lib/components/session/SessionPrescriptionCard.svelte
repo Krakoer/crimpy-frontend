@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { apiClient } from '$lib/api/client';
-	import type { Exercise, PrescriptionSnapshot, TrainingItem } from '$lib/api/client';
+	import type { PrescriptionSnapshot } from '$lib/api/client';
 	import {
 		assessmentLabel,
 		collectAssessmentRelativeValues,
 		formatResolvedValue,
+		HAND_LABELS,
 		resolveAgainstFrozenResults
 	} from '$lib/assessments';
 	import ItemListView from '$lib/components/training/ItemListView.svelte';
@@ -15,17 +14,6 @@
 	}
 
 	let { prescription }: Props = $props();
-
-	let exercises = $state<Exercise[]>([]);
-
-	function collectExerciseIds(items: TrainingItem[]): string[] {
-		const ids: string[] = [];
-		for (const item of items) {
-			if (item.exercise_id) ids.push(item.exercise_id);
-			ids.push(...collectExerciseIds(item.items ?? []));
-		}
-		return ids;
-	}
 
 	// The percentages the coach prescribed, read against the results frozen with
 	// the session. Without this a load reads as "85% Max force", which is the one
@@ -37,13 +25,6 @@
 		duration: 'hang time',
 		reps: 'reps'
 	};
-
-	onMount(async () => {
-		const ids = [...new Set(collectExerciseIds(prescription.items))];
-		if (ids.length === 0) return;
-		const fetched = await Promise.all(ids.map((id) => apiClient.getExercise(id).catch(() => null)));
-		exercises = fetched.filter(Boolean) as Exercise[];
-	});
 </script>
 
 <div
@@ -112,9 +93,6 @@
 						relative,
 						prescription.resolved_against.assessments
 					)}
-					{@const sameBothHands =
-						resolved.right.value === resolved.left.value &&
-						resolved.right.fromFallback === resolved.left.fromFallback}
 					<div class="flex items-baseline justify-between gap-3" style="font-size: 12.5px;">
 						<span style="color: var(--tx2); min-width: 0;">
 							{relative.percent}% {assessmentLabel(relative.assessment_type)}
@@ -123,29 +101,19 @@
 							>
 						</span>
 						<span style="font-weight: 700; color: var(--tx); flex-shrink: 0; text-align: right;">
-							{#if sameBothHands}
-								{formatResolvedValue(resolved.right.value, relative.field)}
-								{#if resolved.right.fromFallback}
-									<span style="font-size: 11px; color: var(--tx3); font-weight: 600;">fallback</span
-									>
-								{/if}
-							{:else}
-								{#each [{ hand: 'R', side: resolved.right }, { hand: 'L', side: resolved.left }] as entry (entry.hand)}
-									<span style="margin-left: 8px;">
-										<span style="font-size: 10.5px; color: var(--tx3); font-weight: 700;"
-											>{entry.hand}</span
+							{#each resolved as entry, i (entry.hand)}
+								<span style="margin-left: {i === 0 ? 0 : 8}px;">
+									{#if HAND_LABELS[entry.hand]}<span
+											style="font-size: 10.5px; color: var(--tx3); font-weight: 700;"
+											>{HAND_LABELS[entry.hand]}</span
+										>{/if}
+									{formatResolvedValue(entry.value, relative.field)}{#if entry.fromFallback}<span
+											style="font-size: 11px; color: var(--tx3); font-weight: 600;"
 										>
-										{formatResolvedValue(
-											entry.side.value,
-											relative.field
-										)}{#if entry.side.fromFallback}<span
-												style="font-size: 11px; color: var(--tx3); font-weight: 600;"
-											>
-												fallback</span
-											>{/if}
-									</span>
-								{/each}
-							{/if}
+											fallback</span
+										>{/if}
+								</span>
+							{/each}
 						</span>
 					</div>
 				{/each}
@@ -154,6 +122,7 @@
 	{/if}
 
 	<div style="padding: 14px 18px;">
-		<ItemListView items={prescription.items} {exercises} />
+		<!-- Every item names its own exercise, so the tree needs no library here. -->
+		<ItemListView items={prescription.items} exercises={[]} showControls={false} />
 	</div>
 </div>

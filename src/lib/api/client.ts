@@ -290,6 +290,9 @@ export interface TrainingItem {
 	cycle_rest_seconds?: number;
 	group_title?: string;
 	exercise_id?: string;
+	// Joined by the backend on every item it returns, so a tree read from a
+	// prescription snapshot names its exercises without a second request.
+	exercise_name?: string | null;
 	reps?: number;
 	duration?: number;
 	rest_seconds?: number;

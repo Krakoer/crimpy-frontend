@@ -169,12 +169,61 @@ test.describe('session details', () => {
 		await expect(dialog.getByRole('heading', { name: 'Prescribed' })).toBeVisible();
 		await expect(dialog.getByText('From the program')).toBeVisible();
 		await expect(dialog.getByText('Stop the set if you drop below the target.')).toBeVisible();
-		// 85% of the max force frozen with the session, per hand: 40 kg and 38 kg.
+		// The item hangs both hands at once, which the app puts on the gauge as 85%
+		// of the mean of the two results frozen with the session, 40 kg and 38 kg.
+		// One number, because one number is what the athlete was asked to hold.
 		await expect(dialog.getByText('85% Max force (load)')).toBeVisible();
-		await expect(dialog.getByText('R 34.0 kg')).toBeVisible();
-		await expect(dialog.getByText('L 32.3 kg')).toBeVisible();
+		await expect(dialog.getByText('33.1 kg')).toBeVisible();
+		await expect(dialog.getByText('R 34.0 kg')).toBeHidden();
+		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
 		// The measurements stay on their own card rather than being paired rep by rep.
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();
+	});
+
+	test('reads a hand-by-hand prescription against that hand', async ({ page }) => {
+		// A split repeater hangs one hand at a time and may load them differently,
+		// so each side resolves against its own result rather than against both.
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-1',
+						type: 'repeater',
+						cycles: 1,
+						reps: 2,
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						cycle_rest_seconds: 120,
+						hand: 'split',
+						granularity: 'uniform',
+						edge_sizes_mm: [20],
+						loads: [{ value: 85, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }],
+						left_loads: [
+							{ value: 80, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }
+						]
+					}
+				]
+			})
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		// 85% of the right hand's 40 kg, and 80% of the left hand's 38 kg. Neither
+		// hand is shown the percentage the other one was asked for.
+		await expect(dialog.getByText('85% Max force (load)')).toBeVisible();
+		await expect(dialog.getByText('R 34.0 kg')).toBeVisible();
+		await expect(dialog.getByText('80% Max force (load)')).toBeVisible();
+		await expect(dialog.getByText('L 30.4 kg')).toBeVisible();
+		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
+		await expect(dialog.getByText('R 32.0 kg')).toBeHidden();
 	});
 
 	test('says so when a played session had nothing prescribed', async ({ page }) => {
