@@ -5,6 +5,7 @@
 	import { ASSESSMENT_TYPES } from '$lib/assessments';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
+	import SessionPrescriptionCard from '$lib/components/session/SessionPrescriptionCard.svelte';
 	import {
 		formatDuration,
 		formatSessionDate,
@@ -187,6 +188,21 @@
 			{:else}
 				{#if hasRepData}
 					<SessionRepsCard session={detail} {reps} accent={type.color} />
+				{/if}
+
+				<!-- Next to the measurements rather than paired rep by rep: a
+				     prescribed item is a template of sets, a rep is one measured
+				     hang, and the two stop lining up as soon as the athlete cut a
+				     set short. What each rep was aiming at is already on the rep
+				     itself, through target_weight in the card above. -->
+				{#if detail.prescription}
+					<SessionPrescriptionCard prescription={detail.prescription} />
+				{:else if detail.origin === 'played'}
+					<div
+						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; font-size: 12.5px; color: var(--tx3);"
+					>
+						Played from the athlete's own library, so there is nothing prescribed to compare it to.
+					</div>
 				{/if}
 
 				{#if assessments.length > 0}

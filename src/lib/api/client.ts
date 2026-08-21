@@ -91,6 +91,10 @@ export interface SessionResponse {
 	// What the session was played from, both absent when it was logged by hand.
 	training_id?: string | null;
 	program_session_id?: string | null;
+	// What the athlete was asked to do, frozen when the session was created.
+	// Absent on a session run from nothing, and on the list endpoints, which
+	// leave it out since only the detail screen reads it.
+	prescription?: PrescriptionSnapshot | null;
 	is_assessment: boolean;
 	updated_at: string;
 	// Only on the list endpoint, which does not carry the reps themselves.
@@ -124,6 +128,41 @@ export interface SessionDetail {
 	session: SessionResponse;
 	rep_datas: RepData[];
 	assessments: SessionAssessment[];
+}
+
+// The training a played session was run from, as it read at the moment it was
+// played, with the coach's per-week overrides already merged into its items.
+// The training itself stays editable afterwards, so this copy is the only thing
+// that still describes what was actually prescribed.
+export interface PrescriptionSnapshot {
+	id: string;
+	title: string;
+	description?: string | null;
+	training_type: TrainingType;
+	goal?: string | null;
+	comment?: string | null;
+	// Both set only when the session was played from a coach's program week.
+	program_session_id?: string | null;
+	coach_notes?: string | null;
+	items: TrainingItem[];
+	resolved_against: PrescriptionInputs;
+}
+
+// The athlete's own numbers the prescription is read against, frozen with it. A
+// load the coach set as a percentage of an assessment is stored as the
+// percentage, so these are what turn it back into kilograms as it stood then.
+export interface PrescriptionInputs {
+	// Empty when the athlete had done no assessment, the case where the
+	// prescription falls back to the value the coach set.
+	assessments: AssessmentResultSnapshot[];
+}
+
+// The last value the athlete had measured for one assessment, per hand. A hand
+// never measured is absent rather than zero.
+export interface AssessmentResultSnapshot {
+	type: number;
+	right_value?: number | null;
+	left_value?: number | null;
 }
 
 export interface EnrolledUser {
@@ -251,6 +290,9 @@ export interface TrainingItem {
 	cycle_rest_seconds?: number;
 	group_title?: string;
 	exercise_id?: string;
+	// Joined by the backend on every item it returns, so a tree read from a
+	// prescription snapshot names its exercises without a second request.
+	exercise_name?: string | null;
 	reps?: number;
 	duration?: number;
 	rest_seconds?: number;

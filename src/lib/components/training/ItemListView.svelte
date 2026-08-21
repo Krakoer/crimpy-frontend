@@ -12,9 +12,12 @@
 		items: TrainingItem[];
 		exercises: Exercise[];
 		depth?: number;
+		// The collapse controls belong to the training editor. A read-only view
+		// of a tree, such as a session's prescription, turns them off.
+		showControls?: boolean;
 	}
 
-	let { items, exercises, depth = 0 }: Props = $props();
+	let { items, exercises, depth = 0, showControls = true }: Props = $props();
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
 
@@ -24,7 +27,7 @@
 </script>
 
 <div class="space-y-2">
-	{#if depth === 0}
+	{#if depth === 0 && showControls}
 		<div style="display: flex; gap: 6px; margin-bottom: 12px;">
 			<button
 				onclick={() => {

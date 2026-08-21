@@ -14,8 +14,12 @@
 
 	let collapsed = $state(false);
 
+	// The name joined onto the item is the one the training was saved with, and
+	// is all a reader outside the coach's own library has to go on.
 	let exerciseName = $derived(
-		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
+		exercises.find((e) => e.id === item.exercise_id)?.name ??
+			item.exercise_name ??
+			'Unknown exercise'
 	);
 
 	let isDuration = $derived((item.duration ?? 0) > 0);
