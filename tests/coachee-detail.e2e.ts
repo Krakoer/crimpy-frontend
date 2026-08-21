@@ -320,8 +320,8 @@ test.describe('session details', () => {
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
 		const dialog = page.getByRole('dialog');
-		await expect(dialog.getByText('1. Hang rep 20mm')).toBeVisible();
-		await expect(dialog.getByText('2. Hang rep 14mm')).toBeVisible();
+		await expect(dialog.getByText('Hang rep 20mm', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('Hang rep 14mm', { exact: true })).toBeVisible();
 		// Each block is graded on its own target rather than through one pooled ratio.
 		await expect(dialog.getByText('avg 30.0 / 30.0 kg - 2/2 on target')).toBeVisible();
 		await expect(dialog.getByText('avg 21.0 / 20.0 kg - 1/1 on target')).toBeVisible();
@@ -329,6 +329,109 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('14mm', { exact: true })).toBeVisible();
 		// The repeater set breakdown gives way to the blocks the run recorded.
 		await expect(dialog.getByText('Set 1 - Right')).toBeHidden();
+	});
+
+	test('keeps the set breakdown inside a repeater block', async ({ page }) => {
+		// A repeater is one item, so grouping by item alone would collapse every
+		// set into a single pooled list - the symptom blocks were meant to cure.
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-repeater',
+						type: 'repeater' as const,
+						cycles: 2,
+						reps: 2,
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						cycle_rest_seconds: 60,
+						hand: 'right' as const,
+						granularity: 'uniform' as const,
+						edge_sizes_mm: [20],
+						loads: [{ value: 30, unit: 'kg' as const }]
+					}
+				]
+			})
+		});
+		const repeaterReps = [0, 1, 2, 3].map((i) =>
+			testRepData({
+				id: `rep-${i + 1}`,
+				index: i,
+				average_weight: 30,
+				target_weight: 30,
+				edge_size_mm: 20,
+				training_item_id: 'item-repeater'
+			})
+		);
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, repeaterReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		// The block names the item, and the sets inside it survive.
+		await expect(dialog.getByText('Hangboard 20mm', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
+		await expect(dialog.getByText('Set 2 - Right')).toBeVisible();
+	});
+
+	test('gives reps naming no block one of their own', async ({ page }) => {
+		// A run the athlete started before the coach removed a block: some reps
+		// name an item the frozen prescription still holds, some name none.
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-20mm',
+						type: 'hangboard_rep' as const,
+						reps: 1,
+						worktime_seconds: 7,
+						rest_seconds: 60,
+						hand: 'right' as const,
+						granularity: 'uniform' as const,
+						edge_sizes_mm: [20],
+						loads: [{ value: 30, unit: 'kg' as const }]
+					}
+				]
+			})
+		});
+		const mixedReps = [
+			testRepData({
+				id: 'rep-1',
+				index: 0,
+				average_weight: 30,
+				target_weight: 30,
+				edge_size_mm: 20,
+				training_item_id: 'item-20mm'
+			}),
+			testRepData({
+				id: 'rep-2',
+				index: 1,
+				average_weight: 25,
+				target_weight: 25,
+				edge_size_mm: 14
+			})
+		];
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, mixedReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Hang rep 20mm', { exact: true })).toBeVisible();
+		// The unlinked rep is still shown, under a block the snapshot cannot name.
+		await expect(dialog.getByText('Unnamed block', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('25.0 / 25.0 kg', { exact: true })).toBeVisible();
 	});
 
 	test('pools the reps when none names the block it came from', async ({ page }) => {

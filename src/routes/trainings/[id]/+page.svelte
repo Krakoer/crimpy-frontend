@@ -30,7 +30,7 @@
 		saneCount
 	} from '$lib/components/training/hangboard-granularity';
 	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
-	import { STRUCTURE_BLOCKS } from '$lib/components/training/block-presentation';
+	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
 

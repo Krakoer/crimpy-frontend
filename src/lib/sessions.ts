@@ -1,5 +1,5 @@
 import type { PrescriptionSnapshot, RepData, SessionResponse, TrainingItem } from '$lib/api/client';
-import { BLOCK_PRESENTATION } from '$lib/components/training/block-presentation';
+import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 
 // What the athlete did. A label only: whether a session has rep measurements to
 // show is decided by the reps it carries, never by this.
@@ -117,6 +117,10 @@ export interface RepeaterConfig {
 	restTime: number;
 	setRest: number;
 	splitHand: boolean;
+	// How many hands a set works before the next one starts. Two when the hands
+	// alternate inside the set, one when the block hangs a single hand, so a set
+	// is not measured out as twice the reps it actually holds.
+	handsPerSet: 1 | 2;
 }
 
 // The repeater settings the session was run with, or null when it was not a
@@ -146,7 +150,30 @@ export function repeaterConfigOf(session: SessionResponse): RepeaterConfig | nul
 		workTime: repeater_work_time,
 		restTime: repeater_rest_time,
 		setRest: repeater_set_rest,
-		splitHand: repeater_split_hand
+		splitHand: repeater_split_hand,
+		handsPerSet: repeater_split_hand ? 1 : 2
+	};
+}
+
+// The repeater settings a prescription item itself carries. A played session
+// records no session-level repeater configuration, so the item the reps name is
+// the only place the set shape survives.
+export function repeaterConfigOfItem(item: TrainingItem): RepeaterConfig | null {
+	if (item.type !== 'repeater') return null;
+	const sets = item.cycles ?? 0;
+	const repsPerSet = item.reps ?? 0;
+	if (sets <= 0 || repsPerSet <= 0) return null;
+	const oneHanded = item.hand === 'split' || item.hand === 'left' || item.hand === 'right';
+	return {
+		sets,
+		repsPerSet,
+		workTime: item.worktime_seconds ?? 0,
+		restTime: item.rest_seconds ?? 0,
+		setRest: item.cycle_rest_seconds ?? 0,
+		// Only 'split' works each hand as its own half-set; a plain one-handed
+		// block is a single run of reps that happens to use one hand.
+		splitHand: item.hand === 'split',
+		handsPerSet: oneHanded ? 1 : 2
 	};
 }
 
@@ -195,7 +222,7 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 			const rightHand: RepData[] = [];
 			const leftHand: RepData[] = [];
 			let workReps = 0;
-			const expectedWorkReps = config.repsPerSet * 2;
+			const expectedWorkReps = config.repsPerSet * config.handsPerSet;
 			while (index < reps.length && workReps < expectedWorkReps && !isSetBoundary()) {
 				const rep = reps[index];
 				(rep.right_hand ? rightHand : leftHand).push(rep);
@@ -219,6 +246,10 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 export interface RepBlock {
 	label: string;
 	reps: RepData[];
+	// The set breakdown when the block played a repeater, so grouping by item
+	// adds a name without costing the structure the athlete actually saw. Null
+	// for a block that is not a repeater.
+	sets: RepSet[] | null;
 }
 
 // Names one prescription item the way the reps card heads the block it played,
@@ -266,25 +297,50 @@ export function groupRepsByPrescriptionItem(
 	if (!reps.some((rep) => rep.training_item_id)) return null;
 
 	const byId = prescriptionItemsById(prescription);
-	const blocks: RepBlock[] = [];
+	const blocks: { label: string; reps: RepData[]; item: TrainingItem | null }[] = [];
 	let currentId: string | null | undefined;
 
 	for (const rep of reps) {
 		const id = rep.training_item_id ?? null;
 		if (blocks.length === 0 || id !== currentId) {
-			const item = id ? byId.get(id) : undefined;
+			const item = (id ? byId.get(id) : undefined) ?? null;
 			blocks.push({
 				// A link the snapshot cannot name is a block the coach deleted from
 				// the training after the run, so the reps are still shown as their
 				// own block rather than folded into the one before them.
 				label: item ? prescriptionItemLabel(item) : 'Unnamed block',
-				reps: []
+				reps: [],
+				item
 			});
 			currentId = id;
 		}
 		blocks[blocks.length - 1].reps.push(rep);
 	}
-	return blocks;
+
+	// An item played more than once - a circuit child on its second cycle - would
+	// otherwise show the same heading twice with nothing to tell the passes
+	// apart. The prescription card numbers nothing, so a position index here
+	// would read as a prescribed item that does not exist.
+	const passes = new Map<TrainingItem | null, number>();
+	const totals = new Map<TrainingItem | null, number>();
+	for (const block of blocks) {
+		if (block.item) totals.set(block.item, (totals.get(block.item) ?? 0) + 1);
+	}
+
+	return blocks.map((block) => {
+		let label = block.label;
+		if (block.item && (totals.get(block.item) ?? 0) > 1) {
+			const pass = (passes.get(block.item) ?? 0) + 1;
+			passes.set(block.item, pass);
+			label = `${label} (pass ${pass})`;
+		}
+		const config = block.item ? repeaterConfigOfItem(block.item) : null;
+		return {
+			label,
+			reps: block.reps,
+			sets: config ? groupRepsIntoSets(block.reps, config) : null
+		};
+	});
 }
 
 export interface SessionPerformance {

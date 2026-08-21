@@ -40,6 +40,17 @@
 		expanded ? workReps : workReps.slice(0, Math.min(INDIVIDUAL_REPS_PREVIEW, workReps.length))
 	);
 
+	// A block holding a whole repeater is as long as the flat list ever was, so
+	// it earns the same cap. Blocks broken into sets keep all of them: the sets
+	// are the structure the coach came for.
+	const cappedBlocks = $derived(
+		blocks?.some((block) => !block.sets && block.reps.length > INDIVIDUAL_REPS_PREVIEW) ?? false
+	);
+	function shownBlockReps(block: RepBlock): RepData[] {
+		if (expanded || block.sets || block.reps.length <= INDIVIDUAL_REPS_PREVIEW) return block.reps;
+		return block.reps.slice(0, INDIVIDUAL_REPS_PREVIEW);
+	}
+
 	function formatWeight(kg: number): string {
 		return kg.toFixed(1);
 	}
@@ -51,8 +62,14 @@
 	function repsSummary(work: RepData[]): string {
 		if (work.length === 0) return 'rest only';
 		const avg = work.reduce((sum, rep) => sum + rep.average_weight, 0) / work.length;
+		// A block can span every load of a repeater, where a set spans one. Naming
+		// the first rep's target would read as the whole block's, contradicting the
+		// on-target count beside it, so a varying target is left unsaid.
+		const targets = new Set(work.map((rep) => rep.target_weight));
 		const target = work[0].target_weight;
-		if (target > 0) return `avg ${formatWeight(avg)} / ${formatWeight(target)} kg`;
+		if (targets.size === 1 && target > 0) {
+			return `avg ${formatWeight(avg)} / ${formatWeight(target)} kg`;
+		}
 		return `avg ${formatWeight(avg)} kg`;
 	}
 
@@ -120,7 +137,7 @@
 								style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px;"
 							>
 								<span style="font-size: 12px; font-weight: 700; color: var(--tx);">
-									{blockIndex + 1}. {block.label}
+									{block.label}
 								</span>
 								<span
 									style="font-size: 11.5px; color: var(--tx2); flex-shrink: 0; white-space: nowrap;"
@@ -128,20 +145,64 @@
 									{repsSummary(block.reps)}{onTarget ? ` - ${onTarget}` : ''}
 								</span>
 							</div>
-							<div style="display: flex; flex-direction: column; gap: 6px;">
-								{#each block.reps as rep, position (rep.id)}
-									<SessionRepRow
-										{rep}
-										position={position + 1}
-										{accent}
-										{showEdge}
-										reference={performance.maxWeight}
-									/>
-								{/each}
-							</div>
+							{#if block.sets}
+								<div style="display: flex; flex-direction: column; gap: 8px;">
+									{#each block.sets as set (set.label)}
+										{@const setWork = set.reps.filter((rep) => !rep.is_rest)}
+										{#if setWork.length > 0}
+											<div>
+												<div
+													style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px;"
+												>
+													<span style="font-size: 11.5px; font-weight: 600; color: var(--tx2);">
+														{set.label}
+													</span>
+													<span
+														style="font-size: 11px; color: var(--tx3); flex-shrink: 0; white-space: nowrap;"
+													>
+														{repsSummary(setWork)}
+													</span>
+												</div>
+												<div style="display: flex; flex-direction: column; gap: 6px;">
+													{#each setWork as rep, position (rep.id)}
+														<SessionRepRow
+															{rep}
+															position={position + 1}
+															{accent}
+															{showEdge}
+															reference={performance.maxWeight}
+														/>
+													{/each}
+												</div>
+											</div>
+										{/if}
+									{/each}
+								</div>
+							{:else}
+								<div style="display: flex; flex-direction: column; gap: 6px;">
+									{#each shownBlockReps(block) as rep, position (rep.id)}
+										<SessionRepRow
+											{rep}
+											position={position + 1}
+											{accent}
+											{showEdge}
+											reference={performance.maxWeight}
+										/>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>
+
+				{#if cappedBlocks}
+					<button
+						onclick={() => (expanded = !expanded)}
+						style="margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--pr); background: none; border: none; cursor: pointer; font-family: var(--font); padding: 0;"
+					>
+						{expanded ? 'Show less' : `Show all ${workReps.length} reps`}
+					</button>
+				{/if}
 			{:else if config}
 				<div style="display: flex; flex-direction: column; gap: 8px;">
 					{#each sets as set (set.label)}
