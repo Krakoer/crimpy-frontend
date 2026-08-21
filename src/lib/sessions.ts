@@ -163,7 +163,6 @@ export function repeaterConfigOfItem(item: TrainingItem): RepeaterConfig | null 
 	const sets = item.cycles ?? 0;
 	const repsPerSet = item.reps ?? 0;
 	if (sets <= 0 || repsPerSet <= 0) return null;
-	const oneHanded = item.hand === 'split' || item.hand === 'left' || item.hand === 'right';
 	return {
 		sets,
 		repsPerSet,
@@ -173,7 +172,10 @@ export function repeaterConfigOfItem(item: TrainingItem): RepeaterConfig | null 
 		// Only 'split' works each hand as its own half-set; a plain one-handed
 		// block is a single run of reps that happens to use one hand.
 		splitHand: item.hand === 'split',
-		handsPerSet: oneHanded ? 1 : 2
+		// Only 'alternate' hangs each rep twice, once per hand. 'both' puts two
+		// hands on the board for a single rep, so it counts once like the
+		// one-handed modes do.
+		handsPerSet: item.hand === 'alternate' ? 2 : 1
 	};
 }
 

@@ -380,6 +380,56 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('Set 2 - Right')).toBeVisible();
 	});
 
+	test('counts a set by the hands the block actually hangs', async ({ page }) => {
+		// An alternate repeater hangs each rep twice, once per hand, so a set of
+		// two reps holds four. Measuring a one-handed block the same way would
+		// swallow the second set.
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-alt',
+						type: 'repeater' as const,
+						cycles: 2,
+						reps: 1,
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						cycle_rest_seconds: 60,
+						hand: 'alternate' as const,
+						granularity: 'uniform' as const,
+						edge_sizes_mm: [20],
+						loads: [{ value: 30, unit: 'kg' as const }]
+					}
+				]
+			})
+		});
+		const altReps = [0, 1, 2, 3].map((i) =>
+			testRepData({
+				id: `rep-${i + 1}`,
+				index: i,
+				average_weight: 30,
+				target_weight: 30,
+				edge_size_mm: 20,
+				right_hand: i % 2 === 0,
+				training_item_id: 'item-alt'
+			})
+		);
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, altReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
+		await expect(dialog.getByText('Set 1 - Left')).toBeVisible();
+		await expect(dialog.getByText('Set 2 - Right')).toBeVisible();
+	});
+
 	test('gives reps naming no block one of their own', async ({ page }) => {
 		// A run the athlete started before the coach removed a block: some reps
 		// name an item the frozen prescription still holds, some name none.
