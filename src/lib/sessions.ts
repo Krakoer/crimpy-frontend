@@ -1,4 +1,5 @@
-import type { RepData, SessionResponse } from '$lib/api/client';
+import type { PrescriptionSnapshot, RepData, SessionResponse, TrainingItem } from '$lib/api/client';
+import { BLOCK_PRESENTATION } from '$lib/components/training/block-presentation';
 
 // What the athlete did. A label only: whether a session has rep measurements to
 // show is decided by the reps it carries, never by this.
@@ -213,6 +214,77 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 		sets.push({ label: 'Remaining', reps: reps.slice(index) });
 	}
 	return sets;
+}
+
+export interface RepBlock {
+	label: string;
+	reps: RepData[];
+}
+
+// Names one prescription item the way the reps card heads the block it played,
+// so a coach reads the two halves of the modal against each other. Falls back to
+// the block type when the item carries no name of its own.
+export function prescriptionItemLabel(item: TrainingItem): string {
+	const named = (item.type === 'exercise' ? item.exercise_name : item.free_text)?.trim();
+	if (named) return named;
+	const title = item.group_title?.trim();
+	if (title) return title;
+	const label = BLOCK_PRESENTATION[item.type]?.label ?? 'Block';
+	const edges = [...new Set(item.edge_sizes_mm ?? [])];
+	return edges.length === 1 ? `${label} ${edges[0]}mm` : label;
+}
+
+// Every item of a prescription by id, nested ones included, so a rep naming one
+// can be headed with it.
+export function prescriptionItemsById(
+	prescription: PrescriptionSnapshot | null | undefined
+): Map<string, TrainingItem> {
+	const byId = new Map<string, TrainingItem>();
+	const walk = (items: TrainingItem[]) => {
+		for (const item of items) {
+			const id = item.id ?? item._id;
+			if (id) byId.set(id, item);
+			walk(item.items ?? []);
+		}
+	};
+	walk(prescription?.items ?? []);
+	return byId;
+}
+
+// Cuts the reps into the blocks they were played from, in the order they were
+// performed: a new block starts wherever the item changes. Grouping by item id
+// instead would merge a block the athlete came back to with its first pass and
+// lose the order the two halves of a circuit ran in.
+//
+// Returns null when no rep names an item, which is every session played before
+// the link existed and every one played outside a training. The card falls back
+// to its flat list there rather than showing one nameless block.
+export function groupRepsByPrescriptionItem(
+	reps: RepData[],
+	prescription: PrescriptionSnapshot | null | undefined
+): RepBlock[] | null {
+	if (!reps.some((rep) => rep.training_item_id)) return null;
+
+	const byId = prescriptionItemsById(prescription);
+	const blocks: RepBlock[] = [];
+	let currentId: string | null | undefined;
+
+	for (const rep of reps) {
+		const id = rep.training_item_id ?? null;
+		if (blocks.length === 0 || id !== currentId) {
+			const item = id ? byId.get(id) : undefined;
+			blocks.push({
+				// A link the snapshot cannot name is a block the coach deleted from
+				// the training after the run, so the reps are still shown as their
+				// own block rather than folded into the one before them.
+				label: item ? prescriptionItemLabel(item) : 'Unnamed block',
+				reps: []
+			});
+			currentId = id;
+		}
+		blocks[blocks.length - 1].reps.push(rep);
+	}
+	return blocks;
 }
 
 export interface SessionPerformance {

@@ -419,6 +419,8 @@ export interface TestRepData {
 	is_rest: boolean;
 	right_hand: boolean;
 	grip_position: number;
+	edge_size_mm?: number | null;
+	training_item_id?: string | null;
 	updated_at: string;
 }
 
