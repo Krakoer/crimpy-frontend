@@ -3,7 +3,7 @@
 	import type { Exercise, TrainingItemType } from '$lib/api/client';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { BLOCK_PRESENTATION } from './block-presentation';
+	import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 
 	interface Props {
 		containerId: string;

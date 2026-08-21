@@ -18,7 +18,7 @@
 		applyHangboardRepDefaults,
 		isHangboardItem
 	} from '$lib/components/training/hangboard-granularity';
-	import { STRUCTURE_BLOCKS } from '$lib/components/training/block-presentation';
+	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';

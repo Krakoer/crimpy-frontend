@@ -121,6 +121,13 @@ export interface RepData {
 	is_rest: boolean;
 	right_hand: boolean;
 	grip_position: number;
+	// Depth of the edge the rep was pulled on, absent when the step prescribed
+	// none: a rest, or an exercise done off the hangboard.
+	edge_size_mm?: number | null;
+	// The prescription item the rep was played from, so the reps of a session
+	// read block by block. Absent on a session played outside a training, and on
+	// one recorded before the app sent it.
+	training_item_id?: string | null;
 	updated_at: string;
 }
 
