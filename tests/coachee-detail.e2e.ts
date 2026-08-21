@@ -226,6 +226,42 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('R 32.0 kg')).toBeHidden();
 	});
 
+	test('names the hands when one percentage is asked of several of them', async ({ page }) => {
+		// Two items ask 85% of the same assessment but hang differently, so the
+		// percentage comes out at two numbers. Neither is worth showing unlabelled.
+		const repeater = {
+			cycles: 1,
+			reps: 2,
+			worktime_seconds: 7,
+			rest_seconds: 3,
+			cycle_rest_seconds: 120,
+			granularity: 'uniform' as const,
+			edge_sizes_mm: [20],
+			loads: [{ value: 85, unit: 'percent_assessment' as const, assessment_type: 1, fallback: 30 }]
+		};
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{ id: 'item-1', type: 'repeater', hand: 'both', ...repeater },
+					{ id: 'item-2', type: 'repeater', hand: 'right', ...repeater }
+				]
+			})
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Both 33.1 kg')).toBeVisible();
+		await expect(dialog.getByText('R 34.0 kg')).toBeVisible();
+	});
+
 	test('says so when a played session had nothing prescribed', async ({ page }) => {
 		await stubCoacheeDetail(page);
 		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });

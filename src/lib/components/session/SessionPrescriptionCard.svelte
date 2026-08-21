@@ -4,7 +4,7 @@
 		assessmentLabel,
 		collectAssessmentRelativeValues,
 		formatResolvedValue,
-		HAND_LABELS,
+		handLabel,
 		resolveAgainstFrozenResults
 	} from '$lib/assessments';
 	import ItemListView from '$lib/components/training/ItemListView.svelte';
@@ -102,10 +102,10 @@
 						</span>
 						<span style="font-weight: 700; color: var(--tx); flex-shrink: 0; text-align: right;">
 							{#each resolved as entry, i (entry.hand)}
+								{@const hand = handLabel(entry.hand, resolved.length)}
 								<span style="margin-left: {i === 0 ? 0 : 8}px;">
-									{#if HAND_LABELS[entry.hand]}<span
-											style="font-size: 10.5px; color: var(--tx3); font-weight: 700;"
-											>{HAND_LABELS[entry.hand]}</span
+									{#if hand}<span style="font-size: 10.5px; color: var(--tx3); font-weight: 700;"
+											>{hand}</span
 										>{/if}
 									{formatResolvedValue(entry.value, relative.field)}{#if entry.fromFallback}<span
 											style="font-size: 11px; color: var(--tx3); font-weight: 600;"

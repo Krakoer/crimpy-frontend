@@ -107,11 +107,20 @@ export function missingAssessmentTypes(
 // not a shorthand for "both of them".
 export type PrescribedHand = 'right' | 'left' | 'mean';
 
-export const HAND_LABELS: Record<PrescribedHand, string> = {
+const HAND_LABELS: Record<PrescribedHand, string> = {
 	right: 'R',
 	left: 'L',
-	mean: ''
+	mean: 'Both'
 };
+
+// How to mark which hand a resolved number belongs to. A row carrying a single
+// number needs no qualifier when that number is the mean, since it is then the
+// only thing the athlete was asked for; one that also carries a named hand does,
+// or two numbers sit side by side with nothing saying why they differ.
+export function handLabel(hand: PrescribedHand, entriesOnRow: number): string {
+	if (hand === 'mean' && entriesOnRow < 2) return '';
+	return HAND_LABELS[hand];
+}
 
 // One value a training prescribes as a percentage of an assessment, whether it
 // drives a load, a duration or a rep count, together with the hands it is asked
