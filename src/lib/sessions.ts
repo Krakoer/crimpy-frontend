@@ -113,10 +113,10 @@ export function formatSessionDateShort(iso: string): string {
 export interface RepeaterConfig {
 	sets: number;
 	repsPerSet: number;
-	workTime: number;
-	restTime: number;
-	setRest: number;
 	splitHand: boolean;
+	// A rep hung with two hands is one rep on one board, so its set is not cut
+	// into a right and a left half the way the other modes are.
+	bothHands: boolean;
 	// How many hands a set works before the next one starts. Two when the hands
 	// alternate inside the set, one when the block hangs a single hand, so a set
 	// is not measured out as twice the reps it actually holds.
@@ -133,12 +133,10 @@ export function repeaterConfigOfItem(item: TrainingItem): RepeaterConfig | null 
 	return {
 		sets,
 		repsPerSet,
-		workTime: item.worktime_seconds ?? 0,
-		restTime: item.rest_seconds ?? 0,
-		setRest: item.cycle_rest_seconds ?? 0,
 		// Only 'split' works each hand as its own half-set; a plain one-handed
 		// block is a single run of reps that happens to use one hand.
 		splitHand: item.hand === 'split',
+		bothHands: item.hand === 'both',
 		// Only 'alternate' hangs each rep twice, once per hand. 'both' puts two
 		// hands on the board for a single rep, so it counts once like the
 		// one-handed modes do.
@@ -153,55 +151,40 @@ export interface RepSet {
 
 // Rebuilds the sets of a repeater from the flat rep list, the way the app does
 // it, so a coach reads the same breakdown the athlete saw. Reps arrive in the
-// order they were performed, and a rest at least as long as the configured set
-// rest marks the boundary between two sets.
+// order they were performed and the caller has already dropped the rests, so a
+// set is measured out by its rep count alone.
 export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepSet[] {
 	const sets: RepSet[] = [];
 	let index = 0;
-
-	const isSetBoundary = () =>
-		index < reps.length && reps[index].is_rest && reps[index].duration >= config.setRest;
-
-	const takeInterHandRest = (into: RepData[]) => {
-		if (index < reps.length && reps[index].is_rest && reps[index].duration < config.setRest) {
-			into.push(reps[index]);
-			index += 1;
-		}
-	};
 
 	for (let set = 0; set < config.sets && index < reps.length; set++) {
 		if (config.splitHand) {
 			// Each hand is worked as its own block, so it reads as its own set.
 			for (const rightHand of [true, false]) {
-				const handReps: RepData[] = [];
-				let workReps = 0;
-				while (index < reps.length && workReps < config.repsPerSet) {
-					const rep = reps[index];
-					handReps.push(rep);
-					if (!rep.is_rest) workReps += 1;
-					index += 1;
-				}
-				takeInterHandRest(handReps);
+				const handReps = reps.slice(index, index + config.repsPerSet);
+				index += handReps.length;
 				if (handReps.length > 0) {
 					sets.push({ label: `Set ${set + 1} - ${rightHand ? 'Right' : 'Left'}`, reps: handReps });
 				}
 			}
+		} else if (config.bothHands) {
+			// Two hands on the board for a single rep, so there is no hand to name
+			// and nothing to split the set into.
+			const setReps = reps.slice(index, index + config.repsPerSet);
+			index += setReps.length;
+			if (setReps.length > 0) sets.push({ label: `Set ${set + 1}`, reps: setReps });
 		} else {
 			// Both hands alternate within the set, but they are shown grouped.
 			const rightHand: RepData[] = [];
 			const leftHand: RepData[] = [];
-			let workReps = 0;
-			const expectedWorkReps = config.repsPerSet * config.handsPerSet;
-			while (index < reps.length && workReps < expectedWorkReps && !isSetBoundary()) {
-				const rep = reps[index];
+			const setReps = reps.slice(index, index + config.repsPerSet * config.handsPerSet);
+			index += setReps.length;
+			for (const rep of setReps) {
 				(rep.right_hand ? rightHand : leftHand).push(rep);
-				if (!rep.is_rest) workReps += 1;
-				index += 1;
 			}
 			if (rightHand.length > 0) sets.push({ label: `Set ${set + 1} - Right`, reps: rightHand });
 			if (leftHand.length > 0) sets.push({ label: `Set ${set + 1} - Left`, reps: leftHand });
 		}
-		if (isSetBoundary()) index += 1;
 	}
 
 	// Anything the configuration did not account for, for instance a session cut

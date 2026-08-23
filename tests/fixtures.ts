@@ -340,12 +340,6 @@ export interface TestSession {
 	origin: 'played' | 'logged';
 	is_assessment: boolean;
 	updated_at: string;
-	repeater_sets?: number | null;
-	repeater_reps?: number | null;
-	repeater_work_time?: number | null;
-	repeater_rest_time?: number | null;
-	repeater_set_rest?: number | null;
-	repeater_split_hand?: boolean | null;
 	prescription?: TestPrescription | null;
 }
 
