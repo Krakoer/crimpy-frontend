@@ -89,13 +89,7 @@ test.describe('session details', () => {
 		name: 'Repeaters 20mm',
 		activity: 0,
 		origin: 'played',
-		duration: 900,
-		repeater_sets: 1,
-		repeater_reps: 2,
-		repeater_work_time: 7,
-		repeater_rest_time: 3,
-		repeater_set_rest: 120,
-		repeater_split_hand: false
+		duration: 900
 	});
 
 	const crimpyReps = [
@@ -146,9 +140,10 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();
 		await expect(dialog.getByText('Peak load')).toBeVisible();
 		await expect(dialog.getByText('31.0 kg')).toBeVisible();
-		// The repeater configuration splits the reps into per-hand sets.
-		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
-		await expect(dialog.getByText('Set 1 - Left')).toBeVisible();
+		// None of these reps names the block it came from, so the card pools them
+		// into its flat list rather than heading anything.
+		await expect(dialog.getByText('Repetitions', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('Blocks', { exact: true })).toBeHidden();
 	});
 
 	test('shows what was prescribed against the measured reps', async ({ page }) => {
@@ -278,8 +273,6 @@ test.describe('session details', () => {
 		});
 		const prescribed = testSession({
 			...crimpySession,
-			// The blocks come from the run itself, so the repeater shape the session
-			// carries no longer decides the breakdown.
 			prescription: testPrescription({
 				items: [block('item-20mm', 20), block('item-14mm', 14)]
 			})
@@ -327,7 +320,8 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('avg 21.0 / 20.0 kg - 1/1 on target')).toBeVisible();
 		// The edge is on the rep row now, so a block is readable on its own.
 		await expect(dialog.getByText('14mm', { exact: true })).toBeVisible();
-		// The repeater set breakdown gives way to the blocks the run recorded.
+		// A hangboard rep is one hang, not a repeater, so its block carries no set
+		// breakdown under the heading.
 		await expect(dialog.getByText('Set 1 - Right')).toBeHidden();
 	});
 
@@ -430,6 +424,57 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('Set 2 - Right')).toBeVisible();
 	});
 
+	test('names a two-handed set without a hand', async ({ page }) => {
+		// 'both' puts two hands on the board for a single rep, so there is no right
+		// or left half to cut the set into and nothing to name one after.
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-both',
+						type: 'repeater' as const,
+						cycles: 2,
+						reps: 2,
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						cycle_rest_seconds: 60,
+						hand: 'both' as const,
+						granularity: 'uniform' as const,
+						edge_sizes_mm: [20],
+						loads: [{ value: 30, unit: 'kg' as const }]
+					}
+				]
+			})
+		});
+		const bothReps = [0, 1, 2, 3].map((i) =>
+			testRepData({
+				id: `rep-${i + 1}`,
+				index: i,
+				average_weight: 30,
+				target_weight: 30,
+				edge_size_mm: 20,
+				// The app stores a two-handed hang with right_hand false, which would
+				// otherwise bucket every set under 'Left'.
+				right_hand: false,
+				training_item_id: 'item-both'
+			})
+		);
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, bothReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Set 1', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('Set 2', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('Set 1 - Left')).toBeHidden();
+	});
+
 	test('gives reps naming no block one of their own', async ({ page }) => {
 		// A run the athlete started before the coach removed a block: some reps
 		// name an item the frozen prescription still holds, some name none.
@@ -495,8 +540,11 @@ test.describe('session details', () => {
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
 		const dialog = page.getByRole('dialog');
-		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
+		await expect(dialog.getByText('Repetitions', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('Blocks', { exact: true })).toBeHidden();
+		// Every rep is still shown, graded against its own target.
+		await expect(dialog.getByText('31.0 / 30.0 kg', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('28.0 / 30.0 kg', { exact: true })).toBeVisible();
 	});
 
 	test('says so when a played session had nothing prescribed', async ({ page }) => {
