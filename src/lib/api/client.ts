@@ -99,14 +99,6 @@ export interface SessionResponse {
 	updated_at: string;
 	// Only on the list endpoint, which does not carry the reps themselves.
 	rep_count?: number;
-	// Only set on repeater sessions, and stored with the session so its sets can
-	// still be rebuilt after the training template it came from has changed.
-	repeater_sets?: number | null;
-	repeater_reps?: number | null;
-	repeater_work_time?: number | null;
-	repeater_rest_time?: number | null;
-	repeater_set_rest?: number | null;
-	repeater_split_hand?: boolean | null;
 }
 
 // One repetition recorded by the force sensor, work or rest, in session order.

@@ -1,4 +1,4 @@
-import type { PrescriptionSnapshot, RepData, SessionResponse, TrainingItem } from '$lib/api/client';
+import type { PrescriptionSnapshot, RepData, TrainingItem } from '$lib/api/client';
 import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 
 // What the athlete did. A label only: whether a session has rep measurements to
@@ -123,41 +123,8 @@ export interface RepeaterConfig {
 	handsPerSet: 1 | 2;
 }
 
-// The repeater settings the session was run with, or null when it was not a
-// repeater. The API leaves every field null in that case.
-export function repeaterConfigOf(session: SessionResponse): RepeaterConfig | null {
-	const {
-		repeater_sets,
-		repeater_reps,
-		repeater_work_time,
-		repeater_rest_time,
-		repeater_set_rest,
-		repeater_split_hand
-	} = session;
-	if (
-		repeater_sets == null ||
-		repeater_reps == null ||
-		repeater_work_time == null ||
-		repeater_rest_time == null ||
-		repeater_set_rest == null ||
-		repeater_split_hand == null
-	) {
-		return null;
-	}
-	return {
-		sets: repeater_sets,
-		repsPerSet: repeater_reps,
-		workTime: repeater_work_time,
-		restTime: repeater_rest_time,
-		setRest: repeater_set_rest,
-		splitHand: repeater_split_hand,
-		handsPerSet: repeater_split_hand ? 1 : 2
-	};
-}
-
-// The repeater settings a prescription item itself carries. A played session
-// records no session-level repeater configuration, so the item the reps name is
-// the only place the set shape survives.
+// The repeater settings a prescription item carries, which is where the set
+// shape of a played block lives: a session records none of its own.
 export function repeaterConfigOfItem(item: TrainingItem): RepeaterConfig | null {
 	if (item.type !== 'repeater') return null;
 	const sets = item.cycles ?? 0;

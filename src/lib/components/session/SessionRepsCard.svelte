@@ -2,13 +2,9 @@
 	import type { RepData, SessionResponse } from '$lib/api/client';
 	import {
 		groupRepsByPrescriptionItem,
-		groupRepsIntoSets,
-		gripShort,
 		isOnTarget,
-		repeaterConfigOf,
 		sessionPerformance,
-		type RepBlock,
-		type RepSet
+		type RepBlock
 	} from '$lib/sessions';
 	import SessionRepRow from '$lib/components/session/SessionRepRow.svelte';
 
@@ -26,14 +22,12 @@
 	const workReps = $derived(reps.filter((rep) => !rep.is_rest));
 	const showEdge = $derived(workReps.some((rep) => rep.edge_size_mm));
 
-	// What the run itself recorded comes first: a rep names the block it was
-	// played from, where the repeater configuration only describes the shape the
-	// session was meant to have.
+	// A rep names the block it was played from, so the card reads the run the way
+	// it was performed. Null for a session played outside a training, which falls
+	// back to the flat list below.
 	const blocks = $derived<RepBlock[] | null>(
 		groupRepsByPrescriptionItem(workReps, session.prescription)
 	);
-	const config = $derived(blocks ? null : repeaterConfigOf(session));
-	const sets = $derived<RepSet[]>(config ? groupRepsIntoSets(reps, config) : []);
 
 	let expanded = $state(false);
 	const shownReps = $derived(
@@ -53,10 +47,6 @@
 
 	function formatWeight(kg: number): string {
 		return kg.toFixed(1);
-	}
-
-	function setSummary(set: RepSet): string {
-		return repsSummary(set.reps.filter((rep) => !rep.is_rest));
 	}
 
 	function repsSummary(work: RepData[]): string {
@@ -123,7 +113,7 @@
 			<h4
 				style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;"
 			>
-				{blocks ? 'Blocks' : config ? 'Sets' : 'Repetitions'}
+				{blocks ? 'Blocks' : 'Repetitions'}
 			</h4>
 
 			{#if blocks}
@@ -203,38 +193,6 @@
 						{expanded ? 'Show less' : `Show all ${workReps.length} reps`}
 					</button>
 				{/if}
-			{:else if config}
-				<div style="display: flex; flex-direction: column; gap: 8px;">
-					{#each sets as set (set.label)}
-						<div
-							style="border: 1px solid var(--bd2); border-radius: var(--rs); padding: 10px 12px; background: var(--panel2);"
-						>
-							<div
-								style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px;"
-							>
-								<span style="font-size: 12px; font-weight: 700; color: var(--tx);">{set.label}</span
-								>
-								<span style="font-size: 11.5px; color: var(--tx2);">{setSummary(set)}</span>
-							</div>
-							<div style="display: flex; flex-wrap: wrap; gap: 6px;">
-								{#each set.reps.filter((rep) => !rep.is_rest) as rep (rep.id)}
-									{@const repOnTarget = isOnTarget(rep)}
-									<span
-										title="{gripShort(rep.grip_position)} - {rep.duration}s{rep.edge_size_mm
-											? ` - ${rep.edge_size_mm}mm`
-											: ''}"
-										style="
-											font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: var(--rs);
-											color: {repOnTarget ? 'var(--gn)' : 'var(--tx2)'};
-											background: {repOnTarget ? 'var(--gn-lt)' : 'var(--panel)'};
-											border: 1px solid {repOnTarget ? 'var(--gn-lt)' : 'var(--bd)'};
-										">{formatWeight(rep.average_weight)}</span
-									>
-								{/each}
-							</div>
-						</div>
-					{/each}
-				</div>
 			{:else}
 				<div style="display: flex; flex-direction: column; gap: 6px;">
 					{#each shownReps as rep, position (rep.id)}
