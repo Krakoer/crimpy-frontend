@@ -297,7 +297,6 @@ export function groupRepsByPrescriptionItem(
 
 export interface SessionPerformance {
 	workReps: number;
-	maxWeight: number;
 	workTime: number;
 	// Both are null for a session that played more than one block. Averaging
 	// hangs at 34 kg with hangs at 24 kg gives a load no block prescribed and no
@@ -311,6 +310,12 @@ export interface SessionPerformance {
 	// The average is also null for a session whose sensor measured none of it,
 	// and states the reps it did measure otherwise.
 	avgWeight: number | null;
+	// Null for that same session, and for no other reason: a peak load pools
+	// nothing, since the heaviest rep of a run is one rep whichever block it was
+	// hung in. A run nothing weighed has no heaviest rep either, and the zeros it
+	// stored are the absence of a reading rather than a load, so the stat is
+	// dropped alongside the mean rather than reading 0.0 kg.
+	maxWeight: number | null;
 	onTarget: OnTargetCount | null;
 }
 
@@ -375,11 +380,32 @@ export function measuredReps(reps: RepData[]): RepData[] {
 // crimpy-app/lib/utils/rep_blocks.dart.
 export function measuredAvgWeight(reps: RepData[]): number | null {
 	const measured = measuredReps(reps);
-	// A run nothing ever weighed states no mean: its zeros are the absence of a
-	// reading rather than a load. A zero a working sensor read against a target
-	// stays in, since it is what the athlete pulled.
-	if (!measured.some((rep) => rep.average_weight > 0 || rep.target_weight > 0)) return null;
+	if (!weighedAny(measured)) return null;
 	return measured.reduce((sum, rep) => sum + rep.average_weight, 0) / measured.length;
+}
+
+// The heaviest load over the reps a run measured, or null when it measured none.
+//
+// A max is not pooled by the blocks a session played, since the heaviest rep of
+// a run is one rep whichever block it was hung in, so the only run that states
+// none is the one nothing ever weighed. There a zero does not lose the max the
+// way it loses an average: it is the only value left, and reads as a load the
+// athlete never pulled beside a mean that is correctly absent. The two stats
+// count the same reps and appear together. Kept equal to measuredMaxWeight in
+// crimpy-app/lib/utils/rep_blocks.dart.
+export function measuredMaxWeight(reps: RepData[]): number | null {
+	const measured = measuredReps(reps);
+	if (!weighedAny(measured)) return null;
+	return measured.reduce((max, rep) => Math.max(max, rep.average_weight), 0);
+}
+
+// Whether a run got a reading for any of the reps it measured. False for a run
+// whose sensor never answered: its reps are stored at zero against no target,
+// which is the absence of a reading rather than a load. A zero a working sensor
+// read against a target counts as weighed, since it is what the athlete pulled.
+// Kept equal to weighedAny in crimpy-app/lib/utils/rep_blocks.dart.
+function weighedAny(measured: RepData[]): boolean {
+	return measured.some((rep) => rep.average_weight > 0 || rep.target_weight > 0);
 }
 
 // Names how much of a run went unmeasured, or null when the run measured all of
@@ -405,9 +431,9 @@ export function sessionPerformance(
 	const spansMultipleBlocks = (blocks?.length ?? 0) > 1;
 	return {
 		workReps: workReps.length,
-		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.average_weight), 0),
 		workTime: workReps.reduce((sum, rep) => sum + rep.duration, 0),
 		avgWeight: spansMultipleBlocks ? null : measuredAvgWeight(workReps),
+		maxWeight: measuredMaxWeight(workReps),
 		onTarget: spansMultipleBlocks ? null : onTargetCount(workReps)
 	};
 }

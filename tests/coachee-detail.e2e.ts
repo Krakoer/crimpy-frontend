@@ -409,6 +409,17 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('avg 0.0 kg')).toBeHidden();
 		// Nothing was graded either, so the header states no mean load at all.
 		await expect(dialog.getByText('Avg load')).toBeHidden();
+		// Nor a peak: the max over the zeros the sensor stored would read 0.0 kg,
+		// the one cell left able to state a load the athlete never pulled.
+		await expect(dialog.getByText('Peak load')).toBeHidden();
+		// Checked on the header rather than the dialog, since the rep rows below it
+		// do state the zeros the sensor stored against each rep.
+		const stats = dialog.getByText('Work time', { exact: true }).locator('../..');
+		await expect(stats).not.toContainText('kg');
+		// The run itself is still counted, so the header keeps the two stats that
+		// hold whatever the sensor caught.
+		await expect(stats).toContainText('Work reps');
+		await expect(dialog.getByText('Work reps', { exact: true }).locator('..')).toContainText('2');
 	});
 
 	test('splits the reps into the blocks they were played from', async ({ page }) => {

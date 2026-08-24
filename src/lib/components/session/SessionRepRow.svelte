@@ -11,14 +11,16 @@
 		showEdge: boolean;
 		// The best rep of the session, which a rep with no prescribed load is
 		// measured against: a full bar would otherwise read as having met a
-		// target that was never set.
-		reference: number;
+		// target that was never set. Null for a session the sensor never answered
+		// for, which leaves every bar of it empty rather than scaling its zeros
+		// against each other.
+		reference: number | null;
 	}
 
 	let { rep, position, accent, showEdge, reference }: Props = $props();
 
 	const fillRatio = $derived.by(() => {
-		const target = rep.target_weight > 0 ? rep.target_weight : reference;
+		const target = rep.target_weight > 0 ? rep.target_weight : (reference ?? 0);
 		if (target <= 0) return 0;
 		return Math.min(1, rep.average_weight / target);
 	});
