@@ -307,6 +307,9 @@ export interface SessionPerformance {
 	//
 	// The block count is the test, not the loads: two blocks worked at the same
 	// target pool nothing, but they still read honestly one block at a time.
+	//
+	// The average is also null for a session whose sensor measured none of it,
+	// and states the reps it did measure otherwise.
 	avgWeight: number | null;
 	onTarget: OnTargetCount | null;
 }
@@ -354,6 +357,24 @@ export function onTargetCount(reps: RepData[]): OnTargetCount | null {
 	};
 }
 
+// The mean load over the reps a run measured, or null when it measured none.
+//
+// A rep whose target was lost to a sensor that dropped mid run was performed
+// and weighed nothing, and carries an average of 0 it never pulled. Averaged
+// in, it states a load lighter than anything the athlete held, on the same line
+// as a ratio that already leaves that rep out. The two numbers count the same
+// reps instead. Kept equal to measuredAvgWeight in
+// crimpy-app/lib/utils/rep_blocks.dart.
+export function measuredAvgWeight(reps: RepData[]): number | null {
+	const measured = reps.filter((rep) => !rep.is_rest && !rep.target_unmeasured);
+	// A run nothing ever weighed states no mean: its zeros are the absence of a
+	// reading rather than a load. A zero a working sensor read stays in, since it
+	// is what the athlete pulled, which is why the target and not the average
+	// decides here: only a measured rep is stored with the one it was given.
+	if (!measured.some((rep) => rep.average_weight > 0 || rep.target_weight > 0)) return null;
+	return measured.reduce((sum, rep) => sum + rep.average_weight, 0) / measured.length;
+}
+
 // Names how much of a run went unmeasured, or null when the run measured all of
 // it. Stated next to a ratio so a denominator shrunk by a dropped sensor is not
 // read as a shorter run than the athlete performed.
@@ -379,9 +400,7 @@ export function sessionPerformance(
 		workReps: workReps.length,
 		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.average_weight), 0),
 		workTime: workReps.reduce((sum, rep) => sum + rep.duration, 0),
-		avgWeight: spansMultipleBlocks
-			? null
-			: workReps.reduce((sum, rep) => sum + rep.average_weight, 0) / workReps.length,
+		avgWeight: spansMultipleBlocks ? null : measuredAvgWeight(workReps),
 		onTarget: spansMultipleBlocks ? null : onTargetCount(workReps)
 	};
 }

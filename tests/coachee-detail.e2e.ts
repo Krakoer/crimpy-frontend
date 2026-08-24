@@ -183,6 +183,12 @@ test.describe('session details', () => {
 		// The run was four reps long whatever the sensor caught of it, so the stat
 		// that counts the whole run is checked on its value, not on its label.
 		await expect(dialog.getByText('Work reps', { exact: true }).locator('..')).toContainText('4');
+		// The mean is over the two reps the sensor weighed, so it agrees with the
+		// ratio beside it. Averaging the two it missed in would read 15.0 kg, a
+		// load the athlete never pulled.
+		await expect(dialog.getByText('Avg load', { exact: true }).locator('..')).toContainText(
+			'30.0 kg'
+		);
 	});
 
 	test('shows what was prescribed against the measured reps', async ({ page }) => {
