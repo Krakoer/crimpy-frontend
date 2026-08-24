@@ -2,8 +2,9 @@
 	import type { RepData, SessionResponse } from '$lib/api/client';
 	import {
 		groupRepsByPrescriptionItem,
-		isOnTarget,
+		onTargetCount,
 		sessionPerformance,
+		unmeasuredNote,
 		type RepBlock
 	} from '$lib/sessions';
 	import SessionRepRow from '$lib/components/session/SessionRepRow.svelte';
@@ -81,10 +82,13 @@
 	}
 
 	// Each block is graded on its own reps, so two blocks of different intensity
-	// are no longer read through one pooled ratio.
+	// are no longer read through one pooled ratio. The reps a dropped sensor left
+	// unmeasured are named rather than counted as misses.
 	function blockOnTarget(block: RepBlock): string | null {
-		if (!block.reps.some((rep) => rep.target_weight > 0)) return null;
-		return `${block.reps.filter(isOnTarget).length}/${block.reps.length} on target`;
+		const count = onTargetCount(block.reps);
+		if (!count) return null;
+		const unmeasured = unmeasuredNote(count);
+		return `${count.onTarget}/${count.total} on target${unmeasured ? ` (${unmeasured})` : ''}`;
 	}
 </script>
 
@@ -96,14 +100,16 @@
 			style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--bd2);"
 		>
 			<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Performance</h3>
-			{#if performance.onTargetReps !== null}
-				{@const allOnTarget = performance.onTargetReps === performance.workReps}
+			{#if performance.onTarget}
+				{@const count = performance.onTarget}
+				{@const allOnTarget = count.onTarget === count.total}
+				{@const unmeasured = unmeasuredNote(count)}
 				<span
 					style="
 						font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
 						color: {allOnTarget ? 'var(--gn)' : 'var(--gd)'};
 						background: {allOnTarget ? 'var(--gn-lt)' : 'var(--gd-lt)'};
-					">{performance.onTargetReps}/{performance.workReps} on target</span
+					">{count.onTarget}/{count.total} on target{unmeasured ? ` (${unmeasured})` : ''}</span
 				>
 			{/if}
 		</div>

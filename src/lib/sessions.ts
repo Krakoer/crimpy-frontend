@@ -308,7 +308,15 @@ export interface SessionPerformance {
 	// The block count is the test, not the loads: two blocks worked at the same
 	// target pool nothing, but they still read honestly one block at a time.
 	avgWeight: number | null;
-	onTargetReps: number | null;
+	onTarget: OnTargetCount | null;
+}
+
+// How many of a run's reps reached the load they were given, out of how many the
+// run could grade, plus the ones it prescribed a load for and never measured.
+export interface OnTargetCount {
+	onTarget: number;
+	total: number;
+	unmeasured: number;
 }
 
 // A rep counts as on target once it reaches 90% of the prescribed load, which is
@@ -319,6 +327,37 @@ export function isOnTarget(rep: RepData): boolean {
 	return rep.target_weight > 0 && rep.average_weight / rep.target_weight >= ON_TARGET_RATIO;
 }
 
+// How many of a run's reps reached the load they were given, rests left out.
+//
+// Null when no rep carries a target: a ratio over reps the training never gave
+// one grades every single one as missed, which is an athlete's own logged run
+// rather than a failed one. Reps without a target still count in the total once
+// any of its neighbours has one, so a block reads as the whole run it was.
+//
+// A rep whose target was lost to a sensor that dropped mid run is the one
+// exception: it was prescribed a load and performed, but nothing measured it, so
+// grading it either way states something the run does not know. It leaves the
+// ratio entirely and is counted apart. Kept equal to onTargetCount in
+// crimpy-app/lib/utils/rep_blocks.dart so an athlete and their coach read a
+// session the same way.
+export function onTargetCount(reps: RepData[]): OnTargetCount | null {
+	const workReps = reps.filter((rep) => !rep.is_rest);
+	if (!workReps.some((rep) => rep.target_weight > 0)) return null;
+	const graded = workReps.filter((rep) => !rep.target_unmeasured);
+	return {
+		onTarget: graded.filter(isOnTarget).length,
+		total: graded.length,
+		unmeasured: workReps.length - graded.length
+	};
+}
+
+// Names how much of a run went unmeasured, or null when all of it was. Stated
+// next to a ratio so a denominator shrunk by a dropped sensor is not read as a
+// shorter run than the athlete performed.
+export function unmeasuredNote(count: OnTargetCount): string | null {
+	return count.unmeasured === 0 ? null : `${count.unmeasured} unmeasured`;
+}
+
 export function sessionPerformance(
 	reps: RepData[],
 	blocks: RepBlock[] | null
@@ -326,7 +365,6 @@ export function sessionPerformance(
 	const workReps = reps.filter((rep) => !rep.is_rest);
 	if (workReps.length === 0) return null;
 	const spansMultipleBlocks = (blocks?.length ?? 0) > 1;
-	const hasTargets = workReps.some((rep) => rep.target_weight > 0);
 	return {
 		workReps: workReps.length,
 		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.average_weight), 0),
@@ -334,6 +372,6 @@ export function sessionPerformance(
 		avgWeight: spansMultipleBlocks
 			? null
 			: workReps.reduce((sum, rep) => sum + rep.average_weight, 0) / workReps.length,
-		onTargetReps: spansMultipleBlocks || !hasTargets ? null : workReps.filter(isOnTarget).length
+		onTarget: spansMultipleBlocks ? null : onTargetCount(workReps)
 	};
 }
