@@ -372,20 +372,20 @@ export function measuredReps(reps: RepData[]): RepData[] {
 	return reps.filter((rep) => !rep.is_rest && !rep.target_unmeasured);
 }
 
-// The mean load over the reps a run measured, or null when it measured none.
+// The mean load over the reps a run weighed, or null when it weighed none.
 //
 // A rep the sensor missed carries an average of 0 it never pulled. Averaged in,
 // it states a load lighter than anything the athlete held, on the same line as a
-// ratio that already leaves that rep out. The two numbers count the same reps
-// instead. Kept equal to measuredAvgWeight in
-// crimpy-app/lib/utils/rep_blocks.dart.
+// ratio that already leaves that rep out, and above a row that reads "not
+// measured" for it. Every load of the card counts the same reps instead. Kept
+// equal to measuredAvgWeight in crimpy-app/lib/utils/rep_blocks.dart.
 export function measuredAvgWeight(reps: RepData[]): number | null {
-	const measured = measuredReps(reps);
-	if (!weighedAny(measured)) return null;
-	return measured.reduce((sum, rep) => sum + rep.average_weight, 0) / measured.length;
+	const weighed = weighedReps(reps);
+	if (weighed.length === 0) return null;
+	return weighed.reduce((sum, rep) => sum + rep.average_weight, 0) / weighed.length;
 }
 
-// The heaviest load over the reps a run measured, or null when it measured none.
+// The heaviest load over the reps a run weighed, or null when it weighed none.
 //
 // A max is not pooled by the blocks a session played, since the heaviest rep of
 // a run is one rep whichever block it was hung in, so the only run that states
@@ -395,31 +395,36 @@ export function measuredAvgWeight(reps: RepData[]): number | null {
 // count the same reps and appear together. Kept equal to measuredMaxWeight in
 // crimpy-app/lib/utils/rep_blocks.dart.
 export function measuredMaxWeight(reps: RepData[]): number | null {
-	const measured = measuredReps(reps);
-	if (!weighedAny(measured)) return null;
+	const weighed = weighedReps(reps);
+	if (weighed.length === 0) return null;
 	// Not floored at zero: a sensor tared under load reads its whole run below
 	// it, and a peak stated as 0.0 kg there is the same load no rep pulled this
 	// function exists to stop stating. The mean already reads such a run as it
 	// was measured, and the app's reduce carries no seed either.
-	return measured.map((rep) => rep.average_weight).reduce((max, w) => Math.max(max, w));
+	return weighed.map((rep) => rep.average_weight).reduce((max, w) => Math.max(max, w));
 }
 
-// Whether the run got a reading for one rep. False for a rep it weighed
-// nothing for: one whose target a dropped sensor lost, and one played from a
-// block that measures nothing at all. Both are stored at zero against no
-// target, which is the absence of a reading rather than a load the athlete
-// pulled, so no surface states a load for them. A zero a working sensor read
-// against a target counts as weighed, since it is what the athlete pulled.
-// Kept equal to repWeighed in crimpy-app/lib/utils/rep_blocks.dart.
+// Whether the run got a reading for one rep. False for a rep it weighed nothing
+// for: one whose target a dropped sensor lost, and one played from a block that
+// measures nothing at all, a two handed hang included. Both are stored at
+// exactly zero against no target, which is the absence of a reading rather than
+// a load the athlete pulled, so no surface states a load for them.
+//
+// A reading is anything the sensor answered with, the zero it read against a
+// target and the below zero run of a sensor tared under load included: both are
+// what the athlete pulled, and the peak already reads the second one as it was
+// read. Kept equal to repWeighed in crimpy-app/lib/utils/rep_blocks.dart.
 export function repWeighed(rep: RepData): boolean {
-	return rep.average_weight > 0 || rep.target_weight > 0;
+	return rep.average_weight !== 0 || rep.target_weight > 0;
 }
 
-// Whether a run got a reading for any of the reps it measured. False for a run
-// whose sensor never answered, and for a block that was never meant to be
-// weighed. Kept equal to weighedAny in crimpy-app/lib/utils/rep_blocks.dart.
-function weighedAny(measured: RepData[]): boolean {
-	return measured.some(repWeighed);
+// The reps a run put a load on: the set every load stated over it is counted on,
+// so the header, the block line and the rows cannot state loads over different
+// reps. Empty for a run whose sensor never answered, and for a block that was
+// never meant to be weighed. Kept equal to weighedReps in
+// crimpy-app/lib/utils/rep_blocks.dart.
+function weighedReps(reps: RepData[]): RepData[] {
+	return measuredReps(reps).filter(repWeighed);
 }
 
 // Names how much of a run went unmeasured, or null when the run measured all of

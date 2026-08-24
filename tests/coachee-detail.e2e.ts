@@ -450,6 +450,53 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('0.0 / 30.0 kg')).toHaveCount(2);
 	});
 
+	test('counts the mean over the reps the rows state a load for', async ({ page }) => {
+		// A run with no prescribed load that the sensor dropped out of halfway. The
+		// rep it missed carries no target, so it is not flagged unmeasured, and
+		// averaging its zero in states 15.0 kg over one row reading 30.0 kg and one
+		// reading that nothing measured it.
+		const droppedHalfway = [
+			testRepData({ id: 'rep-1', index: 0, average_weight: 30, target_weight: 0 }),
+			testRepData({ id: 'rep-2', index: 1, average_weight: 0, target_weight: 0 })
+		];
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(crimpySession, droppedHalfway)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Avg load', { exact: true }).locator('..')).toContainText(
+			'30.0 kg'
+		);
+		await expect(dialog.getByText('15.0 kg')).toBeHidden();
+		await expect(dialog.getByText('not measured')).toHaveCount(1);
+	});
+
+	test('states a run read below zero that prescribed no load', async ({ page }) => {
+		// A sensor tared under load reads a whole run below zero. That is a reading,
+		// so the rows state it rather than claiming nothing measured them, which
+		// would leave a run the sensor did answer for reading as one it never did.
+		const belowZero = [0, 1].map((index) =>
+			testRepData({ id: `rep-${index + 1}`, index, average_weight: -0.4, target_weight: 0 })
+		);
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(crimpySession, belowZero)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('not measured')).toHaveCount(0);
+		await expect(dialog.getByText('-0.4 kg')).toHaveCount(4);
+	});
+
 	test('states a run read below zero as it was read', async ({ page }) => {
 		// A sensor tared under load reads a whole run below zero. Flooring the peak
 		// at 0.0 kg there states the same load no rep pulled that this stat exists
