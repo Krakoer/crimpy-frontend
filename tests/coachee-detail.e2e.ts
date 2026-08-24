@@ -183,6 +183,12 @@ test.describe('session details', () => {
 		// The run was four reps long whatever the sensor caught of it, so the stat
 		// that counts the whole run is checked on its value, not on its label.
 		await expect(dialog.getByText('Work reps', { exact: true }).locator('..')).toContainText('4');
+		// The mean is over the two reps the sensor weighed, so it agrees with the
+		// ratio beside it. Averaging the two it missed in would read 15.0 kg, a
+		// load the athlete never pulled.
+		await expect(dialog.getByText('Avg load', { exact: true }).locator('..')).toContainText(
+			'30.0 kg'
+		);
 	});
 
 	test('shows what was prescribed against the measured reps', async ({ page }) => {
@@ -294,6 +300,115 @@ test.describe('session details', () => {
 		const dialog = page.getByRole('dialog');
 		await expect(dialog.getByText('Both 33.1 kg')).toBeVisible();
 		await expect(dialog.getByText('R 34.0 kg')).toBeVisible();
+	});
+
+	test('states a block load over the reps its sensor weighed', async ({ page }) => {
+		// The same drop as above, but the reps name the block they were played
+		// from, so the card reads the block line rather than the flat list.
+		const block = {
+			id: 'item-20mm',
+			type: 'hangboard_rep' as const,
+			reps: 4,
+			worktime_seconds: 7,
+			rest_seconds: 60,
+			hand: 'right' as const,
+			granularity: 'uniform' as const,
+			edge_sizes_mm: [20],
+			loads: [{ value: 30, unit: 'kg' as const }]
+		};
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({ items: [block] })
+		});
+		const blockReps = [
+			testRepData({
+				id: 'rep-1',
+				index: 0,
+				average_weight: 31,
+				target_weight: 30,
+				training_item_id: 'item-20mm'
+			}),
+			testRepData({
+				id: 'rep-2',
+				index: 1,
+				average_weight: 29,
+				target_weight: 30,
+				training_item_id: 'item-20mm'
+			}),
+			...[2, 3].map((index) =>
+				testRepData({
+					id: `rep-${index + 1}`,
+					index,
+					average_weight: 0,
+					target_weight: 0,
+					target_unmeasured: true,
+					training_item_id: 'item-20mm'
+				})
+			)
+		];
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, blockReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		// The mean and the ratio on the one line count the same two reps. Averaging
+		// the two the sensor missed would read 15.0 kg, a load never pulled.
+		await expect(
+			dialog.getByText('avg 30.0 / 30.0 kg - 2/2 on target (2 unmeasured)')
+		).toBeVisible();
+		await expect(dialog.getByText('avg 15.0')).toBeHidden();
+		// An unmeasured rep is stored with no target, which would otherwise read as
+		// a block whose prescribed load varied and drop the target half of the line.
+		await expect(dialog.getByText('avg 30.0 kg -')).toBeHidden();
+	});
+
+	test('says a block went unmeasured rather than stating its zeros', async ({ page }) => {
+		// The sensor never answered at all, so there is no load to state: a mean
+		// over its zeros would read 0.0 kg, which the athlete never pulled.
+		const block = {
+			id: 'item-20mm',
+			type: 'hangboard_rep' as const,
+			reps: 2,
+			worktime_seconds: 7,
+			rest_seconds: 60,
+			hand: 'right' as const,
+			granularity: 'uniform' as const,
+			edge_sizes_mm: [20],
+			loads: [{ value: 30, unit: 'kg' as const }]
+		};
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({ items: [block] })
+		});
+		const blockReps = [0, 1].map((index) =>
+			testRepData({
+				id: `rep-${index + 1}`,
+				index,
+				average_weight: 0,
+				target_weight: 0,
+				target_unmeasured: true,
+				training_item_id: 'item-20mm'
+			})
+		);
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, blockReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('not measured')).toBeVisible();
+		await expect(dialog.getByText('avg 0.0 kg')).toBeHidden();
+		// Nothing was graded either, so the header states no mean load at all.
+		await expect(dialog.getByText('Avg load')).toBeHidden();
 	});
 
 	test('splits the reps into the blocks they were played from', async ({ page }) => {

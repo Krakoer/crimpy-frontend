@@ -2,6 +2,8 @@
 	import type { RepData, SessionResponse } from '$lib/api/client';
 	import {
 		groupRepsByPrescriptionItem,
+		measuredAvgWeight,
+		measuredReps,
 		onTargetCount,
 		onTargetLabel,
 		sessionPerformance,
@@ -69,12 +71,19 @@
 
 	function repsSummary(work: RepData[]): string {
 		if (work.length === 0) return 'rest only';
-		const avg = work.reduce((sum, rep) => sum + rep.average_weight, 0) / work.length;
+		// Every load on the line is stated over the reps the sensor weighed, so a
+		// run it dropped out of says what it caught rather than the mean of the
+		// zeros it recorded for the rest.
+		const measured = measuredReps(work);
+		const avg = measuredAvgWeight(work);
+		if (measured.length === 0 || avg === null) return 'not measured';
 		// A block can span every load of a repeater, where a set spans one. Naming
 		// the first rep's target would read as the whole block's, contradicting the
-		// on-target count beside it, so a varying target is left unsaid.
-		const targets = new Set(work.map((rep) => rep.target_weight));
-		const target = work[0].target_weight;
+		// on-target count beside it, so a varying target is left unsaid. Read off
+		// the measured reps too, since a rep the sensor missed is stored with no
+		// target and would otherwise read as a block whose load varied.
+		const targets = new Set(measured.map((rep) => rep.target_weight));
+		const target = measured[0].target_weight;
 		if (targets.size === 1 && target > 0) {
 			return `avg ${formatWeight(avg)} / ${formatWeight(target)} kg`;
 		}
