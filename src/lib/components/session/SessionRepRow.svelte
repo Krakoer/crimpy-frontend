@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { RepData } from '$lib/api/client';
-	import { gripShort, isOnTarget } from '$lib/sessions';
+	import { gripShort, isOnTarget, repWeighed } from '$lib/sessions';
 
 	interface Props {
 		rep: RepData;
@@ -18,6 +18,12 @@
 	}
 
 	let { rep, position, accent, showEdge, reference }: Props = $props();
+
+	// A rep the run never weighed states no load and gets no bar: its stored zero
+	// is the absence of a reading, and printed as 0.0 kg it contradicts the block
+	// line above it, which already reads "not measured". An empty bar would say
+	// the same thing a second time, as a miss.
+	const weighed = $derived(repWeighed(rep));
 
 	const fillRatio = $derived.by(() => {
 		const target = rep.target_weight > 0 ? rep.target_weight : (reference ?? 0);
@@ -42,20 +48,29 @@
 			>{rep.edge_size_mm ? `${rep.edge_size_mm}mm` : ''}</span
 		>
 	{/if}
-	<div
-		style="flex: 1; height: 6px; border-radius: 999px; background: var(--bd2); overflow: hidden;"
-	>
+	{#if weighed}
 		<div
-			style="height: 100%; width: {fillRatio * 100}%; background: {isOnTarget(rep)
-				? 'var(--gn)'
-				: accent};"
-		></div>
-	</div>
-	<span
-		style="font-size: 12px; font-weight: 600; color: var(--tx); width: 92px; text-align: right; flex-shrink: 0;"
-	>
-		{rep.average_weight.toFixed(1)}{rep.target_weight > 0
-			? ` / ${rep.target_weight.toFixed(1)}`
-			: ''} kg
-	</span>
+			style="flex: 1; height: 6px; border-radius: 999px; background: var(--bd2); overflow: hidden;"
+		>
+			<div
+				style="height: 100%; width: {fillRatio * 100}%; background: {isOnTarget(rep)
+					? 'var(--gn)'
+					: accent};"
+			></div>
+		</div>
+		<span
+			style="font-size: 12px; font-weight: 600; color: var(--tx); width: 92px; text-align: right; flex-shrink: 0;"
+		>
+			{rep.average_weight.toFixed(1)}{rep.target_weight > 0
+				? ` / ${rep.target_weight.toFixed(1)}`
+				: ''} kg
+		</span>
+	{:else}
+		<div style="flex: 1;"></div>
+		<span
+			style="font-size: 11px; font-style: italic; color: var(--tx3); width: 92px; text-align: right; flex-shrink: 0;"
+		>
+			not measured
+		</span>
+	{/if}
 </div>
