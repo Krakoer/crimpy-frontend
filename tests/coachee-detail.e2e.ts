@@ -180,8 +180,9 @@ test.describe('session details', () => {
 		const dialog = page.getByRole('dialog');
 		await expect(dialog.getByText('2/2 on target (2 unmeasured)')).toBeVisible();
 		await expect(dialog.getByText('2/4 on target')).toBeHidden();
-		// The run was four reps long whatever the sensor caught of it.
-		await expect(dialog.getByText('Work reps')).toBeVisible();
+		// The run was four reps long whatever the sensor caught of it, so the stat
+		// that counts the whole run is checked on its value, not on its label.
+		await expect(dialog.getByText('Work reps', { exact: true }).locator('..')).toContainText('4');
 	});
 
 	test('shows what was prescribed against the measured reps', async ({ page }) => {

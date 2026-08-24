@@ -342,8 +342,11 @@ export function isOnTarget(rep: RepData): boolean {
 // session the same way.
 export function onTargetCount(reps: RepData[]): OnTargetCount | null {
 	const workReps = reps.filter((rep) => !rep.is_rest);
-	if (!workReps.some((rep) => rep.target_weight > 0)) return null;
 	const graded = workReps.filter((rep) => !rep.target_unmeasured);
+	// Asked of the reps the run could grade, not of every rep: a group whose only
+	// targets went unmeasured has nothing to state a ratio over, and 0/0 reads as
+	// a run that met nothing.
+	if (!graded.some((rep) => rep.target_weight > 0)) return null;
 	return {
 		onTarget: graded.filter(isOnTarget).length,
 		total: graded.length,
@@ -351,11 +354,18 @@ export function onTargetCount(reps: RepData[]): OnTargetCount | null {
 	};
 }
 
-// Names how much of a run went unmeasured, or null when all of it was. Stated
-// next to a ratio so a denominator shrunk by a dropped sensor is not read as a
-// shorter run than the athlete performed.
+// Names how much of a run went unmeasured, or null when the run measured all of
+// it. Stated next to a ratio so a denominator shrunk by a dropped sensor is not
+// read as a shorter run than the athlete performed.
 export function unmeasuredNote(count: OnTargetCount): string | null {
 	return count.unmeasured === 0 ? null : `${count.unmeasured} unmeasured`;
+}
+
+// The line every surface states a ratio with, so the header badge and the block
+// line of the same card cannot drift apart.
+export function onTargetLabel(count: OnTargetCount): string {
+	const unmeasured = unmeasuredNote(count);
+	return `${count.onTarget}/${count.total} on target${unmeasured ? ` (${unmeasured})` : ''}`;
 }
 
 export function sessionPerformance(

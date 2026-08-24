@@ -3,8 +3,8 @@
 	import {
 		groupRepsByPrescriptionItem,
 		onTargetCount,
+		onTargetLabel,
 		sessionPerformance,
-		unmeasuredNote,
 		type RepBlock
 	} from '$lib/sessions';
 	import SessionRepRow from '$lib/components/session/SessionRepRow.svelte';
@@ -86,9 +86,7 @@
 	// unmeasured are named rather than counted as misses.
 	function blockOnTarget(block: RepBlock): string | null {
 		const count = onTargetCount(block.reps);
-		if (!count) return null;
-		const unmeasured = unmeasuredNote(count);
-		return `${count.onTarget}/${count.total} on target${unmeasured ? ` (${unmeasured})` : ''}`;
+		return count ? onTargetLabel(count) : null;
 	}
 </script>
 
@@ -103,13 +101,12 @@
 			{#if performance.onTarget}
 				{@const count = performance.onTarget}
 				{@const allOnTarget = count.onTarget === count.total}
-				{@const unmeasured = unmeasuredNote(count)}
 				<span
 					style="
 						font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
 						color: {allOnTarget ? 'var(--gn)' : 'var(--gd)'};
 						background: {allOnTarget ? 'var(--gn-lt)' : 'var(--gd-lt)'};
-					">{count.onTarget}/{count.total} on target{unmeasured ? ` (${unmeasured})` : ''}</span
+					">{onTargetLabel(count)}</span
 				>
 			{/if}
 		</div>
