@@ -302,7 +302,8 @@ export interface SessionPerformance {
 	// hangs at 34 kg with hangs at 24 kg gives a load no block prescribed and no
 	// rep pulled, and one ratio over blocks graded against different targets
 	// hides which of them was missed. The card states them per block instead.
-	// Peak load, work time and work reps still aggregate over the whole session.
+	// Work time, work reps and peak load still aggregate over the whole session,
+	// peak load for the reason its own note below gives.
 	//
 	// The block count is the test, not the loads: two blocks worked at the same
 	// target pool nothing, but they still read honestly one block at a time.
@@ -396,7 +397,11 @@ export function measuredAvgWeight(reps: RepData[]): number | null {
 export function measuredMaxWeight(reps: RepData[]): number | null {
 	const measured = measuredReps(reps);
 	if (!weighedAny(measured)) return null;
-	return measured.reduce((max, rep) => Math.max(max, rep.average_weight), 0);
+	// Not floored at zero: a sensor tared under load reads its whole run below
+	// it, and a peak stated as 0.0 kg there is the same load no rep pulled this
+	// function exists to stop stating. The mean already reads such a run as it
+	// was measured, and the app's reduce carries no seed either.
+	return measured.map((rep) => rep.average_weight).reduce((max, w) => Math.max(max, w));
 }
 
 // Whether a run got a reading for any of the reps it measured. False for a run

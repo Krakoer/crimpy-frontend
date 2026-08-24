@@ -52,7 +52,9 @@
 	);
 
 	// Written out rather than built from the count, since Tailwind reads the class
-	// names it generates out of the source.
+	// names it generates out of the source. A count the map does not hold lays the
+	// row out as one column, which shows the mismatch rather than hiding it behind
+	// a default that no longer matches the cells.
 	const STAT_COLUMNS: Record<number, string> = {
 		2: 'grid-cols-2',
 		3: 'grid-cols-3',
@@ -131,7 +133,7 @@
 		</div>
 
 		<div
-			class="grid {STAT_COLUMNS[stats.length] ?? 'grid-cols-4'}"
+			class="grid {STAT_COLUMNS[stats.length]}"
 			style="border-bottom: {reps.length > 0 ? '1px solid var(--bd2)' : 'none'};"
 		>
 			{#each stats as stat (stat.label)}
