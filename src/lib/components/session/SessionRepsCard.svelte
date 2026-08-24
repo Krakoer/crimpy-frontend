@@ -18,7 +18,6 @@
 
 	const INDIVIDUAL_REPS_PREVIEW = 8;
 
-	const performance = $derived(sessionPerformance(reps));
 	const workReps = $derived(reps.filter((rep) => !rep.is_rest));
 	const showEdge = $derived(workReps.some((rep) => rep.edge_size_mm));
 
@@ -27,6 +26,24 @@
 	// back to the flat list below.
 	const blocks = $derived<RepBlock[] | null>(
 		groupRepsByPrescriptionItem(workReps, session.prescription)
+	);
+
+	const performance = $derived(sessionPerformance(reps, blocks));
+
+	// A stat the session cannot state honestly across its blocks is left out
+	// rather than filled with a pooled number, so the row holds three cells
+	// instead of four.
+	const stats = $derived(
+		performance
+			? [
+					...(performance.avgWeight !== null
+						? [{ k: 'Avg load', v: `${formatWeight(performance.avgWeight)} kg` }]
+						: []),
+					{ k: 'Peak load', v: `${formatWeight(performance.maxWeight)} kg` },
+					{ k: 'Work time', v: `${performance.workTime}s` },
+					{ k: 'Work reps', v: String(performance.workReps) }
+				]
+			: []
 	);
 
 	let expanded = $state(false);
@@ -79,7 +96,7 @@
 			style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--bd2);"
 		>
 			<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Performance</h3>
-			{#if performance.hasTargets}
+			{#if performance.onTargetReps !== null}
 				{@const allOnTarget = performance.onTargetReps === performance.workReps}
 				<span
 					style="
@@ -92,10 +109,10 @@
 		</div>
 
 		<div
-			class="grid grid-cols-4"
+			class="grid {stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}"
 			style="border-bottom: {reps.length > 0 ? '1px solid var(--bd2)' : 'none'};"
 		>
-			{#each [{ k: 'Avg load', v: `${formatWeight(performance.avgWeight)} kg` }, { k: 'Peak load', v: `${formatWeight(performance.maxWeight)} kg` }, { k: 'Work time', v: `${performance.workTime}s` }, { k: 'Work reps', v: String(performance.workReps) }] as stat (stat.k)}
+			{#each stats as stat (stat.k)}
 				<div style="padding: 14px 18px;">
 					<div
 						style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
