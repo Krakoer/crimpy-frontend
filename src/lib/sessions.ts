@@ -297,11 +297,18 @@ export function groupRepsByPrescriptionItem(
 
 export interface SessionPerformance {
 	workReps: number;
-	avgWeight: number;
 	maxWeight: number;
 	workTime: number;
-	onTargetReps: number;
-	hasTargets: boolean;
+	// Both are null for a session that played more than one block. Averaging
+	// hangs at 34 kg with hangs at 24 kg gives a load no block prescribed and no
+	// rep pulled, and one ratio over blocks graded against different targets
+	// hides which of them was missed. The card states them per block instead.
+	// Peak load, work time and work reps still aggregate over the whole session.
+	//
+	// The block count is the test, not the loads: two blocks worked at the same
+	// target pool nothing, but they still read honestly one block at a time.
+	avgWeight: number | null;
+	onTargetReps: number | null;
 }
 
 // A rep counts as on target once it reaches 90% of the prescribed load, which is
@@ -312,15 +319,21 @@ export function isOnTarget(rep: RepData): boolean {
 	return rep.target_weight > 0 && rep.average_weight / rep.target_weight >= ON_TARGET_RATIO;
 }
 
-export function sessionPerformance(reps: RepData[]): SessionPerformance | null {
+export function sessionPerformance(
+	reps: RepData[],
+	blocks: RepBlock[] | null
+): SessionPerformance | null {
 	const workReps = reps.filter((rep) => !rep.is_rest);
 	if (workReps.length === 0) return null;
+	const spansMultipleBlocks = (blocks?.length ?? 0) > 1;
+	const hasTargets = workReps.some((rep) => rep.target_weight > 0);
 	return {
 		workReps: workReps.length,
-		avgWeight: workReps.reduce((sum, rep) => sum + rep.average_weight, 0) / workReps.length,
 		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.average_weight), 0),
 		workTime: workReps.reduce((sum, rep) => sum + rep.duration, 0),
-		onTargetReps: workReps.filter(isOnTarget).length,
-		hasTargets: workReps.some((rep) => rep.target_weight > 0)
+		avgWeight: spansMultipleBlocks
+			? null
+			: workReps.reduce((sum, rep) => sum + rep.average_weight, 0) / workReps.length,
+		onTargetReps: spansMultipleBlocks || !hasTargets ? null : workReps.filter(isOnTarget).length
 	};
 }

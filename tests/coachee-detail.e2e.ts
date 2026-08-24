@@ -323,6 +323,14 @@ test.describe('session details', () => {
 		// A hangboard rep is one hang, not a repeater, so its block carries no set
 		// breakdown under the heading.
 		await expect(dialog.getByText('Set 1 - Right')).toBeHidden();
+		// The header states nothing it would have to pool across the two blocks.
+		// Averaging 30.0 kg hangs with a 21.0 kg hang names a load neither block
+		// asked for, and 3/3 hides which target each rep was graded against.
+		await expect(dialog.getByText('Avg load')).toBeHidden();
+		await expect(dialog.getByText('3/3 on target')).toBeHidden();
+		// What still aggregates over the whole session stays in the header.
+		await expect(dialog.getByText('Peak load')).toBeVisible();
+		await expect(dialog.getByText('Work reps')).toBeVisible();
 	});
 
 	test('keeps the set breakdown inside a repeater block', async ({ page }) => {
@@ -372,6 +380,10 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('Hangboard 20mm', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('Set 1 - Right')).toBeVisible();
 		await expect(dialog.getByText('Set 2 - Right')).toBeVisible();
+		// One block pools nothing, so the header reads exactly as it always has.
+		await expect(dialog.getByText('Avg load')).toBeVisible();
+		await expect(dialog.getByText('30.0 kg').first()).toBeVisible();
+		await expect(dialog.getByText('4/4 on target', { exact: true })).toBeVisible();
 	});
 
 	test('counts a set by the hands the block actually hangs', async ({ page }) => {
