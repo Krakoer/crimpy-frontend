@@ -37,11 +37,11 @@
 		performance
 			? [
 					...(performance.avgWeight !== null
-						? [{ k: 'Avg load', v: `${formatWeight(performance.avgWeight)} kg` }]
+						? [{ label: 'Avg load', value: `${formatWeight(performance.avgWeight)} kg` }]
 						: []),
-					{ k: 'Peak load', v: `${formatWeight(performance.maxWeight)} kg` },
-					{ k: 'Work time', v: `${performance.workTime}s` },
-					{ k: 'Work reps', v: String(performance.workReps) }
+					{ label: 'Peak load', value: `${formatWeight(performance.maxWeight)} kg` },
+					{ label: 'Work time', value: `${performance.workTime}s` },
+					{ label: 'Work reps', value: String(performance.workReps) }
 				]
 			: []
 	);
@@ -112,15 +112,15 @@
 			class="grid {stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}"
 			style="border-bottom: {reps.length > 0 ? '1px solid var(--bd2)' : 'none'};"
 		>
-			{#each stats as stat (stat.k)}
+			{#each stats as stat (stat.label)}
 				<div style="padding: 14px 18px;">
 					<div
 						style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 					>
-						{stat.k}
+						{stat.label}
 					</div>
 					<div style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 2px;">
-						{stat.v}
+						{stat.value}
 					</div>
 				</div>
 			{/each}

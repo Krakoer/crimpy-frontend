@@ -304,6 +304,9 @@ export interface SessionPerformance {
 	// rep pulled, and one ratio over blocks graded against different targets
 	// hides which of them was missed. The card states them per block instead.
 	// Peak load, work time and work reps still aggregate over the whole session.
+	//
+	// The block count is the test, not the loads: two blocks worked at the same
+	// target pool nothing, but they still read honestly one block at a time.
 	avgWeight: number | null;
 	onTargetReps: number | null;
 }
@@ -322,15 +325,15 @@ export function sessionPerformance(
 ): SessionPerformance | null {
 	const workReps = reps.filter((rep) => !rep.is_rest);
 	if (workReps.length === 0) return null;
-	const poolsUnlikeBlocks = (blocks?.length ?? 0) > 1;
+	const spansMultipleBlocks = (blocks?.length ?? 0) > 1;
 	const hasTargets = workReps.some((rep) => rep.target_weight > 0);
 	return {
 		workReps: workReps.length,
 		maxWeight: workReps.reduce((max, rep) => Math.max(max, rep.average_weight), 0),
 		workTime: workReps.reduce((sum, rep) => sum + rep.duration, 0),
-		avgWeight: poolsUnlikeBlocks
+		avgWeight: spansMultipleBlocks
 			? null
 			: workReps.reduce((sum, rep) => sum + rep.average_weight, 0) / workReps.length,
-		onTargetReps: poolsUnlikeBlocks || !hasTargets ? null : workReps.filter(isOnTarget).length
+		onTargetReps: spansMultipleBlocks || !hasTargets ? null : workReps.filter(isOnTarget).length
 	};
 }
