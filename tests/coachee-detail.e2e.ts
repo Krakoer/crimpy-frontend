@@ -409,6 +409,48 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('avg 0.0 kg')).toBeHidden();
 		// Nothing was graded either, so the header states no mean load at all.
 		await expect(dialog.getByText('Avg load')).toBeHidden();
+		// Nor a peak: the max over the zeros the sensor stored would read 0.0 kg,
+		// the one cell left able to state a load the athlete never pulled.
+		await expect(dialog.getByText('Peak load')).toBeHidden();
+		// Checked on the header rather than the dialog, since the rep rows below it
+		// do state the zeros the sensor stored against each rep.
+		const stats = dialog.getByText('Work time', { exact: true }).locator('../..');
+		await expect(stats).not.toContainText('kg');
+		// The run itself is still counted, so the header keeps the two stats that
+		// hold whatever the sensor caught.
+		await expect(stats).toContainText('Work reps');
+		await expect(dialog.getByText('Work reps', { exact: true }).locator('..')).toContainText('2');
+	});
+
+	test('states a run read below zero as it was read', async ({ page }) => {
+		// A sensor tared under load reads a whole run below zero. Flooring the peak
+		// at 0.0 kg there states the same load no rep pulled that this stat exists
+		// to stop stating, and the app's max carries no floor either.
+		const belowZero = [0, 1].map((index) =>
+			testRepData({
+				id: `rep-${index + 1}`,
+				index,
+				average_weight: -0.4,
+				target_weight: 20
+			})
+		);
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(crimpySession, belowZero)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Peak load', { exact: true }).locator('..')).toContainText(
+			'-0.4 kg'
+		);
+		// The mean already read the run this way, so the two agree.
+		await expect(dialog.getByText('Avg load', { exact: true }).locator('..')).toContainText(
+			'-0.4 kg'
+		);
 	});
 
 	test('splits the reps into the blocks they were played from', async ({ page }) => {

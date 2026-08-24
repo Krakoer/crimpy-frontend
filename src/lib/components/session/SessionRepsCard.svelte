@@ -33,21 +33,33 @@
 
 	const performance = $derived(sessionPerformance(reps, blocks));
 
-	// A stat the session cannot state honestly across its blocks is left out
-	// rather than filled with a pooled number, so the row holds three cells
-	// instead of four.
+	// A stat the session cannot state honestly is left out rather than filled with
+	// a pooled number or a zero no rep pulled, so the row holds as few as two
+	// cells. Work time and work reps are the ones every run can always state.
 	const stats = $derived(
 		performance
 			? [
 					...(performance.avgWeight !== null
 						? [{ label: 'Avg load', value: `${formatWeight(performance.avgWeight)} kg` }]
 						: []),
-					{ label: 'Peak load', value: `${formatWeight(performance.maxWeight)} kg` },
+					...(performance.maxWeight !== null
+						? [{ label: 'Peak load', value: `${formatWeight(performance.maxWeight)} kg` }]
+						: []),
 					{ label: 'Work time', value: `${performance.workTime}s` },
 					{ label: 'Work reps', value: String(performance.workReps) }
 				]
 			: []
 	);
+
+	// Written out rather than built from the count, since Tailwind reads the class
+	// names it generates out of the source. A count the map does not hold lays the
+	// row out as one column, which shows the mismatch rather than hiding it behind
+	// a default that no longer matches the cells.
+	const STAT_COLUMNS: Record<number, string> = {
+		2: 'grid-cols-2',
+		3: 'grid-cols-3',
+		4: 'grid-cols-4'
+	};
 
 	let expanded = $state(false);
 	const shownReps = $derived(
@@ -121,7 +133,7 @@
 		</div>
 
 		<div
-			class="grid {stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}"
+			class="grid {STAT_COLUMNS[stats.length]}"
 			style="border-bottom: {reps.length > 0 ? '1px solid var(--bd2)' : 'none'};"
 		>
 			{#each stats as stat (stat.label)}
