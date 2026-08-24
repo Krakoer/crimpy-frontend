@@ -415,6 +415,7 @@ export interface TestRepData {
 	grip_position: number;
 	edge_size_mm?: number | null;
 	training_item_id?: string | null;
+	target_unmeasured: boolean;
 	updated_at: string;
 }
 
@@ -430,6 +431,7 @@ export function testRepData(overrides: Partial<TestRepData> = {}): TestRepData {
 		is_rest: false,
 		right_hand: true,
 		grip_position: 0,
+		target_unmeasured: false,
 		updated_at: isoDaysAgo(1),
 		...overrides
 	};

@@ -120,6 +120,11 @@ export interface RepData {
 	// read block by block. Absent on a session played outside a training, and on
 	// one recorded before the app sent it.
 	training_item_id?: string | null;
+	// Whether the step prescribed a load nothing measured, which is the sensor
+	// dropping while a hang it was meant to read was running. The rep carries no
+	// target then, exactly as a step nothing was going to measure does, so this
+	// is what tells a lost target from one never given.
+	target_unmeasured: boolean;
 	updated_at: string;
 }
 

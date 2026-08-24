@@ -146,6 +146,45 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('Blocks', { exact: true })).toBeHidden();
 	});
 
+	test('grades a session the sensor dropped in on the reps it measured', async ({ page }) => {
+		// The sensor answered for the first two hangs and went quiet for the last
+		// two, which the app records as reps carrying no target and saying why.
+		// Counted in the ratio they would read as misses the athlete never made.
+		const droppedReps = [
+			testRepData({ id: 'rep-1', index: 0, average_weight: 31, target_weight: 30 }),
+			testRepData({ id: 'rep-2', index: 1, average_weight: 29, target_weight: 30 }),
+			testRepData({
+				id: 'rep-3',
+				index: 2,
+				average_weight: 0,
+				target_weight: 0,
+				target_unmeasured: true
+			}),
+			testRepData({
+				id: 'rep-4',
+				index: 3,
+				average_weight: 0,
+				target_weight: 0,
+				target_unmeasured: true
+			})
+		];
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(crimpySession, droppedReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('2/2 on target (2 unmeasured)')).toBeVisible();
+		await expect(dialog.getByText('2/4 on target')).toBeHidden();
+		// The run was four reps long whatever the sensor caught of it, so the stat
+		// that counts the whole run is checked on its value, not on its label.
+		await expect(dialog.getByText('Work reps', { exact: true }).locator('..')).toContainText('4');
+	});
+
 	test('shows what was prescribed against the measured reps', async ({ page }) => {
 		const prescribed = testSession({
 			...crimpySession,
