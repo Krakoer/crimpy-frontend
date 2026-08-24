@@ -345,7 +345,7 @@ export function isOnTarget(rep: RepData): boolean {
 // session the same way.
 export function onTargetCount(reps: RepData[]): OnTargetCount | null {
 	const workReps = reps.filter((rep) => !rep.is_rest);
-	const graded = workReps.filter((rep) => !rep.target_unmeasured);
+	const graded = measuredReps(reps);
 	// Asked of the reps the run could grade, not of every rep: a group whose only
 	// targets went unmeasured has nothing to state a ratio over, and 0/0 reads as
 	// a run that met nothing.
@@ -357,20 +357,27 @@ export function onTargetCount(reps: RepData[]): OnTargetCount | null {
 	};
 }
 
+// The work reps a run actually weighed: the set every load stated over a run is
+// counted on, and the same one onTargetCount grades. A rep whose target was lost
+// to a sensor that dropped mid run was performed and weighed nothing, so it is
+// not one of them. Kept equal to measuredReps in
+// crimpy-app/lib/utils/rep_blocks.dart.
+export function measuredReps(reps: RepData[]): RepData[] {
+	return reps.filter((rep) => !rep.is_rest && !rep.target_unmeasured);
+}
+
 // The mean load over the reps a run measured, or null when it measured none.
 //
-// A rep whose target was lost to a sensor that dropped mid run was performed
-// and weighed nothing, and carries an average of 0 it never pulled. Averaged
-// in, it states a load lighter than anything the athlete held, on the same line
-// as a ratio that already leaves that rep out. The two numbers count the same
-// reps instead. Kept equal to measuredAvgWeight in
+// A rep the sensor missed carries an average of 0 it never pulled. Averaged in,
+// it states a load lighter than anything the athlete held, on the same line as a
+// ratio that already leaves that rep out. The two numbers count the same reps
+// instead. Kept equal to measuredAvgWeight in
 // crimpy-app/lib/utils/rep_blocks.dart.
 export function measuredAvgWeight(reps: RepData[]): number | null {
-	const measured = reps.filter((rep) => !rep.is_rest && !rep.target_unmeasured);
+	const measured = measuredReps(reps);
 	// A run nothing ever weighed states no mean: its zeros are the absence of a
-	// reading rather than a load. A zero a working sensor read stays in, since it
-	// is what the athlete pulled, which is why the target and not the average
-	// decides here: only a measured rep is stored with the one it was given.
+	// reading rather than a load. A zero a working sensor read against a target
+	// stays in, since it is what the athlete pulled.
 	if (!measured.some((rep) => rep.average_weight > 0 || rep.target_weight > 0)) return null;
 	return measured.reduce((sum, rep) => sum + rep.average_weight, 0) / measured.length;
 }

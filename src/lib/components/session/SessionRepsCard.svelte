@@ -3,6 +3,7 @@
 	import {
 		groupRepsByPrescriptionItem,
 		measuredAvgWeight,
+		measuredReps,
 		onTargetCount,
 		onTargetLabel,
 		sessionPerformance,
@@ -70,16 +71,17 @@
 
 	function repsSummary(work: RepData[]): string {
 		if (work.length === 0) return 'rest only';
-		// A run whose sensor never answered has no load to state, so it says that
-		// rather than the mean of the zeros it recorded.
+		// Every load on the line is stated over the reps the sensor weighed, so a
+		// run it dropped out of says what it caught rather than the mean of the
+		// zeros it recorded for the rest.
+		const measured = measuredReps(work);
 		const avg = measuredAvgWeight(work);
-		if (avg === null) return 'not measured';
+		if (measured.length === 0 || avg === null) return 'not measured';
 		// A block can span every load of a repeater, where a set spans one. Naming
 		// the first rep's target would read as the whole block's, contradicting the
 		// on-target count beside it, so a varying target is left unsaid. Read off
-		// the measured reps, since a rep the sensor missed is stored with no target
-		// and would otherwise read as a block whose load varied.
-		const measured = work.filter((rep) => !rep.is_rest && !rep.target_unmeasured);
+		// the measured reps too, since a rep the sensor missed is stored with no
+		// target and would otherwise read as a block whose load varied.
 		const targets = new Set(measured.map((rep) => rep.target_weight));
 		const target = measured[0].target_weight;
 		if (targets.size === 1 && target > 0) {
