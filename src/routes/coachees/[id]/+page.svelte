@@ -14,7 +14,10 @@
 	import AssessmentResultCard from '$lib/components/assessment/AssessmentResultCard.svelte';
 	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
 	import AssessmentHistoryTable from '$lib/components/assessment/AssessmentHistoryTable.svelte';
-	import { groupRecordedAssessments } from '$lib/components/assessment/assessment-records';
+	import {
+		groupRecordedAssessments,
+		measuredAt
+	} from '$lib/components/assessment/assessment-records';
 	import { formatDuration, formatSessionTime, sessionActivityInfo } from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
@@ -291,9 +294,7 @@
 	const totalAssessmentCount = $derived(assessments.length);
 
 	const assessmentHistory = $derived(
-		[...assessments]
-			.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-			.slice(0, 8)
+		[...assessments].sort((a, b) => measuredAt(b) - measuredAt(a)).slice(0, 8)
 	);
 </script>
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { AssessmentResponse } from '$lib/api/client';
-	import { singleValue } from '$lib/components/assessment/assessment-records';
+	import { measuredAt, singleValue } from '$lib/components/assessment/assessment-records';
 
 	let {
 		history,
@@ -52,7 +52,7 @@
 		const theme = palette();
 		const points = (pick: (a: AssessmentResponse) => number | null | undefined) =>
 			data
-				.map((a) => [new Date(a.updated_at).getTime(), pick(a)] as const)
+				.map((a) => [measuredAt(a), pick(a)] as const)
 				.filter(
 					(point): point is readonly [number, number] => point[1] !== null && point[1] !== undefined
 				)

@@ -46,7 +46,7 @@
 					font-size: 13px;
 				"
 			>
-				<div style="color: var(--tx2); font-size: 12px;">{formatDate(record.updated_at)}</div>
+				<div style="color: var(--tx2); font-size: 12px;">{formatDate(record.session_date)}</div>
 				<div style="font-weight: 600; color: var(--tx);">{record.label}</div>
 				<div style="color: var(--tx3); font-size: 12px;">
 					{record.training_id ? '' : gripLabel(record.grip_position ?? 0)}

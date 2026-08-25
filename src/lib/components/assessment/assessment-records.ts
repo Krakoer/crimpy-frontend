@@ -13,8 +13,15 @@ export interface RecordedAssessment {
 	records: AssessmentResponse[];
 }
 
+// When a result was measured, which is the date of the session that recorded it
+// rather than when the row was written: an assessment logged after the fact, or
+// synced late, still belongs where the athlete actually did it.
+export function measuredAt(record: AssessmentResponse): number {
+	return new Date(record.session_date).getTime();
+}
+
 function byDateAscending(a: AssessmentResponse, b: AssessmentResponse): number {
-	return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+	return measuredAt(a) - measuredAt(b);
 }
 
 // Groups the athlete's results by the assessment they measure, ordered so the
