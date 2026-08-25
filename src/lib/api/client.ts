@@ -101,6 +101,10 @@ export interface SessionResponse {
 	rep_count?: number;
 }
 
+// Which hand pulled a rep. A two handed hang is a state of its own rather than
+// one of the single hands, so the three cannot be told apart by a boolean.
+export type RepHand = 'left' | 'right' | 'both';
+
 // One repetition recorded by the force sensor, work or rest, in session order.
 export interface RepData {
 	id: string;
@@ -111,7 +115,7 @@ export interface RepData {
 	duration: number;
 	index: number;
 	is_rest: boolean;
-	right_hand: boolean;
+	hand: RepHand;
 	grip_position: number;
 	// Depth of the edge the rep was pulled on, absent when the step prescribed
 	// none: a rest, or an exercise done off the hangboard.

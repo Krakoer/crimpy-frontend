@@ -402,6 +402,8 @@ export function testSession(overrides: Partial<TestSession> = {}): TestSession {
 	};
 }
 
+export type RepHand = 'left' | 'right' | 'both';
+
 export interface TestRepData {
 	id: string;
 	user_id: string;
@@ -411,7 +413,7 @@ export interface TestRepData {
 	duration: number;
 	index: number;
 	is_rest: boolean;
-	right_hand: boolean;
+	hand: RepHand;
 	grip_position: number;
 	edge_size_mm?: number | null;
 	training_item_id?: string | null;
@@ -429,7 +431,7 @@ export function testRepData(overrides: Partial<TestRepData> = {}): TestRepData {
 		duration: 7,
 		index: 0,
 		is_rest: false,
-		right_hand: true,
+		hand: 'right',
 		grip_position: 0,
 		target_unmeasured: false,
 		updated_at: isoDaysAgo(1),
