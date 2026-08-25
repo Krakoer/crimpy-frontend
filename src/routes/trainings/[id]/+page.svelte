@@ -14,8 +14,9 @@
 	} from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
-	import type { AssessmentUnit } from '$lib/assessments';
+	import { unitLabel, type AssessmentUnit } from '$lib/assessments';
 	import AssessmentDefinitionFields from '$lib/components/training/AssessmentDefinitionFields.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import {
 		emptyAssessmentDraft,
 		type AssessmentDraft
@@ -275,8 +276,11 @@
 	// The definition already on file, so a save knows whether to create, update
 	// or remove it.
 	let savedAssessmentId = $state<string | null>(null);
-	// Set once results exist, which freezes the unit and the hands.
-	let assessmentMeasured = $state(false);
+	// Answered by the server: the unit and the hands stop being editable once
+	// results were measured against them or a training reads a number against
+	// them. Asking up front is what keeps the two controls honest, rather than
+	// letting the coach change them and be refused on save.
+	let assessmentUnitLocked = $state(false);
 
 	function currentSnapshot(): string {
 		return JSON.stringify({
@@ -483,6 +487,7 @@
 				logOnly = items.length === 0;
 				if (training.assessment) {
 					savedAssessmentId = training.assessment.id;
+					assessmentUnitLocked = training.assessment.unit_locked ?? false;
 					assessment = {
 						enabled: true,
 						prompt: training.assessment.prompt ?? '',
@@ -503,9 +508,22 @@
 			});
 	});
 
+	// Turning the toggle off deletes the definition, which no other training can
+	// then reference, so the save asks first rather than acting on a checkbox.
+	let confirmRemoveAssessment = $state(false);
+
 	async function handleSave() {
 		const title = draft.title.trim();
 		if (!title) return;
+		if (assessment.enabled && !assessment.prompt.trim()) {
+			saveError = 'An assessment needs a question for the athlete to answer.';
+			return;
+		}
+		if (!assessment.enabled && savedAssessmentId && !confirmRemoveAssessment) {
+			confirmRemoveAssessment = true;
+			return;
+		}
+		confirmRemoveAssessment = false;
 		saving = true;
 		saveError = '';
 		try {
@@ -708,6 +726,33 @@
 					</p>
 				</div>
 			{/if}
+			<!-- A coach should be able to read their own question without opening the
+			     editor, and see at a glance that this training measures something. -->
+			{#if assessment.enabled}
+				<div
+					style="
+					background: var(--panel2); border-radius: var(--rl); border: 1px solid var(--bd);
+					padding: 16px 20px; box-shadow: var(--sh); margin-bottom: 16px;
+					border-left: 3px solid var(--pl);
+				"
+				>
+					<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+						<Icon name="spark" size={13} color="var(--pl)" />
+						<span
+							style="font-size: 10.5px; font-weight: 700; color: var(--pl); letter-spacing: 0.06em;"
+							>ASSESSMENT</span
+						>
+						<span style="font-size: 11px; color: var(--tx3);"
+							>measured in {unitLabel(assessment.unit)}{assessment.perHand
+								? ', each hand'
+								: ''}</span
+						>
+					</div>
+					<p style="font-size: 13px; color: var(--tx); line-height: 1.6;">
+						{assessment.prompt}
+					</p>
+				</div>
+			{/if}
 			{#if !logOnly}
 				<TrainingPreview items={draft.items} {exercises} catalog={assessmentCatalog.catalog} />
 			{/if}
@@ -774,7 +819,10 @@
 								Log only (nothing to run, the athlete just marks it as done)
 							</label>
 							<div style="margin-top: 10px;">
-								<AssessmentDefinitionFields bind:draft={assessment} measured={assessmentMeasured} />
+								<AssessmentDefinitionFields
+									bind:draft={assessment}
+									measured={assessmentUnitLocked}
+								/>
 							</div>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
@@ -1037,7 +1085,7 @@
 						Log only (nothing to run, the athlete just marks it as done)
 					</label>
 					<div style="margin-top: 10px;">
-						<AssessmentDefinitionFields bind:draft={assessment} measured={assessmentMeasured} />
+						<AssessmentDefinitionFields bind:draft={assessment} measured={assessmentUnitLocked} />
 					</div>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
@@ -1074,6 +1122,17 @@
 		</div>
 	{/if}
 </AppShell>
+
+{#if confirmRemoveAssessment}
+	<ConfirmDialog
+		title="Stop measuring this?"
+		message="The assessment is deleted, so any training prescribing a percentage of it stops resolving. The results already recorded are kept."
+		confirmLabel="Remove the assessment"
+		busy={saving}
+		onconfirm={handleSave}
+		oncancel={() => (confirmRemoveAssessment = false)}
+	/>
+{/if}
 
 {#if showCreateExerciseModal}
 	<CreateExerciseModal

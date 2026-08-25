@@ -5,8 +5,9 @@
 
 	interface Props {
 		draft: AssessmentDraft;
-		// Frozen once results have been measured: they say what every past number
-		// means, so moving them would restate the history.
+		// Frozen once results have been measured against the unit, or a training
+		// reads a number against it: the first would restate the history, the
+		// second would leave a prescription quietly using its fallback.
 		measured?: boolean;
 	}
 
@@ -83,8 +84,8 @@
 
 			{#if measured}
 				<p style="margin: 0; font-size: 12px; color: var(--tx2);">
-					Results have been recorded, so the unit and the hands are fixed. The question can still be
-					reworded.
+					This assessment is already in use, so the unit and the hands are fixed. The name and the
+					question can still be changed.
 				</p>
 			{/if}
 		</div>

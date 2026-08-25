@@ -185,6 +185,10 @@ export interface AssessmentDefinitionSnapshot {
 	prompt?: string | null;
 	unit: string;
 	per_hand: boolean;
+	training_id?: string | null;
+	// Set once the unit and the hands can no longer move: results were measured
+	// against them, or a training reads a number against them.
+	unit_locked?: boolean;
 }
 
 export interface EnrolledUser {
@@ -232,6 +236,9 @@ export interface AssessmentDefinition {
 	training_id?: string | null;
 	per_hand: boolean;
 	is_builtin: boolean;
+	// Set once the unit and the hands can no longer move: results were measured
+	// against them, or a training reads a number against them.
+	unit_locked: boolean;
 	created_at: string;
 	updated_at: string;
 }

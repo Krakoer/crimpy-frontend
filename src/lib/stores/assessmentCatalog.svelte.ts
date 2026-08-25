@@ -1,5 +1,6 @@
 import { apiClient, type AssessmentDefinition } from '$lib/api/client';
 import { buildAssessmentCatalog, type AssessmentCatalog } from '$lib/assessments';
+import { snackbar } from '$lib/stores/snackbar.svelte';
 
 // The assessments the signed in coach may reference, loaded once and shared by
 // every page that has to name one. The list is small and changes only when the
@@ -8,25 +9,15 @@ import { buildAssessmentCatalog, type AssessmentCatalog } from '$lib/assessments
 let definitions = $state<AssessmentDefinition[]>([]);
 let loaded = $state(false);
 let inFlight: Promise<void> | null = null;
+const catalog = $derived(buildAssessmentCatalog(definitions));
 
 export const assessmentCatalog = {
-	get definitions() {
-		return definitions;
-	},
-	get loaded() {
-		return loaded;
-	},
 	// Keyed by id, which is what a result row and a percentage reference hold.
+	// Derived, so the map is built once per change rather than once per read: it
+	// is passed as a prop to every node of the item tree.
 	get catalog(): AssessmentCatalog {
-		return buildAssessmentCatalog(definitions);
+		return catalog;
 	},
-	// The custom ones alone, for a page listing what the coach has written.
-	get custom(): AssessmentDefinition[] {
-		return definitions.filter((definition) => !definition.is_builtin);
-	},
-	// Best effort: a page that cannot load the catalog still works, naming an
-	// assessment generically rather than failing to render, so the caller is
-	// never handed a rejection to guard against.
 	async load(): Promise<void> {
 		if (loaded) return;
 		// Two components mounting together must not each fetch the list.
@@ -36,7 +27,12 @@ export const assessmentCatalog = {
 				definitions = list;
 				loaded = true;
 			})
-			.catch(() => {})
+			.catch(() =>
+				snackbar.show(
+					'Could not load the assessments, so a percentage of one cannot be prescribed.',
+					'error'
+				)
+			)
 			.finally(() => {
 				inFlight = null;
 			});

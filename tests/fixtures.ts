@@ -369,6 +369,8 @@ export interface TestTraining {
 	comment?: string;
 	is_favorite?: boolean;
 	items: unknown[];
+	// Set when the training is a custom assessment.
+	assessment?: unknown;
 	created_at: string;
 	updated_at: string;
 }

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { RepData, SessionAssessment, SessionDetail, SessionResponse } from '$lib/api/client';
+	import { formatUnitValue, unitLabel } from '$lib/assessments';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
 	import SessionPrescriptionCard from '$lib/components/session/SessionPrescriptionCard.svelte';
@@ -55,16 +56,6 @@
 
 	// The result rows carry their own definition, so a value is formatted from the
 	// unit it was measured in without a catalog to look anything up in.
-	function formatValue(value: number | null | undefined, unit: string): string {
-		if (value === null || value === undefined) return '--';
-		return unit === 'kilograms' ? value.toFixed(1) : value.toFixed(0);
-	}
-
-	const UNIT_LABELS: Record<string, string> = {
-		kilograms: 'kg',
-		seconds: 's',
-		repetitions: 'reps'
-	};
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -222,7 +213,7 @@
 							</h3>
 						</div>
 						{#each assessments as assessment (assessment.id)}
-							{@const unitLabel = UNIT_LABELS[assessment.unit] ?? ''}
+							{@const suffix = unitLabel(assessment.unit)}
 							<div
 								class="flex items-center justify-between"
 								style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);"
@@ -249,9 +240,9 @@
 													{side.hand}
 												</div>
 												<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
-													{formatValue(side.value, assessment.unit)}
+													{formatUnitValue(side.value, assessment.unit)}
 													<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
-														>{unitLabel}</span
+														>{suffix}</span
 													>
 												</div>
 											</div>
@@ -259,12 +250,12 @@
 									{:else}
 										<div style="text-align: right;">
 											<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
-												{formatValue(
+												{formatUnitValue(
 													assessment.right_value ?? assessment.left_value,
 													assessment.unit
 												)}
 												<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
-													>{unitLabel}</span
+													>{suffix}</span
 												>
 											</div>
 										</div>

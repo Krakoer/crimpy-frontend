@@ -240,8 +240,18 @@
 	let createExerciseModalDirty = $state(false);
 	let leavingAfterCreate = $state(false);
 
-	const emptyDraftSnapshot = JSON.stringify(emptyDraft());
-	let isDirty = $derived(JSON.stringify($state.snapshot(draft)) !== emptyDraftSnapshot);
+	const emptyDraftSnapshot = JSON.stringify({
+		draft: emptyDraft(),
+		logOnly: false,
+		assessment: emptyAssessmentDraft()
+	});
+	let isDirty = $derived(
+		JSON.stringify({
+			draft: $state.snapshot(draft),
+			logOnly,
+			assessment: $state.snapshot(assessment)
+		}) !== emptyDraftSnapshot
+	);
 	let guardDirty = $derived(
 		!leavingAfterCreate && (isDirty || (showCreateExerciseModal && createExerciseModalDirty))
 	);
@@ -389,6 +399,13 @@
 
 	async function handleSave() {
 		if (!draft.title.trim()) return;
+		// Checked before the training is created: the server refuses a definition
+		// with no question, and the training would already exist by then, leaving
+		// an orphan behind and a second one on the retry.
+		if (assessment.enabled && !assessment.prompt.trim()) {
+			saveError = 'An assessment needs a question for the athlete to answer.';
+			return;
+		}
 		saving = true;
 		saveError = '';
 		try {

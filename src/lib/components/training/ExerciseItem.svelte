@@ -77,6 +77,18 @@
 		}
 	}
 
+	// The catalog loads after the first render, so a load switched to a percentage
+	// before it arrives has no assessment to seed from. Writing the fallback once
+	// the options exist keeps what the picker shows and what the item carries the
+	// same, rather than saving an item the server refuses.
+	$effect(() => {
+		const load = item.loads?.[0];
+		if (load?.unit !== 'percent_assessment') return;
+		if (load.assessment_id === undefined && loadAssessments.length > 0) {
+			load.assessment_id = loadAssessments[0];
+		}
+	});
+
 	// Reps and duration are exclusive, so only the active one can be variable.
 	let variableField = $derived<'duration' | 'reps'>(isDuration ? 'duration' : 'reps');
 	let variableTarget = $derived(item.variable_targets?.[variableField]);

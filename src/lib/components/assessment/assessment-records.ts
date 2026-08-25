@@ -55,20 +55,7 @@ export function groupRecordedAssessments(assessments: AssessmentResponse[]): Rec
 	});
 }
 
-const UNIT_LABELS: Record<string, string> = {
-	kilograms: 'kg',
-	seconds: 's',
-	repetitions: 'reps'
-};
-
-export function unitLabel(unit: string): string {
-	return UNIT_LABELS[unit] ?? '';
-}
-
-export function formatRecordValue(value: number | null | undefined, unit: string): string {
-	if (value === null || value === undefined) return '--';
-	return unit === 'kilograms' ? value.toFixed(1) : value.toFixed(0);
-}
+export { unitLabel, formatUnitValue as formatRecordValue } from '$lib/assessments';
 
 // The single number a non per hand assessment records. It is stored on the right
 // hand, the left staying empty, so either side answers for it.

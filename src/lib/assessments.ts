@@ -19,6 +19,25 @@ const UNIT_SUFFIXES: Record<AssessmentUnit, string> = {
 	repetitions: ' reps'
 };
 
+// The short form used on a card or a chart axis, where the number sits beside it
+// rather than after it.
+const UNIT_LABELS: Record<string, string> = {
+	kilograms: 'kg',
+	seconds: 's',
+	repetitions: 'reps'
+};
+
+export function unitLabel(unit: string): string {
+	return UNIT_LABELS[unit] ?? '';
+}
+
+// A measured number in its unit's precision: kilograms read to a decimal, a
+// count of seconds or repetitions does not.
+export function formatUnitValue(value: number | null | undefined, unit: string): string {
+	if (value === null || value === undefined) return '--';
+	return unit === 'kilograms' ? value.toFixed(1) : value.toFixed(0);
+}
+
 export interface AssessmentTypeInfo {
 	label: string;
 	unit: AssessmentUnit;
@@ -27,7 +46,7 @@ export interface AssessmentTypeInfo {
 }
 
 function formatFor(unit: AssessmentUnit): (v: number) => string {
-	return unit === 'kilograms' ? (v) => v.toFixed(1) : (v) => v.toFixed(0);
+	return (v) => formatUnitValue(v, unit);
 }
 
 // Every assessment a page can name, keyed by the id both a result row and a
@@ -36,8 +55,6 @@ function formatFor(unit: AssessmentUnit): (v: number) => string {
 // coach's own. Built once from data the page already has, then handed to the
 // functions below, so nothing in this module fetches.
 export type AssessmentCatalog = Record<string, AssessmentTypeInfo>;
-
-export const EMPTY_CATALOG: AssessmentCatalog = {};
 
 export function buildAssessmentCatalog(
 	definitions: Pick<AssessmentDefinition, 'id' | 'label' | 'unit' | 'per_hand'>[]
@@ -90,10 +107,6 @@ export function assessmentUnitLabel(id: string | undefined, catalog: AssessmentC
 	return unit ? UNIT_SUFFIXES[unit] : '';
 }
 
-export function assessmentIsPerHand(id: string | undefined, catalog: AssessmentCatalog): boolean {
-	return id === undefined ? false : (catalog[id]?.perHand ?? false);
-}
-
 export function formatAssessmentValue(
 	value: number,
 	id: string,
@@ -101,17 +114,6 @@ export function formatAssessmentValue(
 ): string {
 	const info = catalog[id];
 	return info ? info.format(value) : String(value);
-}
-
-// A measured value with its unit, e.g. "14 reps" or "48.0 kg".
-export function formatAssessmentValueWithUnit(
-	value: number,
-	id: string,
-	catalog: AssessmentCatalog
-): string {
-	const info = catalog[id];
-	if (!info) return String(value);
-	return `${info.format(value)}${UNIT_SUFFIXES[info.unit]}`;
 }
 
 // Human-readable load, e.g. "80% Max force", "35 kg" or "MAX".

@@ -1449,6 +1449,111 @@ test.describe('custom assessments', () => {
 		});
 	});
 
+	test('refuses to save an assessment with no question', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		const created = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Nameless test');
+		await page.getByLabel('This training is an assessment').check();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(
+			page.getByText('An assessment needs a question for the athlete to answer.')
+		).toBeVisible();
+		// Refused before the training is created, so no orphan is left behind for
+		// the retry to duplicate.
+		expect(created).toHaveLength(0);
+	});
+
+	test('renames an assessment already on a training', async ({ page }) => {
+		const training = testTraining({
+			assessment: {
+				id: 'assessment-9',
+				label: 'Pull up pyramid',
+				prompt: 'How many?',
+				unit: 'repetitions',
+				per_hand: false,
+				unit_locked: false
+			}
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/assessment-definitions/*', {
+			body: testAssessmentDefinition({ id: 'assessment-9' })
+		});
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/assessment-definitions/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByPlaceholder('How many pull ups did you do?').fill('How many in total?');
+		await saveTraining(page);
+
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({ prompt: 'How many in total?' });
+	});
+
+	// The unit says what every past number means and what a prescription reads
+	// against, so the server locks it and the editor says so instead of letting
+	// the coach try.
+	test('fixes the unit once the assessment is in use', async ({ page }) => {
+		const training = testTraining({
+			assessment: {
+				id: 'assessment-9',
+				label: 'Pull up pyramid',
+				prompt: 'How many?',
+				unit: 'repetitions',
+				per_hand: false,
+				unit_locked: true
+			}
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByText('This assessment is already in use')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Seconds' })).toBeDisabled();
+		await expect(page.getByLabel('Measured on each hand separately')).toBeDisabled();
+	});
+
+	// Removing the assessment deletes the definition, which any training
+	// prescribing a percentage of it then cannot resolve.
+	test('asks before removing an assessment from a training', async ({ page }) => {
+		const training = testTraining({
+			assessment: {
+				id: 'assessment-9',
+				label: 'Pull up pyramid',
+				prompt: 'How many?',
+				unit: 'repetitions',
+				per_hand: false,
+				unit_locked: false
+			}
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stub(page, 'DELETE', '/api/assessment-definitions/*', {
+			body: { message: 'gone' }
+		});
+		await stubEditorPalette(page);
+		const deletes = capture(page, 'DELETE', '/api/assessment-definitions/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByLabel('This training is an assessment').uncheck();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Stop measuring this?')).toBeVisible();
+		expect(deletes).toHaveLength(0);
+
+		await page.getByRole('button', { name: 'Remove the assessment' }).click();
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(deletes).toHaveLength(1);
+	});
+
 	// A reps target had no assessment it could reference while the only ones were
 	// the three Crimpy ships, none of which counts repetitions, so the control was
 	// hidden. A custom assessment in repetitions is what turns it on.
