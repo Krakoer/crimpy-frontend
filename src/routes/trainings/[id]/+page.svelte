@@ -23,14 +23,10 @@
 	import { isSortable } from '@dnd-kit/svelte/sortable';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import {
-		applyHangboardDefaults,
-		applyHangboardRepDefaults,
-		isHangboardItem,
-		saneCount
-	} from '$lib/components/training/hangboard-granularity';
+	import { isHangboardItem, saneCount } from '$lib/components/training/hangboard-granularity';
 	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
 	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
+	import { createTrainingItem } from '$lib/components/training/create-item';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
 
@@ -231,7 +227,11 @@
 			if (!isValidMove({ type } as TrainingItem, targetContainerId)) return;
 			const container = findContainerArray(draft.items, targetContainerId);
 			if (!container) return;
-			container.splice(Math.min(insertIndex, container.length), 0, createNewItem(type, exerciseId));
+			container.splice(
+				Math.min(insertIndex, container.length),
+				0,
+				createTrainingItem(type, exerciseId)
+			);
 			if (type === 'exercise' && exerciseId) {
 				const ex = sidebarResults.find((e) => e.id === exerciseId);
 				if (ex && !exercises.find((e) => e.id === exerciseId)) exercises.push(ex);
@@ -409,33 +409,12 @@
 		loadSidebarExercises();
 	}
 
-	function createNewItem(type: TrainingItemType, exerciseId?: string): TrainingItem {
-		const base: TrainingItem = { type, _id: crypto.randomUUID() };
-		if (type === 'exercise') {
-			base.exercise_id = exerciseId;
-			base.reps = 1;
-			base.rest_seconds = 0;
-		} else if (type === 'circuit') {
-			base.cycles = 3;
-			base.cycle_rest_seconds = 120;
-			base.items = [];
-		} else if (type === 'group') {
-			base.group_title = 'Group';
-			base.items = [];
-		} else if (type === 'repeater') {
-			applyHangboardDefaults(base);
-		} else if (type === 'hangboard_rep') {
-			applyHangboardRepDefaults(base);
-		}
-		return base;
-	}
-
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		if (draft.training_type === 'stretching') {
 			if (type === 'group' || type === 'repeater' || type === 'hangboard_rep') return;
 			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
 		}
-		draft.items.push(createNewItem(type, exerciseId));
+		draft.items.push(createTrainingItem(type, exerciseId));
 	}
 
 	onMount(() => {
