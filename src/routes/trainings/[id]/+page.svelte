@@ -118,16 +118,25 @@
 
 	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
 		if (draft.training_type === 'stretching') {
-			if (movedItem.type === 'group' || isHangboardItem(movedItem)) return false;
+			if (movedItem.type === 'group' || movedItem.type === 'emom' || isHangboardItem(movedItem))
+				return false;
 			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit'))
 				return false;
 		}
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
-		if (movedItem.type === 'group') {
+		// The two containers that nest do so in one place each: a group inside a
+		// root circuit, an emom inside a group. Anywhere else is a block on a
+		// clock inside rounds that are not, or a container the child rules refuse.
+		const nestsInside: Partial<Record<TrainingItemType, TrainingItemType>> = {
+			group: 'circuit',
+			emom: 'group'
+		};
+		const parentType = nestsInside[movedItem.type];
+		if (parentType) {
 			const containerItemId = targetContainerId.slice(10);
 			const containerItem = findItemById(draft.items, containerItemId);
-			return containerItem?.type === 'circuit';
+			return containerItem?.type === parentType;
 		}
 		return true;
 	}
@@ -433,7 +442,8 @@
 
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
 		if (draft.training_type === 'stretching') {
-			if (type === 'group' || type === 'repeater' || type === 'hangboard_rep') return;
+			if (type === 'group' || type === 'repeater' || type === 'hangboard_rep' || type === 'emom')
+				return;
 			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
 		}
 		draft.items.push(createTrainingItem(type, exerciseId));
@@ -852,7 +862,7 @@
 							? draft.items.some((i) => i.type === 'circuit')
 								? ['exercise']
 								: ['exercise', 'circuit']
-							: ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep']}
+							: ['exercise', 'circuit', 'emom', 'group', 'repeater', 'hangboard_rep']}
 						innerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
 					/>
 				</div>

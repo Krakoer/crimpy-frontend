@@ -5,6 +5,7 @@
 	import HangboardItemView from './HangboardItemView.svelte';
 	import HangboardRepItemView from './HangboardRepItemView.svelte';
 	import CircuitItemView from './CircuitItemView.svelte';
+	import EmomItemView from './EmomItemView.svelte';
 	import GroupItemView from './GroupItemView.svelte';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
@@ -65,6 +66,8 @@
 			<HangboardRepItemView {item} {catalog} />
 		{:else if item.type === 'circuit'}
 			<CircuitItemView {item} {exercises} {catalog} {depth} />
+		{:else if item.type === 'emom'}
+			<EmomItemView {item} {exercises} {catalog} {depth} />
 		{:else if item.type === 'group'}
 			<GroupItemView {item} {exercises} {catalog} {depth} />
 		{/if}
