@@ -24,6 +24,9 @@ export const assessmentCatalog = {
 	get custom(): AssessmentDefinition[] {
 		return definitions.filter((definition) => !definition.is_builtin);
 	},
+	// Best effort: a page that cannot load the catalog still works, naming an
+	// assessment generically rather than failing to render, so the caller is
+	// never handed a rejection to guard against.
 	async load(): Promise<void> {
 		if (loaded) return;
 		// Two components mounting together must not each fetch the list.
@@ -33,6 +36,7 @@ export const assessmentCatalog = {
 				definitions = list;
 				loaded = true;
 			})
+			.catch(() => {})
 			.finally(() => {
 				inFlight = null;
 			});

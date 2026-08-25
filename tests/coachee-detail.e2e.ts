@@ -1,13 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	BUILTIN_MAX_FORCE,
 	capture,
 	mockApi,
 	signIn,
 	stub,
+	testAssessmentRecord,
 	testEnrolledUser,
+	testPrescription,
 	testProgram,
 	testRepData,
-	testPrescription,
 	testSession,
 	testSessionDetail,
 	testUser
@@ -69,11 +71,7 @@ test.describe('coachee detail', () => {
 		await page.goto('/coachees/coachee-1');
 
 		await page.getByRole('button', { name: /^Assessments/ }).click();
-		await expect(
-			page.getByText(
-				'No assessment records yet. Assessments are recorded through the Crimpy mobile app.'
-			)
-		).toBeVisible();
+		await expect(page.getByText('No assessment records yet.')).toBeVisible();
 
 		await page.getByRole('button', { name: /^Notes/ }).click();
 		await expect(page.getByText('Notes coming soon')).toBeVisible();
@@ -216,7 +214,7 @@ test.describe('session details', () => {
 		// The item hangs both hands at once, which the app puts on the gauge as 85%
 		// of the mean of the two results frozen with the session, 40 kg and 38 kg.
 		// One number, because one number is what the athlete was asked to hold.
-		await expect(dialog.getByText('85% Max force (load)')).toBeVisible();
+		await expect(dialog.getByText('85% Max Force (load)')).toBeVisible();
 		await expect(dialog.getByText('33.1 kg')).toBeVisible();
 		await expect(dialog.getByText('R 34.0 kg')).toBeHidden();
 		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
@@ -242,9 +240,21 @@ test.describe('session details', () => {
 						hand: 'split',
 						granularity: 'uniform',
 						edge_sizes_mm: [20],
-						loads: [{ value: 85, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }],
+						loads: [
+							{
+								value: 85,
+								unit: 'percent_assessment',
+								assessment_id: BUILTIN_MAX_FORCE,
+								fallback: 30
+							}
+						],
 						left_loads: [
-							{ value: 80, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }
+							{
+								value: 80,
+								unit: 'percent_assessment',
+								assessment_id: BUILTIN_MAX_FORCE,
+								fallback: 30
+							}
 						]
 					}
 				]
@@ -262,9 +272,9 @@ test.describe('session details', () => {
 		const dialog = page.getByRole('dialog');
 		// 85% of the right hand's 40 kg, and 80% of the left hand's 38 kg. Neither
 		// hand is shown the percentage the other one was asked for.
-		await expect(dialog.getByText('85% Max force (load)')).toBeVisible();
+		await expect(dialog.getByText('85% Max Force (load)')).toBeVisible();
 		await expect(dialog.getByText('R 34.0 kg')).toBeVisible();
-		await expect(dialog.getByText('80% Max force (load)')).toBeVisible();
+		await expect(dialog.getByText('80% Max Force (load)')).toBeVisible();
 		await expect(dialog.getByText('L 30.4 kg')).toBeVisible();
 		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
 		await expect(dialog.getByText('R 32.0 kg')).toBeHidden();
@@ -281,7 +291,14 @@ test.describe('session details', () => {
 			cycle_rest_seconds: 120,
 			granularity: 'uniform' as const,
 			edge_sizes_mm: [20],
-			loads: [{ value: 85, unit: 'percent_assessment' as const, assessment_type: 1, fallback: 30 }]
+			loads: [
+				{
+					value: 85,
+					unit: 'percent_assessment' as const,
+					assessment_id: BUILTIN_MAX_FORCE,
+					fallback: 30
+				}
+			]
 		};
 		const prescribed = testSession({
 			...crimpySession,
@@ -994,5 +1011,99 @@ test.describe('programs tab', () => {
 		await expect(page.getByText('Program deleted')).toBeVisible();
 		await expect(page.getByText('No programs yet.')).toBeVisible();
 		expect(deletes).toHaveLength(1);
+	});
+});
+
+test.describe('assessment results', () => {
+	// A pull up count is one number. Labelling it "right hand" would be a lie the
+	// legend then repeats, so the card shows a single value.
+	test('shows a single value for an assessment not measured per hand', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({
+					id: 'record-1',
+					assessment_id: 'assessment-9',
+					label: 'Pull up pyramid',
+					unit: 'repetitions',
+					per_hand: false,
+					training_id: 'training-8',
+					grip_position: null,
+					right_value: 14,
+					left_value: null
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('Pull up pyramid')).toBeVisible();
+		await expect(results.getByText('LATEST')).toBeVisible();
+		await expect(results.getByText('14', { exact: true })).toBeVisible();
+		// No hand labels, and no grip: neither means anything for a pull up count.
+		await expect(results.getByText('LEFT', { exact: true })).toBeHidden();
+		await expect(results.getByText('RIGHT', { exact: true })).toBeHidden();
+		await expect(results.getByText('Half crimp')).toBeHidden();
+	});
+
+	test('keeps the hands apart for an assessment measured per hand', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({
+					id: 'record-1',
+					assessment_id: 'assessment-9',
+					label: 'One arm lock off',
+					unit: 'seconds',
+					per_hand: true,
+					training_id: 'training-8',
+					grip_position: null,
+					right_value: 3,
+					left_value: 6
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('One arm lock off')).toBeVisible();
+		await expect(results.getByText('LEFT', { exact: true })).toBeVisible();
+		await expect(results.getByText('RIGHT', { exact: true })).toBeVisible();
+		await expect(results.getByText('6', { exact: true })).toBeVisible();
+		await expect(results.getByText('3', { exact: true })).toBeVisible();
+	});
+
+	// The section list follows what was measured rather than a fixed set of
+	// assessments, so a coach's own appears beside the ones Crimpy ships.
+	test('lists a builtin and a custom assessment together', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({ id: 'record-1' }),
+				testAssessmentRecord({
+					id: 'record-2',
+					assessment_id: 'assessment-9',
+					label: 'Pull up pyramid',
+					unit: 'repetitions',
+					per_hand: false,
+					training_id: 'training-8',
+					grip_position: null,
+					right_value: 14,
+					left_value: null
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		await expect(page.getByText('2 records')).toBeVisible();
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('Max Force')).toBeVisible();
+		await expect(results.getByText('Pull up pyramid')).toBeVisible();
 	});
 });

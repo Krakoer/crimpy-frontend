@@ -53,6 +53,7 @@
 </script>
 
 <div
+	role="listitem"
 	style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); padding: 20px; box-shadow: var(--sh);"
 >
 	<div

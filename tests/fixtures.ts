@@ -11,6 +11,91 @@ import type { Page } from '@playwright/test';
  */
 export const API_URL = 'http://api.test';
 
+/**
+ * The assessments Crimpy ships, seeded by the backend migration. They are rows
+ * like a coach's own, so a test names one by its id.
+ */
+export const BUILTIN_CRITICAL_FORCE = '55970ac0-4544-4945-80cd-4841f7c58fe5';
+export const BUILTIN_MAX_FORCE = 'f7954158-63ba-4f0b-a125-6ef195fa6442';
+export const BUILTIN_ENDURANCE_60 = '493acbdd-6fe7-4f25-987c-575ccf433293';
+
+export interface TestAssessmentDefinition {
+	id: string;
+	label: string;
+	unit: string;
+	prompt?: string;
+	training_id?: string;
+	per_hand: boolean;
+	is_builtin: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export function testAssessmentDefinition(
+	overrides: Partial<TestAssessmentDefinition> = {}
+): TestAssessmentDefinition {
+	return {
+		id: BUILTIN_MAX_FORCE,
+		label: 'Max Force',
+		unit: 'kilograms',
+		per_hand: true,
+		is_builtin: true,
+		created_at: isoDaysAgo(90),
+		updated_at: isoDaysAgo(90),
+		...overrides
+	};
+}
+
+// The three builtins, as GET /api/assessment-definitions returns them.
+export function builtinAssessmentDefinitions(): TestAssessmentDefinition[] {
+	return [
+		testAssessmentDefinition({ id: BUILTIN_CRITICAL_FORCE, label: 'Critical Force' }),
+		testAssessmentDefinition({ id: BUILTIN_MAX_FORCE, label: 'Max Force' }),
+		testAssessmentDefinition({
+			id: BUILTIN_ENDURANCE_60,
+			label: '60% Endurance',
+			unit: 'seconds'
+		})
+	];
+}
+
+export interface TestAssessmentRecord {
+	id: string;
+	user_id: string;
+	assessment_id: string;
+	label: string;
+	unit: string;
+	per_hand: boolean;
+	training_id?: string;
+	right_value: number | null;
+	left_value: number | null;
+	session_id: string;
+	grip_position?: number | null;
+	updated_at: string;
+	session_date: string;
+}
+
+export function testAssessmentRecord(
+	overrides: Partial<TestAssessmentRecord> = {}
+): TestAssessmentRecord {
+	const updated = overrides.updated_at ?? isoDaysAgo(7);
+	return {
+		id: 'assessment-1',
+		user_id: 'coachee-1',
+		assessment_id: BUILTIN_MAX_FORCE,
+		label: 'Max Force',
+		unit: 'kilograms',
+		per_hand: true,
+		right_value: 42,
+		left_value: 40,
+		session_id: 'session-1',
+		grip_position: 0,
+		updated_at: updated,
+		session_date: updated,
+		...overrides
+	};
+}
+
 export interface TestUser {
 	id: string;
 	email: string;
@@ -355,7 +440,7 @@ export interface TestPrescription {
 	coach_notes?: string | null;
 	program_session_id?: string | null;
 	items: unknown[];
-	resolved_against: { assessments: unknown[] };
+	resolved_against: { assessments: unknown[]; definitions?: unknown[] };
 }
 
 export function testPrescription(overrides: Partial<TestPrescription> = {}): TestPrescription {
@@ -377,11 +462,24 @@ export function testPrescription(overrides: Partial<TestPrescription> = {}): Tes
 				hand: 'both',
 				granularity: 'uniform',
 				edge_sizes_mm: [20],
-				loads: [{ value: 85, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }]
+				loads: [
+					{ value: 85, unit: 'percent_assessment', assessment_id: BUILTIN_MAX_FORCE, fallback: 30 }
+				]
 			}
 		],
-		// Max force, measured before the session was played.
-		resolved_against: { assessments: [{ type: 1, right_value: 40, left_value: 38 }] },
+		// Max force, measured before the session was played, with the assessment it
+		// names frozen beside it the way the server sends it.
+		resolved_against: {
+			assessments: [{ assessment_id: BUILTIN_MAX_FORCE, right_value: 40, left_value: 38 }],
+			definitions: [
+				{
+					id: BUILTIN_MAX_FORCE,
+					label: 'Max Force',
+					unit: 'kilograms',
+					per_hand: true
+				}
+			]
+		},
 		...overrides
 	};
 }

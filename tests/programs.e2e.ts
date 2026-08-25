@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
+	BUILTIN_MAX_FORCE,
+	builtinAssessmentDefinitions,
 	capture,
 	mockApi,
 	signIn,
@@ -41,6 +43,9 @@ test('breadcrumbs back to the coachee', async ({ page }) => {
 	await stubProgram(page);
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [] });
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: builtinAssessmentDefinitions()
+	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs', { body: [testProgram()] });
 
 	await page.goto(PROGRAM_URL);
@@ -114,6 +119,9 @@ test('deletes the program only after the confirmation step', async ({ page }) =>
 	await stub(page, 'DELETE', '/api/coach/clients/*/programs/*', { body: { message: 'gone' } });
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [] });
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: builtinAssessmentDefinitions()
+	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs', { body: [] });
 	const deletes = capture(page, 'DELETE', '/api/coach/clients/*/programs/*');
 
@@ -235,6 +243,9 @@ test('warns when a dropped training needs an assessment the coachee has not done
 }) => {
 	await stubProgram(page);
 	await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [] });
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: builtinAssessmentDefinitions()
+	});
 	await stub(page, 'GET', '/api/trainings/*', {
 		body: testTraining({
 			items: [
@@ -242,7 +253,14 @@ test('warns when a dropped training needs an assessment the coachee has not done
 					id: 'item-1',
 					type: 'hangboard_rep',
 					position: 0,
-					loads: [{ value: 80, unit: 'percent_assessment', assessment_type: 1, fallback: 30 }]
+					loads: [
+						{
+							value: 80,
+							unit: 'percent_assessment',
+							assessment_id: BUILTIN_MAX_FORCE,
+							fallback: 30
+						}
+					]
 				}
 			]
 		})
@@ -258,7 +276,7 @@ test('warns when a dropped training needs an assessment the coachee has not done
 		page.getByTestId('cell:1:0')
 	);
 
-	await expect(page.getByText(/has not done Max force yet/)).toBeVisible();
+	await expect(page.getByText(/has not done Max Force yet/)).toBeVisible();
 });
 
 /** A week whose only session is the row a played session would point at. */

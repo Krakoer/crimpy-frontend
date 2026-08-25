@@ -1072,6 +1072,8 @@
 						</div>
 					{:else}
 						<div
+							role="list"
+							aria-label="Assessment results"
 							style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;"
 						>
 							{#each recordedAssessments as assessment (assessment.id)}
