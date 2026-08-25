@@ -1,5 +1,7 @@
 <script lang="ts">
-	import type { PrescriptionSnapshot } from '$lib/api/client';
+	import type { PrescriptionSnapshot, SessionItemResult } from '$lib/api/client';
+	import { setContext } from 'svelte';
+	import { ITEM_RESULTS_KEY, groupResultsByItem } from '$lib/components/training/results-context';
 	import {
 		assessmentLabel,
 		buildAssessmentCatalog,
@@ -12,9 +14,26 @@
 
 	interface Props {
 		prescription: PrescriptionSnapshot;
+		// What the run answered the open items with. Handed to the tree through
+		// context so every list and container in between stays unaware of it.
+		itemResults?: SessionItemResult[];
 	}
 
-	let { prescription }: Props = $props();
+	let { prescription, itemResults = [] }: Props = $props();
+
+	// The grouping is rebuilt in place rather than reassigned, since context is
+	// read once when a child mounts: replacing the object would leave the tree
+	// holding the one it was given at first render.
+	const resultsByItem = $state<Record<string, SessionItemResult[]>>({});
+	setContext(ITEM_RESULTS_KEY, resultsByItem);
+
+	$effect(() => {
+		const grouped = groupResultsByItem(itemResults);
+		for (const key of Object.keys(resultsByItem)) {
+			if (!(key in grouped)) delete resultsByItem[key];
+		}
+		Object.assign(resultsByItem, grouped);
+	});
 
 	// The percentages the coach prescribed, read against the results frozen with
 	// the session. Without this a load reads as "85% Max force", which is the one

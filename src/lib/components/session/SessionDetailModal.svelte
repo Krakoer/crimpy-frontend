@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { RepData, SessionAssessment, SessionDetail, SessionResponse } from '$lib/api/client';
+	import type {
+		RepData,
+		SessionAssessment,
+		SessionDetail,
+		SessionItemResult,
+		SessionResponse
+	} from '$lib/api/client';
 	import { formatUnitValue, unitLabel } from '$lib/assessments';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
@@ -38,6 +44,10 @@
 	// say so rather than the session looking like a hand-written log.
 	const hasRepData = $derived(reps.length > 0 || detail.origin === 'played');
 	const assessments = $derived<SessionAssessment[]>(loaded?.assessments ?? []);
+	// The counts the run resolved for the items the prescription left open, shown
+	// against those items rather than in a list of their own: a bare number is
+	// only readable next to what it was answering.
+	const itemResults = $derived<SessionItemResult[]>(loaded?.item_results ?? []);
 	const type = $derived(sessionActivityInfo(detail.activity));
 
 	onMount(async () => {
@@ -194,7 +204,7 @@
 				     set short. What each rep was aiming at is already on the rep
 				     itself, through target_weight in the card above. -->
 				{#if detail.prescription}
-					<SessionPrescriptionCard prescription={detail.prescription} />
+					<SessionPrescriptionCard prescription={detail.prescription} {itemResults} />
 				{:else if detail.origin === 'played'}
 					<div
 						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; font-size: 12.5px; color: var(--tx3);"
