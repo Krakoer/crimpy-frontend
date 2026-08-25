@@ -89,6 +89,15 @@
 		}
 	});
 
+	// An open rep count is the AMRAP: it prescribes no number, so it rules out
+	// both the fixed one and the percentage that would compute one.
+	let isAmrap = $derived(item.reps_is_max === true);
+
+	function setAmrap(on: boolean) {
+		item.reps_is_max = on;
+		if (on) toggleVariable('reps', false);
+	}
+
 	// Reps and duration are exclusive, so only the active one can be variable.
 	let variableField = $derived<'duration' | 'reps'>(isDuration ? 'duration' : 'reps');
 	let variableTarget = $derived(item.variable_targets?.[variableField]);
@@ -125,6 +134,7 @@
 		durationSec = 0;
 		item.reps = 0;
 		toggleVariable('reps', false);
+		item.reps_is_max = false;
 		isDuration = true;
 	}
 
@@ -161,6 +171,8 @@
 				const s = (item.duration ?? 0) % 60;
 				parts.push(m > 0 ? `${m}m${s > 0 ? s + 's' : ''}` : `${s}s`);
 			}
+		} else if (isAmrap) {
+			parts.push('AMRAP');
 		} else if (repsTarget) {
 			parts.push(`${repsTarget.percent}% ${assessmentLabel(repsTarget.assessment_id, catalog)}`);
 		} else {
@@ -284,7 +296,7 @@
 							: 'none'};">Duration</button
 					>
 				</div>
-				{#if variableTarget}
+				{#if variableTarget && !isAmrap}
 					<div style="display: flex; align-items: center; gap: 4px;">
 						<input
 							type="number"
@@ -306,7 +318,7 @@
 					</div>
 				{/if}
 				<div style="display: flex; align-items: center; gap: 4px;">
-					{#if variableTarget}
+					{#if variableTarget && !isAmrap}
 						<span
 							style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
 							>FALLBACK</span
@@ -332,6 +344,11 @@
 							/>
 							<span style="font-size: 10px; color: var(--tx3);">s</span>
 						</div>
+					{:else if isAmrap}
+						<span
+							style="font-size: 13px; font-weight: 700; color: var(--pr); padding: 5px 4px; white-space: nowrap;"
+							>As many as possible</span
+						>
 					{:else}
 						<input
 							type="number"
@@ -341,7 +358,25 @@
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
 					{/if}
-					{#if canBeVariable}
+					{#if !isDuration}
+						<button
+							data-testid="amrap-toggle"
+							onclick={(e) => {
+								e.stopPropagation();
+								setAmrap(!isAmrap);
+							}}
+							title={isAmrap
+								? 'Prescribe a rep count'
+								: 'Leave the rep count open, the athlete records what they managed'}
+							style="padding: 4px 8px; border-radius: 5px; border: 1px solid {isAmrap
+								? 'var(--pr)'
+								: 'var(--bd)'}; background: {isAmrap ? 'var(--pr-fog)' : '#fff'}; color: {isAmrap
+								? 'var(--pr)'
+								: 'var(--tx3)'}; font-size: 11px; font-weight: 700; cursor: pointer; font-family: var(--font);"
+							>AMRAP</button
+						>
+					{/if}
+					{#if canBeVariable && !isAmrap}
 						<button
 							onclick={(e) => {
 								e.stopPropagation();
