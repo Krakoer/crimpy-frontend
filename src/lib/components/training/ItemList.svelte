@@ -14,10 +14,12 @@
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import type { AssessmentCatalog } from '$lib/assessments';
 
 	interface Props {
 		items: TrainingItem[];
 		exercises: Exercise[];
+		catalog: AssessmentCatalog;
 		allowedTypes?: TrainingItemType[];
 		// What every container nested below may hold, when the training restricts
 		// it. Circuits and groups both honour it, and both pass it further down, so
@@ -30,6 +32,7 @@
 	let {
 		items = $bindable(),
 		exercises,
+		catalog,
 		allowedTypes = ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep'],
 		innerAllowedTypes,
 		depth = 0,
@@ -202,6 +205,7 @@
 			{#if item.type === 'exercise'}
 				<ExerciseItem
 					bind:item={items[i]}
+					{catalog}
 					{exercises}
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
@@ -209,12 +213,14 @@
 			{:else if item.type === 'repeater'}
 				<HangboardItem
 					bind:item={items[i]}
+					{catalog}
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 				/>
 			{:else if item.type === 'hangboard_rep'}
 				<HangboardRepItem
 					bind:item={items[i]}
+					{catalog}
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 				/>
@@ -222,6 +228,7 @@
 				<CircuitItem
 					bind:item={items[i]}
 					{exercises}
+					{catalog}
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 					{depth}
@@ -231,6 +238,7 @@
 				<GroupItem
 					bind:item={items[i]}
 					{exercises}
+					{catalog}
 					onRemove={() => removeItem(i)}
 					onDuplicate={() => duplicateItem(i)}
 					{depth}

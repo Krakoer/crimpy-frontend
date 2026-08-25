@@ -163,14 +163,28 @@ export interface PrescriptionInputs {
 	// Empty when the athlete had done no assessment, the case where the
 	// prescription falls back to the value the coach set.
 	assessments: AssessmentResultSnapshot[];
+	// The assessments the prescription references, as they read when the session
+	// was played. A reference with no result still has to be named and unit
+	// checked, and the definition stays editable afterwards.
+	definitions?: AssessmentDefinitionSnapshot[];
 }
 
 // The last value the athlete had measured for one assessment, per hand. A hand
 // never measured is absent rather than zero.
 export interface AssessmentResultSnapshot {
-	type: number;
+	assessment_id: string;
 	right_value?: number | null;
 	left_value?: number | null;
+}
+
+// An assessment as a prescription froze it: enough to name the reference and
+// check it drives a field measured in the same unit.
+export interface AssessmentDefinitionSnapshot {
+	id: string;
+	label: string;
+	prompt?: string | null;
+	unit: string;
+	per_hand: boolean;
 }
 
 export interface EnrolledUser {
@@ -194,12 +208,40 @@ export interface UserEnrollment {
 export interface SessionAssessment {
 	id: string;
 	user_id: string;
-	type: number;
+	// The assessment measured, with its definition as it reads now, so a result
+	// can be named and formatted without a second request.
+	assessment_id: string;
+	label: string;
+	unit: string;
+	per_hand: boolean;
+	// The training the assessment is run from, absent on the ones Crimpy ships.
+	training_id?: string | null;
 	right_value: number | null;
 	left_value: number | null;
 	session_id: string;
-	grip_position: number;
+	grip_position?: number | null;
 	updated_at: string;
+}
+
+// An assessment the caller may reference: one Crimpy ships, or one they wrote.
+export interface AssessmentDefinition {
+	id: string;
+	label: string;
+	unit: string;
+	prompt?: string | null;
+	training_id?: string | null;
+	per_hand: boolean;
+	is_builtin: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AssessmentDefinitionRequest {
+	training_id?: string;
+	label: string;
+	prompt: string;
+	unit: string;
+	per_hand: boolean;
 }
 
 // The session-scoped assessment joined with the date of the session it was
@@ -264,14 +306,14 @@ export interface Load {
 	// Set only on percent_assessment loads, where value carries the percentage:
 	// the assessment the load is relative to, and the kilograms to fall back on
 	// when the athlete has never done it.
-	assessment_type?: number;
+	assessment_id?: string;
 	fallback?: number;
 }
 
 // A scalar item field prescribed as a percentage of the athlete last result for
 // an assessment, falling back to a fixed value when the assessment is missing.
 export interface VariableTarget {
-	assessment_type: number;
+	assessment_id: string;
 	percent: number;
 	fallback: number;
 }
@@ -339,12 +381,18 @@ export interface TrainingSummary {
 	goal?: string;
 	comment?: string;
 	is_favorite?: boolean;
+	// Set when the training is a custom assessment: it is run like any training
+	// and ends on the question the prompt asks.
+	assessment?: AssessmentDefinitionSnapshot | null;
 	created_at: string;
 	updated_at: string;
 }
 
 export interface Training extends TrainingSummary {
 	items: TrainingItem[];
+	// The assessments the items reference, so a percentage can be named and unit
+	// checked without reading a definition the caller may not own.
+	referenced_assessments?: AssessmentDefinitionSnapshot[];
 }
 
 export interface TrainingRequest {
@@ -709,8 +757,38 @@ class ApiClient {
 		return this.requestList<Exercise>('/api/coach/exercises/favorites');
 	}
 
-	async getTrainings(): Promise<TrainingSummary[]> {
-		return this.requestList<TrainingSummary>('/api/trainings');
+	// isAssessment narrows the library: true for the custom assessments alone,
+	// false for the trainings that are not one, omitted for everything.
+	async getTrainings(isAssessment?: boolean): Promise<TrainingSummary[]> {
+		const query = isAssessment === undefined ? '' : `?is_assessment=${isAssessment}`;
+		return this.requestList<TrainingSummary>(`/api/trainings${query}`);
+	}
+
+	async getAssessmentDefinitions(): Promise<AssessmentDefinition[]> {
+		return this.requestList<AssessmentDefinition>('/api/assessment-definitions');
+	}
+
+	async createAssessmentDefinition(
+		data: AssessmentDefinitionRequest
+	): Promise<AssessmentDefinition> {
+		return this.request<AssessmentDefinition>('/api/assessment-definitions', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateAssessmentDefinition(
+		id: string,
+		data: AssessmentDefinitionRequest
+	): Promise<AssessmentDefinition> {
+		return this.request<AssessmentDefinition>(`/api/assessment-definitions/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteAssessmentDefinition(id: string): Promise<void> {
+		return this.request<void>(`/api/assessment-definitions/${id}`, { method: 'DELETE' });
 	}
 
 	async getTraining(id: string): Promise<Training> {

@@ -13,6 +13,13 @@
 		TrainingType
 	} from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
+	import type { AssessmentUnit } from '$lib/assessments';
+	import AssessmentDefinitionFields from '$lib/components/training/AssessmentDefinitionFields.svelte';
+	import {
+		emptyAssessmentDraft,
+		type AssessmentDraft
+	} from '$lib/components/training/assessment-draft';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import TrainingPreview from '$lib/components/training/TrainingPreview.svelte';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
@@ -264,8 +271,19 @@
 
 	// The toggle lives outside the draft yet decides what gets sent, so the dirty
 	// check has to cover it or ticking it alone would look already saved.
+	let assessment = $state<AssessmentDraft>(emptyAssessmentDraft());
+	// The definition already on file, so a save knows whether to create, update
+	// or remove it.
+	let savedAssessmentId = $state<string | null>(null);
+	// Set once results exist, which freezes the unit and the hands.
+	let assessmentMeasured = $state(false);
+
 	function currentSnapshot(): string {
-		return JSON.stringify({ draft: $state.snapshot(draft), logOnly });
+		return JSON.stringify({
+			draft: $state.snapshot(draft),
+			logOnly,
+			assessment: $state.snapshot(assessment)
+		});
 	}
 
 	let isDirty = $derived(savedSnapshot !== null && currentSnapshot() !== savedSnapshot);
@@ -433,6 +451,8 @@
 			return;
 		}
 
+		assessmentCatalog.load();
+
 		apiClient
 			.getTraining(trainingId)
 			.then(async (training) => {
@@ -461,6 +481,15 @@
 				// Having no items is what makes a training log only, so that is what
 				// the toggle is restored from rather than a flag of its own.
 				logOnly = items.length === 0;
+				if (training.assessment) {
+					savedAssessmentId = training.assessment.id;
+					assessment = {
+						enabled: true,
+						prompt: training.assessment.prompt ?? '',
+						unit: training.assessment.unit as AssessmentUnit,
+						perHand: training.assessment.per_hand
+					};
+				}
 				savedSnapshot = currentSnapshot();
 				loading = false;
 				if (draft.training_type === 'stretching') {
@@ -488,6 +517,7 @@
 				comment: draft.comment?.trim() || undefined,
 				items: logOnly ? [] : stripClientIds(draft.items)
 			});
+			await saveAssessmentDefinition(title);
 			savedSnapshot = currentSnapshot();
 			snackbar.show('Training saved');
 		} catch (e) {
@@ -495,6 +525,33 @@
 		} finally {
 			saving = false;
 		}
+	}
+
+	// The training and the assessment it measures are edited as one thing, so a
+	// save reconciles the definition with the toggle: created when it is turned
+	// on, removed when it is turned off, updated otherwise.
+	async function saveAssessmentDefinition(title: string) {
+		if (assessment.enabled) {
+			const payload = {
+				label: title,
+				prompt: assessment.prompt.trim(),
+				unit: assessment.unit,
+				per_hand: assessment.perHand
+			};
+			if (savedAssessmentId) {
+				await apiClient.updateAssessmentDefinition(savedAssessmentId, payload);
+			} else {
+				const created = await apiClient.createAssessmentDefinition({
+					...payload,
+					training_id: trainingId
+				});
+				savedAssessmentId = created.id;
+			}
+		} else if (savedAssessmentId) {
+			await apiClient.deleteAssessmentDefinition(savedAssessmentId);
+			savedAssessmentId = null;
+		}
+		await assessmentCatalog.refresh();
 	}
 
 	async function handleDelete() {
@@ -652,7 +709,7 @@
 				</div>
 			{/if}
 			{#if !logOnly}
-				<TrainingPreview items={draft.items} {exercises} />
+				<TrainingPreview items={draft.items} {exercises} catalog={assessmentCatalog.catalog} />
 			{/if}
 		</div>
 	{:else if !logOnly}
@@ -716,6 +773,9 @@
 								<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
 								Log only (nothing to run, the athlete just marks it as done)
 							</label>
+							<div style="margin-top: 10px;">
+								<AssessmentDefinitionFields bind:draft={assessment} measured={assessmentMeasured} />
+							</div>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
@@ -742,6 +802,7 @@
 					<ItemList
 						bind:items={draft.items}
 						{exercises}
+						catalog={assessmentCatalog.catalog}
 						allowedTypes={draft.training_type === 'stretching'
 							? draft.items.some((i) => i.type === 'circuit')
 								? ['exercise']
@@ -975,6 +1036,9 @@
 						<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
 						Log only (nothing to run, the athlete just marks it as done)
 					</label>
+					<div style="margin-top: 10px;">
+						<AssessmentDefinitionFields bind:draft={assessment} measured={assessmentMeasured} />
+					</div>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
 					<span

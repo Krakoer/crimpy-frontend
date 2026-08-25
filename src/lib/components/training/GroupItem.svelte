@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AssessmentCatalog } from '$lib/assessments';
 	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ItemList from './ItemList.svelte';
 	import { getContext } from 'svelte';
@@ -9,6 +10,7 @@
 	interface Props {
 		item: TrainingItem;
 		exercises: Exercise[];
+		catalog: AssessmentCatalog;
 		onRemove: () => void;
 		onDuplicate: () => void;
 		depth: number;
@@ -18,6 +20,7 @@
 	let {
 		item = $bindable(),
 		exercises,
+		catalog,
 		onRemove,
 		onDuplicate,
 		depth,
@@ -123,6 +126,7 @@
 				<ItemList
 					bind:items={item.items!}
 					{exercises}
+					{catalog}
 					allowedTypes={containerChildTypes('group', depth, innerAllowedTypes)}
 					{innerAllowedTypes}
 					depth={depth + 1}

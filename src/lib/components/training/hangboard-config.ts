@@ -1,5 +1,5 @@
 import type { Load, TrainingItem } from '$lib/api/client';
-import { formatLoad } from '$lib/assessments';
+import { formatLoad, type AssessmentCatalog } from '$lib/assessments';
 import {
 	hangboardGranularity,
 	hangboardHand,
@@ -376,16 +376,24 @@ export function commonConfig(item: TrainingItem): RepConfig {
 
 // The two lines a rep shows in the session map: its edge, then its grip and
 // load, split per hand only when the hands differ.
-export function configLines(config: RepConfig, twoHanded: boolean): [string, string] {
-	const right = `${config.gripRight} ${formatLoad(config.loadRight)}`;
+export function configLines(
+	config: RepConfig,
+	twoHanded: boolean,
+	catalog: AssessmentCatalog
+): [string, string] {
+	const right = `${config.gripRight} ${formatLoad(config.loadRight, catalog)}`;
 	if (!twoHanded) return [`${config.edge}mm`, right];
-	const left = `${config.gripLeft} ${formatLoad(config.loadLeft)}`;
+	const left = `${config.gripLeft} ${formatLoad(config.loadLeft, catalog)}`;
 	if (left === right) return [`${config.edge}mm`, right];
 	return [`${config.edge}mm`, `L ${left} / R ${right}`];
 }
 
-export function describeConfig(config: RepConfig, twoHanded: boolean): string {
-	const [edge, detail] = configLines(config, twoHanded);
+export function describeConfig(
+	config: RepConfig,
+	twoHanded: boolean,
+	catalog: AssessmentCatalog
+): string {
+	const [edge, detail] = configLines(config, twoHanded, catalog);
 	return `${edge}, ${detail}`;
 }
 
@@ -419,9 +427,10 @@ export function buildSessionMap(options: {
 	base: RepConfig;
 	twoHanded: boolean;
 	configAt: (address: number) => RepConfig;
+	catalog: AssessmentCatalog;
 	selected?: ReadonlySet<number>;
 }): SessionMapRow[] {
-	const { sets, reps, variation, base, twoHanded, configAt, selected } = options;
+	const { sets, reps, variation, base, twoHanded, configAt, catalog, selected } = options;
 	if (variation === 'uniform') return [];
 	const perSet = variation === 'set';
 	return Array.from({ length: sets }, (_, index) => {
@@ -433,7 +442,7 @@ export function buildSessionMap(options: {
 			steps: (perSet ? [start] : addresses).map((address, position) => {
 				const config = configAt(address);
 				const customised = !sameConfig(config, base, twoHanded);
-				const [edgeLine, detailLine] = configLines(config, twoHanded);
+				const [edgeLine, detailLine] = configLines(config, twoHanded, catalog);
 				return {
 					address,
 					selected: !!selected?.has(address),
@@ -444,8 +453,8 @@ export function buildSessionMap(options: {
 					edgeLine,
 					detailLine,
 					title: perSet
-						? `Set ${index + 1}: ${describeConfig(config, twoHanded)}`
-						: `Rep ${position + 1}: ${describeConfig(config, twoHanded)}`
+						? `Set ${index + 1}: ${describeConfig(config, twoHanded, catalog)}`
+						: `Rep ${position + 1}: ${describeConfig(config, twoHanded, catalog)}`
 				};
 			})
 		};

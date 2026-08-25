@@ -12,6 +12,12 @@
 		TrainingType
 	} from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
+	import AssessmentDefinitionFields from '$lib/components/training/AssessmentDefinitionFields.svelte';
+	import {
+		emptyAssessmentDraft,
+		type AssessmentDraft
+	} from '$lib/components/training/assessment-draft';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import { isHangboardItem } from '$lib/components/training/hangboard-granularity';
 	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
@@ -229,6 +235,7 @@
 	// step through and their app offers to log it as done instead of running it.
 	// Kept apart from the type, so any label can be either.
 	let logOnly = $state(false);
+	let assessment = $state<AssessmentDraft>(emptyAssessmentDraft());
 	let showCreateExerciseModal = $state(false);
 	let createExerciseModalDirty = $state(false);
 	let leavingAfterCreate = $state(false);
@@ -377,6 +384,7 @@
 		}
 
 		loadSidebarExercises();
+		assessmentCatalog.load();
 	});
 
 	async function handleSave() {
@@ -392,7 +400,17 @@
 				comment: draft.comment?.trim() || undefined,
 				items: logOnly ? [] : draft.items
 			});
-			snackbar.show('Training created');
+			if (assessment.enabled) {
+				await apiClient.createAssessmentDefinition({
+					training_id: training.id,
+					label: draft.title.trim(),
+					prompt: assessment.prompt.trim(),
+					unit: assessment.unit,
+					per_hand: assessment.perHand
+				});
+				await assessmentCatalog.refresh();
+			}
+			snackbar.show(assessment.enabled ? 'Assessment created' : 'Training created');
 			leavingAfterCreate = true;
 			goto(`/trainings/${training.id}`);
 		} catch (e) {
@@ -496,6 +514,9 @@
 								<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
 								Log only (nothing to run, the athlete just marks it as done)
 							</label>
+							<div style="margin-top: 10px;">
+								<AssessmentDefinitionFields bind:draft={assessment} />
+							</div>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
@@ -522,6 +543,7 @@
 					<ItemList
 						bind:items={draft.items}
 						{exercises}
+						catalog={assessmentCatalog.catalog}
 						allowedTypes={draft.training_type === 'stretching'
 							? draft.items.some((i) => i.type === 'circuit')
 								? ['exercise']
@@ -757,6 +779,9 @@
 						<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
 						Log only (nothing to run, the athlete just marks it as done)
 					</label>
+					<div style="margin-top: 10px;">
+						<AssessmentDefinitionFields bind:draft={assessment} />
+					</div>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
 					<span

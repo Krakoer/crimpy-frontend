@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { RepData, SessionAssessment, SessionDetail, SessionResponse } from '$lib/api/client';
-	import { ASSESSMENT_TYPES } from '$lib/assessments';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
 	import SessionPrescriptionCard from '$lib/components/session/SessionPrescriptionCard.svelte';
@@ -54,10 +53,18 @@
 		if (e.key === 'Escape') onClose();
 	}
 
-	function formatAssessmentValue(value: number | null, assessmentType: number): string {
-		if (value === null) return '--';
-		return ASSESSMENT_TYPES[assessmentType]?.format(value) ?? String(value);
+	// The result rows carry their own definition, so a value is formatted from the
+	// unit it was measured in without a catalog to look anything up in.
+	function formatValue(value: number | null | undefined, unit: string): string {
+		if (value === null || value === undefined) return '--';
+		return unit === 'kilograms' ? value.toFixed(1) : value.toFixed(0);
 	}
+
+	const UNIT_LABELS: Record<string, string> = {
+		kilograms: 'kg',
+		seconds: 's',
+		repetitions: 'reps'
+	};
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -215,35 +222,53 @@
 							</h3>
 						</div>
 						{#each assessments as assessment (assessment.id)}
-							{@const info = ASSESSMENT_TYPES[assessment.type]}
+							{@const unitLabel = UNIT_LABELS[assessment.unit] ?? ''}
 							<div
 								class="flex items-center justify-between"
 								style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);"
 							>
 								<div style="min-width: 0;">
 									<div style="font-size: 13px; font-weight: 600; color: var(--tx);">
-										{info?.label ?? 'Assessment'}
+										{assessment.label}
 									</div>
-									<div style="font-size: 11.5px; color: var(--tx3);">
-										{gripLabel(assessment.grip_position)}
-									</div>
+									<!-- A grip only means something on a hangboard assessment, which is
+									     what the builtins are. A pull up count has no grip. -->
+									{#if !assessment.training_id}
+										<div style="font-size: 11.5px; color: var(--tx3);">
+											{gripLabel(assessment.grip_position ?? 0)}
+										</div>
+									{/if}
 								</div>
 								<div class="flex gap-6" style="flex-shrink: 0;">
-									{#each [{ hand: 'Left', value: assessment.left_value, color: 'var(--gn)' }, { hand: 'Right', value: assessment.right_value, color: 'var(--pl)' }] as side (side.hand)}
-										<div style="text-align: right;">
-											<div
-												style="font-size: 10px; font-weight: 700; color: {side.color}; letter-spacing: 0.06em; text-transform: uppercase;"
-											>
-												{side.hand}
+									{#if assessment.per_hand}
+										{#each [{ hand: 'Left', value: assessment.left_value, color: 'var(--gn)' }, { hand: 'Right', value: assessment.right_value, color: 'var(--pl)' }] as side (side.hand)}
+											<div style="text-align: right;">
+												<div
+													style="font-size: 10px; font-weight: 700; color: {side.color}; letter-spacing: 0.06em; text-transform: uppercase;"
+												>
+													{side.hand}
+												</div>
+												<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
+													{formatValue(side.value, assessment.unit)}
+													<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
+														>{unitLabel}</span
+													>
+												</div>
 											</div>
+										{/each}
+									{:else}
+										<div style="text-align: right;">
 											<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
-												{formatAssessmentValue(side.value, assessment.type)}
+												{formatValue(
+													assessment.right_value ?? assessment.left_value,
+													assessment.unit
+												)}
 												<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
-													>{info?.unit ?? ''}</span
+													>{unitLabel}</span
 												>
 											</div>
 										</div>
-									{/each}
+									{/if}
 								</div>
 							</div>
 						{/each}

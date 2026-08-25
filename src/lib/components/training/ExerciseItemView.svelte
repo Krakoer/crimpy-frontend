@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AssessmentCatalog } from '$lib/assessments';
 	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import { assessmentLabel, formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
@@ -7,10 +8,11 @@
 
 	interface Props {
 		item: TrainingItem;
+		catalog: AssessmentCatalog;
 		exercises: Exercise[];
 	}
 
-	let { item, exercises }: Props = $props();
+	let { item, exercises, catalog }: Props = $props();
 
 	let collapsed = $state(false);
 
@@ -38,7 +40,9 @@
 	let collapsedSummary = $derived.by(() => {
 		const parts: string[] = [];
 		if (variableTarget) {
-			parts.push(`${variableTarget.percent}% ${assessmentLabel(variableTarget.assessment_type)}`);
+			parts.push(
+				`${variableTarget.percent}% ${assessmentLabel(variableTarget.assessment_id, catalog)}`
+			);
 		} else if (isDuration) {
 			parts.push(fmtTime(item.duration ?? 0));
 		} else {
@@ -48,7 +52,7 @@
 		if (rest > 0) parts.push(`${rest}s rest`);
 		const load = item.loads?.[0];
 		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
-			parts.push(formatLoad(load));
+			parts.push(formatLoad(load, catalog));
 		}
 		return parts.join(' · ');
 	});
@@ -112,7 +116,7 @@
 				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
 					{#if variableTarget}
-						{variableTarget.percent}% {assessmentLabel(variableTarget.assessment_type)}
+						{variableTarget.percent}% {assessmentLabel(variableTarget.assessment_id, catalog)}
 					{:else}
 						{isDuration ? fmtTime(item.duration ?? 0) : (item.reps ?? 1)}
 					{/if}
@@ -131,7 +135,7 @@
 						>LOAD</span
 					>
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-						{formatLoad(item.loads[0])}
+						{formatLoad(item.loads[0], catalog)}
 					</span>
 					{#if item.loads[0].unit === 'percent_assessment'}
 						<span style="font-size: 10px; color: var(--tx3);">

@@ -1,0 +1,70 @@
+import type { AssessmentResponse } from '$lib/api/client';
+
+// One assessment the athlete has records for, with its definition taken from the
+// rows themselves, so the coachee page needs no catalog of its own.
+export interface RecordedAssessment {
+	id: string;
+	label: string;
+	unit: string;
+	perHand: boolean;
+	// A grip only means something on a hangboard assessment, which is what the
+	// ones Crimpy ships are. A pull up count is not held on an edge.
+	hasGrips: boolean;
+	records: AssessmentResponse[];
+}
+
+function byDateAscending(a: AssessmentResponse, b: AssessmentResponse): number {
+	return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+}
+
+// Groups the athlete's results by the assessment they measure, ordered so the
+// ones Crimpy ships come first and the coach's own follow by label. Driven by
+// what was actually recorded rather than by a fixed list, so a coach's
+// assessment appears the moment it is first measured.
+export function groupRecordedAssessments(assessments: AssessmentResponse[]): RecordedAssessment[] {
+	const byId = new Map<string, RecordedAssessment>();
+	for (const record of assessments) {
+		const existing = byId.get(record.assessment_id);
+		if (existing) {
+			existing.records.push(record);
+			continue;
+		}
+		byId.set(record.assessment_id, {
+			id: record.assessment_id,
+			label: record.label,
+			unit: record.unit,
+			perHand: record.per_hand,
+			hasGrips: !record.training_id,
+			records: [record]
+		});
+	}
+	const grouped = [...byId.values()];
+	for (const assessment of grouped) {
+		assessment.records.sort(byDateAscending);
+	}
+	return grouped.sort((a, b) => {
+		if (a.hasGrips !== b.hasGrips) return a.hasGrips ? -1 : 1;
+		return a.label.localeCompare(b.label);
+	});
+}
+
+const UNIT_LABELS: Record<string, string> = {
+	kilograms: 'kg',
+	seconds: 's',
+	repetitions: 'reps'
+};
+
+export function unitLabel(unit: string): string {
+	return UNIT_LABELS[unit] ?? '';
+}
+
+export function formatRecordValue(value: number | null | undefined, unit: string): string {
+	if (value === null || value === undefined) return '--';
+	return unit === 'kilograms' ? value.toFixed(1) : value.toFixed(0);
+}
+
+// The single number a non per hand assessment records. It is stored on the right
+// hand, the left staying empty, so either side answers for it.
+export function singleValue(record: AssessmentResponse | undefined): number | null | undefined {
+	return record?.right_value ?? record?.left_value;
+}

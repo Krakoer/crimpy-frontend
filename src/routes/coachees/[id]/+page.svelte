@@ -11,9 +11,11 @@
 		Program,
 		ProgramRequest
 	} from '$lib/api/client';
-	import AssessmentChart from '$lib/components/AssessmentChart.svelte';
-	import { ASSESSMENT_TYPES } from '$lib/assessments';
-	import { formatDuration, formatSessionTime, gripLabel, sessionActivityInfo } from '$lib/sessions';
+	import AssessmentResultCard from '$lib/components/assessment/AssessmentResultCard.svelte';
+	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
+	import AssessmentHistoryTable from '$lib/components/assessment/AssessmentHistoryTable.svelte';
+	import { groupRecordedAssessments } from '$lib/components/assessment/assessment-records';
+	import { formatDuration, formatSessionTime, sessionActivityInfo } from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -60,39 +62,22 @@
 		newProgramError = '';
 	}
 
-	function formatVal(v: number | null | undefined, type: number): string {
-		if (v === null || v === undefined) return '--';
-		return ASSESSMENT_TYPES[type]?.format(v) ?? '--';
-	}
+	// The assessments the athlete actually has records for, whatever they are:
+	// the ones Crimpy ships and the coach's own alike, since neither side is a
+	// fixed list any more.
+	let recordedAssessments = $derived(groupRecordedAssessments(assessments));
 
-	function availableGrips(type: number): number[] {
-		return [0, 1, 2, 3].filter((g) =>
-			assessments.some((a) => a.type === type && a.grip_position === g)
-		);
-	}
-
-	function historyForGrip(type: number, grip: number): AssessmentResponse[] {
-		return assessments
-			.filter((a) => a.type === type && a.grip_position === grip)
-			.sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
-	}
-
-	function latestForGrip(type: number, grip: number): AssessmentResponse | undefined {
-		return historyForGrip(type, grip).at(-1);
-	}
-
-	function hasAnyAssessment(type: number): boolean {
-		return assessments.some((a) => a.type === type);
-	}
-
-	let selectedGrip = $state<Record<number, number>>({ 0: 0, 1: 0, 2: 0 });
-	let showGraph = $state<Record<number, boolean>>({ 0: false, 1: false, 2: false });
+	// Keyed by assessment id rather than by a discriminator, so a coach's
+	// assessment keeps its own grip and chart state.
+	let selectedGrip = $state<Record<string, number>>({});
+	let showGraph = $state<Record<string, boolean>>({});
 
 	$effect(() => {
-		for (const type of [0, 1, 2]) {
-			const grips = availableGrips(type);
-			if (grips.length > 0 && !grips.includes(selectedGrip[type])) {
-				selectedGrip[type] = grips[0];
+		for (const assessment of recordedAssessments) {
+			if (!assessment.hasGrips) continue;
+			const grips = [...new Set(assessment.records.map((r) => r.grip_position ?? 0))];
+			if (grips.length > 0 && !grips.includes(selectedGrip[assessment.id])) {
+				selectedGrip[assessment.id] = grips.sort((a, b) => a - b)[0];
 			}
 		}
 	});
@@ -669,59 +654,8 @@
 							>
 						</div>
 
-						{#each [0, 1, 2] as type (type)}
-							{#if hasAnyAssessment(type)}
-								{@const typeInfo = ASSESSMENT_TYPES[type]}
-								{@const grip = selectedGrip[type]}
-								{@const latest = latestForGrip(type, grip)}
-								{@const grips = availableGrips(type)}
-								<div
-									style="
-								background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-								padding: 16px; box-shadow: var(--sh);
-							"
-								>
-									<div
-										style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;"
-									>
-										<div style="font-size: 12px; font-weight: 600; color: var(--tx);">
-											{typeInfo.label}
-										</div>
-										<div style="font-size: 11px; color: var(--tx3);">{typeInfo.unit}</div>
-									</div>
-									{#if grips.length > 0}
-										<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
-											{gripLabel(grip)}
-										</div>
-									{/if}
-									<div style="display: flex; gap: 20px; align-items: center;">
-										<div>
-											<div
-												style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;"
-											>
-												LEFT
-											</div>
-											<div
-												style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;"
-											>
-												{formatVal(latest?.left_value, type)}
-											</div>
-										</div>
-										<div>
-											<div
-												style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;"
-											>
-												RIGHT
-											</div>
-											<div
-												style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;"
-											>
-												{formatVal(latest?.right_value, type)}
-											</div>
-										</div>
-									</div>
-								</div>
-							{/if}
+						{#each recordedAssessments as assessment (assessment.id)}
+							<AssessmentSummaryCard {assessment} selectedGrip={selectedGrip[assessment.id] ?? 0} />
 						{/each}
 
 						{#if totalAssessmentCount === 0}
@@ -1133,186 +1067,26 @@
 						padding: 40px 24px; text-align: center; color: var(--tx3); font-size: 13px;
 					"
 						>
-							No assessment records yet. Assessments are recorded through the Crimpy mobile app.
+							No assessment records yet. Write an assessment on a training, and the results land
+							here once the athlete runs it in the Crimpy app.
 						</div>
 					{:else}
-						<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-							{#each [0, 1, 2] as type (type)}
-								{#if hasAnyAssessment(type)}
-									{@const typeInfo = ASSESSMENT_TYPES[type]}
-									{@const grips = availableGrips(type)}
-									{@const grip = selectedGrip[type]}
-									{@const latest = latestForGrip(type, grip)}
-									{@const history = historyForGrip(type, grip)}
-									<div
-										style="
-									background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-									padding: 20px; box-shadow: var(--sh);
-								"
-									>
-										<div
-											style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;"
-										>
-											<div style="font-size: 13px; font-weight: 700; color: var(--tx);">
-												{typeInfo.label}
-											</div>
-											<div style="font-size: 11px; color: var(--tx3);">{typeInfo.unit}</div>
-										</div>
-
-										{#if grips.length > 1}
-											<div style="display: flex; gap: 4px; margin-bottom: 8px; overflow-x: auto;">
-												{#each grips as g (g)}
-													<button
-														onclick={() => (selectedGrip[type] = g)}
-														style="
-														padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
-														border: none; cursor: pointer; white-space: nowrap; font-family: var(--font);
-														background: {g === grip ? 'var(--pr-fog)' : 'var(--bd2)'};
-														color: {g === grip ? 'var(--pr)' : 'var(--tx3)'};
-													">{gripLabel(g)}</button
-													>
-												{/each}
-											</div>
-										{:else if grips.length === 1}
-											<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
-												{gripLabel(grips[0])}
-											</div>
-										{/if}
-
-										<div style="display: flex; gap: 20px; margin-bottom: 14px;">
-											<div>
-												<div
-													style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;"
-												>
-													LEFT
-												</div>
-												<div
-													style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;"
-												>
-													{formatVal(latest?.left_value, type)}
-												</div>
-											</div>
-											<div>
-												<div
-													style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;"
-												>
-													RIGHT
-												</div>
-												<div
-													style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;"
-												>
-													{formatVal(latest?.right_value, type)}
-												</div>
-											</div>
-										</div>
-
-										{#if history.length >= 2}
-											<button
-												onclick={() => (showGraph[type] = !showGraph[type])}
-												style="
-												font-size: 11.5px; color: {showGraph[type] ? 'var(--pr)' : 'var(--tx3)'};
-												background: none; border: none; cursor: pointer; padding: 0;
-												font-family: var(--font); font-weight: 600; margin-bottom: 8px;
-											">{showGraph[type] ? 'Hide chart' : 'Show chart'}</button
-											>
-										{/if}
-
-										{#if showGraph[type] && history.length >= 2}
-											<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
-												<AssessmentChart
-													{history}
-													unit={typeInfo.unit}
-													formatValue={typeInfo.format}
-												/>
-											</div>
-										{/if}
-
-										{#if history.length >= 2}
-											{@const first =
-												type === 0 ? (history[0].right_value ?? 0) : (history[0].right_value ?? 0)}
-											{@const last =
-												type === 0
-													? (history[history.length - 1].right_value ?? 0)
-													: (history[history.length - 1].right_value ?? 0)}
-											{@const delta = last - first}
-											<div
-												style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3); margin-top: 6px;"
-											>
-												<span>{history.length} records</span>
-												<span>·</span>
-												<span
-													style="color: {delta >= 0 ? 'var(--gn)' : 'var(--rd)'}; font-weight: 600;"
-												>
-													{delta >= 0 ? '+' : ''}{typeInfo.format(delta)}
-													{typeInfo.unit} overall
-												</span>
-											</div>
-										{/if}
-									</div>
-								{/if}
-							{/each}
-						</div>
-
-						<!-- Assessment history table -->
 						<div
-							style="
-						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-						box-shadow: var(--sh); overflow: hidden;
-					"
+							style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;"
 						>
-							<div
-								style="
-							padding: 14px 20px; border-bottom: 1px solid var(--bd2);
-							display: flex; align-items: center; justify-content: space-between;
-						"
-							>
-								<h3 style="font-size: 14px; font-weight: 700; color: var(--tx);">
-									Assessment history
-								</h3>
-							</div>
-							<div
-								style="
-							display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;
-							padding: 10px 20px; border-bottom: 1px solid var(--bd2);
-							font-size: 10.5px; color: var(--tx3); font-weight: 600;
-							letter-spacing: 0.06em; text-transform: uppercase;
-							background: var(--panel2);
-						"
-							>
-								<div>Date</div>
-								<div>Type</div>
-								<div>Grip</div>
-								<div style="text-align: right;">Left</div>
-								<div style="text-align: right;">Right</div>
-							</div>
-							{#each assessmentHistory as a, i (a.id)}
-								{@const typeInfo = ASSESSMENT_TYPES[a.type]}
-								<div
-									style="
-								display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;
-								padding: 11px 20px; align-items: center;
-								border-bottom: {i < assessmentHistory.length - 1 ? '1px solid var(--bd2)' : 'none'};
-								font-size: 13px;
-							"
-								>
-									<div style="color: var(--tx2); font-size: 12px;">
-										{formatAssessmentDate(a.updated_at)}
-									</div>
-									<div style="font-weight: 600; color: var(--tx);">
-										{typeInfo?.label ?? `Type ${a.type}`}
-									</div>
-									<div style="color: var(--tx3); font-size: 12px;">
-										{gripLabel(a.grip_position)}
-									</div>
-									<div style="text-align: right; font-weight: 600;">
-										{a.left_value !== null ? typeInfo?.format(a.left_value) : '--'}
-									</div>
-									<div style="text-align: right; font-weight: 600;">
-										{a.right_value !== null ? typeInfo?.format(a.right_value) : '--'}
-									</div>
-								</div>
+							{#each recordedAssessments as assessment (assessment.id)}
+								<AssessmentResultCard
+									{assessment}
+									selectedGrip={selectedGrip[assessment.id] ?? 0}
+									onSelectGrip={(grip) => (selectedGrip[assessment.id] = grip)}
+									showChart={showGraph[assessment.id] ?? false}
+									onToggleChart={() =>
+										(showGraph[assessment.id] = !(showGraph[assessment.id] ?? false))}
+								/>
 							{/each}
 						</div>
+
+						<AssessmentHistoryTable records={assessmentHistory} formatDate={formatAssessmentDate} />
 					{/if}
 				</div>
 

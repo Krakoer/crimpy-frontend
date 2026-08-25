@@ -5,7 +5,7 @@
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import HangboardCard from './HangboardCard.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { assessmentTypesForField } from '$lib/assessments';
+	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
 	import {
 		HANGBOARD_HANDS,
 		hangboardGranularity,
@@ -40,16 +40,17 @@
 
 	interface Props {
 		item: TrainingItem;
+		catalog: AssessmentCatalog;
 		onRemove: () => void;
 		onDuplicate: () => void;
 	}
 
-	let { item = $bindable(), onRemove, onDuplicate }: Props = $props();
+	let { item = $bindable(), catalog, onRemove, onDuplicate }: Props = $props();
 
 	let collapsed = $state(false);
 	let cardElement = $state<HTMLDivElement | null>(null);
 
-	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
+	let loadAssessments = $derived(assessmentsForField('load', catalog));
 
 	// Every assessment-relative load of an item shares one assessment and one
 	// fallback: only the percentage varies from rep to rep, so the editor keeps a
@@ -61,18 +62,21 @@
 		(l) => l.unit === 'percent_assessment'
 	);
 
-	let loadAssessmentType = $state(firstAssessmentLoad?.assessment_type ?? LOAD_ASSESSMENTS[0]);
+	// Left unset until the catalog has loaded, which happens after the first
+	// render: seeding it from an empty catalog would pin it to undefined.
+	let loadAssessmentId = $state<string | undefined>(firstAssessmentLoad?.assessment_id);
 	let loadFallbackKg = $state(firstAssessmentLoad?.fallback ?? 0);
 
 	let usesAssessmentLoad = $derived(assessmentLoads.some((l) => l.unit === 'percent_assessment'));
 
 	$effect(() => {
+		loadAssessmentId ??= loadAssessments[0];
 		for (const load of assessmentLoads) {
 			if (load.unit === 'percent_assessment') {
-				load.assessment_type = loadAssessmentType;
+				load.assessment_id = loadAssessmentId;
 				load.fallback = loadFallbackKg;
-			} else if (load.assessment_type !== undefined) {
-				load.assessment_type = undefined;
+			} else if (load.assessment_id !== undefined) {
+				load.assessment_id = undefined;
 				load.fallback = undefined;
 			}
 		}
@@ -594,7 +598,7 @@
 	);
 
 	let setRows = $derived(
-		buildSessionMap({ sets, reps, variation, base, twoHanded, configAt, selected })
+		buildSessionMap({ sets, reps, variation, base, twoHanded, configAt, catalog, selected })
 	);
 
 	// The hint describes the selected mode, so the radiogroup points at it and a
@@ -830,9 +834,12 @@
 					<span class="hb-hint">Loads set in percent</span>
 					<AssessmentRefFields
 						field="load"
-						bind:assessmentType={loadAssessmentType}
+						bind:assessmentId={
+							() => loadAssessmentId ?? loadAssessments[0], (v) => (loadAssessmentId = v)
+						}
 						bind:fallback={loadFallbackKg}
 						fallbackUnit="kg"
+						{catalog}
 					/>
 				</div>
 			{/if}

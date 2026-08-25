@@ -1,4 +1,5 @@
 import type {
+	AssessmentDefinition,
 	AssessmentResponse,
 	AssessmentResultSnapshot,
 	Load,
@@ -7,98 +8,155 @@ import type {
 } from '$lib/api/client';
 import { fmtLoad } from '$lib/components/training/load-units';
 
-// The unit an assessment result is measured in. It decides which item field
-// the assessment can drive: kilograms a load, seconds a duration.
-export type AssessmentUnit = 'kg' | 's' | 'reps';
+// The unit an assessment result is measured in. It decides which item field the
+// assessment can drive: kilograms a load, seconds a duration. These are the
+// values assessment_definitions.unit holds.
+export type AssessmentUnit = 'kilograms' | 'seconds' | 'repetitions';
+
+const UNIT_SUFFIXES: Record<AssessmentUnit, string> = {
+	kilograms: ' kg',
+	seconds: 's',
+	repetitions: ' reps'
+};
 
 export interface AssessmentTypeInfo {
 	label: string;
 	unit: AssessmentUnit;
+	perHand: boolean;
 	format: (v: number) => string;
 }
 
-// Assessment discriminators shared with the app and stored on assessments.type.
-export const ASSESSMENT_TYPES: Record<number, AssessmentTypeInfo> = {
-	0: { label: 'Critical force', unit: 'kg', format: (v) => v.toFixed(1) },
-	1: { label: 'Max force', unit: 'kg', format: (v) => v.toFixed(1) },
-	2: { label: '60% endurance', unit: 's', format: (v) => v.toFixed(0) }
-};
+function formatFor(unit: AssessmentUnit): (v: number) => string {
+	return unit === 'kilograms' ? (v) => v.toFixed(1) : (v) => v.toFixed(0);
+}
+
+// Every assessment a page can name, keyed by the id both a result row and a
+// percentage reference hold. There is no builtin table to merge in: the ones
+// Crimpy ships are rows like any other, and the server lists them alongside the
+// coach's own. Built once from data the page already has, then handed to the
+// functions below, so nothing in this module fetches.
+export type AssessmentCatalog = Record<string, AssessmentTypeInfo>;
+
+export const EMPTY_CATALOG: AssessmentCatalog = {};
+
+export function buildAssessmentCatalog(
+	definitions: Pick<AssessmentDefinition, 'id' | 'label' | 'unit' | 'per_hand'>[]
+): AssessmentCatalog {
+	const catalog: AssessmentCatalog = {};
+	for (const definition of definitions) {
+		const unit = definition.unit as AssessmentUnit;
+		catalog[definition.id] = {
+			label: definition.label,
+			unit,
+			perHand: definition.per_hand,
+			format: formatFor(unit)
+		};
+	}
+	return catalog;
+}
 
 // The item fields that can be prescribed as a percentage of an assessment.
 export type VariableField = 'load' | 'duration' | 'reps';
 
 const FIELD_UNITS: Record<VariableField, AssessmentUnit> = {
-	load: 'kg',
-	duration: 's',
-	reps: 'reps'
+	load: 'kilograms',
+	duration: 'seconds',
+	reps: 'repetitions'
 };
 
-// The assessments that can drive a field, that is those measured in its unit.
-// A field with no matching assessment cannot be made variable at all.
-export function assessmentTypesForField(field: VariableField): number[] {
-	return Object.keys(ASSESSMENT_TYPES)
-		.map(Number)
-		.filter((type) => ASSESSMENT_TYPES[type].unit === FIELD_UNITS[field]);
+// The assessments that can drive a field, that is those measured in its unit,
+// ordered by label so a picker reads the same way twice. A field with no
+// matching assessment cannot be made variable at all.
+export function assessmentsForField(field: VariableField, catalog: AssessmentCatalog): string[] {
+	return Object.keys(catalog)
+		.filter((id) => catalog[id].unit === FIELD_UNITS[field])
+		.sort((a, b) => catalog[a].label.localeCompare(catalog[b].label));
 }
 
-export function assessmentLabel(type: number | undefined): string {
-	if (type === undefined) return 'assessment';
-	return ASSESSMENT_TYPES[type]?.label ?? 'assessment';
+export function assessmentLabel(id: string | undefined, catalog: AssessmentCatalog): string {
+	if (id === undefined) return 'assessment';
+	return catalog[id]?.label ?? 'assessment';
 }
 
-export function assessmentUnitLabel(type: number | undefined): string {
-	if (type === undefined) return '';
-	return ASSESSMENT_TYPES[type]?.unit ?? '';
+export function assessmentUnit(
+	id: string | undefined,
+	catalog: AssessmentCatalog
+): AssessmentUnit | undefined {
+	return id === undefined ? undefined : catalog[id]?.unit;
 }
 
-export function formatAssessmentValue(value: number, type: number): string {
-	const info = ASSESSMENT_TYPES[type];
+export function assessmentUnitLabel(id: string | undefined, catalog: AssessmentCatalog): string {
+	const unit = assessmentUnit(id, catalog);
+	return unit ? UNIT_SUFFIXES[unit] : '';
+}
+
+export function assessmentIsPerHand(id: string | undefined, catalog: AssessmentCatalog): boolean {
+	return id === undefined ? false : (catalog[id]?.perHand ?? false);
+}
+
+export function formatAssessmentValue(
+	value: number,
+	id: string,
+	catalog: AssessmentCatalog
+): string {
+	const info = catalog[id];
 	return info ? info.format(value) : String(value);
 }
 
+// A measured value with its unit, e.g. "14 reps" or "48.0 kg".
+export function formatAssessmentValueWithUnit(
+	value: number,
+	id: string,
+	catalog: AssessmentCatalog
+): string {
+	const info = catalog[id];
+	if (!info) return String(value);
+	return `${info.format(value)}${UNIT_SUFFIXES[info.unit]}`;
+}
+
 // Human-readable load, e.g. "80% Max force", "35 kg" or "MAX".
-export function formatLoad(load: Load): string {
+export function formatLoad(load: Load, catalog: AssessmentCatalog): string {
 	if (load.unit === 'percent_assessment') {
-		return `${load.value}% ${assessmentLabel(load.assessment_type)}`;
+		return `${load.value}% ${assessmentLabel(load.assessment_id, catalog)}`;
 	}
 	return fmtLoad(load.value, load.unit);
 }
 
 // Human-readable variable target, e.g. "75% of 60% endurance (fallback 60s)".
-export function formatVariableTarget(target: VariableTarget): string {
-	const unit = assessmentUnitLabel(target.assessment_type);
-	return `${target.percent}% of ${assessmentLabel(target.assessment_type)} (fallback ${target.fallback}${unit})`;
+export function formatVariableTarget(target: VariableTarget, catalog: AssessmentCatalog): string {
+	const unit = assessmentUnitLabel(target.assessment_id, catalog);
+	return `${target.percent}% of ${assessmentLabel(target.assessment_id, catalog)} (fallback ${target.fallback}${unit})`;
 }
 
 // Every assessment referenced by a training tree, whether through a load or a
 // variable target. Used to warn a coach before a training lands on a program.
-export function referencedAssessmentTypes(items: TrainingItem[]): number[] {
-	const types = new Set<number>();
+export function referencedAssessments(items: TrainingItem[]): string[] {
+	const ids = new Set<string>();
 
 	function visit(item: TrainingItem) {
 		for (const load of item.loads ?? []) {
-			if (load.unit === 'percent_assessment' && load.assessment_type !== undefined) {
-				types.add(load.assessment_type);
+			if (load.unit === 'percent_assessment' && load.assessment_id !== undefined) {
+				ids.add(load.assessment_id);
 			}
 		}
 		for (const target of Object.values(item.variable_targets ?? {})) {
-			if (target) types.add(target.assessment_type);
+			if (target) ids.add(target.assessment_id);
 		}
 		for (const child of item.items ?? []) visit(child);
 	}
 
 	items.forEach(visit);
-	return [...types].sort();
+	return [...ids];
 }
 
 // The referenced assessments the athlete has never done, and whose fallback
 // will therefore be used.
-export function missingAssessmentTypes(
+export function missingAssessments(
 	items: TrainingItem[],
 	assessments: AssessmentResponse[]
-): number[] {
-	const done = new Set(assessments.map((a) => a.type));
-	return referencedAssessmentTypes(items).filter((type) => !done.has(type));
+): string[] {
+	const done = new Set(assessments.map((a) => a.assessment_id));
+	return referencedAssessments(items).filter((id) => !done.has(id));
 }
 
 // Which hand a prescribed percentage is read against. The app resolves a
@@ -128,7 +186,7 @@ export function handLabel(hand: PrescribedHand, entriesOnRow: number): string {
 // items ask for it, and carries every hand any of them asked it of.
 export interface AssessmentRelativeValue {
 	field: VariableField;
-	assessment_type: number;
+	assessment_id: string;
 	percent: number;
 	fallback: number;
 	hands: PrescribedHand[];
@@ -172,17 +230,17 @@ export function collectAssessmentRelativeValues(items: TrainingItem[]): Assessme
 
 	function add(
 		field: VariableField,
-		assessmentType: number,
+		assessmentId: string,
 		percent: number,
 		fallback: number,
 		hand: PrescribedHand
 	) {
-		const key = `${field}:${assessmentType}:${percent}:${fallback}`;
+		const key = `${field}:${assessmentId}:${percent}:${fallback}`;
 		const existing = byKey.get(key);
 		if (!existing) {
 			byKey.set(key, {
 				field,
-				assessment_type: assessmentType,
+				assessment_id: assessmentId,
 				percent,
 				fallback,
 				hands: [hand]
@@ -195,8 +253,8 @@ export function collectAssessmentRelativeValues(items: TrainingItem[]): Assessme
 	function visit(item: TrainingItem) {
 		for (const source of loadSources(item)) {
 			for (const load of source.loads) {
-				if (load.unit === 'percent_assessment' && load.assessment_type !== undefined) {
-					add('load', load.assessment_type, load.value, load.fallback ?? 0, source.hand);
+				if (load.unit === 'percent_assessment' && load.assessment_id !== undefined) {
+					add('load', load.assessment_id, load.value, load.fallback ?? 0, source.hand);
 				}
 			}
 		}
@@ -204,13 +262,7 @@ export function collectAssessmentRelativeValues(items: TrainingItem[]): Assessme
 		// is one number for the whole item whichever hands the item hangs.
 		for (const [field, target] of Object.entries(item.variable_targets ?? {})) {
 			if (target) {
-				add(
-					field as VariableField,
-					target.assessment_type,
-					target.percent,
-					target.fallback,
-					'mean'
-				);
+				add(field as VariableField, target.assessment_id, target.percent, target.fallback, 'mean');
 			}
 		}
 		for (const child of item.items ?? []) visit(child);
@@ -234,14 +286,14 @@ export interface ResolvedHandValue {
 // the session was played rather than the ones they have now.
 export function resolveAgainstFrozenResults(
 	relative: AssessmentRelativeValue,
-	results: AssessmentResultSnapshot[]
+	results: AssessmentResultSnapshot[],
+	catalog: AssessmentCatalog
 ): ResolvedHandValue[] {
-	const measured = results.find((result) => result.type === relative.assessment_type);
+	const measured = results.find((result) => result.assessment_id === relative.assessment_id);
 	// A percentage of a force result cannot stand in for a duration, so a
 	// reference in the wrong unit takes the fallback rather than putting a
 	// number in the wrong unit in front of the coach.
-	const unitMatches =
-		ASSESSMENT_TYPES[relative.assessment_type]?.unit === FIELD_UNITS[relative.field];
+	const unitMatches = catalog[relative.assessment_id]?.unit === FIELD_UNITS[relative.field];
 
 	function measuredFor(hand: PrescribedHand): number | null {
 		if (!measured || !unitMatches) return null;
@@ -266,7 +318,7 @@ export function resolveAgainstFrozenResults(
 
 export function formatResolvedValue(value: number, field: VariableField): string {
 	const unit = FIELD_UNITS[field];
-	if (unit === 'reps') return String(Math.round(value));
-	if (unit === 's') return `${value.toFixed(0)}s`;
+	if (unit === 'repetitions') return String(Math.round(value));
+	if (unit === 'seconds') return `${value.toFixed(0)}s`;
 	return `${value.toFixed(1)} kg`;
 }

@@ -24,7 +24,8 @@
 		TrainingItem,
 		TrainingSummary
 	} from '$lib/api/client';
-	import { ASSESSMENT_TYPES, missingAssessmentTypes } from '$lib/assessments';
+	import { assessmentLabel, missingAssessments } from '$lib/assessments';
+	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
 
 	let { data } = $props();
@@ -72,9 +73,9 @@
 			}
 			trainingItemsById.set(trainingId, items);
 		}
-		const missing = missingAssessmentTypes(items, coacheeAssessments);
+		const missing = missingAssessments(items, coacheeAssessments);
 		if (missing.length === 0) return;
-		const names = missing.map((type) => ASSESSMENT_TYPES[type]?.label ?? 'assessment').join(', ');
+		const names = missing.map((id) => assessmentLabel(id, assessmentCatalog.catalog)).join(', ');
 		snackbar.show(
 			`${coacheeName} has not done ${names} yet, so the fallback values of this training will be used.`,
 			'warning'
@@ -695,6 +696,9 @@
 			.getClientAssessments(userId)
 			.then((a) => (coacheeAssessments = a ?? []))
 			.catch(() => {});
+		// The catalog names an assessment the coachee has never done, which has no
+		// result row to take a label from.
+		assessmentCatalog.load();
 		loading = true;
 		try {
 			const [p, w, t] = await Promise.all([

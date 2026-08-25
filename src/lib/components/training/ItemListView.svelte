@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AssessmentCatalog } from '$lib/assessments';
 	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import ExerciseItemView from './ExerciseItemView.svelte';
 	import HangboardItemView from './HangboardItemView.svelte';
@@ -11,13 +12,14 @@
 	interface Props {
 		items: TrainingItem[];
 		exercises: Exercise[];
+		catalog: AssessmentCatalog;
 		depth?: number;
 		// The collapse controls belong to the training editor. A read-only view
 		// of a tree, such as a session's prescription, turns them off.
 		showControls?: boolean;
 	}
 
-	let { items, exercises, depth = 0, showControls = true }: Props = $props();
+	let { items, exercises, depth = 0, showControls = true, catalog }: Props = $props();
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
 
@@ -56,15 +58,15 @@
 
 	{#each items as item (item._id ?? item.id)}
 		{#if item.type === 'exercise'}
-			<ExerciseItemView {item} {exercises} />
+			<ExerciseItemView {item} {exercises} {catalog} />
 		{:else if item.type === 'repeater'}
-			<HangboardItemView {item} />
+			<HangboardItemView {item} {catalog} />
 		{:else if item.type === 'hangboard_rep'}
-			<HangboardRepItemView {item} />
+			<HangboardRepItemView {item} {catalog} />
 		{:else if item.type === 'circuit'}
-			<CircuitItemView {item} {exercises} {depth} />
+			<CircuitItemView {item} {exercises} {catalog} {depth} />
 		{:else if item.type === 'group'}
-			<GroupItemView {item} {exercises} {depth} />
+			<GroupItemView {item} {exercises} {catalog} {depth} />
 		{/if}
 	{/each}
 
