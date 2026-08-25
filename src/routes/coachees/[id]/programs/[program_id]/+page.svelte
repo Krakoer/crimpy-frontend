@@ -1334,6 +1334,11 @@
 																	<div
 																		style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"
 																	></div>
+																	{#if trainingById(session.training_id)?.assessment}
+																		<div title="Assessment" style="display: flex; flex-shrink: 0;">
+																			<Icon name="spark" size={9} color="var(--pl)" />
+																		</div>
+																	{/if}
 																	<span
 																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
 																	>
@@ -1427,6 +1432,11 @@
 																	<div
 																		style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"
 																	></div>
+																	{#if trainingById(session.training_id)?.assessment}
+																		<div title="Assessment" style="display: flex; flex-shrink: 0;">
+																			<Icon name="spark" size={9} color="var(--pl)" />
+																		</div>
+																	{/if}
 																	<span
 																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 600; min-width: 0; font-size: 10.5px;"
 																	>
@@ -1508,6 +1518,11 @@
 																<div
 																	style="width: 5px; height: 5px; border-radius: 50%; background: {color}; flex-shrink: 0;"
 																></div>
+																{#if trainingById(session.training_id)?.assessment}
+																	<div title="Assessment" style="display: flex; flex-shrink: 0;">
+																		<Icon name="spark" size={9} color="var(--pl)" />
+																	</div>
+																{/if}
 																<span
 																	style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
 																>
@@ -1662,6 +1677,13 @@
 										>
 											{t.title}
 										</div>
+										{#if t.assessment}
+											<div
+												style="font-size: 10px; font-weight: 700; color: var(--pl); letter-spacing: 0.04em;"
+											>
+												ASSESSMENT
+											</div>
+										{/if}
 									</div>
 								</SidePanelDraggable>
 							{/each}
