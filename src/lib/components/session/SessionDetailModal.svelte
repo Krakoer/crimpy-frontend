@@ -276,7 +276,10 @@
 					</div>
 				{/if}
 
-				{#if hasRepData && reps.length === 0 && !error}
+				<!-- A played session that recorded only open counts measured no rep and
+				     is still not empty, so the notice belongs to a run that recorded
+				     nothing at all. -->
+				{#if hasRepData && reps.length === 0 && itemResults.length === 0 && !error}
 					<div
 						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3);"
 					>
