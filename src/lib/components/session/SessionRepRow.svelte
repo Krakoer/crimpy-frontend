@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { RepData } from '$lib/api/client';
-	import { gripShort, isOnTarget, repWeighed } from '$lib/sessions';
+	import { gripShort, handShort, isOnTarget, repWeighed } from '$lib/sessions';
 
 	interface Props {
 		rep: RepData;
@@ -37,7 +37,7 @@
 		>#{position}</span
 	>
 	<span style="font-size: 11px; font-weight: 700; color: {accent}; width: 16px; flex-shrink: 0;"
-		>{rep.right_hand ? 'R' : 'L'}</span
+		>{handShort(rep.hand)}</span
 	>
 	<span
 		style="font-size: 11px; color: var(--tx3); width: 32px; flex-shrink: 0;"

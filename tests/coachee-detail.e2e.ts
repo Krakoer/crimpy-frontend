@@ -93,16 +93,16 @@ test.describe('session details', () => {
 	});
 
 	const crimpyReps = [
-		testRepData({ id: 'rep-1', index: 0, average_weight: 31, target_weight: 30, right_hand: true }),
+		testRepData({ id: 'rep-1', index: 0, average_weight: 31, target_weight: 30, hand: 'right' }),
 		testRepData({
 			id: 'rep-2',
 			index: 1,
 			average_weight: 29,
 			target_weight: 30,
-			right_hand: false
+			hand: 'left'
 		}),
-		testRepData({ id: 'rep-3', index: 2, average_weight: 22, target_weight: 30, right_hand: true }),
-		testRepData({ id: 'rep-4', index: 3, average_weight: 28, target_weight: 30, right_hand: false })
+		testRepData({ id: 'rep-3', index: 2, average_weight: 22, target_weight: 30, hand: 'right' }),
+		testRepData({ id: 'rep-4', index: 3, average_weight: 28, target_weight: 30, hand: 'left' })
 	];
 
 	test('opens a logged session on the duration layout, without sensor data', async ({ page }) => {
@@ -144,6 +144,10 @@ test.describe('session details', () => {
 		// into its flat list rather than heading anything.
 		await expect(dialog.getByText('Repetitions', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('Blocks', { exact: true })).toBeHidden();
+		// Two right hangs and two left ones, each row naming the hand it was
+		// pulled with.
+		await expect(dialog.getByText('R', { exact: true })).toHaveCount(2);
+		await expect(dialog.getByText('L', { exact: true })).toHaveCount(2);
 	});
 
 	test('grades a session the sensor dropped in on the reps it measured', async ({ page }) => {
@@ -688,7 +692,7 @@ test.describe('session details', () => {
 				average_weight: 30,
 				target_weight: 30,
 				edge_size_mm: 20,
-				right_hand: i % 2 === 0,
+				hand: i % 2 === 0 ? 'right' : 'left',
 				training_item_id: 'item-alt'
 			})
 		);
@@ -737,9 +741,7 @@ test.describe('session details', () => {
 				average_weight: 30,
 				target_weight: 30,
 				edge_size_mm: 20,
-				// The app stores a two-handed hang with right_hand false, which would
-				// otherwise bucket every set under 'Left'.
-				right_hand: false,
+				hand: 'both',
 				training_item_id: 'item-both'
 			})
 		);
@@ -756,6 +758,10 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('Set 1', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('Set 2', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('Set 1 - Left')).toBeHidden();
+		// Every row names the two handed hang as such, rather than claiming the
+		// left hand the boolean this replaced would have answered.
+		await expect(dialog.getByText('B', { exact: true })).toHaveCount(4);
+		await expect(dialog.getByText('L', { exact: true })).toHaveCount(0);
 	});
 
 	test('gives reps naming no block one of their own', async ({ page }) => {

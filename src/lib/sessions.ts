@@ -1,4 +1,4 @@
-import type { PrescriptionSnapshot, RepData, TrainingItem } from '$lib/api/client';
+import type { PrescriptionSnapshot, RepData, RepHand, TrainingItem } from '$lib/api/client';
 import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 
 // What the athlete did. A label only: whether a session has rep measurements to
@@ -77,6 +77,12 @@ export function gripLabel(position: number): string {
 
 export function gripShort(position: number): string {
 	return GRIP_POSITIONS[position]?.short ?? '--';
+}
+
+// The single letter a rep row names its hand with. A two handed hang gets its
+// own letter rather than borrowing one of the single hands.
+export function handShort(hand: RepHand): string {
+	return { left: 'L', right: 'R', both: 'B' }[hand] ?? '--';
 }
 
 export function formatDuration(seconds: number): string {
@@ -180,7 +186,7 @@ export function groupRepsIntoSets(reps: RepData[], config: RepeaterConfig): RepS
 			const setReps = reps.slice(index, index + config.repsPerSet * config.handsPerSet);
 			index += setReps.length;
 			for (const rep of setReps) {
-				(rep.right_hand ? rightHand : leftHand).push(rep);
+				(rep.hand === 'right' ? rightHand : leftHand).push(rep);
 			}
 			if (rightHand.length > 0) sets.push({ label: `Set ${set + 1} - Right`, reps: rightHand });
 			if (leftHand.length > 0) sets.push({ label: `Set ${set + 1} - Left`, reps: leftHand });
