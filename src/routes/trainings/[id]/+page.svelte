@@ -818,12 +818,9 @@
 								<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
 								Log only (nothing to run, the athlete just marks it as done)
 							</label>
-							<div style="margin-top: 10px;">
-								<AssessmentDefinitionFields
-									bind:draft={assessment}
-									measured={assessmentUnitLocked}
-								/>
-							</div>
+						</div>
+						<div style="margin-bottom: 12px;">
+							<AssessmentDefinitionFields bind:draft={assessment} measured={assessmentUnitLocked} />
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
