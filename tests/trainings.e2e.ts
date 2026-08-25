@@ -1193,7 +1193,7 @@ test.describe('grouping root blocks', () => {
 	async function startSelecting(page: Page, blocks: number[]) {
 		await page.getByRole('button', { name: 'Select', exact: true }).click();
 		for (const block of blocks) {
-			await page.getByRole('checkbox', { name: `Select block ${block}` }).check();
+			await page.getByRole('checkbox', { name: new RegExp(`^Select block ${block},`) }).check();
 		}
 	}
 
@@ -1247,7 +1247,7 @@ test.describe('grouping root blocks', () => {
 		await page.getByRole('button', { name: 'Group into group' }).click();
 
 		await expect(page.getByTestId('selection-bar')).toBeHidden();
-		await expect(page.getByRole('checkbox', { name: 'Select block 1' })).toBeHidden();
+		await expect(page.getByRole('checkbox', { name: /^Select block 1,/ })).toBeHidden();
 	});
 
 	test('offers no selection until the root holds more than one block', async ({ page }) => {
@@ -1274,11 +1274,35 @@ test.describe('grouping root blocks', () => {
 		await startSelecting(page, [1]);
 
 		await expect(page.getByTestId('selection-bar').getByText('1 selected')).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Group into circuit' })).toBeDisabled();
+		await page.getByRole('button', { name: 'Group into circuit' }).click();
 
-		await page.getByRole('checkbox', { name: 'Select block 2' }).check();
+		await expect(page.getByText('Select at least two blocks to group them.')).toBeVisible();
+		await expect(page.getByTestId('selection-bar')).toBeVisible();
 
-		await expect(page.getByRole('button', { name: 'Group into circuit' })).toBeEnabled();
+		await page.getByRole('checkbox', { name: /^Select block 2,/ }).check();
+		await page.getByRole('button', { name: 'Group into circuit' }).click();
+
+		await expect(page.getByTestId('selection-bar')).toBeHidden();
+	});
+
+	test('drops the bar when a deletion leaves a single block behind', async ({ page }) => {
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/new');
+		await addRootBlocks(page, 'Hang rep', 2);
+		await startSelecting(page, [1]);
+
+		await expect(page.getByTestId('selection-bar')).toBeVisible();
+
+		await page.getByTitle('Delete').first().click();
+		// The icon-only delete of the other block answers to the same name, so the
+		// confirmation is reached by its label text.
+		await page
+			.getByRole('button', { name: 'Delete', exact: true })
+			.filter({ hasText: 'Delete' })
+			.click();
+
+		await expect(page.getByTestId('selection-bar')).toBeHidden();
 	});
 
 	// A circuit only runs at the root, so a selection holding one cannot be
@@ -1292,13 +1316,14 @@ test.describe('grouping root blocks', () => {
 		await addRootBlocks(page, 'Hang rep', 1);
 		await startSelecting(page, [1, 2]);
 
-		const intoCircuit = page.getByRole('button', { name: 'Group into circuit' });
-		await expect(intoCircuit).toBeDisabled();
-		await expect(intoCircuit).toHaveAttribute('title', 'A circuit cannot hold a circuit.');
-		await expect(page.getByRole('button', { name: 'Group into group' })).toHaveAttribute(
-			'title',
-			'A group cannot hold a circuit.'
-		);
+		await page.getByRole('button', { name: 'Group into circuit' }).click();
+
+		await expect(page.getByText('A circuit cannot hold a circuit.')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Group into group' }).click();
+
+		await expect(page.getByText('A group cannot hold a circuit.')).toBeVisible();
+		await expect(page.getByTestId('selection-bar')).toBeVisible();
 	});
 
 	test('offers no group to a stretching training, which has none', async ({ page }) => {
@@ -1312,9 +1337,45 @@ test.describe('grouping root blocks', () => {
 		await page.getByRole('button', { name: 'EX Max hangs' }).click();
 		await startSelecting(page, [1, 2]);
 
-		await expect(page.getByRole('button', { name: 'Group into circuit' })).toBeEnabled();
-		const intoGroup = page.getByRole('button', { name: 'Group into group' });
-		await expect(intoGroup).toBeDisabled();
-		await expect(intoGroup).toHaveAttribute('title', 'This training takes no group.');
+		await page.getByRole('button', { name: 'Group into group' }).click();
+
+		await expect(page.getByText('This training takes no group.')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Group into circuit' }).click();
+
+		await expect(page.getByTestId('selection-bar')).toBeHidden();
+	});
+
+	// The stored blocks carry a server id and are reparented under a container
+	// that has none, which is the shape only the edit page ever sends.
+	test('nests the stored blocks under a new circuit when a training is edited', async ({
+		page
+	}) => {
+		const training = testTraining({
+			training_type: 'climbing',
+			items: [
+				{ id: 'item-1', type: 'group', position: 0, group_title: 'Warmup', items: [] },
+				{ id: 'item-2', type: 'group', position: 1, group_title: 'Boulders', items: [] },
+				{ id: 'item-3', type: 'group', position: 2, group_title: 'Cool down', items: [] }
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await startSelecting(page, [1, 2]);
+		await page.getByRole('button', { name: 'Group into circuit' }).click();
+		await saveTraining(page);
+
+		expect(updates).toHaveLength(1);
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items).toHaveLength(2);
+		expect(items[0]).toMatchObject({ type: 'circuit', cycles: 3 });
+		expect(items[0].id).toBeUndefined();
+		expect(items[0].items).toMatchObject([{ id: 'item-1' }, { id: 'item-2' }]);
+		expect(items[1]).toMatchObject({ id: 'item-3', group_title: 'Cool down' });
 	});
 });

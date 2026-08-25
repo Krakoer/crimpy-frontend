@@ -11,6 +11,7 @@
 	import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 	import { createTrainingItem } from './create-item';
 	import { containerChildTypes, type ContainerType } from './container-rules';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -61,12 +62,19 @@
 		selectedIds = [];
 	}
 
+	// The Select link only shows above one block, so the bar has to leave with it
+	// rather than sit there refusing every grouping.
+	$effect(() => {
+		if (selecting && items.length < 2) stopSelecting();
+	});
+
 	function blockLabel(type: TrainingItemType): string {
 		return BLOCK_PRESENTATION[type].label.toLowerCase();
 	}
 
 	// Null when the selection can be wrapped, otherwise why it cannot, which the
-	// bar shows on the disabled button.
+	// bar reports through the snackbar. The buttons stay live so the reason is
+	// reachable without a hover, which a touch screen does not have.
 	function groupingIssue(containerType: ContainerType): string | null {
 		if (selectedItems.length < 2) return 'Select at least two blocks to group them.';
 		if (!allowedTypes.includes(containerType))
@@ -78,7 +86,11 @@
 	}
 
 	function groupSelection(containerType: ContainerType) {
-		if (groupingIssue(containerType)) return;
+		const issue = groupingIssue(containerType);
+		if (issue) {
+			snackbar.show(issue, 'error');
+			return;
+		}
 		const positions = items
 			.map((item, index) => index)
 			.filter((index) => selectedIds.includes(items[index]._id!));
@@ -162,15 +174,14 @@
 					{@const block = BLOCK_PRESENTATION[target]}
 					<button
 						onclick={() => groupSelection(target)}
-						disabled={issue !== null}
 						title={issue ?? undefined}
 						style="
 							display: flex; align-items: center; gap: 5px;
 							padding: 5px 11px; border-radius: var(--rs);
 							border: 1px solid var(--bd); background: #fff;
 							font-family: var(--font); font-size: 12px; font-weight: 600;
-							color: {block.color}; cursor: {issue ? 'not-allowed' : 'pointer'};
-							opacity: {issue ? 0.45 : 1};
+							color: {block.color}; cursor: pointer;
+							opacity: {issue ? 0.55 : 1};
 						"
 					>
 						<Icon name={block.icon} size={12} color={block.color} />
@@ -186,60 +197,71 @@
 		{/if}
 	{/if}
 
-	{#each items as item, i (item._id)}
-		<div style="display: flex; align-items: flex-start; gap: 8px;">
-			{#if depth === 0 && selecting}
-				<input
-					type="checkbox"
-					aria-label="Select block {i + 1}"
-					checked={selectedIds.includes(item._id!)}
-					onchange={() => toggleSelected(item._id!)}
-					style="margin-top: 13px; cursor: pointer; accent-color: var(--pr); flex-shrink: 0;"
+	{#snippet blockRow(item: TrainingItem, i: number)}
+		<SortableWrapper id={item._id!} group={containerId} index={i}>
+			{#if item.type === 'exercise'}
+				<ExerciseItem
+					bind:item={items[i]}
+					{exercises}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
+			{:else if item.type === 'repeater'}
+				<HangboardItem
+					bind:item={items[i]}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
+			{:else if item.type === 'hangboard_rep'}
+				<HangboardRepItem
+					bind:item={items[i]}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+				/>
+			{:else if item.type === 'circuit'}
+				<CircuitItem
+					bind:item={items[i]}
+					{exercises}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+					{depth}
+					{innerAllowedTypes}
+				/>
+			{:else if item.type === 'group'}
+				<GroupItem
+					bind:item={items[i]}
+					{exercises}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+					{depth}
+					{innerAllowedTypes}
 				/>
 			{/if}
-			<div style="flex: 1; min-width: 0;">
-				<SortableWrapper id={item._id!} group={containerId} index={i}>
-					{#if item.type === 'exercise'}
-						<ExerciseItem
-							bind:item={items[i]}
-							{exercises}
-							onRemove={() => removeItem(i)}
-							onDuplicate={() => duplicateItem(i)}
-						/>
-					{:else if item.type === 'repeater'}
-						<HangboardItem
-							bind:item={items[i]}
-							onRemove={() => removeItem(i)}
-							onDuplicate={() => duplicateItem(i)}
-						/>
-					{:else if item.type === 'hangboard_rep'}
-						<HangboardRepItem
-							bind:item={items[i]}
-							onRemove={() => removeItem(i)}
-							onDuplicate={() => duplicateItem(i)}
-						/>
-					{:else if item.type === 'circuit'}
-						<CircuitItem
-							bind:item={items[i]}
-							{exercises}
-							onRemove={() => removeItem(i)}
-							onDuplicate={() => duplicateItem(i)}
-							{depth}
-							{innerAllowedTypes}
-						/>
-					{:else if item.type === 'group'}
-						<GroupItem
-							bind:item={items[i]}
-							{exercises}
-							onRemove={() => removeItem(i)}
-							onDuplicate={() => duplicateItem(i)}
-							{depth}
-							{innerAllowedTypes}
-						/>
-					{/if}
-				</SortableWrapper>
+		</SortableWrapper>
+	{/snippet}
+
+	{#each items as item, i (item._id)}
+		{#if depth === 0}
+			<!-- The checkbox column only exists at the root, and its row stays put
+			while selection is off, so toggling it rebuilds no block. Deeper lists
+			render the block alone, leaving their drag and drop tree untouched. -->
+			<div style="display: flex; align-items: flex-start; gap: 8px;">
+				{#if selecting}
+					<input
+						type="checkbox"
+						aria-label="Select block {i + 1}, {BLOCK_PRESENTATION[item.type].label}"
+						checked={selectedIds.includes(item._id!)}
+						onchange={() => toggleSelected(item._id!)}
+						style="margin-top: 13px; cursor: pointer; accent-color: var(--pr); flex-shrink: 0;"
+					/>
+				{/if}
+				<div style="flex: 1; min-width: 0;">
+					{@render blockRow(item, i)}
+				</div>
 			</div>
-		</div>
+		{:else}
+			{@render blockRow(item, i)}
+		{/if}
 	{/each}
 
 	<AddZone {containerId} {allowedTypes} onAdd={addItem} />
