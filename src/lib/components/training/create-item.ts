@@ -14,6 +14,10 @@ export function createTrainingItem(type: TrainingItemType, exerciseId?: string):
 		item.cycles = 3;
 		item.cycle_rest_seconds = 120;
 		item.items = [];
+	} else if (type === 'emom') {
+		item.cycles = 10;
+		item.interval_seconds = 60;
+		item.items = [];
 	} else if (type === 'group') {
 		item.group_title = 'Group';
 		item.items = [];

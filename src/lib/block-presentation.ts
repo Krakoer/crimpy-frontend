@@ -13,6 +13,7 @@ export interface BlockPresentation {
 export const BLOCK_PRESENTATION: Record<TrainingItemType, BlockPresentation> = {
 	exercise: { label: 'Exercise', icon: 'dumbbell', color: 'var(--pr)' },
 	circuit: { label: 'Circuit', icon: 'link', color: 'var(--pr)' },
+	emom: { label: 'EMOM', icon: 'clock', color: 'var(--pr)' },
 	group: { label: 'Group', icon: 'layers', color: 'var(--tx2)' },
 	repeater: { label: 'Hangboard', icon: 'grip', color: 'var(--hb)' },
 	hangboard_rep: { label: 'Hang rep', icon: 'clock', color: 'var(--hb)' },
@@ -25,6 +26,7 @@ export const BLOCK_PRESENTATION: Record<TrainingItemType, BlockPresentation> = {
 // shows them. Exercises are added through their own picker, not from here.
 export const STRUCTURE_BLOCK_TYPES: TrainingItemType[] = [
 	'circuit',
+	'emom',
 	'group',
 	'repeater',
 	'hangboard_rep'
