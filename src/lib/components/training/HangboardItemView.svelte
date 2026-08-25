@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AssessmentCatalog } from '$lib/assessments';
 	import type { TrainingItem } from '$lib/api/client';
 	import { formatLoad } from '$lib/assessments';
 	import HangboardCard from './HangboardCard.svelte';
@@ -14,9 +15,10 @@
 
 	interface Props {
 		item: TrainingItem;
+		catalog: AssessmentCatalog;
 	}
 
-	let { item }: Props = $props();
+	let { item, catalog }: Props = $props();
 
 	let sets = $derived(hangboardSets(item));
 	let reps = $derived(hangboardReps(item));
@@ -42,7 +44,8 @@
 			variation,
 			base,
 			twoHanded,
-			configAt: (address) => storedConfig(item, Math.floor(address / reps), address % reps)
+			configAt: (address) => storedConfig(item, Math.floor(address / reps), address % reps),
+			catalog
 		})
 	);
 
@@ -99,16 +102,16 @@
 					</div>
 					<div class="hb-fact">
 						<span class="hb-label">Load</span>
-						<span class="hb-value">{formatLoad(base.loadRight)}</span>
+						<span class="hb-value">{formatLoad(base.loadRight, catalog)}</span>
 					</div>
 				{:else}
 					<div class="hb-fact">
 						<span class="hb-label">Left</span>
-						<span class="hb-value">{base.gripLeft} {formatLoad(base.loadLeft)}</span>
+						<span class="hb-value">{base.gripLeft} {formatLoad(base.loadLeft, catalog)}</span>
 					</div>
 					<div class="hb-fact">
 						<span class="hb-label">Right</span>
-						<span class="hb-value">{base.gripRight} {formatLoad(base.loadRight)}</span>
+						<span class="hb-value">{base.gripRight} {formatLoad(base.loadRight, catalog)}</span>
 					</div>
 				{/if}
 			</div>

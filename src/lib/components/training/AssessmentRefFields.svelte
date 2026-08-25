@@ -1,25 +1,31 @@
 <script lang="ts">
-	import { ASSESSMENT_TYPES, assessmentTypesForField, type VariableField } from '$lib/assessments';
+	import {
+		assessmentsForField,
+		type AssessmentCatalog,
+		type VariableField
+	} from '$lib/assessments';
 
 	interface Props {
 		field: VariableField;
-		assessmentType: number;
+		assessmentId: string;
 		fallback: number;
 		fallbackUnit: string;
+		catalog: AssessmentCatalog;
 		label?: string;
 		onchange?: () => void;
 	}
 
 	let {
 		field,
-		assessmentType = $bindable(),
+		assessmentId = $bindable(),
 		fallback = $bindable(),
 		fallbackUnit,
+		catalog,
 		label = 'OF',
 		onchange
 	}: Props = $props();
 
-	let types = $derived(assessmentTypesForField(field));
+	let options = $derived(assessmentsForField(field, catalog));
 
 	const labelStyle =
 		'font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;';
@@ -30,13 +36,13 @@
 <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
 	{#if label}<span style={labelStyle}>{label}</span>{/if}
 	<select
-		bind:value={assessmentType}
+		bind:value={assessmentId}
 		{onchange}
 		onclick={(e) => e.stopPropagation()}
 		style={controlStyle}
 	>
-		{#each types as type (type)}
-			<option value={type}>{ASSESSMENT_TYPES[type].label}</option>
+		{#each options as id (id)}
+			<option value={id}>{catalog[id].label}</option>
 		{/each}
 	</select>
 	<span style={labelStyle}>FALLBACK</span>

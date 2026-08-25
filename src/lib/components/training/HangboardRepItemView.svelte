@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AssessmentCatalog } from '$lib/assessments';
 	import type { TrainingItem } from '$lib/api/client';
 	import { formatLoad } from '$lib/assessments';
 	import HangboardCard from './HangboardCard.svelte';
@@ -7,9 +8,10 @@
 
 	interface Props {
 		item: TrainingItem;
+		catalog: AssessmentCatalog;
 	}
 
-	let { item }: Props = $props();
+	let { item, catalog }: Props = $props();
 
 	// A hang rep stands for one rep of one set, so it reads back from the first
 	// coordinate of whatever layout it declares.
@@ -48,7 +50,7 @@
 			</div>
 			<div class="hb-fact">
 				<span class="hb-label">Load</span>
-				<span class="hb-value">{formatLoad(config.loadRight)}</span>
+				<span class="hb-value">{formatLoad(config.loadRight, catalog)}</span>
 			</div>
 		</div>
 	{/snippet}

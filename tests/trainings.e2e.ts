@@ -1,11 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { TrainingRequest } from '../src/lib/api/client';
 import {
+	BUILTIN_CRITICAL_FORCE,
+	builtinAssessmentDefinitions,
 	capture,
 	exercisePage,
 	mockApi,
 	signIn,
 	stub,
+	testAssessmentDefinition,
 	testExercise,
 	testTag,
 	testTraining,
@@ -39,6 +42,11 @@ function deleteButtonOn(page: Page, title: string) {
 
 test.beforeEach(async ({ page }) => {
 	await mockApi(page);
+	// The editor names the assessment a percentage is read against, and offers
+	// the ones measured in the unit of the field it drives.
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: builtinAssessmentDefinitions()
+	});
 	await signIn(page, testUser());
 });
 
@@ -812,7 +820,7 @@ test.describe('hangboard hand modes', () => {
 		const item = savedHangboardItem(updates);
 		const [leftLoad] = item.left_loads as Record<string, unknown>[];
 		expect(leftLoad.unit).toBe('percent_assessment');
-		expect(leftLoad.assessment_type).toBeDefined();
+		expect(leftLoad.assessment_id).toBeDefined();
 		expect(leftLoad.fallback).toBeDefined();
 	});
 
@@ -1097,7 +1105,14 @@ test.describe('hang rep items', () => {
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
-			loads: [{ value: 80, unit: 'percent_assessment', assessment_type: 0, fallback: 0 }]
+			loads: [
+				{
+					value: 80,
+					unit: 'percent_assessment',
+					assessment_id: BUILTIN_CRITICAL_FORCE,
+					fallback: 0
+				}
+			]
 		});
 	});
 });
@@ -1377,5 +1392,212 @@ test.describe('grouping root blocks', () => {
 		expect(items[0].id).toBeUndefined();
 		expect(items[0].items).toMatchObject([{ id: 'item-1' }, { id: 'item-2' }]);
 		expect(items[1]).toMatchObject({ id: 'item-3', group_title: 'Cool down' });
+	});
+});
+
+test.describe('custom assessments', () => {
+	test('writes an assessment on a training', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			body: testAssessmentDefinition({ id: 'assessment-9' })
+		});
+		const declared = capture(page, 'POST', '/api/assessment-definitions');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Pull up pyramid');
+		await page.getByLabel('This training is an assessment').check();
+		await page.getByPlaceholder('How many pull ups did you do?').fill('How many reps to failure?');
+		await page.getByRole('button', { name: 'Reps' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Assessment created')).toBeVisible();
+		expect(declared).toHaveLength(1);
+		expect(declared[0].body).toMatchObject({
+			training_id: 'training-9',
+			label: 'Pull up pyramid',
+			prompt: 'How many reps to failure?',
+			unit: 'repetitions',
+			per_hand: false
+		});
+	});
+
+	test('measures an assessment on each hand when the coach asks for it', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			body: testAssessmentDefinition({ id: 'assessment-9' })
+		});
+		const declared = capture(page, 'POST', '/api/assessment-definitions');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('One arm lock off');
+		await page.getByLabel('This training is an assessment').check();
+		await page.getByPlaceholder('How many pull ups did you do?').fill('How long did you hold?');
+		await page.getByRole('button', { name: 'Seconds' }).click();
+		await page.getByLabel('Measured on each hand separately').check();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Assessment created')).toBeVisible();
+		expect(declared[0].body).toMatchObject({
+			unit: 'seconds',
+			per_hand: true
+		});
+	});
+
+	test('refuses to save an assessment with no question', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		const created = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Nameless test');
+		await page.getByLabel('This training is an assessment').check();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(
+			page.getByText('An assessment needs a question for the athlete to answer.')
+		).toBeVisible();
+		// Refused before the training is created, so no orphan is left behind for
+		// the retry to duplicate.
+		expect(created).toHaveLength(0);
+	});
+
+	test('renames an assessment already on a training', async ({ page }) => {
+		const training = testTraining({
+			assessment: {
+				id: 'assessment-9',
+				label: 'Pull up pyramid',
+				prompt: 'How many?',
+				unit: 'repetitions',
+				per_hand: false,
+				unit_locked: false
+			}
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/assessment-definitions/*', {
+			body: testAssessmentDefinition({ id: 'assessment-9' })
+		});
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/assessment-definitions/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByPlaceholder('How many pull ups did you do?').fill('How many in total?');
+		await saveTraining(page);
+
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body).toMatchObject({ prompt: 'How many in total?' });
+	});
+
+	// The unit says what every past number means and what a prescription reads
+	// against, so the server locks it and the editor says so instead of letting
+	// the coach try.
+	test('fixes the unit once the assessment is in use', async ({ page }) => {
+		const training = testTraining({
+			assessment: {
+				id: 'assessment-9',
+				label: 'Pull up pyramid',
+				prompt: 'How many?',
+				unit: 'repetitions',
+				per_hand: false,
+				unit_locked: true
+			}
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByText('This assessment is already in use')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Seconds' })).toBeDisabled();
+		await expect(page.getByLabel('Measured on each hand separately')).toBeDisabled();
+	});
+
+	// Removing the assessment deletes the definition, which any training
+	// prescribing a percentage of it then cannot resolve.
+	test('asks before removing an assessment from a training', async ({ page }) => {
+		const training = testTraining({
+			assessment: {
+				id: 'assessment-9',
+				label: 'Pull up pyramid',
+				prompt: 'How many?',
+				unit: 'repetitions',
+				per_hand: false,
+				unit_locked: false
+			}
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stub(page, 'DELETE', '/api/assessment-definitions/*', {
+			body: { message: 'gone' }
+		});
+		await stubEditorPalette(page);
+		const deletes = capture(page, 'DELETE', '/api/assessment-definitions/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByLabel('This training is an assessment').uncheck();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Stop measuring this?')).toBeVisible();
+		expect(deletes).toHaveLength(0);
+
+		await page.getByRole('button', { name: 'Remove the assessment' }).click();
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(deletes).toHaveLength(1);
+	});
+
+	// A reps target had no assessment it could reference while the only ones were
+	// the three Crimpy ships, none of which counts repetitions, so the control was
+	// hidden. A custom assessment in repetitions is what turns it on.
+	test('prescribes reps as a percentage of a reps assessment', async ({ page }) => {
+		const pyramid = testAssessmentDefinition({
+			id: 'assessment-9',
+			label: 'Pull up pyramid',
+			unit: 'repetitions',
+			per_hand: false,
+			is_builtin: false,
+			training_id: 'training-8'
+		});
+		await stub(page, 'GET', '/api/assessment-definitions', {
+			body: [...builtinAssessmentDefinitions(), pyramid]
+		});
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-1',
+					type: 'exercise',
+					position: 0,
+					exercise_id: testExercise().id,
+					reps: 8,
+					duration: 0,
+					rest_seconds: 60
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		// The percentage control is offered on reps now that something measures them.
+		await page.getByRole('button', { name: '%' }).click();
+		await saveTraining(page);
+
+		expect(updates).toHaveLength(1);
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items[0].variable_targets?.reps).toMatchObject({
+			assessment_id: 'assessment-9',
+			percent: 75
+		});
 	});
 });

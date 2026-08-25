@@ -12,6 +12,12 @@
 		TrainingType
 	} from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
+	import AssessmentDefinitionFields from '$lib/components/training/AssessmentDefinitionFields.svelte';
+	import {
+		emptyAssessmentDraft,
+		type AssessmentDraft
+	} from '$lib/components/training/assessment-draft';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import { isHangboardItem } from '$lib/components/training/hangboard-granularity';
 	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
@@ -229,12 +235,23 @@
 	// step through and their app offers to log it as done instead of running it.
 	// Kept apart from the type, so any label can be either.
 	let logOnly = $state(false);
+	let assessment = $state<AssessmentDraft>(emptyAssessmentDraft());
 	let showCreateExerciseModal = $state(false);
 	let createExerciseModalDirty = $state(false);
 	let leavingAfterCreate = $state(false);
 
-	const emptyDraftSnapshot = JSON.stringify(emptyDraft());
-	let isDirty = $derived(JSON.stringify($state.snapshot(draft)) !== emptyDraftSnapshot);
+	const emptyDraftSnapshot = JSON.stringify({
+		draft: emptyDraft(),
+		logOnly: false,
+		assessment: emptyAssessmentDraft()
+	});
+	let isDirty = $derived(
+		JSON.stringify({
+			draft: $state.snapshot(draft),
+			logOnly,
+			assessment: $state.snapshot(assessment)
+		}) !== emptyDraftSnapshot
+	);
 	let guardDirty = $derived(
 		!leavingAfterCreate && (isDirty || (showCreateExerciseModal && createExerciseModalDirty))
 	);
@@ -377,10 +394,18 @@
 		}
 
 		loadSidebarExercises();
+		assessmentCatalog.load();
 	});
 
 	async function handleSave() {
 		if (!draft.title.trim()) return;
+		// Checked before the training is created: the server refuses a definition
+		// with no question, and the training would already exist by then, leaving
+		// an orphan behind and a second one on the retry.
+		if (assessment.enabled && !assessment.prompt.trim()) {
+			saveError = 'An assessment needs a question for the athlete to answer.';
+			return;
+		}
 		saving = true;
 		saveError = '';
 		try {
@@ -392,7 +417,17 @@
 				comment: draft.comment?.trim() || undefined,
 				items: logOnly ? [] : draft.items
 			});
-			snackbar.show('Training created');
+			if (assessment.enabled) {
+				await apiClient.createAssessmentDefinition({
+					training_id: training.id,
+					label: draft.title.trim(),
+					prompt: assessment.prompt.trim(),
+					unit: assessment.unit,
+					per_hand: assessment.perHand
+				});
+				await assessmentCatalog.refresh();
+			}
+			snackbar.show(assessment.enabled ? 'Assessment created' : 'Training created');
 			leavingAfterCreate = true;
 			goto(`/trainings/${training.id}`);
 		} catch (e) {
@@ -497,6 +532,9 @@
 								Log only (nothing to run, the athlete just marks it as done)
 							</label>
 						</div>
+						<div style="margin-bottom: 12px;">
+							<AssessmentDefinitionFields bind:draft={assessment} />
+						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
 								style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
@@ -522,6 +560,7 @@
 					<ItemList
 						bind:items={draft.items}
 						{exercises}
+						catalog={assessmentCatalog.catalog}
 						allowedTypes={draft.training_type === 'stretching'
 							? draft.items.some((i) => i.type === 'circuit')
 								? ['exercise']
@@ -757,6 +796,9 @@
 						<input type="checkbox" bind:checked={logOnly} style="cursor: pointer;" />
 						Log only (nothing to run, the athlete just marks it as done)
 					</label>
+					<div style="margin-top: 10px;">
+						<AssessmentDefinitionFields bind:draft={assessment} />
+					</div>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
 					<span

@@ -1,37 +1,105 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { AssessmentResponse } from '$lib/api/client';
+	import { measuredAt, singleValue } from '$lib/components/assessment/assessment-records';
 
 	let {
 		history,
 		unit,
-		formatValue
+		formatValue,
+		perHand = true
 	}: {
 		history: AssessmentResponse[];
 		unit: string;
 		formatValue: (v: number) => string;
+		// An assessment measured on one hand at a time draws a line per hand. One
+		// measured as a single number draws one line, and calling it "right" would
+		// be a lie the legend then repeats.
+		perHand?: boolean;
 	} = $props();
 
 	let container: HTMLDivElement;
 	let chart: import('echarts').ECharts | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
+	// Echarts wants concrete colors, so the Alpine variables are read off the
+	// document once rather than hardcoded here where they would drift.
+	function palette() {
+		const styles = getComputedStyle(document.documentElement);
+		const value = (name: string, fallback: string) =>
+			styles.getPropertyValue(name).trim() || fallback;
+		return {
+			font: value('--font', 'Figtree, system-ui, sans-serif'),
+			panel: value('--panel', '#fff'),
+			border: value('--bd', '#e8e0d6'),
+			borderLight: value('--bd2', '#f0eadf'),
+			text: value('--tx', '#2d241d'),
+			textSoft: value('--tx2', '#7a6e62'),
+			textFaint: value('--tx3', '#b0a496'),
+			left: value('--gn', '#6b8f71'),
+			right: value('--pr', '#c2714f')
+		};
+	}
+
+	function shortDate(value: number | string): string {
+		return new Date(Number(value)).toLocaleDateString('en-GB', {
+			day: 'numeric',
+			month: 'short'
+		});
+	}
+
 	function buildOptions(data: AssessmentResponse[]) {
-		const leftData = data
-			.filter((a) => a.left_value !== null)
-			.map((a) => [new Date(a.updated_at).getTime(), a.left_value as number]);
-		const rightData = data
-			.filter((a) => a.right_value !== null)
-			.map((a) => [new Date(a.updated_at).getTime(), a.right_value as number]);
+		const theme = palette();
+		const points = (pick: (a: AssessmentResponse) => number | null | undefined) =>
+			data
+				.map((a) => [measuredAt(a), pick(a)] as const)
+				.filter(
+					(point): point is readonly [number, number] => point[1] !== null && point[1] !== undefined
+				)
+				.map((point) => [point[0], point[1]]);
+
+		const line = (name: string, color: string, values: number[][]) => ({
+			name,
+			type: 'line',
+			data: values,
+			smooth: false,
+			symbol: 'circle',
+			symbolSize: 5,
+			lineStyle: { color, width: 2 },
+			itemStyle: { color }
+		});
+
+		const series = perHand
+			? [
+					line(
+						'Left',
+						theme.left,
+						points((a) => a.left_value)
+					),
+					line(
+						'Right',
+						theme.right,
+						points((a) => a.right_value)
+					)
+				]
+			: [
+					line(
+						'Result',
+						theme.right,
+						points((a) => singleValue(a))
+					)
+				];
+
+		const baseText = { fontFamily: theme.font, fontSize: 11 };
 
 		return {
-			textStyle: { fontFamily: 'monospace', fontSize: 11 },
+			textStyle: baseText,
 			tooltip: {
 				trigger: 'axis',
-				backgroundColor: '#fff',
-				borderColor: '#e5e7eb',
+				backgroundColor: theme.panel,
+				borderColor: theme.border,
 				borderWidth: 1,
-				textStyle: { fontFamily: 'monospace', fontSize: 11, color: '#333' },
+				textStyle: { ...baseText, color: theme.text },
 				formatter: (
 					params: Array<{ axisValue: string | number; seriesName: string; value: [number, number] }>
 				) => {
@@ -41,47 +109,41 @@
 						year: 'numeric'
 					});
 					const lines = params.map((p) => {
-						const color = p.seriesName === 'Left' ? '#5A8C5A' : '#C6613F';
-						const val = formatValue(p.value[1]);
-						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${val} ${unit}`;
+						const color = p.seriesName === 'Left' ? theme.left : theme.right;
+						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${formatValue(p.value[1])} ${unit}`;
 					});
-					return `<div style="font-family:monospace;font-size:11px;">${date}<br/>${lines.join('<br/>')}</div>`;
+					return `<div style="font-family:${theme.font};font-size:11px;">${date}<br/>${lines.join('<br/>')}</div>`;
 				},
-				axisPointer: { type: 'cross', lineStyle: { color: '#ccc', type: 'dashed' } }
+				axisPointer: { type: 'cross', lineStyle: { color: theme.border, type: 'dashed' } }
 			},
 			legend: {
-				data: ['Left', 'Right'],
+				show: perHand,
+				data: series.map((s) => s.name),
 				right: 0,
 				top: 0,
 				itemWidth: 16,
 				itemHeight: 2,
-				textStyle: { fontFamily: 'monospace', fontSize: 11, color: '#555' }
+				textStyle: { ...baseText, color: theme.textSoft }
 			},
-			grid: { left: 48, right: 16, top: 28, bottom: 48 },
+			grid: { left: 48, right: 16, top: perHand ? 28 : 12, bottom: 48 },
 			xAxis: {
 				type: 'time',
-				axisLabel: {
-					fontFamily: 'monospace',
-					fontSize: 10,
-					color: '#999',
-					formatter: (val: number) =>
-						new Date(val).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-				},
-				axisLine: { lineStyle: { color: '#e5e7eb' } },
+				axisLabel: { ...baseText, fontSize: 10, color: theme.textFaint, formatter: shortDate },
+				axisLine: { lineStyle: { color: theme.border } },
 				splitLine: { show: false }
 			},
 			yAxis: {
 				type: 'value',
 				name: unit,
-				nameTextStyle: { fontFamily: 'monospace', fontSize: 10, color: '#999' },
+				nameTextStyle: { ...baseText, fontSize: 10, color: theme.textFaint },
 				axisLabel: {
-					fontFamily: 'monospace',
+					...baseText,
 					fontSize: 10,
-					color: '#999',
+					color: theme.textFaint,
 					formatter: (val: number) => formatValue(val)
 				},
 				axisLine: { show: false },
-				splitLine: { lineStyle: { color: '#f0f0f0' } }
+				splitLine: { lineStyle: { color: theme.borderLight } }
 			},
 			dataZoom: [
 				{ type: 'inside', xAxisIndex: 0, filterMode: 'none' },
@@ -90,38 +152,14 @@
 					xAxisIndex: 0,
 					height: 18,
 					bottom: 4,
-					borderColor: '#e5e7eb',
-					fillerColor: 'rgba(198,97,63,0.08)',
-					handleStyle: { color: '#C6613F' },
-					textStyle: { fontFamily: 'monospace', fontSize: 9, color: '#aaa' },
-					labelFormatter: (_: number, val: string) => {
-						const d = new Date(Number(val));
-						return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-					}
+					borderColor: theme.border,
+					fillerColor: 'rgba(194, 113, 79, 0.08)',
+					handleStyle: { color: theme.right },
+					textStyle: { ...baseText, fontSize: 9, color: theme.textFaint },
+					labelFormatter: (_: number, val: string) => shortDate(val)
 				}
 			],
-			series: [
-				{
-					name: 'Left',
-					type: 'line',
-					data: leftData,
-					smooth: false,
-					symbol: 'circle',
-					symbolSize: 5,
-					lineStyle: { color: '#5A8C5A', width: 2 },
-					itemStyle: { color: '#5A8C5A' }
-				},
-				{
-					name: 'Right',
-					type: 'line',
-					data: rightData,
-					smooth: false,
-					symbol: 'circle',
-					symbolSize: 5,
-					lineStyle: { color: '#C6613F', width: 2 },
-					itemStyle: { color: '#C6613F' }
-				}
-			]
+			series
 		};
 	}
 

@@ -316,6 +316,18 @@
 								{training.title}
 							</div>
 
+							<!-- An assessment is run like a training, so the library says which
+							     ones measure something. -->
+							{#if training.assessment}
+								<div style="display: flex; align-items: center; gap: 4px;">
+									<Icon name="spark" size={11} color="var(--pl)" />
+									<span
+										style="font-size: 10px; font-weight: 700; color: var(--pl); letter-spacing: 0.05em;"
+										>ASSESSMENT</span
+									>
+								</div>
+							{/if}
+
 							{#if training.description}
 								<div
 									style="font-size: 12.5px; color: var(--tx2); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
@@ -401,8 +413,16 @@
 							{tc.short}
 						</div>
 						<div style="font-family: var(--font);">
-							<div style="font-size: 14px; font-weight: 600; color: var(--tx);">
+							<div
+								style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--tx);"
+							>
 								{training.title}
+								{#if training.assessment}
+									<span
+										style="font-size: 9.5px; font-weight: 700; color: var(--pl); letter-spacing: 0.05em;"
+										>ASSESSMENT</span
+									>
+								{/if}
 							</div>
 							{#if training.description}
 								<div

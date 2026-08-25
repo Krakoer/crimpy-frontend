@@ -2,6 +2,7 @@
 	import type { PrescriptionSnapshot } from '$lib/api/client';
 	import {
 		assessmentLabel,
+		buildAssessmentCatalog,
 		collectAssessmentRelativeValues,
 		formatResolvedValue,
 		handLabel,
@@ -19,6 +20,11 @@
 	// the session. Without this a load reads as "85% Max force", which is the one
 	// prescribed number a coach cannot compare to the measured kilograms by eye.
 	const relativeValues = $derived(collectAssessmentRelativeValues(prescription.items));
+
+	// The assessments as they read when the session was played, frozen beside the
+	// results. Reading the coach's current definitions instead would relabel and
+	// re-resolve a past prescription every time one is edited.
+	const catalog = $derived(buildAssessmentCatalog(prescription.resolved_against.definitions ?? []));
 
 	const fieldLabels: Record<string, string> = {
 		load: 'load',
@@ -88,14 +94,15 @@
 				Asked for, in the athlete's numbers of the day
 			</div>
 			<div class="space-y-1" style="margin-top: 6px;">
-				{#each relativeValues as relative (`${relative.field}:${relative.assessment_type}:${relative.percent}:${relative.fallback}`)}
+				{#each relativeValues as relative (`${relative.field}:${relative.assessment_id}:${relative.percent}:${relative.fallback}`)}
 					{@const resolved = resolveAgainstFrozenResults(
 						relative,
-						prescription.resolved_against.assessments
+						prescription.resolved_against.assessments,
+						catalog
 					)}
 					<div class="flex items-baseline justify-between gap-3" style="font-size: 12.5px;">
 						<span style="color: var(--tx2); min-width: 0;">
-							{relative.percent}% {assessmentLabel(relative.assessment_type)}
+							{relative.percent}% {assessmentLabel(relative.assessment_id, catalog)}
 							<span style="color: var(--tx3);"
 								>({fieldLabels[relative.field] ?? relative.field})</span
 							>
@@ -123,6 +130,6 @@
 
 	<div style="padding: 14px 18px;">
 		<!-- Every item names its own exercise, so the tree needs no library here. -->
-		<ItemListView items={prescription.items} exercises={[]} showControls={false} />
+		<ItemListView items={prescription.items} exercises={[]} {catalog} showControls={false} />
 	</div>
 </div>

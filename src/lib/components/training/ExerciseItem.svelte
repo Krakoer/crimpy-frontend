@@ -7,21 +7,22 @@
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
-		ASSESSMENT_TYPES,
 		assessmentLabel,
-		assessmentTypesForField,
+		assessmentsForField,
 		formatLoad,
+		type AssessmentCatalog,
 		type VariableField
 	} from '$lib/assessments';
 
 	interface Props {
 		item: TrainingItem;
 		exercises: Exercise[];
+		catalog: AssessmentCatalog;
 		onRemove: () => void;
 		onDuplicate: () => void;
 	}
 
-	let { item = $bindable(), exercises, onRemove, onDuplicate }: Props = $props();
+	let { item = $bindable(), exercises, catalog, onRemove, onDuplicate }: Props = $props();
 
 	const MAX_COMMENT_LENGTH = 200;
 
@@ -29,7 +30,7 @@
 	let showEditModal = $state(false);
 	let confirmDelete = $state(false);
 
-	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
+	let loadAssessments = $derived(assessmentsForField('load', catalog));
 
 	let exerciseName = $derived(
 		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
@@ -67,19 +68,31 @@
 		const load = item.loads?.[0];
 		if (!load) return;
 		if (load.unit === 'percent_assessment') {
-			load.assessment_type ??= LOAD_ASSESSMENTS[0];
+			load.assessment_id ??= loadAssessments[0];
 			load.fallback ??= 0;
 			if (load.value === 0) load.value = 80;
 		} else {
-			load.assessment_type = undefined;
+			load.assessment_id = undefined;
 			load.fallback = undefined;
 		}
 	}
 
+	// The catalog loads after the first render, so a load switched to a percentage
+	// before it arrives has no assessment to seed from. Writing the fallback once
+	// the options exist keeps what the picker shows and what the item carries the
+	// same, rather than saving an item the server refuses.
+	$effect(() => {
+		const load = item.loads?.[0];
+		if (load?.unit !== 'percent_assessment') return;
+		if (load.assessment_id === undefined && loadAssessments.length > 0) {
+			load.assessment_id = loadAssessments[0];
+		}
+	});
+
 	// Reps and duration are exclusive, so only the active one can be variable.
 	let variableField = $derived<'duration' | 'reps'>(isDuration ? 'duration' : 'reps');
 	let variableTarget = $derived(item.variable_targets?.[variableField]);
-	let canBeVariable = $derived(assessmentTypesForField(variableField).length > 0);
+	let canBeVariable = $derived(assessmentsForField(variableField, catalog).length > 0);
 
 	// The reps and duration inputs edit the fallback once the field is variable,
 	// so the plain value a client without assessment data reads stays right.
@@ -87,7 +100,7 @@
 		const targets = { ...(item.variable_targets ?? {}) };
 		if (on) {
 			targets[field] = {
-				assessment_type: assessmentTypesForField(field)[0],
+				assessment_id: assessmentsForField(field, catalog)[0],
 				percent: 75,
 				fallback: (field === 'duration' ? item.duration : item.reps) ?? 0
 			};
@@ -140,14 +153,16 @@
 		const repsTarget = item.variable_targets?.reps;
 		if (isDuration) {
 			if (durationTarget) {
-				parts.push(`${durationTarget.percent}% ${assessmentLabel(durationTarget.assessment_type)}`);
+				parts.push(
+					`${durationTarget.percent}% ${assessmentLabel(durationTarget.assessment_id, catalog)}`
+				);
 			} else {
 				const m = Math.floor((item.duration ?? 0) / 60);
 				const s = (item.duration ?? 0) % 60;
 				parts.push(m > 0 ? `${m}m${s > 0 ? s + 's' : ''}` : `${s}s`);
 			}
 		} else if (repsTarget) {
-			parts.push(`${repsTarget.percent}% ${assessmentLabel(repsTarget.assessment_type)}`);
+			parts.push(`${repsTarget.percent}% ${assessmentLabel(repsTarget.assessment_id, catalog)}`);
 		} else {
 			parts.push(`${item.reps ?? 0} reps`);
 		}
@@ -155,7 +170,7 @@
 		if (rest > 0) parts.push(`${rest}s rest`);
 		const load = item.loads?.[0];
 		if (load && !(load.unit === 'percent_bw' && load.value === 100)) {
-			parts.push(formatLoad(load));
+			parts.push(formatLoad(load, catalog));
 		}
 		return parts.join(' · ');
 	});
@@ -280,12 +295,12 @@
 						/>
 						<span style="font-size: 11px; color: var(--tx3);">% of</span>
 						<select
-							bind:value={variableTarget.assessment_type}
+							bind:value={variableTarget.assessment_id}
 							onclick={(e) => e.stopPropagation()}
 							style="padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;"
 						>
-							{#each assessmentTypesForField(variableField) as type (type)}
-								<option value={type}>{ASSESSMENT_TYPES[type].label}</option>
+							{#each assessmentsForField(variableField, catalog) as id (id)}
+								<option value={id}>{catalog[id].label}</option>
 							{/each}
 						</select>
 					</div>
@@ -388,14 +403,15 @@
 					{#if item.loads[0].unit === 'percent_assessment'}
 						<AssessmentRefFields
 							field="load"
-							bind:assessmentType={
-								() => item.loads![0].assessment_type ?? LOAD_ASSESSMENTS[0],
-								(v) => (item.loads![0].assessment_type = v)
+							bind:assessmentId={
+								() => item.loads![0].assessment_id ?? loadAssessments[0],
+								(v) => (item.loads![0].assessment_id = v)
 							}
 							bind:fallback={
 								() => item.loads![0].fallback ?? 0, (v) => (item.loads![0].fallback = v)
 							}
 							fallbackUnit="kg"
+							{catalog}
 						/>
 					{/if}
 				{:else}

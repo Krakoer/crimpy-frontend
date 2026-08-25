@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import ItemListView from './ItemListView.svelte';
+	import type { AssessmentCatalog } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
@@ -8,10 +9,11 @@
 	interface Props {
 		item: TrainingItem;
 		exercises: Exercise[];
+		catalog: AssessmentCatalog;
 		depth: number;
 	}
 
-	let { item, exercises, depth }: Props = $props();
+	let { item, exercises, depth, catalog }: Props = $props();
 
 	let collapsed = $state(false);
 
@@ -65,7 +67,7 @@
 			<div
 				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tx2) 20%, transparent);"
 			>
-				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} />
+				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
 		</div>
 	{/if}

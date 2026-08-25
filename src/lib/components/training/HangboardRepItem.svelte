@@ -4,7 +4,7 @@
 	import { HANGBOARD_LOAD_UNITS, loadUnitHasValue } from './load-units';
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import HangboardCard from './HangboardCard.svelte';
-	import { assessmentTypesForField } from '$lib/assessments';
+	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
 	import { HANGBOARD_REP_HANDS, hangboardHand, saneCount } from './hangboard-granularity';
 	import {
 		HANGBOARD_GRIPS,
@@ -19,11 +19,12 @@
 
 	interface Props {
 		item: TrainingItem;
+		catalog: AssessmentCatalog;
 		onRemove: () => void;
 		onDuplicate: () => void;
 	}
 
-	let { item = $bindable(), onRemove, onDuplicate }: Props = $props();
+	let { item = $bindable(), catalog, onRemove, onDuplicate }: Props = $props();
 
 	item.hand ??= 'both';
 	item.worktime_seconds ??= 7;
@@ -59,10 +60,12 @@
 		});
 	}
 
-	const LOAD_ASSESSMENTS = assessmentTypesForField('load');
 	const storedLoad = item.loads?.[CONFIG_ROW];
 
-	let loadAssessmentType = $state(storedLoad?.assessment_type ?? LOAD_ASSESSMENTS[0]);
+	// Left unset until the catalog has loaded, which happens after the first
+	// render: seeding it from an empty catalog would pin it to undefined.
+	let loadAssessmentId = $state<string | undefined>(storedLoad?.assessment_id);
+	let loadAssessments = $derived(assessmentsForField('load', catalog));
 	let loadFallbackKg = $state(storedLoad?.fallback ?? 0);
 	let usesAssessmentLoad = $derived(config.loadRight.unit === 'percent_assessment');
 
@@ -72,11 +75,12 @@
 	$effect(() => {
 		const load = item.loads?.[CONFIG_ROW];
 		if (!load) return;
+		loadAssessmentId ??= loadAssessments[0];
 		if (load.unit === 'percent_assessment') {
-			load.assessment_type = loadAssessmentType;
+			load.assessment_id = loadAssessmentId;
 			load.fallback = loadFallbackKg;
-		} else if (load.assessment_type !== undefined) {
-			load.assessment_type = undefined;
+		} else if (load.assessment_id !== undefined) {
+			load.assessment_id = undefined;
 			load.fallback = undefined;
 		}
 	});
@@ -95,7 +99,7 @@
 	let handHint = $derived(HANGBOARD_REP_HANDS.find((h) => h.value === hand)?.hint ?? '');
 	let handLabel = $derived(HANGBOARD_REP_HANDS.find((h) => h.value === hand)?.label ?? 'Both');
 	let collapsedSummary = $derived(
-		`${item.worktime_seconds}s hang / ${item.rest_seconds}s rest, ${describeConfig(config, TWO_HANDED)}, ${handLabel.toLowerCase()}`
+		`${item.worktime_seconds}s hang / ${item.rest_seconds}s rest, ${describeConfig(config, TWO_HANDED, catalog)}, ${handLabel.toLowerCase()}`
 	);
 </script>
 
@@ -205,9 +209,12 @@
 				<span class="hb-hint">Load set in percent</span>
 				<AssessmentRefFields
 					field="load"
-					bind:assessmentType={loadAssessmentType}
+					bind:assessmentId={
+						() => loadAssessmentId ?? loadAssessments[0], (v) => (loadAssessmentId = v)
+					}
 					bind:fallback={loadFallbackKg}
 					fallbackUnit="kg"
+					{catalog}
 				/>
 			</div>
 		{/if}
