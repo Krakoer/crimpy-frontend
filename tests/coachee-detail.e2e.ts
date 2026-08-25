@@ -144,6 +144,10 @@ test.describe('session details', () => {
 		// into its flat list rather than heading anything.
 		await expect(dialog.getByText('Repetitions', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('Blocks', { exact: true })).toBeHidden();
+		// Two right hangs and two left ones, each row naming the hand it was
+		// pulled with.
+		await expect(dialog.getByText('R', { exact: true })).toHaveCount(2);
+		await expect(dialog.getByText('L', { exact: true })).toHaveCount(2);
 	});
 
 	test('grades a session the sensor dropped in on the reps it measured', async ({ page }) => {
