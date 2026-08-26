@@ -5,9 +5,11 @@ export type ContainerType = 'circuit' | 'group' | 'emom';
 const LEAF_TYPES: TrainingItemType[] = ['exercise', 'repeater', 'hangboard_rep'];
 const ROOT_CIRCUIT_TYPES: TrainingItemType[] = ['exercise', 'group', 'repeater', 'hangboard_rep'];
 
-// A group is the one container that takes an emom, so a coach can put the block
-// inside the part of the session it belongs to. A circuit does not: rounds
-// started on a clock inside rounds that are not is two paces for one block.
+// A group at the root is the one container that takes an emom, so a coach can
+// put the block inside the part of the session it belongs to. A circuit does
+// not, and neither does a group sitting inside one: rounds started on a clock
+// inside rounds that are not is two paces for one block, whether the emom is
+// nested directly or through a group.
 const GROUP_TYPES: TrainingItemType[] = [...LEAF_TYPES, 'emom'];
 
 // What a container accepts, given the depth it sits at. A circuit at the root
@@ -21,7 +23,7 @@ export function containerChildTypes(
 	innerAllowedTypes?: TrainingItemType[]
 ): TrainingItemType[] {
 	if (innerAllowedTypes) return innerAllowedTypes;
-	if (containerType === 'group') return GROUP_TYPES;
+	if (containerType === 'group') return depth < 1 ? GROUP_TYPES : LEAF_TYPES;
 	if (containerType === 'circuit' && depth < 1) return ROOT_CIRCUIT_TYPES;
 	return LEAF_TYPES;
 }

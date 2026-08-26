@@ -126,17 +126,15 @@
 		if (targetContainerId === 'root') return true;
 		if (movedItem.type === 'circuit') return false;
 		// The two containers that nest do so in one place each: a group inside a
-		// root circuit, an emom inside a group. Anywhere else is a block on a
-		// clock inside rounds that are not, or a container the child rules refuse.
-		const nestsInside: Partial<Record<TrainingItemType, TrainingItemType>> = {
-			group: 'circuit',
-			emom: 'group'
-		};
-		const parentType = nestsInside[movedItem.type];
-		if (parentType) {
-			const containerItemId = targetContainerId.slice(10);
-			const containerItem = findItemById(draft.items, containerItemId);
-			return containerItem?.type === parentType;
+		// root circuit, an emom inside a root group. Anywhere else is a container
+		// the child rules refuse, or a block on a clock inside rounds that are
+		// not, which is two paces for one block.
+		const containerItemId = targetContainerId.slice(10);
+		if (movedItem.type === 'group') {
+			return findItemById(draft.items, containerItemId)?.type === 'circuit';
+		}
+		if (movedItem.type === 'emom') {
+			return draft.items.some((item) => item._id === containerItemId && item.type === 'group');
 		}
 		return true;
 	}

@@ -442,6 +442,46 @@ test.describe('training editor', () => {
 		});
 	});
 
+	// An emom belongs at the top of a session or inside a group that is. Nested
+	// under a circuit it would start its rounds on a clock inside rounds that do
+	// not, which is two paces for one block.
+	test('offers the EMOM block in a root group but not in one inside a circuit', async ({
+		page
+	}) => {
+		const nested = {
+			id: 'item-3',
+			type: 'circuit',
+			position: 0,
+			cycles: 3,
+			items: [{ id: 'item-4', type: 'group', position: 0, group_title: 'Inner', items: [] }]
+		};
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({
+				training_type: 'climbing',
+				items: [nested, { ...warmupGroup, id: 'item-5' }]
+			})
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		// The right rail carries a palette of its own, and it comes after the item
+		// list, so the add zone's is the first one on the page.
+		const addZonePalette = page.getByTestId('block-palette').first();
+
+		// The group inside the circuit takes leaf blocks only. Its add zone is the
+		// innermost, so it is the first Add item on the page.
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+		await expect(addZonePalette.getByRole('button', { name: 'Hang rep' })).toBeVisible();
+		await expect(addZonePalette.getByRole('button', { name: 'EMOM' })).toBeHidden();
+		await addZonePalette.getByText('Cancel').click();
+
+		// The group at the root takes one. Its add zone follows the circuit's.
+		await page.getByRole('button', { name: 'Add item' }).nth(2).click();
+		await expect(addZonePalette.getByRole('button', { name: 'EMOM' })).toBeVisible();
+	});
+
 	test('deletes a training from the editor and returns to the list', async ({ page }) => {
 		await stub(page, 'GET', '/api/trainings/*', { body: powerEndurance });
 		await stub(page, 'GET', '/api/trainings', { body: [] });
