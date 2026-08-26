@@ -286,6 +286,52 @@ test.describe('session details', () => {
 		await expect(dialog.getByTestId('achieved-badge').nth(1)).toContainText('23, 18 reps');
 	});
 
+	// A ten round emom records ten counts. Listed in full they overflow the header
+	// of a card nested two levels deep in the modal, so the badge shows the first
+	// few and counts the rest.
+	test('caps the counts shown on a block played many times', async ({ page }) => {
+		const openBlocks = testPrescription({
+			items: [
+				{
+					id: 'emom-1',
+					type: 'emom',
+					cycles: 10,
+					interval_seconds: 60,
+					items: [{ id: 'pullup-1', type: 'exercise', exercise_name: 'Pull up', reps_is_max: true }]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: openBlocks });
+		const counts = [23, 18, 15, 12, 11, 10, 9, 8, 7, 6];
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				counts.map((value, occurrence) =>
+					testSessionItemResult({
+						id: `item-result-${occurrence}`,
+						training_item_id: 'pullup-1',
+						occurrence,
+						field: 'reps',
+						value
+					})
+				)
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const badge = page.getByRole('dialog').getByTestId('achieved-badge').last();
+		await expect(badge).toContainText('23, 18, 15, 12');
+		await expect(badge).toContainText('+6');
+		await expect(badge).toHaveAttribute('title', counts.join(', '));
+	});
+
 	test('reads a hand-by-hand prescription against that hand', async ({ page }) => {
 		// A split repeater hangs one hand at a time and may load them differently,
 		// so each side resolves against its own result rather than against both.
