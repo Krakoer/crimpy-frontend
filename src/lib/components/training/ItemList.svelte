@@ -4,6 +4,7 @@
 	import HangboardItem from './HangboardItem.svelte';
 	import HangboardRepItem from './HangboardRepItem.svelte';
 	import CircuitItem from './CircuitItem.svelte';
+	import EmomItem from './EmomItem.svelte';
 	import GroupItem from './GroupItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
@@ -33,7 +34,7 @@
 		items = $bindable(),
 		exercises,
 		catalog,
-		allowedTypes = ['exercise', 'circuit', 'group', 'repeater', 'hangboard_rep'],
+		allowedTypes = ['exercise', 'circuit', 'emom', 'group', 'repeater', 'hangboard_rep'],
 		innerAllowedTypes,
 		depth = 0,
 		containerId = 'root'
@@ -45,7 +46,7 @@
 		if (depth === 0) setContext(COLLAPSE_KEY, collapseSignals);
 	});
 
-	const GROUPING_TARGETS: ContainerType[] = ['circuit', 'group'];
+	const GROUPING_TARGETS: ContainerType[] = ['circuit', 'emom', 'group'];
 
 	let selecting = $state(false);
 	let selectedIds = $state<string[]>([]);
@@ -226,6 +227,16 @@
 				/>
 			{:else if item.type === 'circuit'}
 				<CircuitItem
+					bind:item={items[i]}
+					{exercises}
+					{catalog}
+					onRemove={() => removeItem(i)}
+					onDuplicate={() => duplicateItem(i)}
+					{depth}
+					{innerAllowedTypes}
+				/>
+			{:else if item.type === 'emom'}
+				<EmomItem
 					bind:item={items[i]}
 					{exercises}
 					{catalog}

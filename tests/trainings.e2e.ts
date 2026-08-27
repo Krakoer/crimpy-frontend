@@ -383,6 +383,105 @@ test.describe('training editor', () => {
 		expect(updates[0].body).toMatchObject({ items: [] });
 	});
 
+	test('saves an EMOM the coach builds, with its rounds and its interval', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ training_type: 'climbing', items: [warmupGroup] })
+		});
+		await stub(page, 'PUT', '/api/trainings/*', { body: testTraining() });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'EMOM' }).click();
+
+		await page.getByLabel('Rounds').fill('10');
+		await page.getByLabel('Interval minutes').fill('1');
+		await page.getByLabel('Interval seconds').fill('0');
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect((updates[0].body as TrainingRequest).items?.[1]).toMatchObject({
+			type: 'emom',
+			cycles: 10,
+			interval_seconds: 60
+		});
+	});
+
+	test('saves an exercise whose rep count the coach left open', async ({ page }) => {
+		const pullUps = {
+			id: 'item-2',
+			type: 'exercise',
+			position: 0,
+			exercise_id: 'exercise-1',
+			reps: 5,
+			rest_seconds: 0
+		};
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ training_type: 'climbing', items: [pullUps] })
+		});
+		await stub(page, 'PUT', '/api/trainings/*', { body: testTraining() });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await page.getByTestId('amrap-toggle').click();
+		await expect(page.getByText('As many as possible')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect((updates[0].body as TrainingRequest).items?.[0]).toMatchObject({
+			type: 'exercise',
+			reps_is_max: true
+		});
+	});
+
+	// An emom belongs at the top of a session or inside a group that is. Nested
+	// under a circuit it would start its rounds on a clock inside rounds that do
+	// not, which is two paces for one block.
+	test('offers the EMOM block in a root group but not in one inside a circuit', async ({
+		page
+	}) => {
+		const nested = {
+			id: 'item-3',
+			type: 'circuit',
+			position: 0,
+			cycles: 3,
+			items: [{ id: 'item-4', type: 'group', position: 0, group_title: 'Inner', items: [] }]
+		};
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({
+				training_type: 'climbing',
+				items: [nested, { ...warmupGroup, id: 'item-5' }]
+			})
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		// The right rail carries a palette of its own, and it comes after the item
+		// list, so the add zone's is the first one on the page.
+		const addZonePalette = page.getByTestId('block-palette').first();
+
+		// The group inside the circuit takes leaf blocks only. Its add zone is the
+		// innermost, so it is the first Add item on the page.
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+		await expect(addZonePalette.getByRole('button', { name: 'Hang rep' })).toBeVisible();
+		await expect(addZonePalette.getByRole('button', { name: 'EMOM' })).toBeHidden();
+		await addZonePalette.getByText('Cancel').click();
+
+		// The group at the root takes one. Its add zone follows the circuit's.
+		await page.getByRole('button', { name: 'Add item' }).nth(2).click();
+		await expect(addZonePalette.getByRole('button', { name: 'EMOM' })).toBeVisible();
+	});
+
 	test('deletes a training from the editor and returns to the list', async ({ page }) => {
 		await stub(page, 'GET', '/api/trainings/*', { body: powerEndurance });
 		await stub(page, 'GET', '/api/trainings', { body: [] });

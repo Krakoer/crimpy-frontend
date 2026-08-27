@@ -4,6 +4,8 @@
 	import { assessmentLabel, formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
+	import AchievedBadge from './AchievedBadge.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
@@ -37,9 +39,18 @@
 
 	let variableTarget = $derived(item.variable_targets?.[isDuration ? 'duration' : 'reps']);
 
+	// An AMRAP prescribes no rep count, so what it asked for reads as the words
+	// rather than a number, and the count only exists once it has been run.
+	let isAmrap = $derived(item.reps_is_max === true);
+
+	const results = getContext<ItemResultsByItem | undefined>(ITEM_RESULTS_KEY);
+	let achievedReps = $derived(achievedValues(results, item.id, 'reps'));
+
 	let collapsedSummary = $derived.by(() => {
 		const parts: string[] = [];
-		if (variableTarget) {
+		if (isAmrap) {
+			parts.push('AMRAP');
+		} else if (variableTarget) {
 			parts.push(
 				`${variableTarget.percent}% ${assessmentLabel(variableTarget.assessment_id, catalog)}`
 			);
@@ -104,6 +115,7 @@
 				>
 			{/if}
 		</span>
+		<AchievedBadge values={achievedReps} unit="reps" />
 	</div>
 
 	{#if !collapsed}
@@ -115,13 +127,15 @@
 					>{isDuration ? 'DURATION' : 'REPS'}</span
 				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-					{#if variableTarget}
+					{#if isAmrap}
+						AMRAP
+					{:else if variableTarget}
 						{variableTarget.percent}% {assessmentLabel(variableTarget.assessment_id, catalog)}
 					{:else}
 						{isDuration ? fmtTime(item.duration ?? 0) : (item.reps ?? 1)}
 					{/if}
 				</span>
-				{#if variableTarget}
+				{#if variableTarget && !isAmrap}
 					<span style="font-size: 10px; color: var(--tx3);">
 						fallback {isDuration ? fmtTime(item.duration ?? 0) : `${item.reps ?? 1} reps`}
 					</span>

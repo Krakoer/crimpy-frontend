@@ -12,6 +12,7 @@ import {
 	testRepData,
 	testSession,
 	testSessionDetail,
+	testSessionItemResult,
 	testUser
 } from './fixtures';
 
@@ -220,6 +221,115 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
 		// The measurements stay on their own card rather than being paired rep by rep.
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();
+	});
+
+	test('shows what the athlete managed on the items that were left open', async ({ page }) => {
+		// An AMRAP and an emom the athlete dropped out of: neither count exists
+		// until the run happens, and neither passes through the sensor, so the
+		// prescription tree is the only place they can be read against.
+		const openBlocks = testPrescription({
+			items: [
+				{
+					id: 'emom-1',
+					type: 'emom',
+					cycles: 10,
+					interval_seconds: 60,
+					items: [
+						{
+							id: 'pullup-1',
+							type: 'exercise',
+							exercise_name: 'Pull up',
+							reps_is_max: true
+						}
+					]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: openBlocks });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[
+					testSessionItemResult({ training_item_id: 'pullup-1', field: 'reps', value: 23 }),
+					testSessionItemResult({
+						id: 'item-result-2',
+						training_item_id: 'pullup-1',
+						occurrence: 1,
+						field: 'reps',
+						value: 18
+					}),
+					testSessionItemResult({
+						id: 'item-result-3',
+						training_item_id: 'emom-1',
+						field: 'cycles',
+						value: 7
+					})
+				]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByRole('heading', { name: 'Prescribed' })).toBeVisible();
+		// The emom asked for ten rounds and the athlete made seven of them.
+		await expect(dialog.getByTestId('achieved-badge').first()).toContainText('7/10 rounds');
+		// The AMRAP asked for no number at all, so only what was done is shown,
+		// once per pass through the block.
+		await expect(dialog.getByText('AMRAP').first()).toBeVisible();
+		await expect(dialog.getByTestId('achieved-badge').nth(1)).toContainText('23, 18 reps');
+	});
+
+	// A ten round emom records ten counts. Listed in full they overflow the header
+	// of a card nested two levels deep in the modal, so the badge shows the first
+	// few and counts the rest.
+	test('caps the counts shown on a block played many times', async ({ page }) => {
+		const openBlocks = testPrescription({
+			items: [
+				{
+					id: 'emom-1',
+					type: 'emom',
+					cycles: 10,
+					interval_seconds: 60,
+					items: [{ id: 'pullup-1', type: 'exercise', exercise_name: 'Pull up', reps_is_max: true }]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: openBlocks });
+		const counts = [23, 18, 15, 12, 11, 10, 9, 8, 7, 6];
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				counts.map((value, occurrence) =>
+					testSessionItemResult({
+						id: `item-result-${occurrence}`,
+						training_item_id: 'pullup-1',
+						occurrence,
+						field: 'reps',
+						value
+					})
+				)
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const badge = page.getByRole('dialog').getByTestId('achieved-badge').last();
+		await expect(badge).toContainText('23, 18, 15, 12');
+		await expect(badge).toContainText('+6');
+		await expect(badge).toHaveAttribute('title', counts.join(', '));
 	});
 
 	test('reads a hand-by-hand prescription against that hand', async ({ page }) => {

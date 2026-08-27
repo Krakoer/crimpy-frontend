@@ -132,10 +132,28 @@ export interface RepData {
 	updated_at: string;
 }
 
+// A count the run resolved for an item the prescription left open: the reps an
+// AMRAP turned out to be, or the rounds an emom was carried through before the
+// athlete dropped out. Nothing else records these, since a set of pull ups
+// passes through no sensor and so leaves no rep behind.
+export interface SessionItemResult {
+	id: string;
+	session_id: string;
+	// The prescription item the count answers, keyed the way a rep is.
+	training_item_id: string;
+	// Which pass through the item the count belongs to, from 0, when the item
+	// sits inside a block that repeats.
+	occurrence: number;
+	field: 'reps' | 'cycles';
+	value: number;
+	updated_at: string;
+}
+
 export interface SessionDetail {
 	session: SessionResponse;
 	rep_datas: RepData[];
 	assessments: SessionAssessment[];
+	item_results?: SessionItemResult[];
 }
 
 // The training a played session was run from, as it read at the moment it was
@@ -336,7 +354,8 @@ export type TrainingItemType =
 	| 'free'
 	| 'exercise'
 	| 'circuit'
-	| 'group';
+	| 'group'
+	| 'emom';
 
 export interface TrainingItem {
 	id?: string;
@@ -345,12 +364,20 @@ export interface TrainingItem {
 	position?: number;
 	cycles?: number;
 	cycle_rest_seconds?: number;
+	// How often a round starts, on an emom and nothing else. It is what makes the
+	// block every minute on the minute: the work is self paced and whatever is
+	// left of the interval is the rest, so the next round starts on the clock
+	// however fast the one before it went.
+	interval_seconds?: number;
 	group_title?: string;
 	exercise_id?: string;
 	// Joined by the backend on every item it returns, so a tree read from a
 	// prescription snapshot names its exercises without a second request.
 	exercise_name?: string | null;
 	reps?: number;
+	// Whether the rep count is left open, which is an AMRAP: the coach sets no
+	// number and the athlete records how many they managed. Exercises only.
+	reps_is_max?: boolean;
 	duration?: number;
 	rest_seconds?: number;
 	loads?: Load[];

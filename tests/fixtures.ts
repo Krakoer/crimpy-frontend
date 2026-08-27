@@ -543,15 +543,43 @@ export interface TestSessionDetail {
 	session: TestSession;
 	rep_datas: TestRepData[];
 	assessments: unknown[];
+	item_results: TestSessionItemResult[];
+}
+
+/** One count a run recorded for an item the prescription left open. */
+export interface TestSessionItemResult {
+	id: string;
+	session_id: string;
+	training_item_id: string;
+	occurrence: number;
+	field: 'reps' | 'cycles';
+	value: number;
+	updated_at: string;
+}
+
+export function testSessionItemResult(
+	overrides: Partial<TestSessionItemResult> = {}
+): TestSessionItemResult {
+	return {
+		id: 'item-result-1',
+		session_id: 'session-1',
+		training_item_id: 'item-1',
+		occurrence: 0,
+		field: 'reps',
+		value: 23,
+		updated_at: isoDaysAgo(1),
+		...overrides
+	};
 }
 
 /** Mirrors GET /api/coach/clients/:id/sessions/:id, which nests the session. */
 export function testSessionDetail(
 	session: TestSession = testSession(),
 	rep_datas: TestRepData[] = [],
-	assessments: unknown[] = []
+	assessments: unknown[] = [],
+	item_results: TestSessionItemResult[] = []
 ): TestSessionDetail {
-	return { session, rep_datas, assessments };
+	return { session, rep_datas, assessments, item_results };
 }
 
 export interface TestEnrollmentTokenInfo {
