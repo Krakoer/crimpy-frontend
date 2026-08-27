@@ -1,14 +1,14 @@
 ---
 name: review-frontend
-description: Architecture, design system and style knowledge for reviewing changes in crimpy-frontend (SvelteKit 2, Svelte 5 runes, TypeScript, Tailwind 4). Use when reviewing a PR, branch or diff in crimpy-frontend.
+description: Architecture, design system and style knowledge for crimpy-frontend (SvelteKit 2, Svelte 5 runes, TypeScript, Tailwind 4). Use when reviewing a PR, branch or diff in crimpy-frontend, and when opening or updating one.
 ---
 
-# Reviewing crimpy-frontend
+# Working on crimpy-frontend
 
 SvelteKit 2 + Svelte 5 in runes mode, TypeScript, Tailwind 4, Vite, node adapter.
 This is the coach web portal. **SSR is disabled on every route**: it is a pure
 client-side SPA. Read `crimpy-frontend/.claude/CLAUDE.md` for commands; this file
-is what to check in a diff.
+is what to check in a diff, and what a PR out of this repo owes its reviewer.
 
 ## Layering
 
@@ -107,6 +107,66 @@ already-oversized page.
 Playwright specs in `tests/*.e2e.ts`, shared helpers in `tests/fixtures.ts`. A new
 user-visible flow with no e2e coverage is a finding. Run `npm run check` (use
 this, not `tsc --noEmit`, for `.svelte` files) and `npm run lint`.
+
+## Screenshots on every PR
+
+Every PR that changes something a coach can see ships a screenshot, posted as a
+comment on the PR. A reviewer should not have to check the branch out to see what
+it looks like, and the Alpine rules above are visual: a hardcoded colour or a
+broken card is far easier to catch in an image than in a diff. A PR that changes
+the UI and shows no screenshot is itself a finding.
+
+Drive the real app with the Playwright MCP. Do not hand-draw a mockup, and do not
+screenshot a page you assembled only out of stubs when a backend could have served
+it.
+
+**Point the app at the local backend.** `devapi.crimpy.app` runs behind `dev` and
+has repeatedly lacked the columns a branch depends on, which makes it useless for
+screenshotting new work. Check what it actually returns before trusting it. The
+local API on `:3000` is the one that runs current `dev`:
+
+    PUBLIC_API_URL=http://127.0.0.1:3000 npm run dev
+
+`/config.json` is served by `src/routes/config.json/+server.ts` out of
+`$env/dynamic/public`, so that variable wins over `.env` and nothing in the
+working tree has to be edited. The seeded local accounts are `coach@local.com`
+and `local@local.com`, both with password `coucou`.
+
+**Create the data the feature needs, through the API.** The local database is
+seeded from before most features existed, so the row that shows a change off
+usually is not there. POST it with curl as the account that would really own it,
+the way the app does, rather than editing Postgres by hand: the write path is
+what fills in the derived columns the screen reads, and going around it produces
+a screenshot of something the app cannot actually produce.
+
+**Only when no backend can serve it**, stub the API the way `tests/fixtures.ts`
+does: `page.route()` on the API origin, plus an `addInitScript` seeding
+`auth_token`, `refresh_token` and `user` into localStorage. Say in the comment
+that the data is stubbed, so nobody reads it as real.
+
+**Capturing.** A modal, or any panel with its own `overflow-y: auto`, clips an
+element screenshot at its scroll box. Unclip it in the page before shooting:
+
+    panel.style.maxHeight = 'none';
+    scroller.style.overflow = 'visible';
+
+and say so in the comment, since the real screen still scrolls there.
+
+**Hosting.** GitHub has no API that attaches an image to a comment. The repo is
+public, so push the file to a branch of its own and link the raw URL. Keep it off
+the PR branch, or the screenshot merges into `dev`:
+
+    BLOB=$(git hash-object -w shot.png)
+    TREE=$(printf '100644 blob %s\tshot.png\n' "$BLOB" | git mktree)
+    COMMIT=$(git commit-tree "$TREE" -m "Screenshot for card NN")
+    REF='refs/heads/assets/NN-screenshot'
+    git push origin "$COMMIT":"$REF"
+
+Plumbing rather than a checkout, so the working tree is never touched. Keep the
+refspec in its own variable: in zsh `"$COMMIT:refs/heads/..."` silently loses the
+`:r` to modifier syntax and the push fails. Then link
+`https://raw.githubusercontent.com/Krakoer/crimpy-frontend/<branch>/<file>` from
+the comment. That branch has to stay: deleting it breaks the image.
 
 ## Style
 
