@@ -147,7 +147,9 @@
 			if (!activeResult) return;
 			if (activeResult.containerId === tgtContainerId) {
 				const overResult = findItemInTree(draft.items, tgtId);
-				if (!overResult) return;
+				// A block dropped on itself has not moved, and letting it through
+				// would rewrite the swap key the cooldown reads.
+				if (!overResult || activeResult.index === overResult.index) return;
 				arrayMove(activeResult.container, activeResult.index, overResult.index);
 			} else {
 				moveCrossContainer(srcId, tgtContainerId, tgtIndex);

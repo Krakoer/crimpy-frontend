@@ -182,7 +182,9 @@ export function moveSession(drafts: WeekDrafts, sessionId: string, drop: Session
 	if (from.sessions === target) {
 		if (drop.overSessionID === null) return;
 		const overIndex = target.findIndex((s) => s._id === drop.overSessionID);
-		if (overIndex === -1) return;
+		// A session dropped on itself has not moved, so the week is left alone
+		// rather than flagged dirty over a drag that changed nothing.
+		if (overIndex === -1 || overIndex === from.index) return;
 		arrayMove(target, from.index, overIndex);
 	} else {
 		const [session] = from.sessions.splice(from.index, 1);

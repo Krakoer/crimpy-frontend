@@ -124,6 +124,13 @@ describe('moveSession inside one cell', () => {
 		expect(ids(drafts[1].days[1])).toEqual(['a', 'b']);
 	});
 
+	it('leaves the week alone when a session is dropped on itself', () => {
+		const drafts = draftsWithMonday('a', 'b');
+		moveSession(drafts, 'a', { cell: monday, overSessionID: 'a', index: 0 });
+		expect(ids(drafts[1].days[1])).toEqual(['a', 'b']);
+		expect(drafts[1].dirty).toBe(false);
+	});
+
 	it('marks the week dirty', () => {
 		const drafts = draftsWithMonday('a', 'b');
 		moveSession(drafts, 'a', { cell: monday, overSessionID: 'b', index: 1 });
