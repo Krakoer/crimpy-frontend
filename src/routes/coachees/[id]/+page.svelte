@@ -288,8 +288,21 @@
 
 	// Swaps the replied session for the one the write returned, so the badge and
 	// the read receipt follow without refetching the whole history.
+	//
+	// The reply fields are restated rather than left to the spread: the server
+	// omits them entirely once an answer is taken back, and a spread cannot
+	// delete a key, so the row would keep the reply it just lost.
 	function applyReply(updated: SessionResponse) {
-		sessions = sessions.map((s) => (s.id === updated.id ? { ...s, ...updated } : s));
+		sessions = sessions.map((s) =>
+			s.id === updated.id
+				? {
+						...s,
+						...updated,
+						coach_reply: updated.coach_reply ?? null,
+						coach_reply_at: updated.coach_reply_at ?? null
+					}
+				: s
+		);
 	}
 
 	const coacheeName = $derived(

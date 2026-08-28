@@ -38,7 +38,11 @@
 	const editing = $derived(editRequested || !current.coach_reply);
 
 	let saving = $state(false);
-	const canSave = $derived(!saving && (replied || reply.trim() !== ''));
+	// Only a reply that says something different is worth sending: rewriting the
+	// same text would reset the read receipt and tell the athlete again about an
+	// answer they have already seen. Clearing an existing one still counts as a
+	// change, which is how an answer is taken back.
+	const canSave = $derived(!saving && reply.trim() !== (current.coach_reply ?? ''));
 
 	async function save() {
 		saving = true;

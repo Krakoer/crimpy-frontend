@@ -1287,6 +1287,38 @@ test.describe('session feedback', () => {
 		expect(sent[0].body).toEqual({ reply: 'Noted, I added a rest day next week.' });
 	});
 
+	test('gives the row its Reply pill back when the answer is taken away', async ({ page }) => {
+		const answered = testSession({
+			id: 'session-feedback',
+			name: 'Board session',
+			notes: 'Felt heavy',
+			coach_reply: 'Keep the same loads',
+			coach_reply_at: new Date().toISOString(),
+			coach_reply_read: true
+		});
+		await openFeedback(page, answered);
+		// The server drops the reply fields entirely once an answer is cleared,
+		// which is what the list merge has to cope with.
+		await stub(page, 'PUT', '/api/coach/clients/*/sessions/*/reply', {
+			body: {
+				...answered,
+				coach_reply: undefined,
+				coach_reply_at: undefined,
+				coach_reply_read: false
+			}
+		});
+
+		const dialog = page.getByRole('dialog');
+		await dialog.getByRole('button', { name: 'Edit' }).click();
+		await dialog.getByRole('textbox', { name: 'Reply to the athlete' }).fill('');
+		await dialog.getByRole('button', { name: 'Update reply' }).click();
+
+		await expect(dialog.getByText('Read by the athlete')).toBeHidden();
+		await expect(dialog.getByRole('textbox', { name: 'Reply to the athlete' })).toBeVisible();
+		const row = page.getByRole('button', { name: 'Open Board session' });
+		await expect(row.getByText('Reply', { exact: true })).toBeVisible();
+	});
+
 	test('shows an existing reply and its read receipt', async ({ page }) => {
 		await openFeedback(
 			page,
