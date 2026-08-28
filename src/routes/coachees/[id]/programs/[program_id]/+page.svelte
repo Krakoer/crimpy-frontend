@@ -40,6 +40,10 @@
 	// locked is set by the server on a session the coachee has already played.
 	// What was prescribed then must keep describing what was played, so its
 	// training and its overrides are frozen and the row may not be dropped.
+	// times_per_week only means anything in the frequency column, but every
+	// session carries it: a drag passing over a day cell on its way back would
+	// otherwise shed the count the coach prescribed. What decides whether it is
+	// sent is the cell the session is saved from, not whether it is still here.
 	type DraftSession = {
 		_id: string;
 		id?: string;
@@ -47,6 +51,7 @@
 		training_id: string;
 		notes?: string;
 		locked?: boolean;
+		times_per_week?: number;
 		overrides: SessionOverride[];
 	};
 	type DaySession = DraftSession;
@@ -94,6 +99,7 @@
 			training_id: session.training_id,
 			notes: session.notes,
 			locked: session.locked,
+			times_per_week: session.times_per_week,
 			overrides: session.overrides
 		};
 	}
@@ -348,15 +354,15 @@
 		return null;
 	}
 
-	// A frequency cell is the only one whose sessions carry a count, so a session
-	// entering it needs one and a session leaving it has to shed it. Going through
-	// here is what lets cellSessions hand back a plain DraftSession array for any
-	// cell: nothing else puts a session into freqSessions.
+	// A frequency cell is the only one that reads the count, so a session entering
+	// it must end up with one. A session that never had it starts at 1; one coming
+	// back from another cell gets the count it left with. Going through here is
+	// what lets cellSessions hand back a plain DraftSession array for any cell:
+	// nothing else puts a session into freqSessions.
 	function sessionForCell(session: DraftSession, cell: SessionCell): DraftSession {
 		const moved = movedDraftSession(session);
 		if (cell.kind !== 'freq') return moved;
-		const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
-		const freqSession: FreqSession = { ...moved, times_per_week: times };
+		const freqSession: FreqSession = { ...moved, times_per_week: session.times_per_week ?? 1 };
 		return freqSession;
 	}
 
@@ -385,11 +391,14 @@
 			if (drop.overSessionID === null) return;
 			const overIndex = target.findIndex((s) => s._id === drop.overSessionID);
 			if (overIndex === -1 || overIndex === from.index) return;
+			const movingDown = from.index < overIndex;
 			const [session] = target.splice(from.index, 1);
 			// The removal shifts everything after it, so the landing spot is read
-			// again rather than reused from before the splice.
-			const insertAt = target.findIndex((s) => s._id === drop.overSessionID);
-			target.splice(insertAt === -1 ? overIndex : insertAt, 0, session);
+			// again rather than reused from before the splice. Dropping onto a
+			// session below means taking the slot after it, which is the only way
+			// the last slot of a cell can be reached.
+			const overIndexAfterRemoval = target.findIndex((s) => s._id === drop.overSessionID);
+			target.splice(movingDown ? overIndexAfterRemoval + 1 : overIndexAfterRemoval, 0, session);
 		} else {
 			const [session] = from.sessions.splice(from.index, 1);
 			target.splice(Math.min(drop.index, target.length), 0, sessionForCell(session, drop.cell));
@@ -401,7 +410,8 @@
 
 	// Only the session arrays are snapshotted, not the whole draft: a save that
 	// lands mid-drag clears its own flags and restoring the draft wholesale would
-	// bring them back.
+	// bring them back. Such a save drops the snapshot outright, so a cancel after
+	// it restores nothing rather than what the week held before the save.
 	type WeekSessionsSnapshot = Record<
 		number,
 		{
@@ -602,6 +612,10 @@
 				sessions: draftToSessionRequests(draft, wn)
 			});
 			weekDrafts[wn] = weekDetailToDraft(detail, wn);
+			// Ctrl+S fires during a drag, and what comes back carries fresh local
+			// keys and the ids the server just assigned. Cancelling the drag after
+			// that must not put the pre-save arrays back on top of them.
+			sessionsSnapshot = null;
 			if (!weeks.some((w) => w.week_number === wn)) {
 				weeks.push({
 					id: detail.id,

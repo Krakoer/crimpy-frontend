@@ -238,6 +238,15 @@ async function dragOnto(page: Page, source: Locator, target: Locator): Promise<v
 	await page.mouse.up();
 }
 
+/**
+ * A dropped session is re-rendered into its new cell, and dnd-kit needs a beat
+ * before that fresh element answers a new drag. Only needed between two drags of
+ * the same session.
+ */
+async function settleAfterDrop(page: Page): Promise<void> {
+	await page.waitForTimeout(600);
+}
+
 test('warns when a dropped training needs an assessment the coachee has not done', async ({
 	page
 }) => {
@@ -405,6 +414,111 @@ test('reorders the sessions inside a day and saves the new order', async ({ page
 			{ id: 'ws-2', training_id: 'training-2', day_of_week: 1 },
 			{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }
 		]
+	});
+});
+
+test('reorders a session downwards, onto the last of the day', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/trainings', {
+		body: [testTraining(), testTraining({ id: 'training-2', title: 'Finger strength block' })]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	// The mirror of the test above. Dropping onto the session below means taking
+	// the slot after it, which is the only gesture that reaches the last slot.
+	const monday = page.getByTestId('cell:1:1');
+	await dragOnto(
+		page,
+		monday.getByRole('button', { name: 'Power endurance block' }),
+		monday.getByRole('button', { name: 'Finger strength block' })
+	);
+
+	await expect(monday).toContainText(/Finger strength block\s+Power endurance block/);
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+	expect(saves).toHaveLength(1);
+	expect(saves[0].body).toMatchObject({
+		sessions: [
+			{ id: 'ws-2', training_id: 'training-2', day_of_week: 1 },
+			{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }
+		]
+	});
+});
+
+test('keeps the weekly count of a session dragged over a day and back', async ({ page }) => {
+	const week = {
+		id: 'week-1',
+		program_id: 'program-1',
+		week_number: 1,
+		notes: '',
+		created_at: '',
+		updated_at: '',
+		sessions: [
+			{
+				id: 'ws-1',
+				training_id: 'training-1',
+				training_title: 'Power endurance block',
+				training_type: 'workout',
+				times_per_week: 4,
+				is_everyday: false,
+				position: 0,
+				is_locked: false,
+				overrides: []
+			}
+		]
+	};
+
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', { body: week });
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', { body: week });
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	// The move runs on drag over, so merely passing over a day cell must not cost
+	// the session the count the coach prescribed for it.
+	await dragOnto(
+		page,
+		page.getByTestId('freq:1').getByRole('button', { name: /Power endurance block/ }),
+		page.getByTestId('cell:1:0')
+	);
+	await settleAfterDrop(page);
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:0').getByRole('button', { name: /Power endurance block/ }),
+		page.getByTestId('freq:1')
+	);
+
+	await expect(page.getByTestId('freq:1').getByRole('spinbutton')).toHaveValue('4');
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+	expect(saves).toHaveLength(1);
+	expect(saves[0].body).toMatchObject({
+		sessions: [{ id: 'ws-1', training_id: 'training-1', times_per_week: 4 }]
 	});
 });
 
