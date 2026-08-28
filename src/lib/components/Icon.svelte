@@ -106,6 +106,8 @@
 		/>
 	{:else if name === 'mail'}
 		<rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="m3.5 7 8.5 6 8.5-6" />
+	{:else if name === 'message'}
+		<path d="M4 5.5h16v11H9l-5 4v-4H4v-11Z" />
 	{:else if name === 'clock'}
 		<circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" />
 	{:else if name === 'star'}

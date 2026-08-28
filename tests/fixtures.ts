@@ -426,6 +426,9 @@ export interface TestSession {
 	activity: number;
 	origin: 'played' | 'logged';
 	is_assessment: boolean;
+	coach_reply?: string | null;
+	coach_reply_at?: string | null;
+	coach_reply_read: boolean;
 	updated_at: string;
 	prescription?: TestPrescription | null;
 }
@@ -497,6 +500,7 @@ export function testSession(overrides: Partial<TestSession> = {}): TestSession {
 		activity: 1,
 		origin: 'logged',
 		is_assessment: false,
+		coach_reply_read: false,
 		updated_at: isoDaysAgo(1),
 		...overrides
 	};

@@ -279,6 +279,32 @@
 
 	const sessionGroups = $derived(groupSessionsByDate(displayedSessions));
 
+	// A session the athlete wrote feedback on and the coach has not answered yet.
+	// This is what the Reply badge marks in the list, so an unanswered note is
+	// visible without opening every session.
+	function awaitsReply(session: SessionResponse): boolean {
+		return Boolean(session.notes?.trim()) && !session.coach_reply;
+	}
+
+	// Swaps the replied session for the one the write returned, so the badge and
+	// the read receipt follow without refetching the whole history.
+	//
+	// The reply fields are restated rather than left to the spread: the server
+	// omits them entirely once an answer is taken back, and a spread cannot
+	// delete a key, so the row would keep the reply it just lost.
+	function applyReply(updated: SessionResponse) {
+		sessions = sessions.map((s) =>
+			s.id === updated.id
+				? {
+						...s,
+						...updated,
+						coach_reply: updated.coach_reply ?? null,
+						coach_reply_at: updated.coach_reply_at ?? null
+					}
+				: s
+		);
+	}
+
 	const coacheeName = $derived(
 		coachee
 			? `${coachee.user_firstname} ${coachee.user_lastname}`
@@ -629,7 +655,21 @@
 														</div>
 													{/if}
 												</div>
-												<Icon name="chevron" size={16} color="var(--tx3)" />
+												<div class="flex items-center gap-2">
+													{#if awaitsReply(session)}
+														<span
+															style="
+														padding: 3px 8px; border-radius: 999px;
+														background: var(--pr-lt); color: var(--pr);
+														font-size: 10.5px; font-weight: 700;
+														letter-spacing: 0.04em; text-transform: uppercase;
+													">Reply</span
+														>
+													{:else if session.coach_reply}
+														<Icon name="message" size={15} color="var(--gn)" />
+													{/if}
+													<Icon name="chevron" size={16} color="var(--tx3)" />
+												</div>
 											</button>
 										{/each}
 									{/each}
@@ -1121,6 +1161,7 @@
 		userId={data.id!}
 		session={openedSession}
 		onClose={() => (openedSession = null)}
+		onReplied={applyReply}
 	/>
 {/if}
 

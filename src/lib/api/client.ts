@@ -96,6 +96,12 @@ export interface SessionResponse {
 	// leave it out since only the detail screen reads it.
 	prescription?: PrescriptionSnapshot | null;
 	is_assessment: boolean;
+	// What the coach answered the athlete's notes with, absent while they have
+	// not answered. coach_reply_read says whether the athlete has opened that
+	// answer since it was last written.
+	coach_reply?: string | null;
+	coach_reply_at?: string | null;
+	coach_reply_read: boolean;
 	updated_at: string;
 	// Only on the list endpoint, which does not carry the reps themselves.
 	rep_count?: number;
@@ -740,6 +746,22 @@ class ApiClient {
 
 	async getClientSession(userId: string, sessionId: string): Promise<SessionDetail> {
 		return this.request<SessionDetail>(`/api/coach/clients/${userId}/sessions/${sessionId}`);
+	}
+
+	// Writes the coach's answer to the notes an athlete left on a session. An
+	// empty reply takes a previous answer back.
+	async setClientSessionReply(
+		userId: string,
+		sessionId: string,
+		reply: string
+	): Promise<SessionResponse> {
+		return this.request<SessionResponse>(
+			`/api/coach/clients/${userId}/sessions/${sessionId}/reply`,
+			{
+				method: 'PUT',
+				body: JSON.stringify({ reply })
+			}
+		);
 	}
 
 	async getClientAssessments(userId: string): Promise<AssessmentResponse[]> {
