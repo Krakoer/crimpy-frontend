@@ -14,7 +14,8 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"test:e2e": "playwright test",
-		"test": "npm run test:e2e"
+		"test:unit": "vitest run",
+		"test": "npm run test:unit && npm run test:e2e"
 	},
 	"lint-staged": {
 		"*": "prettier --write --ignore-unknown"
@@ -42,7 +43,8 @@
 		"tailwindcss": "^4.2.2",
 		"typescript": "^6.0.2",
 		"typescript-eslint": "^8.58.1",
-		"vite": "^8.0.7"
+		"vite": "^8.0.7",
+		"vitest": "^4.1.11"
 	},
 	"dependencies": {
 		"@dnd-kit/svelte": "^0.4.0",
