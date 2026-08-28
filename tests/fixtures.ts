@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 /**
  * The app resolves its API base url at runtime from GET /config.json, which
@@ -601,4 +601,17 @@ export function testEnrollmentTokenInfo(
 		expires_at: isoDaysAgo(-7),
 		...overrides
 	};
+}
+
+/** Drives the dnd-kit pointer sensor, which only activates after 8px of travel. */
+export async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
+	const from = await source.boundingBox();
+	const to = await target.boundingBox();
+	if (!from || !to) throw new Error('Cannot drag between elements that are not laid out');
+
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 20, { steps: 5 });
+	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+	await page.mouse.up();
 }

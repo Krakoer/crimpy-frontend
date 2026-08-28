@@ -4,6 +4,7 @@ import {
 	BUILTIN_CRITICAL_FORCE,
 	builtinAssessmentDefinitions,
 	capture,
+	dragOnto,
 	exercisePage,
 	mockApi,
 	signIn,
@@ -1698,5 +1699,74 @@ test.describe('custom assessments', () => {
 			assessment_id: 'assessment-9',
 			percent: 75
 		});
+	});
+});
+
+test.describe('reordering root blocks', () => {
+	function dragHandles(page: Page) {
+		return page.getByRole('button', { name: 'Drag to reorder' });
+	}
+
+	const cooldownGroup = {
+		id: 'item-2',
+		type: 'group',
+		position: 1,
+		group_title: 'Cooldown',
+		items: []
+	};
+
+	test('moves a block down when it is dropped onto the one below it', async ({ page }) => {
+		const training = testTraining({ items: [warmupGroup, cooldownGroup] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await dragOnto(page, dragHandles(page).nth(0), dragHandles(page).nth(1));
+
+		await saveTraining(page);
+		expect(updates).toHaveLength(1);
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.group_title)).toEqual(['Cooldown', 'Warmup']);
+	});
+
+	test('moves a block up when it is dropped onto the one above it', async ({ page }) => {
+		const training = testTraining({ items: [warmupGroup, cooldownGroup] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await dragOnto(page, dragHandles(page).nth(1), dragHandles(page).nth(0));
+
+		await saveTraining(page);
+		expect(updates).toHaveLength(1);
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.group_title)).toEqual(['Cooldown', 'Warmup']);
+	});
+
+	test('moves a block down in a training that has not been saved yet', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Board session');
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Hang rep' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Group' }).click();
+
+		await dragOnto(page, dragHandles(page).nth(0), dragHandles(page).nth(1));
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+		await expect.poll(() => posted.length).toBe(1);
+		const items = (posted[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.type)).toEqual(['group', 'hangboard_rep']);
 	});
 });

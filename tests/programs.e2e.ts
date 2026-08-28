@@ -1,8 +1,9 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	BUILTIN_MAX_FORCE,
 	builtinAssessmentDefinitions,
 	capture,
+	dragOnto,
 	mockApi,
 	signIn,
 	stub,
@@ -224,19 +225,6 @@ test('sends existing sessions back with their id so the server keeps the row', a
 		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }]
 	});
 });
-
-/** Drives the dnd-kit pointer sensor, which only activates after 8px of travel. */
-async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
-	const from = await source.boundingBox();
-	const to = await target.boundingBox();
-	if (!from || !to) throw new Error('Cannot drag between elements that are not laid out');
-
-	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-	await page.mouse.down();
-	await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 20, { steps: 5 });
-	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-	await page.mouse.up();
-}
 
 /**
  * A dropped session is re-rendered into its new cell, and dnd-kit needs a beat

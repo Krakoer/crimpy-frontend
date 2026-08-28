@@ -32,6 +32,7 @@
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
+	import { arrayMove } from '$lib/sortable';
 
 	type FindResult = { container: TrainingItem[]; containerId: string; index: number };
 
@@ -146,11 +147,8 @@
 			if (!activeResult) return;
 			if (activeResult.containerId === tgtContainerId) {
 				const overResult = findItemInTree(draft.items, tgtId);
-				if (!overResult || activeResult.index === overResult.index) return;
-				const [item] = activeResult.container.splice(activeResult.index, 1);
-				const newOverResult = findItemInTree(draft.items, tgtId);
-				const insertAt = newOverResult ? newOverResult.index : overResult.index;
-				activeResult.container.splice(insertAt, 0, item);
+				if (!overResult) return;
+				arrayMove(activeResult.container, activeResult.index, overResult.index);
 			} else {
 				moveCrossContainer(srcId, tgtContainerId, tgtIndex);
 			}

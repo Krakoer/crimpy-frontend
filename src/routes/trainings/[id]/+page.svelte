@@ -29,6 +29,7 @@
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
+	import { arrayMove } from '$lib/sortable';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { isHangboardItem, saneCount } from '$lib/components/training/hangboard-granularity';
@@ -183,11 +184,8 @@
 			if (!activeResult) return;
 			if (activeResult.containerId === tgtContainerId) {
 				const overResult = findItemInTree(draft.items, tgtId);
-				if (!overResult || activeResult.index === overResult.index) return;
-				const [item] = activeResult.container.splice(activeResult.index, 1);
-				const newOverResult = findItemInTree(draft.items, tgtId);
-				const insertAt = newOverResult ? newOverResult.index : overResult.index;
-				activeResult.container.splice(insertAt, 0, item);
+				if (!overResult) return;
+				arrayMove(activeResult.container, activeResult.index, overResult.index);
 			} else {
 				moveCrossContainer(srcId, tgtContainerId, tgtIndex);
 			}
