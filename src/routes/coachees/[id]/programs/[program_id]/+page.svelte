@@ -6,13 +6,14 @@
 	import { mondayOf } from '$lib/date';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
+	import { isSortable } from '@dnd-kit/svelte/sortable';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
-	import DraggableSession from '$lib/components/program/DraggableSession.svelte';
+	import SortableSession from '$lib/components/program/SortableSession.svelte';
 	import type {
 		AssessmentResponse,
 		Program,
@@ -138,7 +139,11 @@
 		const days: DaySession[][] = Array.from({ length: 7 }, () => []);
 		const freqSessions: FreqSession[] = [];
 		const everydaySessions: EverydaySession[] = [];
-		for (const s of detail.sessions) {
+		// Sorted rather than taken as they arrive: position is what the server
+		// stores the order in, and reading it here keeps the cells in the order the
+		// coach arranged them whatever order the rows come back in.
+		const ordered = [...detail.sessions].sort((a, b) => a.position - b.position);
+		for (const s of ordered) {
 			const preserved = {
 				_id: crypto.randomUUID(),
 				id: s.id,
@@ -272,42 +277,168 @@
 		})
 	];
 
-	function findAndRemoveSession(
+	// Where a session sits in a week. The id doubles as the drop target id of the
+	// cell and as the sortable group of the sessions inside it, so a drop on the
+	// empty part of a cell and a drop on one of its sessions resolve to the same
+	// place.
+	type SessionCell =
+		| { kind: 'day'; wn: number; day: number }
+		| { kind: 'freq'; wn: number }
+		| { kind: 'everyday'; wn: number };
+
+	function parseCell(id: string): SessionCell | null {
+		if (id.startsWith('cell:')) {
+			const [, wnStr, dayStr] = id.split(':');
+			const wn = parseInt(wnStr);
+			const day = parseInt(dayStr);
+			if (isNaN(wn) || isNaN(day)) return null;
+			return { kind: 'day', wn, day };
+		}
+		if (id.startsWith('freq:')) {
+			const wn = parseInt(id.slice(5));
+			return isNaN(wn) ? null : { kind: 'freq', wn };
+		}
+		if (id.startsWith('everyday:')) {
+			const wn = parseInt(id.slice(9));
+			return isNaN(wn) ? null : { kind: 'everyday', wn };
+		}
+		return null;
+	}
+
+	function cellID(cell: SessionCell): string {
+		if (cell.kind === 'day') return `cell:${cell.wn}:${cell.day}`;
+		return `${cell.kind}:${cell.wn}`;
+	}
+
+	// The array a cell holds, creating the week draft if the cell belongs to one
+	// that has not been opened yet.
+	function cellSessions(cell: SessionCell): DraftSession[] {
+		if (!weekDrafts[cell.wn]) weekDrafts[cell.wn] = emptyDraft();
+		const draft = weekDrafts[cell.wn];
+		if (cell.kind === 'day') return draft.days[cell.day];
+		if (cell.kind === 'freq') return draft.freqSessions;
+		return draft.everydaySessions;
+	}
+
+	function locateSession(
 		sessionId: string
-	): { session: DaySession | FreqSession | EverydaySession; weekNumber: number } | null {
+	): { cell: SessionCell; sessions: DraftSession[]; index: number } | null {
 		for (const wnStr of Object.keys(weekDrafts)) {
 			const wn = parseInt(wnStr);
 			const draft = weekDrafts[wn];
 			for (let day = 0; day < 7; day++) {
-				const idx = draft.days[day].findIndex((s) => s._id === sessionId);
-				if (idx !== -1) {
-					const [session] = draft.days[day].splice(idx, 1);
-					draft.dirty = true;
-					return { session, weekNumber: wn };
+				const index = draft.days[day].findIndex((s) => s._id === sessionId);
+				if (index !== -1) {
+					return { cell: { kind: 'day', wn, day }, sessions: draft.days[day], index };
 				}
 			}
-			const freqIdx = draft.freqSessions.findIndex((s) => s._id === sessionId);
-			if (freqIdx !== -1) {
-				const [session] = draft.freqSessions.splice(freqIdx, 1);
-				draft.dirty = true;
-				return { session, weekNumber: wn };
+			const freqIndex = draft.freqSessions.findIndex((s) => s._id === sessionId);
+			if (freqIndex !== -1) {
+				return { cell: { kind: 'freq', wn }, sessions: draft.freqSessions, index: freqIndex };
 			}
-			const everydayIdx = draft.everydaySessions.findIndex((s) => s._id === sessionId);
-			if (everydayIdx !== -1) {
-				const [session] = draft.everydaySessions.splice(everydayIdx, 1);
-				draft.dirty = true;
-				return { session, weekNumber: wn };
+			const everydayIndex = draft.everydaySessions.findIndex((s) => s._id === sessionId);
+			if (everydayIndex !== -1) {
+				return {
+					cell: { kind: 'everyday', wn },
+					sessions: draft.everydaySessions,
+					index: everydayIndex
+				};
 			}
 		}
 		return null;
 	}
 
-	// The week a drop target belongs to, or null when it is not a session target.
-	function targetWeekNumber(targetId: string): number | null {
-		if (targetId.startsWith('cell:')) return parseInt(targetId.split(':')[1]);
-		if (targetId.startsWith('freq:')) return parseInt(targetId.slice(5));
-		if (targetId.startsWith('everyday:')) return parseInt(targetId.slice(9));
-		return null;
+	// A frequency cell is the only one whose sessions carry a count, so a session
+	// entering it needs one and a session leaving it has to shed it. Going through
+	// here is what lets cellSessions hand back a plain DraftSession array for any
+	// cell: nothing else puts a session into freqSessions.
+	function sessionForCell(session: DraftSession, cell: SessionCell): DraftSession {
+		const moved = movedDraftSession(session);
+		if (cell.kind !== 'freq') return moved;
+		const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
+		const freqSession: FreqSession = { ...moved, times_per_week: times };
+		return freqSession;
+	}
+
+	// The cell a drop lands in and the index inside it. A sortable target is one
+	// of the sessions, so the drop takes its place; anything else is the cell
+	// itself and the session goes to the end.
+	function dropTarget(
+		target: unknown
+	): { cell: SessionCell; overSessionID: string | null; index: number } | null {
+		const id = String((target as { id: string }).id);
+		if (isSortable(target as never)) {
+			const sortable = target as { id: string; group?: string; index: number };
+			const cell = parseCell(String(sortable.group ?? ''));
+			return cell ? { cell, overSessionID: id, index: sortable.index } : null;
+		}
+		const cell = parseCell(id);
+		return cell ? { cell, overSessionID: null, index: Infinity } : null;
+	}
+
+	function moveSession(sessionId: string, drop: NonNullable<ReturnType<typeof dropTarget>>) {
+		const from = locateSession(sessionId);
+		if (!from) return;
+		const target = cellSessions(drop.cell);
+
+		if (from.sessions === target) {
+			if (drop.overSessionID === null) return;
+			const overIndex = target.findIndex((s) => s._id === drop.overSessionID);
+			if (overIndex === -1 || overIndex === from.index) return;
+			const [session] = target.splice(from.index, 1);
+			// The removal shifts everything after it, so the landing spot is read
+			// again rather than reused from before the splice.
+			const insertAt = target.findIndex((s) => s._id === drop.overSessionID);
+			target.splice(insertAt === -1 ? overIndex : insertAt, 0, session);
+		} else {
+			const [session] = from.sessions.splice(from.index, 1);
+			target.splice(Math.min(drop.index, target.length), 0, sessionForCell(session, drop.cell));
+		}
+
+		weekDrafts[from.cell.wn].dirty = true;
+		weekDrafts[drop.cell.wn].dirty = true;
+	}
+
+	// Only the session arrays are snapshotted, not the whole draft: a save that
+	// lands mid-drag clears its own flags and restoring the draft wholesale would
+	// bring them back.
+	type WeekSessionsSnapshot = Record<
+		number,
+		{
+			days: DaySession[][];
+			freqSessions: FreqSession[];
+			everydaySessions: EverydaySession[];
+			dirty: boolean;
+		}
+	>;
+
+	function snapshotWeekSessions(): WeekSessionsSnapshot {
+		const snapshot: WeekSessionsSnapshot = {};
+		for (const wnStr of Object.keys(weekDrafts)) {
+			const wn = parseInt(wnStr);
+			const draft = weekDrafts[wn];
+			snapshot[wn] = $state.snapshot({
+				days: draft.days,
+				freqSessions: draft.freqSessions,
+				everydaySessions: draft.everydaySessions,
+				dirty: draft.dirty
+			}) as WeekSessionsSnapshot[number];
+		}
+		return snapshot;
+	}
+
+	// A week absent from the snapshot was opened by the drag itself, so it is
+	// emptied rather than left holding a copy of the session being restored.
+	function restoreWeekSessions(snapshot: WeekSessionsSnapshot) {
+		for (const wnStr of Object.keys(weekDrafts)) {
+			const wn = parseInt(wnStr);
+			const draft = weekDrafts[wn];
+			const saved = snapshot[wn];
+			draft.days = saved ? saved.days : Array.from({ length: 7 }, () => []);
+			draft.freqSessions = saved ? saved.freqSessions : [];
+			draft.everydaySessions = saved ? saved.everydaySessions : [];
+			draft.dirty = saved ? saved.dirty : false;
+		}
 	}
 
 	// The week holding this session when it is locked, null when it is free to move.
@@ -320,73 +451,80 @@
 		return null;
 	}
 
+	// Reordering happens while the pointer moves, so the cells show the result
+	// before the drop. The cooldown stops a hovered pair from swapping back and
+	// forth every frame once the move has put the pointer over the other one.
+	const SWAP_COOLDOWN_MS = 200;
+	let lastSwapKey = '';
+	let lastSwapTime = 0;
+	let sessionsSnapshot: WeekSessionsSnapshot | null = null;
+
+	function onDragStart() {
+		lastSwapKey = '';
+		lastSwapTime = 0;
+		sessionsSnapshot = snapshotWeekSessions();
+	}
+
+	function onDragOver(event: { operation: { source: unknown; target: unknown } }) {
+		const { source, target } = event.operation;
+		if (!editMode || !source || !target) return;
+		// A training dragged out of the library has nothing to move yet: it is
+		// created on drop.
+		if (!isSortable(source as never)) return;
+
+		const sourceId = String((source as { id: string }).id);
+		const drop = dropTarget(target);
+		if (!drop) return;
+
+		// Rescheduling a played session is fine, moving it to another week is not:
+		// it would drop the row out of the week it was prescribed in.
+		const lockedWn = lockedSessionWeek(sourceId);
+		if (lockedWn !== null && lockedWn !== drop.cell.wn) return;
+
+		const swapKey = `${sourceId}:${drop.overSessionID ?? cellID(drop.cell)}`;
+		const now = Date.now();
+		if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
+		moveSession(sourceId, drop);
+		lastSwapKey = swapKey;
+		lastSwapTime = now;
+	}
+
 	function onDragEnd(event: {
 		canceled: boolean;
 		operation: { source: unknown; target: unknown };
 	}) {
+		const snapshot = sessionsSnapshot;
+		sessionsSnapshot = null;
+
 		const source = event.operation.source;
 		const target = event.operation.target;
-		if (event.canceled || !editMode) return;
+		if (event.canceled || !editMode) {
+			if (snapshot) restoreWeekSessions(snapshot);
+			return;
+		}
 		if (!source || !target) return;
 
 		const sourceId = String((source as { id: string }).id);
-		const targetId = String((target as { id: string }).id);
+		const drop = dropTarget(target);
+		if (!drop) return;
 
 		if (sourceId.startsWith('__new__:')) {
 			const trainingId = sourceId.slice(8);
-			if (targetId.startsWith('cell:')) {
-				const [, wnStr, dayStr] = targetId.split(':');
-				const wn = parseInt(wnStr);
-				const day = parseInt(dayStr);
-				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].days[day].push(newDraftSession(trainingId));
-				weekDrafts[wn].dirty = true;
-			} else if (targetId.startsWith('freq:')) {
-				const wn = parseInt(targetId.slice(5));
-				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].freqSessions.push({ ...newDraftSession(trainingId), times_per_week: 1 });
-				weekDrafts[wn].dirty = true;
-			} else if (targetId.startsWith('everyday:')) {
-				const wn = parseInt(targetId.slice(9));
-				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].everydaySessions.push(newDraftSession(trainingId));
-				weekDrafts[wn].dirty = true;
-			}
-		} else {
-			const targetWn = targetWeekNumber(targetId);
-			if (targetWn === null) return;
-			// Rescheduling a played session is fine, moving it to another week is
-			// not: it would drop the row out of the week it was prescribed in.
-			const lockedWn = lockedSessionWeek(sourceId);
-			if (lockedWn !== null && lockedWn !== targetWn) {
-				snackbar.show(LOCKED_SESSION_MOVE_REASON, 'warning');
-				return;
-			}
-			const moved = findAndRemoveSession(sourceId);
-			if (!moved) return;
-			const { session } = moved;
-			if (targetId.startsWith('cell:')) {
-				const [, wnStr, dayStr] = targetId.split(':');
-				const wn = parseInt(wnStr);
-				const day = parseInt(dayStr);
-				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].days[day].push(movedDraftSession(session));
-				weekDrafts[wn].dirty = true;
-			} else if (targetId.startsWith('freq:')) {
-				const wn = parseInt(targetId.slice(5));
-				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				const times = 'times_per_week' in session ? (session as FreqSession).times_per_week : 1;
-				weekDrafts[wn].freqSessions.push({
-					...movedDraftSession(session),
-					times_per_week: times
-				});
-				weekDrafts[wn].dirty = true;
-			} else if (targetId.startsWith('everyday:')) {
-				const wn = parseInt(targetId.slice(9));
-				if (!weekDrafts[wn]) weekDrafts[wn] = emptyDraft();
-				weekDrafts[wn].everydaySessions.push(movedDraftSession(session));
-				weekDrafts[wn].dirty = true;
-			}
+			const sessions = cellSessions(drop.cell);
+			sessions.splice(
+				Math.min(drop.index, sessions.length),
+				0,
+				sessionForCell(newDraftSession(trainingId), drop.cell)
+			);
+			weekDrafts[drop.cell.wn].dirty = true;
+			return;
+		}
+
+		// The move itself already happened on drag over. What is left is telling
+		// the coach why a played session refused to follow the pointer.
+		const lockedWn = lockedSessionWeek(sourceId);
+		if (lockedWn !== null && lockedWn !== drop.cell.wn) {
+			snackbar.show(LOCKED_SESSION_MOVE_REASON, 'warning');
 		}
 	}
 
@@ -990,7 +1128,7 @@
 		</div>
 
 		<!-- DragDropProvider wraps week grid + right rail so SidePanelDraggable has context -->
-		<DragDropProvider sensors={dndSensors} {onDragEnd}>
+		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
 			<div style="display: flex; align-items: flex-start;">
 				<div style="flex: 1; min-width: 0; padding: 16px 24px 40px;">
 					<div style="display: flex; flex-direction: column; gap: 6px;">
@@ -1319,10 +1457,15 @@
 													border-left: 1px solid var(--bd2);
 												"
 													>
-														{#each draft.days[dayIndex] as session (session._id)}
+														{#each draft.days[dayIndex] as session, sessionIndex (session._id)}
 															{@const color = trainingColor(session.training_id)}
 															{@const tint = trainingTint(session.training_id)}
-															<DraggableSession id={session._id} disabled={!editMode}>
+															<SortableSession
+																id={session._id}
+																group="cell:{wn}:{dayIndex}"
+																index={sessionIndex}
+																disabled={!editMode}
+															>
 																<div
 																	style="
 																display: flex; align-items: center; gap: 4px;
@@ -1370,7 +1513,7 @@
 																		</button>
 																	{/if}
 																</div>
-															</DraggableSession>
+															</SortableSession>
 														{/each}
 														{#if draft.days[dayIndex].length === 0}
 															{#if editMode}
@@ -1416,10 +1559,15 @@
 												background: var(--panel2);
 											"
 												>
-													{#each draft.freqSessions as session (session._id)}
+													{#each draft.freqSessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession id={session._id} disabled={!editMode}>
+														<SortableSession
+															id={session._id}
+															group="freq:{wn}"
+															index={sessionIndex}
+															disabled={!editMode}
+														>
 															<div
 																style="
 															padding: 4px 5px; border-radius: 5px;
@@ -1488,7 +1636,7 @@
 																	{/if}
 																</div>
 															</div>
-														</DraggableSession>
+														</SortableSession>
 													{/each}
 												</div>
 											</DroppableCell>
@@ -1503,10 +1651,15 @@
 												background: #faf7fe;
 											"
 												>
-													{#each draft.everydaySessions as session (session._id)}
+													{#each draft.everydaySessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
-														<DraggableSession id={session._id} disabled={!editMode}>
+														<SortableSession
+															id={session._id}
+															group="everyday:{wn}"
+															index={sessionIndex}
+															disabled={!editMode}
+														>
 															<div
 																style="
 															display: flex; align-items: center; gap: 4px;
@@ -1554,7 +1707,7 @@
 																	</button>
 																{/if}
 															</div>
-														</DraggableSession>
+														</SortableSession>
 													{/each}
 													{#if draft.everydaySessions.length === 0 && editMode}
 														<div
