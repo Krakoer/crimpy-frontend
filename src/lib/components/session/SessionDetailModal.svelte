@@ -12,6 +12,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
 	import SessionPrescriptionCard from '$lib/components/session/SessionPrescriptionCard.svelte';
+	import SessionFeedbackCard from '$lib/components/session/SessionFeedbackCard.svelte';
 	import {
 		formatDuration,
 		formatSessionDate,
@@ -25,9 +26,12 @@
 		userId: string;
 		session: SessionResponse;
 		onClose: () => void;
+		// Passed through to the feedback card so the listing behind the modal can
+		// follow a reply without refetching.
+		onReplied?: (session: SessionResponse) => void;
 	}
 
-	let { userId, session, onClose }: Props = $props();
+	let { userId, session, onClose, onReplied }: Props = $props();
 
 	// The listing already carries enough to draw the header, so the summary is
 	// shown straight away and the fetched detail takes over once it lands.
@@ -288,20 +292,13 @@
 				{/if}
 			{/if}
 
-			{#if detail.notes?.trim()}
-				<div
-					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
-				>
-					<div style="padding: 14px 18px; border-bottom: 1px solid var(--bd2);">
-						<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Athlete notes</h3>
-					</div>
-					<p
-						style="padding: 14px 18px; font-size: 13px; color: var(--tx2); line-height: 1.6; white-space: pre-wrap;"
-					>
-						{detail.notes}
-					</p>
-				</div>
-			{/if}
+			<!-- The notes the athlete left and the coach's answer to them are one
+			     exchange, so they are shown as one card rather than a read-only
+			     block and an editor that never meet. Keyed on the session so the
+			     card resets when the modal is reused for another one. -->
+			{#key detail.id}
+				<SessionFeedbackCard {userId} session={detail} {onReplied} />
+			{/key}
 		</div>
 	</div>
 </div>
