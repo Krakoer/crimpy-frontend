@@ -20,11 +20,30 @@
 		ProgramRequest,
 		WeekSummary,
 		WeekDetail,
-		SessionOverride,
 		SessionRequest,
 		TrainingItem,
 		TrainingSummary
 	} from '$lib/api/client';
+	import {
+		cellID,
+		cellSessions,
+		draftSessions,
+		duplicatedDraftSession,
+		emptyDraft,
+		moveSession,
+		parseCell,
+		restoreWeekSessions,
+		sessionForCell,
+		snapshotWeekSessions,
+		type DaySession,
+		type DraftSession,
+		type EverydaySession,
+		type FreqSession,
+		type SessionDrop,
+		type WeekDraft,
+		type WeekDrafts,
+		type WeekSessionsSnapshot
+	} from '$lib/program-draft';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
@@ -32,31 +51,6 @@
 	let { data } = $props();
 	const userId = $derived(data.userId as string);
 	const programId = $derived(data.programId as string);
-
-	// _id is a local key for drag and drop only. id is the server row the session
-	// came from, and sending it back is what stops the save from recreating the
-	// row played sessions point at. originWn is the week that row belongs to, so
-	// a session dragged to another week and back still saves under its own id.
-	// locked is set by the server on a session the coachee has already played.
-	// What was prescribed then must keep describing what was played, so its
-	// training and its overrides are frozen and the row may not be dropped.
-	// times_per_week only means anything in the frequency column, but every
-	// session carries it: a drag passing over a day cell on its way back would
-	// otherwise shed the count the coach prescribed. What decides whether it is
-	// sent is the cell the session is saved from, not whether it is still here.
-	type DraftSession = {
-		_id: string;
-		id?: string;
-		originWn?: number;
-		training_id: string;
-		notes?: string;
-		locked?: boolean;
-		times_per_week?: number;
-		overrides: SessionOverride[];
-	};
-	type DaySession = DraftSession;
-	type FreqSession = DraftSession & { times_per_week: number };
-	type EverydaySession = DraftSession;
 
 	// Only used when a training is dropped onto the program, so this is where the
 	// coach is told about assessments the coachee is missing.
@@ -86,59 +80,6 @@
 			`${coacheeName} has not done ${names} yet, so the fallback values of this training will be used.`,
 			'warning'
 		);
-	}
-
-	// The id is kept as the session moves. Whether it is sent is decided at save
-	// time by comparing originWn to the week being saved, so a mis-drop into
-	// another week that the coach immediately undoes does not lose the row.
-	function movedDraftSession(session: DraftSession): DraftSession {
-		return {
-			_id: session._id,
-			id: session.id,
-			originWn: session.originWn,
-			training_id: session.training_id,
-			notes: session.notes,
-			locked: session.locked,
-			times_per_week: session.times_per_week,
-			overrides: session.overrides
-		};
-	}
-	type WeekDraft = {
-		notes: string;
-		days: DaySession[][];
-		freqSessions: FreqSession[];
-		everydaySessions: EverydaySession[];
-		dirty: boolean;
-		saving: boolean;
-		saveError: string;
-		deleteConfirm: boolean;
-		deleting: boolean;
-	};
-
-	// A duplicate is a new row in the target week, so it starts without an id and
-	// nobody has played it yet.
-	function duplicatedDraftSession<T extends DraftSession>(session: T): T {
-		return {
-			...session,
-			_id: crypto.randomUUID(),
-			id: undefined,
-			originWn: undefined,
-			locked: false
-		};
-	}
-
-	function emptyDraft(): WeekDraft {
-		return {
-			notes: '',
-			days: Array.from({ length: 7 }, () => []),
-			freqSessions: [],
-			everydaySessions: [],
-			dirty: false,
-			saving: false,
-			saveError: '',
-			deleteConfirm: false,
-			deleting: false
-		};
 	}
 
 	function weekDetailToDraft(detail: WeekDetail, wn: number): WeekDraft {
@@ -236,7 +177,7 @@
 	let deleting = $state(false);
 
 	let weeks = $state<WeekSummary[]>([]);
-	let weekDrafts = $state<Record<number, WeekDraft>>({});
+	let weekDrafts = $state<WeekDrafts>({});
 
 	let expandedWeeks = $state<Set<number>>(new Set());
 
@@ -283,95 +224,10 @@
 		})
 	];
 
-	// Where a session sits in a week. The id doubles as the drop target id of the
-	// cell and as the sortable group of the sessions inside it, so a drop on the
-	// empty part of a cell and a drop on one of its sessions resolve to the same
-	// place.
-	type SessionCell =
-		| { kind: 'day'; wn: number; day: number }
-		| { kind: 'freq'; wn: number }
-		| { kind: 'everyday'; wn: number };
-
-	function parseCell(id: string): SessionCell | null {
-		if (id.startsWith('cell:')) {
-			const [, wnStr, dayStr] = id.split(':');
-			const wn = parseInt(wnStr);
-			const day = parseInt(dayStr);
-			if (isNaN(wn) || isNaN(day)) return null;
-			return { kind: 'day', wn, day };
-		}
-		if (id.startsWith('freq:')) {
-			const wn = parseInt(id.slice(5));
-			return isNaN(wn) ? null : { kind: 'freq', wn };
-		}
-		if (id.startsWith('everyday:')) {
-			const wn = parseInt(id.slice(9));
-			return isNaN(wn) ? null : { kind: 'everyday', wn };
-		}
-		return null;
-	}
-
-	function cellID(cell: SessionCell): string {
-		if (cell.kind === 'day') return `cell:${cell.wn}:${cell.day}`;
-		return `${cell.kind}:${cell.wn}`;
-	}
-
-	// The array a cell holds, creating the week draft if the cell belongs to one
-	// that has not been opened yet.
-	function cellSessions(cell: SessionCell): DraftSession[] {
-		if (!weekDrafts[cell.wn]) weekDrafts[cell.wn] = emptyDraft();
-		const draft = weekDrafts[cell.wn];
-		if (cell.kind === 'day') return draft.days[cell.day];
-		if (cell.kind === 'freq') return draft.freqSessions;
-		return draft.everydaySessions;
-	}
-
-	function locateSession(
-		sessionId: string
-	): { cell: SessionCell; sessions: DraftSession[]; index: number } | null {
-		for (const wnStr of Object.keys(weekDrafts)) {
-			const wn = parseInt(wnStr);
-			const draft = weekDrafts[wn];
-			for (let day = 0; day < 7; day++) {
-				const index = draft.days[day].findIndex((s) => s._id === sessionId);
-				if (index !== -1) {
-					return { cell: { kind: 'day', wn, day }, sessions: draft.days[day], index };
-				}
-			}
-			const freqIndex = draft.freqSessions.findIndex((s) => s._id === sessionId);
-			if (freqIndex !== -1) {
-				return { cell: { kind: 'freq', wn }, sessions: draft.freqSessions, index: freqIndex };
-			}
-			const everydayIndex = draft.everydaySessions.findIndex((s) => s._id === sessionId);
-			if (everydayIndex !== -1) {
-				return {
-					cell: { kind: 'everyday', wn },
-					sessions: draft.everydaySessions,
-					index: everydayIndex
-				};
-			}
-		}
-		return null;
-	}
-
-	// A frequency cell is the only one that reads the count, so a session entering
-	// it must end up with one. A session that never had it starts at 1; one coming
-	// back from another cell gets the count it left with. Going through here is
-	// what lets cellSessions hand back a plain DraftSession array for any cell:
-	// nothing else puts a session into freqSessions.
-	function sessionForCell(session: DraftSession, cell: SessionCell): DraftSession {
-		const moved = movedDraftSession(session);
-		if (cell.kind !== 'freq') return moved;
-		const freqSession: FreqSession = { ...moved, times_per_week: session.times_per_week ?? 1 };
-		return freqSession;
-	}
-
 	// The cell a drop lands in and the index inside it. A sortable target is one
 	// of the sessions, so the drop takes its place; anything else is the cell
 	// itself and the session goes to the end.
-	function dropTarget(
-		target: unknown
-	): { cell: SessionCell; overSessionID: string | null; index: number } | null {
+	function dropTarget(target: unknown): SessionDrop | null {
 		const id = String((target as { id: string }).id);
 		if (isSortable(target as never)) {
 			const sortable = target as { id: string; group?: string; index: number };
@@ -380,75 +236,6 @@
 		}
 		const cell = parseCell(id);
 		return cell ? { cell, overSessionID: null, index: Infinity } : null;
-	}
-
-	function moveSession(sessionId: string, drop: NonNullable<ReturnType<typeof dropTarget>>) {
-		const from = locateSession(sessionId);
-		if (!from) return;
-		const target = cellSessions(drop.cell);
-
-		if (from.sessions === target) {
-			if (drop.overSessionID === null) return;
-			const overIndex = target.findIndex((s) => s._id === drop.overSessionID);
-			if (overIndex === -1 || overIndex === from.index) return;
-			const movingDown = from.index < overIndex;
-			const [session] = target.splice(from.index, 1);
-			// The removal shifts everything after it, so the landing spot is read
-			// again rather than reused from before the splice. Dropping onto a
-			// session below means taking the slot after it, which is the only way
-			// the last slot of a cell can be reached.
-			const overIndexAfterRemoval = target.findIndex((s) => s._id === drop.overSessionID);
-			target.splice(movingDown ? overIndexAfterRemoval + 1 : overIndexAfterRemoval, 0, session);
-		} else {
-			const [session] = from.sessions.splice(from.index, 1);
-			target.splice(Math.min(drop.index, target.length), 0, sessionForCell(session, drop.cell));
-		}
-
-		weekDrafts[from.cell.wn].dirty = true;
-		weekDrafts[drop.cell.wn].dirty = true;
-	}
-
-	// Only the session arrays are snapshotted, not the whole draft: a save that
-	// lands mid-drag clears its own flags and restoring the draft wholesale would
-	// bring them back. Such a save drops the snapshot outright, so a cancel after
-	// it restores nothing rather than what the week held before the save.
-	type WeekSessionsSnapshot = Record<
-		number,
-		{
-			days: DaySession[][];
-			freqSessions: FreqSession[];
-			everydaySessions: EverydaySession[];
-			dirty: boolean;
-		}
-	>;
-
-	function snapshotWeekSessions(): WeekSessionsSnapshot {
-		const snapshot: WeekSessionsSnapshot = {};
-		for (const wnStr of Object.keys(weekDrafts)) {
-			const wn = parseInt(wnStr);
-			const draft = weekDrafts[wn];
-			snapshot[wn] = $state.snapshot({
-				days: draft.days,
-				freqSessions: draft.freqSessions,
-				everydaySessions: draft.everydaySessions,
-				dirty: draft.dirty
-			}) as WeekSessionsSnapshot[number];
-		}
-		return snapshot;
-	}
-
-	// A week absent from the snapshot was opened by the drag itself, so it is
-	// emptied rather than left holding a copy of the session being restored.
-	function restoreWeekSessions(snapshot: WeekSessionsSnapshot) {
-		for (const wnStr of Object.keys(weekDrafts)) {
-			const wn = parseInt(wnStr);
-			const draft = weekDrafts[wn];
-			const saved = snapshot[wn];
-			draft.days = saved ? saved.days : Array.from({ length: 7 }, () => []);
-			draft.freqSessions = saved ? saved.freqSessions : [];
-			draft.everydaySessions = saved ? saved.everydaySessions : [];
-			draft.dirty = saved ? saved.dirty : false;
-		}
 	}
 
 	// The week holding this session when it is locked, null when it is free to move.
@@ -472,7 +259,10 @@
 	function onDragStart() {
 		lastSwapKey = '';
 		lastSwapTime = 0;
-		sessionsSnapshot = snapshotWeekSessions();
+		sessionsSnapshot = snapshotWeekSessions(
+			weekDrafts,
+			(value) => $state.snapshot(value) as typeof value
+		);
 	}
 
 	function onDragOver(event: { operation: { source: unknown; target: unknown } }) {
@@ -494,7 +284,7 @@
 		const swapKey = `${sourceId}:${drop.overSessionID ?? cellID(drop.cell)}`;
 		const now = Date.now();
 		if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
-		moveSession(sourceId, drop);
+		moveSession(weekDrafts, sourceId, drop);
 		lastSwapKey = swapKey;
 		lastSwapTime = now;
 	}
@@ -509,7 +299,7 @@
 		const source = event.operation.source;
 		const target = event.operation.target;
 		if (event.canceled || !editMode) {
-			if (snapshot) restoreWeekSessions(snapshot);
+			if (snapshot) restoreWeekSessions(weekDrafts, snapshot);
 			return;
 		}
 		if (!source || !target) return;
@@ -520,7 +310,7 @@
 
 		if (sourceId.startsWith('__new__:')) {
 			const trainingId = sourceId.slice(8);
-			const sessions = cellSessions(drop.cell);
+			const sessions = cellSessions(weekDrafts, drop.cell);
 			sessions.splice(
 				Math.min(drop.index, sessions.length),
 				0,
@@ -536,10 +326,6 @@
 		if (lockedWn !== null && lockedWn !== drop.cell.wn) {
 			snackbar.show(LOCKED_SESSION_MOVE_REASON, 'warning');
 		}
-	}
-
-	function draftSessions(draft: WeekDraft): DraftSession[] {
-		return [...draft.days.flat(), ...draft.freqSessions, ...draft.everydaySessions];
 	}
 
 	function hasLockedSessions(draft: WeekDraft | undefined): boolean {
@@ -863,7 +649,7 @@
 			trainings = t;
 
 			const maxWn = p.duration_weeks ?? (w.length ? Math.max(...w.map((ws) => ws.week_number)) : 0);
-			const allDrafts: Record<number, WeekDraft> = {};
+			const allDrafts: WeekDrafts = {};
 			for (let n = 1; n <= maxWn; n++) allDrafts[n] = emptyDraft();
 
 			if (w.length > 0) {
