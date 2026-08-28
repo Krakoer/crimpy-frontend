@@ -14,6 +14,7 @@ npm run build        # production build
 npm run check        # svelte-check type checking (use this instead of tsc --noEmit for .svelte files)
 npm run lint         # prettier + eslint check
 npm run format       # auto-format with prettier
+npm run test:unit    # vitest unit tests for the plain logic modules under src/lib
 npm run test:e2e     # playwright e2e tests
 ```
 
