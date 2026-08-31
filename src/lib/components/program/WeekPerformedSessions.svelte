@@ -26,9 +26,16 @@
 	let { weekNumber, sessions, programSessionIDs, failed, startsInTheFuture, onOpen }: Props =
 		$props();
 
-	function dayLabel(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short' });
-	}
+	// Under the day it was played, in the column the prescription for that day
+	// sits in. Monday first, like the grid above, where the Date constructor
+	// counts from Sunday.
+	const sessionsByDay = $derived.by(() => {
+		const days: SessionResponse[][] = Array.from({ length: 7 }, () => []);
+		for (const session of sessions) {
+			days[(new Date(session.date).getDay() + 6) % 7].push(session);
+		}
+		return days;
+	});
 
 	function isOffProgram(session: SessionResponse): boolean {
 		return !session.program_session_id || !programSessionIDs.has(session.program_session_id);
@@ -43,103 +50,132 @@
 	);
 </script>
 
+<!-- The same column template as the day grid above, so a run sits under the
+	session that prescribed it and a coach reads the two down one column. The
+	frequency and everyday columns stay empty: they say when a session may be
+	played, which a run that happened has already answered with its date. -->
 <div
 	data-testid="performed:{weekNumber}"
-	style="border-top: 1px solid var(--bd2); background: var(--panel2);"
+	style="
+		display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
+		border-top: 1px solid var(--bd2); background: var(--panel2);
+	"
 >
-	<div class="flex items-center gap-2" style="padding: 8px 12px;">
-		<Icon name="play" size={12} color={failed ? 'var(--tx3)' : 'var(--gn)'} />
-		<span
-			style="font-size: 10.5px; font-weight: 700; color: var(--tx2); letter-spacing: 0.06em; text-transform: uppercase;"
-		>
-			Performed
-		</span>
-		{#if !failed}
-			<span style="font-size: 11px; color: var(--tx3);">
-				{sessions.length} session{sessions.length === 1 ? '' : 's'}
+	<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 2px;">
+		<div class="flex items-center gap-1.5">
+			<Icon name="play" size={11} color={failed ? 'var(--tx3)' : 'var(--gn)'} />
+			<span
+				style="font-size: 10.5px; font-weight: 700; color: var(--tx2); letter-spacing: 0.06em; text-transform: uppercase;"
+			>
+				Performed
 			</span>
+		</div>
+		{#if !failed}
+			<div style="font-size: 10px; color: var(--tx3); padding-left: 17px;">
+				{sessions.length} session{sessions.length === 1 ? '' : 's'}
+			</div>
 		{/if}
 	</div>
 
 	{#if sessions.length === 0}
 		<div
-			style="padding: 0 12px 10px 30px; font-size: 11.5px; color: {failed
-				? 'var(--rd)'
-				: 'var(--tx3)'};"
+			style="
+				grid-column: span 9; display: flex; align-items: center;
+				padding: 8px 12px; font-size: 11.5px;
+				color: {failed ? 'var(--rd)' : 'var(--tx3)'};
+			"
 		>
 			{emptyMessage}
 		</div>
 	{:else}
-		<div class="flex flex-wrap" style="gap: 6px; padding: 0 12px 10px;">
-			{#each sessions as session (session.id)}
-				{@const type = sessionActivityInfo(session.activity)}
-				{@const needsReply = awaitsCoachReply(session)}
-				<button
-					onclick={() => onOpen(session)}
-					aria-label="Open {session.name}"
-					style="
-						display: flex; align-items: center; gap: 8px; text-align: left;
-						padding: 7px 10px; border-radius: var(--rs); max-width: 320px;
-						background: var(--panel); border: 1px solid var(--bd);
-						cursor: pointer; font-family: var(--font);
-						transition: border-color 0.15s;
-					"
-					onmouseenter={(e) => (e.currentTarget.style.borderColor = 'var(--pr)')}
-					onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
-				>
-					<div
-						class="flex items-center justify-center"
+		{#each sessionsByDay as daySessions, dayIndex (dayIndex)}
+			<div
+				data-testid="performed:{weekNumber}:{dayIndex}"
+				style="
+					padding: 5px 3px; min-height: 56px;
+					display: flex; flex-direction: column; gap: 3px;
+					border-left: 1px solid var(--bd2);
+				"
+			>
+				{#each daySessions as session (session.id)}
+					{@const type = sessionActivityInfo(session.activity)}
+					{@const needsReply = awaitsCoachReply(session)}
+					<button
+						onclick={() => onOpen(session)}
+						aria-label="Open {session.name}"
+						title={session.notes?.trim() || session.name}
 						style="
-							width: 26px; height: 26px; border-radius: 5px; flex-shrink: 0;
-							background: {type.tint}; color: {type.color};
-							font-size: 9px; font-weight: 700;
+							display: flex; flex-direction: column; gap: 2px; text-align: left;
+							padding: 4px 5px; border-radius: 5px; width: 100%;
+							background: var(--panel); border: 1px solid var(--bd);
+							cursor: pointer; font-family: var(--font);
+							transition: border-color 0.15s;
 						"
+						onmouseenter={(e) => (e.currentTarget.style.borderColor = 'var(--pr)')}
+						onmouseleave={(e) => (e.currentTarget.style.borderColor = 'var(--bd)')}
 					>
-						{type.short}
-					</div>
-					<div style="min-width: 0;">
-						<div class="flex items-center gap-1.5">
+						<div class="flex items-center" style="gap: 4px; width: 100%;">
+							<div
+								style="width: 5px; height: 5px; border-radius: 50%; background: {type.color}; flex-shrink: 0;"
+							></div>
 							<span
 								class="truncate"
-								style="font-size: 12px; font-weight: 600; color: var(--tx); max-width: 190px;"
+								style="flex: 1; min-width: 0; font-size: 10.5px; font-weight: 600; color: var(--tx);"
 							>
 								{session.name}
 							</span>
 							{#if session.is_assessment}
 								<div title="Assessment" class="flex" style="flex-shrink: 0;">
-									<Icon name="spark" size={10} color="var(--pl)" />
+									<Icon name="spark" size={9} color="var(--pl)" />
 								</div>
 							{/if}
+							{#if needsReply}
+								<div
+									title="The athlete is waiting for an answer"
+									class="flex"
+									style="flex-shrink: 0;"
+								>
+									<Icon name="message" size={10} color="var(--pr)" />
+								</div>
+							{/if}
+						</div>
+						<div class="flex items-center" style="gap: 4px; padding-left: 9px;">
+							<span style="font-size: 9.5px; color: var(--tx2);">
+								{formatSessionTime(session.date)} - {formatDuration(session.duration)}
+							</span>
 							{#if isOffProgram(session)}
 								<span
 									title="Played outside this program"
-									style="font-size: 9px; font-weight: 700; color: var(--tx3); letter-spacing: 0.04em;"
+									style="font-size: 8px; font-weight: 700; color: var(--tx3); letter-spacing: 0.04em;"
 									>OFF</span
 								>
 							{/if}
 						</div>
-						<div style="font-size: 11px; color: var(--tx2);">
-							{dayLabel(session.date)}
-							{formatSessionTime(session.date)} - {formatDuration(session.duration)}
-						</div>
 						{#if session.notes?.trim()}
 							<div
-								class="truncate"
-								style="font-size: 11px; color: {needsReply
-									? 'var(--pr)'
-									: 'var(--tx3)'}; font-style: italic; max-width: 240px; margin-top: 2px;"
+								style="
+									padding-left: 9px; font-size: 9.5px; font-style: italic;
+									color: {needsReply ? 'var(--pr)' : 'var(--tx3)'};
+									overflow: hidden; text-overflow: ellipsis;
+									display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+								"
 							>
 								{session.notes}
 							</div>
 						{/if}
+					</button>
+				{/each}
+				{#if daySessions.length === 0}
+					<div
+						class="flex items-center justify-center"
+						style="flex: 1; color: var(--bd); font-size: 14px;"
+					>
+						-
 					</div>
-					{#if needsReply}
-						<div title="The athlete is waiting for an answer" class="flex" style="flex-shrink: 0;">
-							<Icon name="message" size={13} color="var(--pr)" />
-						</div>
-					{/if}
-				</button>
-			{/each}
-		</div>
+				{/if}
+			</div>
+		{/each}
+		<div style="border-left: 1px solid var(--bd2);"></div>
+		<div style="border-left: 1px solid var(--bd2);"></div>
 	{/if}
 </div>

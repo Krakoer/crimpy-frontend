@@ -863,6 +863,11 @@ test('duplicating a week holding a played session yields an unlocked copy', asyn
 	).toBeVisible();
 });
 
+/** The program grid runs Monday first, where Date counts from Sunday. */
+function mondayFirstDay(iso: string): number {
+	return (new Date(iso).getDay() + 6) % 7;
+}
+
 /**
  * What the athlete actually did, read beside the program that asked for it. The
  * played run points back at the prescribed row through program_session_id, and
@@ -902,6 +907,15 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	await expect(performed.getByText('Right elbow hurt on the last set.')).toBeVisible();
 	// The run the athlete started themselves is marked as off program.
 	await expect(performed.getByTitle('Played outside this program')).toBeVisible();
+
+	// Each run sits in the column of the day it was played, under the session
+	// that prescribed that day.
+	await expect(page.getByTestId(`performed:1:${mondayFirstDay(isoDaysAgo(5))}`)).toContainText(
+		'Power endurance block'
+	);
+	await expect(page.getByTestId(`performed:1:${mondayFirstDay(isoDaysAgo(4))}`)).toContainText(
+		'Evening bouldering'
+	);
 });
 
 test('says nothing was played in a week the athlete skipped', async ({ page }) => {
