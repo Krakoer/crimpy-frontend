@@ -1151,8 +1151,28 @@
 													{/if}
 												</div>
 											{/each}
-											<!-- /WK column placeholder in collapsed row -->
-											<div></div>
+											<!-- /WK collapsed preview -->
+											<div
+												style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
+											>
+												{#each draft.freqSessions as s (s._id)}
+													{@const t = trainingById(s.training_id)}
+													<div
+														style="
+													padding: 2px 5px; border-radius: 4px;
+													background: {trainingTint(s.training_id)};
+													font-size: 9px; color: {trainingColor(s.training_id)};
+													font-weight: 600; max-width: 100%;
+													overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+												"
+													>
+														{s.times_per_week}x {t?.title?.split(' ')[0] ?? '?'}
+													</div>
+												{/each}
+												{#if draft.freqSessions.length === 0}
+													<span style="font-size: 10px; color: var(--bd);">-</span>
+												{/if}
+											</div>
 											<!-- DAILY collapsed preview -->
 											<div
 												style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
