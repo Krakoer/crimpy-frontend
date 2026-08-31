@@ -246,6 +246,46 @@ test('loads the sessions already planned in a week', async ({ page }) => {
 	await expect(page.getByText('Deload the second half').first()).toBeVisible();
 });
 
+test('previews the frequency sessions of a collapsed week beside the count', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: {
+			id: 'week-1',
+			program_id: 'program-1',
+			week_number: 1,
+			notes: '',
+			created_at: '',
+			updated_at: '',
+			sessions: [
+				{
+					id: 'ws-1',
+					training_id: 'training-1',
+					training_title: 'Power endurance block',
+					training_type: 'workout',
+					times_per_week: 2,
+					is_everyday: false,
+					position: 0,
+					overrides: []
+				}
+			]
+		}
+	});
+
+	await page.goto(PROGRAM_URL);
+
+	// The count pill reads 2, so the row has to show where those two come from
+	// without being expanded.
+	const week1 = page.getByRole('button', { name: /Wk 1/ });
+	await expect(week1).toContainText('2x Power');
+	// The preview replaced an empty cell: the row still owes the grid ten children.
+	expect(await week1.evaluate((row) => row.children.length)).toBe(10);
+});
+
 test('sends existing sessions back with their id so the server keeps the row', async ({ page }) => {
 	const weekDetail = {
 		id: 'week-1',
