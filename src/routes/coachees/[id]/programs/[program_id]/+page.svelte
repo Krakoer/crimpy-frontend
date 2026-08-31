@@ -14,10 +14,15 @@
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import SortableSession from '$lib/components/program/SortableSession.svelte';
+	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
+	import WeekPerformedSessions from '$lib/components/program/WeekPerformedSessions.svelte';
+	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
+	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
 	import type {
 		AssessmentResponse,
 		Program,
 		ProgramRequest,
+		SessionResponse,
 		WeekSummary,
 		WeekDetail,
 		SessionRequest,
@@ -44,6 +49,8 @@
 		type WeekDrafts,
 		type WeekSessionsSnapshot
 	} from '$lib/program-draft';
+	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
+	import { withCoachReply } from '$lib/sessions';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
@@ -189,6 +196,44 @@
 
 	let trainings = $state<TrainingSummary[]>([]);
 	let coacheeAssessments = $state<AssessmentResponse[]>([]);
+	let showAssessments = $state(false);
+	// Same reason as the sessions below: an empty list the coach cannot tell from
+	// a failed read is a claim about the athlete rather than about the request.
+	let coacheeAssessmentsFailed = $state(false);
+
+	// What the coachee actually did, so the coach editing the weeks ahead can
+	// read the load that was missed and the note left after a painful run
+	// without leaving the program.
+	let playedSessions = $state<SessionResponse[]>([]);
+	// An empty week and a week nothing could be read for say opposite things to a
+	// coach about to lower a load, so the strip is told which one it is showing.
+	let playedSessionsFailed = $state(false);
+	let openedSession = $state<SessionResponse | null>(null);
+	const playedByProgramSession = $derived(sessionsByProgramSession(playedSessions));
+
+	function playedFor(session: DraftSession): SessionResponse[] {
+		return session.id ? (playedByProgramSession.get(session.id) ?? []) : [];
+	}
+
+	// The rows this program prescribes, across every week. A run linked to a row
+	// outside it belongs to another program the athlete is on, and reads as off
+	// program here rather than as something these weeks asked for.
+	const programSessionIDs = $derived(
+		new Set(
+			Object.values(weekDrafts)
+				.flatMap((draft) => draftSessions(draft))
+				.map((session) => session.id)
+				.filter((id): id is string => Boolean(id))
+		)
+	);
+
+	function applyReply(updated: SessionResponse) {
+		playedSessions = withCoachReply(playedSessions, updated);
+		if (openedSession?.id === updated.id) {
+			openedSession = playedSessions.find((s) => s.id === updated.id) ?? openedSession;
+		}
+	}
+
 	const trainingItemsById = new Map<string, TrainingItem[]>();
 	let trainingSearch = $state('');
 	let trainingTypeFilter = $state<string>('all');
@@ -505,8 +550,7 @@
 
 	function weekDateRange(weekNum: number): string {
 		if (!program) return '';
-		const start = new Date(program.start_date);
-		start.setDate(start.getDate() + (weekNum - 1) * 7);
+		const start = weekStart(program.start_date, weekNum);
 		const end = new Date(start);
 		end.setDate(end.getDate() + 6);
 		const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -591,22 +635,25 @@
 		}
 	}
 
+	// The day the program opens on, read the way the weeks below it are read. A
+	// bare YYYY-MM-DD handed to the Date constructor is parsed as UTC, which puts
+	// the header of a week and the sessions listed inside it a day apart for a
+	// coach west of Greenwich.
+	const programStart = $derived(program ? weekStart(program.start_date, 1).getTime() : 0);
+
 	const computedCurrentWeek = $derived.by(() => {
 		if (!program) return 1;
-		const diffMs = Date.now() - new Date(program.start_date).getTime();
+		const diffMs = Date.now() - programStart;
 		if (diffMs < 0) return 1;
 		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
 		return program.duration_weeks ? Math.min(week, program.duration_weeks) : week;
 	});
 
-	const isProgramUpcoming = $derived(
-		program ? Date.now() < new Date(program.start_date).getTime() : false
-	);
+	const isProgramUpcoming = $derived(program ? Date.now() < programStart : false);
 
 	const isProgramCompleted = $derived(
 		program?.duration_weeks
-			? computedCurrentWeek >= program.duration_weeks &&
-					Date.now() > new Date(program.start_date).getTime()
+			? computedCurrentWeek >= program.duration_weeks && Date.now() > programStart
 			: false
 	);
 
@@ -633,7 +680,13 @@
 		apiClient
 			.getClientAssessments(userId)
 			.then((a) => (coacheeAssessments = a ?? []))
-			.catch(() => {});
+			.catch(() => (coacheeAssessmentsFailed = true));
+		// Beside the program rather than in it: a run played off program still
+		// says how the week went, and a week the coach never opens costs nothing.
+		apiClient
+			.getClientSessions(userId)
+			.then((sessions) => (playedSessions = sessions ?? []))
+			.catch(() => (playedSessionsFailed = true));
 		// The catalog names an assessment the coachee has never done, which has no
 		// result row to take a label from.
 		assessmentCatalog.load();
@@ -661,14 +714,7 @@
 			weekDrafts = allDrafts;
 
 			// Open the current week by default
-			const currentWn = Math.max(
-				1,
-				Math.min(
-					Math.ceil((Date.now() - new Date(p.start_date).getTime()) / (7 * 86400000)),
-					p.duration_weeks ?? 999
-				)
-			);
-			expandedWeeks = new Set([currentWn]);
+			expandedWeeks = new Set([computedCurrentWeek]);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load program.';
 		} finally {
@@ -707,6 +753,23 @@
 		>
 			<Icon name="arrow-left" size={14} color="var(--tx2)" />
 			Back to coachee
+		</button>
+		<button
+			onclick={() => (showAssessments = true)}
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 6px 12px; border-radius: var(--rs);
+				background: var(--panel); color: var(--tx); border: 1px solid var(--bd);
+				font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+			"
+		>
+			<Icon name="spark" size={14} color="var(--pl)" />
+			Assessments
+			{#if coacheeAssessments.length > 0}
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
+					>{coacheeAssessments.length}</span
+				>
+			{/if}
 		</button>
 		{#if editMode}
 			{#if !confirmDelete}
@@ -935,7 +998,7 @@
 						<!-- Sticky column headers -->
 						<div
 							style="
-						display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
+						display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
 						position: sticky; top: 0; z-index: 10;
 						background: var(--bg); padding-bottom: 2px;
 					"
@@ -1002,7 +1065,7 @@
 									<button
 										onclick={() => toggleWeek(wn)}
 										style="
-										display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
+										display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
 										width: 100%; align-items: center; cursor: pointer;
 										background: {isCurrent && !expanded
 											? 'var(--pr-fog)'
@@ -1226,7 +1289,7 @@
 
 										<!-- Day grid -->
 										<div
-											style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px; min-height: 72px;"
+											style="display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px; min-height: 72px;"
 										>
 											<!-- Left info -->
 											<div
@@ -1260,6 +1323,7 @@
 														{#each draft.days[dayIndex] as session, sessionIndex (session._id)}
 															{@const color = trainingColor(session.training_id)}
 															{@const tint = trainingTint(session.training_id)}
+															{@const played = playedFor(session)}
 															<SortableSession
 																id={session._id}
 																group="cell:{wn}:{dayIndex}"
@@ -1267,6 +1331,7 @@
 																disabled={!editMode}
 															>
 																<div
+																	title={trainingById(session.training_id)?.title}
 																	style="
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
@@ -1283,10 +1348,16 @@
 																		</div>
 																	{/if}
 																	<span
-																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
+																		style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 500;"
 																	>
 																		{trainingById(session.training_id)?.title ?? '?'}
 																	</span>
+																	{#if played.length > 0}
+																		<PlayedSessionMarker
+																			{played}
+																			onOpen={(session) => (openedSession = session)}
+																		/>
+																	{/if}
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
@@ -1362,6 +1433,7 @@
 													{#each draft.freqSessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
+														{@const played = playedFor(session)}
 														<SortableSession
 															id={session._id}
 															group="freq:{wn}"
@@ -1369,6 +1441,7 @@
 															disabled={!editMode}
 														>
 															<div
+																title={trainingById(session.training_id)?.title}
 																style="
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
@@ -1386,7 +1459,7 @@
 																		</div>
 																	{/if}
 																	<span
-																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 600; min-width: 0; font-size: 10.5px;"
+																		style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 600; font-size: 10.5px;"
 																	>
 																		{trainingById(session.training_id)?.title ?? '?'}
 																	</span>
@@ -1409,6 +1482,12 @@
 																		>x/wk</span
 																	>
 																	<div style="flex: 1;"></div>
+																	{#if played.length > 0}
+																		<PlayedSessionMarker
+																			{played}
+																			onOpen={(session) => (openedSession = session)}
+																		/>
+																	{/if}
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
@@ -1454,6 +1533,7 @@
 													{#each draft.everydaySessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
+														{@const played = playedFor(session)}
 														<SortableSession
 															id={session._id}
 															group="everyday:{wn}"
@@ -1461,6 +1541,7 @@
 															disabled={!editMode}
 														>
 															<div
+																title={trainingById(session.training_id)?.title}
 																style="
 															display: flex; align-items: center; gap: 4px;
 															padding: 4px 5px; border-radius: 5px;
@@ -1477,10 +1558,16 @@
 																	</div>
 																{/if}
 																<span
-																	style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
+																	style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 500;"
 																>
 																	{trainingById(session.training_id)?.title ?? '?'}
 																</span>
+																{#if played.length > 0}
+																	<PlayedSessionMarker
+																		{played}
+																		onOpen={(session) => (openedSession = session)}
+																	/>
+																{/if}
 																{#if session.locked}
 																	<div
 																		title={LOCKED_SESSION_REASON}
@@ -1538,6 +1625,15 @@
 												</div>
 											</DroppableCell>
 										</div>
+
+										<WeekPerformedSessions
+											weekNumber={wn}
+											sessions={sessionsOfWeek(playedSessions, program.start_date, wn)}
+											{programSessionIDs}
+											failed={playedSessionsFailed}
+											startsInTheFuture={Date.now() < weekStart(program.start_date, wn).getTime()}
+											onOpen={(session) => (openedSession = session)}
+										/>
 									{/if}
 								</div>
 							{/if}
@@ -1762,5 +1858,23 @@
 		</div>
 	{/if}
 </AppShell>
+
+{#if openedSession}
+	<SessionDetailModal
+		{userId}
+		session={openedSession}
+		onClose={() => (openedSession = null)}
+		onReplied={applyReply}
+	/>
+{/if}
+
+{#if showAssessments}
+	<AssessmentsModal
+		athleteName={coacheeName}
+		records={coacheeAssessments}
+		failed={coacheeAssessmentsFailed}
+		onClose={() => (showAssessments = false)}
+	/>
+{/if}
 
 <UnsavedChangesGuard dirty={guardDirty} />

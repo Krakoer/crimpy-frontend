@@ -1,4 +1,10 @@
-import type { PrescriptionSnapshot, RepData, RepHand, TrainingItem } from '$lib/api/client';
+import type {
+	PrescriptionSnapshot,
+	RepData,
+	RepHand,
+	SessionResponse,
+	TrainingItem
+} from '$lib/api/client';
 import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 
 // What the athlete did. A label only: whether a session has rep measurements to
@@ -114,6 +120,35 @@ export function formatSessionDateShort(iso: string): string {
 		month: 'short',
 		year: 'numeric'
 	});
+}
+
+// A run the athlete left notes on that the coach has not answered yet. Every
+// surface that flags one reads it here, so the coachee page and the program
+// editor cannot disagree about what still needs a reply.
+export function awaitsCoachReply(session: SessionResponse): boolean {
+	return Boolean(session.notes?.trim()) && !session.coach_reply?.trim();
+}
+
+// Swaps the replied session for the one the write returned, so a listing follows
+// a reply without refetching the whole history.
+//
+// The reply fields are restated rather than left to the spread: the server omits
+// them entirely once an answer is taken back, and a spread cannot delete a key,
+// so the row would keep the reply it just lost.
+export function withCoachReply(
+	sessions: SessionResponse[],
+	updated: SessionResponse
+): SessionResponse[] {
+	return sessions.map((session) =>
+		session.id === updated.id
+			? {
+					...session,
+					...updated,
+					coach_reply: updated.coach_reply ?? null,
+					coach_reply_at: updated.coach_reply_at ?? null
+				}
+			: session
+	);
 }
 
 export interface RepeaterConfig {

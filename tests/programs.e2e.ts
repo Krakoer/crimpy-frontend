@@ -4,11 +4,16 @@ import {
 	builtinAssessmentDefinitions,
 	capture,
 	dragOnto,
+	isoDaysAgo,
 	mockApi,
+	mondayDaysAgo,
 	signIn,
 	stub,
+	testAssessmentRecord,
 	testEnrolledUser,
 	testProgram,
+	testSession,
+	testSessionDetail,
 	testTraining,
 	testUser
 } from './fixtures';
@@ -21,6 +26,9 @@ async function stubProgram(page: Page, program = testProgram()): Promise<void> {
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*', { body: program });
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', { body: [] });
 	await stub(page, 'GET', '/api/trainings', { body: [testTraining()] });
+	// The editor reads what the athlete played beside the program. A test that
+	// cares about those rows registers its own stub on top of this one.
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -854,4 +862,201 @@ test('duplicating a week holding a played session yields an unlocked copy', asyn
 	await expect(
 		page.getByTestId('cell:2:1').getByRole('button', { name: 'Remove session', exact: true })
 	).toBeVisible();
+});
+
+/**
+ * A moment inside week 1 of testProgram(), on the given day of that week counted
+ * from Monday. Derived from the program's own start date rather than from today,
+ * so which weekday the suite runs on cannot move a run into another week.
+ */
+const WEEK_ONE_TUESDAY = 1;
+const WEEK_ONE_WEDNESDAY = 2;
+
+function inFirstWeek(dayOfWeek: number, hour = 9): string {
+	const date = new Date(`${mondayDaysAgo(7)}T00:00:00`);
+	date.setDate(date.getDate() + dayOfWeek);
+	date.setHours(hour);
+	return date.toISOString();
+}
+
+/**
+ * What the athlete actually did, read beside the program that asked for it. The
+ * played run points back at the prescribed row through program_session_id, and
+ * a run started outside the program carries none.
+ */
+async function stubPlayedWeekWithSessions(page: Page): Promise<void> {
+	await stubPlayedWeek(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+		body: [
+			testSession({
+				id: 'played-1',
+				name: 'Power endurance block',
+				date: inFirstWeek(WEEK_ONE_TUESDAY),
+				origin: 'played',
+				program_session_id: 'ws-1',
+				notes: 'Right elbow hurt on the last set.'
+			}),
+			testSession({
+				id: 'played-2',
+				name: 'Evening bouldering',
+				date: inFirstWeek(WEEK_ONE_WEDNESDAY),
+				origin: 'logged'
+			})
+		]
+	});
+}
+
+test('lists what the athlete played in the week being edited', async ({ page }) => {
+	await stubPlayedWeekWithSessions(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	const performed = page.getByTestId('performed:1');
+	await expect(performed).toContainText('2 sessions');
+	await expect(performed.getByRole('button', { name: 'Open Evening bouldering' })).toBeVisible();
+	// The card is one line, so the notes ride on its tooltip rather than being
+	// printed under it.
+	await expect(
+		performed.getByRole('button', { name: 'Open Power endurance block' })
+	).toHaveAttribute('title', /Right elbow hurt on the last set\./);
+	// The run the athlete started themselves is marked as off program.
+	await expect(performed.getByTitle('Played outside this program')).toBeVisible();
+
+	// Each run sits in the column of the day it was played, under the session
+	// that prescribed that day.
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_TUESDAY}`)).toContainText(
+		'Power endurance block'
+	);
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_WEDNESDAY}`)).toContainText(
+		'Evening bouldering'
+	);
+});
+
+test('says so when what the athlete played could not be read', async ({ page }) => {
+	await stubPlayedWeek(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+		status: 500,
+		body: { error: 'boom' }
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	// An empty week and a week nothing could be read for are opposite statements
+	// to a coach about to lower a load.
+	const performed = page.getByTestId('performed:1');
+	await expect(performed).toContainText('could not be loaded');
+	await expect(performed).not.toContainText('Nothing played this week yet.');
+});
+
+test('says nothing was played in a week the athlete skipped', async ({ page }) => {
+	await stubPlayedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTestId('performed:1')).toContainText('Nothing played this week yet.');
+});
+
+test('opens the played run from the prescribed session it belongs to', async ({ page }) => {
+	await stubPlayedWeekWithSessions(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+		body: testSessionDetail(
+			testSession({
+				id: 'played-1',
+				name: 'Power endurance block',
+				date: inFirstWeek(WEEK_ONE_TUESDAY),
+				origin: 'played',
+				program_session_id: 'ws-1',
+				notes: 'Right elbow hurt on the last set.'
+			})
+		)
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: /^Played / })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Session details' });
+	await expect(modal.getByRole('heading', { name: 'Power endurance block' })).toBeVisible();
+});
+
+test('says so when the assessments could not be read', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+		status: 500,
+		body: { error: 'boom' }
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Assessments/ }).click();
+
+	const modal = page.getByRole('dialog', { name: 'Assessment results' });
+	await expect(modal).toContainText('could not be loaded');
+	await expect(modal).not.toContainText('No assessment records yet');
+});
+
+test('shows the coachee assessments without leaving the program', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+		body: [testAssessmentRecord({ right_value: 42, left_value: 40 })]
+	});
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: builtinAssessmentDefinitions()
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Assessments/ }).click();
+
+	const modal = page.getByRole('dialog', { name: 'Assessment results' });
+	await expect(modal.getByText('Max Force').first()).toBeVisible();
+	await expect(modal.getByText('Assessment history')).toBeVisible();
+});
+
+test('answers the notes on a played run without leaving the program', async ({ page }) => {
+	const played = testSession({
+		id: 'played-1',
+		name: 'Power endurance block',
+		date: inFirstWeek(WEEK_ONE_TUESDAY),
+		origin: 'played',
+		program_session_id: 'ws-1',
+		notes: 'Right elbow hurt on the last set.'
+	});
+	await stubPlayedWeekWithSessions(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions/*', { body: testSessionDetail(played) });
+	await stub(page, 'PUT', '/api/coach/clients/*/sessions/*/reply', {
+		body: { ...played, coach_reply: 'Drop to three sets next week.', coach_reply_at: isoDaysAgo(0) }
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	// The pill of the prescribed row leads with the unanswered notes.
+	const waiting = page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: /^Played .*waiting for an answer/ });
+	await expect(waiting).toBeVisible();
+	await page
+		.getByTestId('performed:1')
+		.getByRole('button', { name: 'Open Power endurance block' })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Session details' });
+	await modal.getByRole('textbox').fill('Drop to three sets next week.');
+	await modal.getByRole('button', { name: 'Send reply' }).click();
+
+	await expect(page.getByText('Reply sent to the athlete')).toBeVisible();
+	// The strip and the marker follow the answer without a reload: the note is no
+	// longer flagged as waiting.
+	await expect(waiting).toHaveCount(0);
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: /^Played / })
+	).toBeVisible();
+	await expect(
+		page.getByTestId('performed:1').getByTitle('The athlete is waiting for an answer')
+	).toHaveCount(0);
 });

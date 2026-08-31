@@ -252,6 +252,23 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
 	await stub(page, 'GET', '/api/user', { body: user });
 }
 
+/** The plain day form the API sends a program start date in. */
+export function dayDaysAgo(days: number): string {
+	return isoDaysAgo(days).slice(0, 10);
+}
+
+/**
+ * The Monday of the week that day falls in. Program weeks run Monday to Sunday
+ * and the UI snaps every start date it sends through mondayOf, so a fixture
+ * starting mid week is a program the app cannot produce.
+ */
+export function mondayDaysAgo(days: number): string {
+	const date = new Date(`${dayDaysAgo(days)}T00:00:00`);
+	const weekday = date.getDay();
+	date.setDate(date.getDate() + (weekday === 0 ? -6 : 1 - weekday));
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 /** Dates are always relative so fixtures cannot rot into the past. */
 export function isoDaysAgo(days: number): string {
 	const date = new Date();
@@ -408,7 +425,7 @@ export function testProgram(overrides: Partial<TestProgram> = {}): TestProgram {
 		user_id: 'coachee-1',
 		name: 'Spring strength block',
 		objective: 'Raise max finger strength',
-		start_date: isoDaysAgo(7),
+		start_date: mondayDaysAgo(7),
 		duration_weeks: 4,
 		created_at: isoDaysAgo(14),
 		updated_at: isoDaysAgo(14),
@@ -425,6 +442,9 @@ export interface TestSession {
 	notes: string;
 	activity: number;
 	origin: 'played' | 'logged';
+	// The program row the session was played from, absent on a run the athlete
+	// started themselves.
+	program_session_id?: string | null;
 	is_assessment: boolean;
 	coach_reply?: string | null;
 	coach_reply_at?: string | null;

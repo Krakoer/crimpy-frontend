@@ -55,6 +55,14 @@ export function groupRecordedAssessments(assessments: AssessmentResponse[]): Rec
 	});
 }
 
+// The grip a hangboard assessment is read on before the coach picks one: the
+// lowest it was actually measured on, so an assessment never done on a half
+// crimp does not open on an empty history. Zero for one with no grips at all.
+export function firstGrip(assessment: RecordedAssessment): number {
+	const grips = assessment.records.map((record) => record.grip_position ?? 0);
+	return grips.length === 0 ? 0 : Math.min(...grips);
+}
+
 export { unitLabel, formatUnitValue as formatRecordValue } from '$lib/assessments';
 
 // The single number a non per hand assessment records. It is stored on the right
