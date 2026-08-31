@@ -13,16 +13,34 @@
 		// What the athlete played inside this week, oldest first, whether it came
 		// from the program or not.
 		sessions: SessionResponse[];
+		// The rows this program prescribes. A run pointing outside them was played
+		// from another program, and is marked off program like a free run.
+		programSessionIDs: Set<string>;
+		// Set when the sessions could not be read at all, which is not the same
+		// statement as a week the athlete skipped.
+		failed: boolean;
+		startsInTheFuture: boolean;
 		onOpen: (session: SessionResponse) => void;
 	}
 
-	let { weekNumber, sessions, onOpen }: Props = $props();
-
-	const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+	let { weekNumber, sessions, programSessionIDs, failed, startsInTheFuture, onOpen }: Props =
+		$props();
 
 	function dayLabel(iso: string): string {
-		return DAY_NAMES[new Date(iso).getDay()];
+		return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short' });
 	}
+
+	function isOffProgram(session: SessionResponse): boolean {
+		return !session.program_session_id || !programSessionIDs.has(session.program_session_id);
+	}
+
+	const emptyMessage = $derived(
+		failed
+			? 'What the athlete played could not be loaded, so this week says nothing about it.'
+			: startsInTheFuture
+				? 'This week has not started yet.'
+				: 'Nothing played this week yet.'
+	);
 </script>
 
 <div
@@ -30,20 +48,26 @@
 	style="border-top: 1px solid var(--bd2); background: var(--panel2);"
 >
 	<div class="flex items-center gap-2" style="padding: 8px 12px;">
-		<Icon name="play" size={12} color="var(--gn)" />
+		<Icon name="play" size={12} color={failed ? 'var(--tx3)' : 'var(--gn)'} />
 		<span
 			style="font-size: 10.5px; font-weight: 700; color: var(--tx2); letter-spacing: 0.06em; text-transform: uppercase;"
 		>
 			Performed
 		</span>
-		<span style="font-size: 11px; color: var(--tx3);">
-			{sessions.length} session{sessions.length === 1 ? '' : 's'}
-		</span>
+		{#if !failed}
+			<span style="font-size: 11px; color: var(--tx3);">
+				{sessions.length} session{sessions.length === 1 ? '' : 's'}
+			</span>
+		{/if}
 	</div>
 
 	{#if sessions.length === 0}
-		<div style="padding: 0 12px 10px 30px; font-size: 11.5px; color: var(--tx3);">
-			Nothing played this week yet.
+		<div
+			style="padding: 0 12px 10px 30px; font-size: 11.5px; color: {failed
+				? 'var(--rd)'
+				: 'var(--tx3)'};"
+		>
+			{emptyMessage}
 		</div>
 	{:else}
 		<div class="flex flex-wrap" style="gap: 6px; padding: 0 12px 10px;">
@@ -86,9 +110,9 @@
 									<Icon name="spark" size={10} color="var(--pl)" />
 								</div>
 							{/if}
-							{#if !session.program_session_id}
+							{#if isOffProgram(session)}
 								<span
-									title="Played outside the program"
+									title="Played outside this program"
 									style="font-size: 9px; font-weight: 700; color: var(--tx3); letter-spacing: 0.04em;"
 									>OFF</span
 								>

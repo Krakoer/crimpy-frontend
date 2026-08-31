@@ -49,7 +49,7 @@
 		type WeekDrafts,
 		type WeekSessionsSnapshot
 	} from '$lib/program-draft';
-	import { sessionsByProgramSession, sessionsOfWeek } from '$lib/program-performance';
+	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
 	import { withCoachReply } from '$lib/sessions';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
@@ -202,12 +202,27 @@
 	// read the load that was missed and the note left after a painful run
 	// without leaving the program.
 	let playedSessions = $state<SessionResponse[]>([]);
+	// An empty week and a week nothing could be read for say opposite things to a
+	// coach about to lower a load, so the strip is told which one it is showing.
+	let playedSessionsFailed = $state(false);
 	let openedSession = $state<SessionResponse | null>(null);
 	const playedByProgramSession = $derived(sessionsByProgramSession(playedSessions));
 
 	function playedFor(session: DraftSession): SessionResponse[] {
 		return session.id ? (playedByProgramSession.get(session.id) ?? []) : [];
 	}
+
+	// The rows this program prescribes, across every week. A run linked to a row
+	// outside it belongs to another program the athlete is on, and reads as off
+	// program here rather than as something these weeks asked for.
+	const programSessionIDs = $derived(
+		new Set(
+			Object.values(weekDrafts)
+				.flatMap((draft) => draftSessions(draft))
+				.map((session) => session.id)
+				.filter((id): id is string => Boolean(id))
+		)
+	);
 
 	function applyReply(updated: SessionResponse) {
 		playedSessions = withCoachReply(playedSessions, updated);
@@ -532,8 +547,7 @@
 
 	function weekDateRange(weekNum: number): string {
 		if (!program) return '';
-		const start = new Date(program.start_date);
-		start.setDate(start.getDate() + (weekNum - 1) * 7);
+		const start = weekStart(program.start_date, weekNum);
 		const end = new Date(start);
 		end.setDate(end.getDate() + 6);
 		const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -618,22 +632,25 @@
 		}
 	}
 
+	// The day the program opens on, read the way the weeks below it are read. A
+	// bare YYYY-MM-DD handed to the Date constructor is parsed as UTC, which puts
+	// the header of a week and the sessions listed inside it a day apart for a
+	// coach west of Greenwich.
+	const programStart = $derived(program ? weekStart(program.start_date, 1).getTime() : 0);
+
 	const computedCurrentWeek = $derived.by(() => {
 		if (!program) return 1;
-		const diffMs = Date.now() - new Date(program.start_date).getTime();
+		const diffMs = Date.now() - programStart;
 		if (diffMs < 0) return 1;
 		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
 		return program.duration_weeks ? Math.min(week, program.duration_weeks) : week;
 	});
 
-	const isProgramUpcoming = $derived(
-		program ? Date.now() < new Date(program.start_date).getTime() : false
-	);
+	const isProgramUpcoming = $derived(program ? Date.now() < programStart : false);
 
 	const isProgramCompleted = $derived(
 		program?.duration_weeks
-			? computedCurrentWeek >= program.duration_weeks &&
-					Date.now() > new Date(program.start_date).getTime()
+			? computedCurrentWeek >= program.duration_weeks && Date.now() > programStart
 			: false
 	);
 
@@ -666,7 +683,7 @@
 		apiClient
 			.getClientSessions(userId)
 			.then((sessions) => (playedSessions = sessions ?? []))
-			.catch(() => {});
+			.catch(() => (playedSessionsFailed = true));
 		// The catalog names an assessment the coachee has never done, which has no
 		// result row to take a label from.
 		assessmentCatalog.load();
@@ -694,14 +711,7 @@
 			weekDrafts = allDrafts;
 
 			// Open the current week by default
-			const currentWn = Math.max(
-				1,
-				Math.min(
-					Math.ceil((Date.now() - new Date(p.start_date).getTime()) / (7 * 86400000)),
-					p.duration_weeks ?? 999
-				)
-			);
-			expandedWeeks = new Set([currentWn]);
+			expandedWeeks = new Set([computedCurrentWeek]);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load program.';
 		} finally {
@@ -746,7 +756,7 @@
 			style="
 				display: inline-flex; align-items: center; gap: 7px;
 				padding: 6px 12px; border-radius: var(--rs);
-				background: #fff; color: var(--tx); border: 1px solid var(--bd);
+				background: var(--panel); color: var(--tx); border: 1px solid var(--bd);
 				font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 			"
 		>
@@ -1613,6 +1623,9 @@
 										<WeekPerformedSessions
 											weekNumber={wn}
 											sessions={sessionsOfWeek(playedSessions, program.start_date, wn)}
+											{programSessionIDs}
+											failed={playedSessionsFailed}
+											startsInTheFuture={Date.now() < weekStart(program.start_date, wn).getTime()}
 											onOpen={(session) => (openedSession = session)}
 										/>
 									{/if}

@@ -17,14 +17,21 @@
 	const needsReply = $derived(played.some(awaitsCoachReply));
 
 	const title = $derived(
-		`Played ${played.map((session) => formatSessionDateShort(session.date)).join(', ')}. Open the last run.`
+		[
+			`Played ${played.map((session) => formatSessionDateShort(session.date)).join(', ')}.`,
+			needsReply ? 'The athlete is waiting for an answer.' : null,
+			'Open the last run.'
+		]
+			.filter(Boolean)
+			.join(' ')
 	);
 </script>
 
-<!-- The sortable wrapper this sits in is marked aria-disabled and has its
-	pointer events dropped while the program is read only, which would take the
-	marker with it. Both are stated back here: the row cannot be dragged then, but
-	the run it points at is exactly what a coach reading the program came for. -->
+<!-- dnd-kit marks the sortable wrapper this sits in role="button" aria-disabled
+	while the program is read only, and the wrapper drops its pointer events with
+	it, which would take the marker down too. Both are stated back here: the row
+	cannot be dragged then, but the run it points at is exactly what a coach
+	reading the program came for. -->
 <button
 	onclick={() => onOpen(latest)}
 	onpointerdown={(e) => e.stopPropagation()}

@@ -901,7 +901,7 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	await expect(performed.getByRole('button', { name: 'Open Evening bouldering' })).toBeVisible();
 	await expect(performed.getByText('Right elbow hurt on the last set.')).toBeVisible();
 	// The run the athlete started themselves is marked as off program.
-	await expect(performed.getByTitle('Played outside the program')).toBeVisible();
+	await expect(performed.getByTitle('Played outside this program')).toBeVisible();
 });
 
 test('says nothing was played in a week the athlete skipped', async ({ page }) => {
@@ -954,4 +954,48 @@ test('shows the coachee assessments without leaving the program', async ({ page 
 	const modal = page.getByRole('dialog', { name: 'Assessment results' });
 	await expect(modal.getByText('Max Force').first()).toBeVisible();
 	await expect(modal.getByText('Assessment history')).toBeVisible();
+});
+
+test('answers the notes on a played run without leaving the program', async ({ page }) => {
+	const played = testSession({
+		id: 'played-1',
+		name: 'Power endurance block',
+		date: isoDaysAgo(5),
+		origin: 'played',
+		program_session_id: 'ws-1',
+		notes: 'Right elbow hurt on the last set.'
+	});
+	await stubPlayedWeekWithSessions(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions/*', { body: testSessionDetail(played) });
+	await stub(page, 'PUT', '/api/coach/clients/*/sessions/*/reply', {
+		body: { ...played, coach_reply: 'Drop to three sets next week.', coach_reply_at: isoDaysAgo(0) }
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	// The pill of the prescribed row leads with the unanswered notes.
+	const waiting = page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: /^Played .*waiting for an answer/ });
+	await expect(waiting).toBeVisible();
+	await page
+		.getByTestId('performed:1')
+		.getByRole('button', { name: 'Open Power endurance block' })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Session details' });
+	await modal.getByRole('textbox').fill('Drop to three sets next week.');
+	await modal.getByRole('button', { name: 'Send reply' }).click();
+
+	await expect(page.getByText('Reply sent to the athlete')).toBeVisible();
+	// The strip and the marker follow the answer without a reload: the note is no
+	// longer flagged as waiting.
+	await expect(waiting).toHaveCount(0);
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: /^Played / })
+	).toBeVisible();
+	await expect(
+		page.getByTestId('performed:1').getByTitle('The athlete is waiting for an answer')
+	).toHaveCount(0);
 });

@@ -11,12 +11,11 @@
 		Program,
 		ProgramRequest
 	} from '$lib/api/client';
-	import AssessmentResultCard from '$lib/components/assessment/AssessmentResultCard.svelte';
 	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
-	import AssessmentHistoryTable from '$lib/components/assessment/AssessmentHistoryTable.svelte';
+	import AssessmentResults from '$lib/components/assessment/AssessmentResults.svelte';
 	import {
-		groupRecordedAssessments,
-		measuredAt
+		firstGrip,
+		groupRecordedAssessments
 	} from '$lib/components/assessment/assessment-records';
 	import {
 		awaitsCoachReply,
@@ -75,21 +74,6 @@
 	// the ones Crimpy ships and the coach's own alike, since neither side is a
 	// fixed list any more.
 	let recordedAssessments = $derived(groupRecordedAssessments(assessments));
-
-	// Keyed by assessment id rather than by a discriminator, so a coach's
-	// assessment keeps its own grip and chart state.
-	let selectedGrip = $state<Record<string, number>>({});
-	let showGraph = $state<Record<string, boolean>>({});
-
-	$effect(() => {
-		for (const assessment of recordedAssessments) {
-			if (!assessment.hasGrips) continue;
-			const grips = [...new Set(assessment.records.map((r) => r.grip_position ?? 0))];
-			if (grips.length > 0 && !grips.includes(selectedGrip[assessment.id])) {
-				selectedGrip[assessment.id] = grips.sort((a, b) => a - b)[0];
-			}
-		}
-	});
 
 	let openedSession = $state<SessionResponse | null>(null);
 
@@ -210,10 +194,6 @@
 		});
 	}
 
-	function formatAssessmentDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-	}
-
 	async function loadPrograms() {
 		programsLoading = true;
 		try {
@@ -302,10 +282,6 @@
 	);
 
 	const totalAssessmentCount = $derived(assessments.length);
-
-	const assessmentHistory = $derived(
-		[...assessments].sort((a, b) => measuredAt(b) - measuredAt(a)).slice(0, 8)
-	);
 </script>
 
 <AppShell
@@ -680,7 +656,7 @@
 						</div>
 
 						{#each recordedAssessments as assessment (assessment.id)}
-							<AssessmentSummaryCard {assessment} selectedGrip={selectedGrip[assessment.id] ?? 0} />
+							<AssessmentSummaryCard {assessment} selectedGrip={firstGrip(assessment)} />
 						{/each}
 
 						{#if totalAssessmentCount === 0}
@@ -1085,36 +1061,7 @@
 						</div>
 					</div>
 
-					{#if totalAssessmentCount === 0}
-						<div
-							style="
-						background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-						padding: 40px 24px; text-align: center; color: var(--tx3); font-size: 13px;
-					"
-						>
-							No assessment records yet. Write an assessment on a training, and the results land
-							here once the athlete runs it in the Crimpy app.
-						</div>
-					{:else}
-						<div
-							role="list"
-							aria-label="Assessment results"
-							style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;"
-						>
-							{#each recordedAssessments as assessment (assessment.id)}
-								<AssessmentResultCard
-									{assessment}
-									selectedGrip={selectedGrip[assessment.id] ?? 0}
-									onSelectGrip={(grip) => (selectedGrip[assessment.id] = grip)}
-									showChart={showGraph[assessment.id] ?? false}
-									onToggleChart={() =>
-										(showGraph[assessment.id] = !(showGraph[assessment.id] ?? false))}
-								/>
-							{/each}
-						</div>
-
-						<AssessmentHistoryTable records={assessmentHistory} formatDate={formatAssessmentDate} />
-					{/if}
+					<AssessmentResults records={assessments} />
 				</div>
 
 				<!-- Notes tab -->
