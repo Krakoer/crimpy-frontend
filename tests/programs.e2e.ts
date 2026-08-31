@@ -4,11 +4,15 @@ import {
 	builtinAssessmentDefinitions,
 	capture,
 	dragOnto,
+	isoDaysAgo,
 	mockApi,
 	signIn,
 	stub,
+	testAssessmentRecord,
 	testEnrolledUser,
 	testProgram,
+	testSession,
+	testSessionDetail,
 	testTraining,
 	testUser
 } from './fixtures';
@@ -21,6 +25,9 @@ async function stubProgram(page: Page, program = testProgram()): Promise<void> {
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*', { body: program });
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', { body: [] });
 	await stub(page, 'GET', '/api/trainings', { body: [testTraining()] });
+	// The editor reads what the athlete played beside the program. A test that
+	// cares about those rows registers its own stub on top of this one.
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -854,4 +861,97 @@ test('duplicating a week holding a played session yields an unlocked copy', asyn
 	await expect(
 		page.getByTestId('cell:2:1').getByRole('button', { name: 'Remove session', exact: true })
 	).toBeVisible();
+});
+
+/**
+ * What the athlete actually did, read beside the program that asked for it. The
+ * played run points back at the prescribed row through program_session_id, and
+ * a run started outside the program carries none.
+ */
+async function stubPlayedWeekWithSessions(page: Page): Promise<void> {
+	await stubPlayedWeek(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+		body: [
+			testSession({
+				id: 'played-1',
+				name: 'Power endurance block',
+				date: isoDaysAgo(5),
+				origin: 'played',
+				program_session_id: 'ws-1',
+				notes: 'Right elbow hurt on the last set.'
+			}),
+			testSession({
+				id: 'played-2',
+				name: 'Evening bouldering',
+				date: isoDaysAgo(4),
+				origin: 'logged'
+			})
+		]
+	});
+}
+
+test('lists what the athlete played in the week being edited', async ({ page }) => {
+	await stubPlayedWeekWithSessions(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	const performed = page.getByTestId('performed:1');
+	await expect(performed).toContainText('2 sessions');
+	await expect(performed.getByRole('button', { name: 'Open Evening bouldering' })).toBeVisible();
+	await expect(performed.getByText('Right elbow hurt on the last set.')).toBeVisible();
+	// The run the athlete started themselves is marked as off program.
+	await expect(performed.getByTitle('Played outside the program')).toBeVisible();
+});
+
+test('says nothing was played in a week the athlete skipped', async ({ page }) => {
+	await stubPlayedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTestId('performed:1')).toContainText('Nothing played this week yet.');
+});
+
+test('opens the played run from the prescribed session it belongs to', async ({ page }) => {
+	await stubPlayedWeekWithSessions(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+		body: testSessionDetail(
+			testSession({
+				id: 'played-1',
+				name: 'Power endurance block',
+				date: isoDaysAgo(5),
+				origin: 'played',
+				program_session_id: 'ws-1',
+				notes: 'Right elbow hurt on the last set.'
+			})
+		)
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: /^Played / })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Session details' });
+	await expect(modal.getByRole('heading', { name: 'Power endurance block' })).toBeVisible();
+});
+
+test('shows the coachee assessments without leaving the program', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+		body: [testAssessmentRecord({ right_value: 42, left_value: 40 })]
+	});
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: builtinAssessmentDefinitions()
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Assessments/ }).click();
+
+	const modal = page.getByRole('dialog', { name: 'Assessment results' });
+	await expect(modal.getByText('Max Force').first()).toBeVisible();
+	await expect(modal.getByText('Assessment history')).toBeVisible();
 });

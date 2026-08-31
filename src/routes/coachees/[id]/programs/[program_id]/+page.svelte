@@ -14,10 +14,15 @@
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import SortableSession from '$lib/components/program/SortableSession.svelte';
+	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
+	import WeekPerformedSessions from '$lib/components/program/WeekPerformedSessions.svelte';
+	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
+	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
 	import type {
 		AssessmentResponse,
 		Program,
 		ProgramRequest,
+		SessionResponse,
 		WeekSummary,
 		WeekDetail,
 		SessionRequest,
@@ -44,6 +49,8 @@
 		type WeekDrafts,
 		type WeekSessionsSnapshot
 	} from '$lib/program-draft';
+	import { sessionsByProgramSession, sessionsOfWeek } from '$lib/program-performance';
+	import { withCoachReply } from '$lib/sessions';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
@@ -189,6 +196,26 @@
 
 	let trainings = $state<TrainingSummary[]>([]);
 	let coacheeAssessments = $state<AssessmentResponse[]>([]);
+	let showAssessments = $state(false);
+
+	// What the coachee actually did, so the coach editing the weeks ahead can
+	// read the load that was missed and the note left after a painful run
+	// without leaving the program.
+	let playedSessions = $state<SessionResponse[]>([]);
+	let openedSession = $state<SessionResponse | null>(null);
+	const playedByProgramSession = $derived(sessionsByProgramSession(playedSessions));
+
+	function playedFor(session: DraftSession): SessionResponse[] {
+		return session.id ? (playedByProgramSession.get(session.id) ?? []) : [];
+	}
+
+	function applyReply(updated: SessionResponse) {
+		playedSessions = withCoachReply(playedSessions, updated);
+		if (openedSession?.id === updated.id) {
+			openedSession = playedSessions.find((s) => s.id === updated.id) ?? openedSession;
+		}
+	}
+
 	const trainingItemsById = new Map<string, TrainingItem[]>();
 	let trainingSearch = $state('');
 	let trainingTypeFilter = $state<string>('all');
@@ -634,6 +661,12 @@
 			.getClientAssessments(userId)
 			.then((a) => (coacheeAssessments = a ?? []))
 			.catch(() => {});
+		// Beside the program rather than in it: a run played off program still
+		// says how the week went, and a week the coach never opens costs nothing.
+		apiClient
+			.getClientSessions(userId)
+			.then((sessions) => (playedSessions = sessions ?? []))
+			.catch(() => {});
 		// The catalog names an assessment the coachee has never done, which has no
 		// result row to take a label from.
 		assessmentCatalog.load();
@@ -707,6 +740,23 @@
 		>
 			<Icon name="arrow-left" size={14} color="var(--tx2)" />
 			Back to coachee
+		</button>
+		<button
+			onclick={() => (showAssessments = true)}
+			style="
+				display: inline-flex; align-items: center; gap: 7px;
+				padding: 6px 12px; border-radius: var(--rs);
+				background: #fff; color: var(--tx); border: 1px solid var(--bd);
+				font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
+			"
+		>
+			<Icon name="spark" size={14} color="var(--pl)" />
+			Assessments
+			{#if coacheeAssessments.length > 0}
+				<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
+					>{coacheeAssessments.length}</span
+				>
+			{/if}
 		</button>
 		{#if editMode}
 			{#if !confirmDelete}
@@ -1260,6 +1310,7 @@
 														{#each draft.days[dayIndex] as session, sessionIndex (session._id)}
 															{@const color = trainingColor(session.training_id)}
 															{@const tint = trainingTint(session.training_id)}
+															{@const played = playedFor(session)}
 															<SortableSession
 																id={session._id}
 																group="cell:{wn}:{dayIndex}"
@@ -1287,6 +1338,12 @@
 																	>
 																		{trainingById(session.training_id)?.title ?? '?'}
 																	</span>
+																	{#if played.length > 0}
+																		<PlayedSessionMarker
+																			{played}
+																			onOpen={(session) => (openedSession = session)}
+																		/>
+																	{/if}
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
@@ -1362,6 +1419,7 @@
 													{#each draft.freqSessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
+														{@const played = playedFor(session)}
 														<SortableSession
 															id={session._id}
 															group="freq:{wn}"
@@ -1409,6 +1467,12 @@
 																		>x/wk</span
 																	>
 																	<div style="flex: 1;"></div>
+																	{#if played.length > 0}
+																		<PlayedSessionMarker
+																			{played}
+																			onOpen={(session) => (openedSession = session)}
+																		/>
+																	{/if}
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
@@ -1454,6 +1518,7 @@
 													{#each draft.everydaySessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
+														{@const played = playedFor(session)}
 														<SortableSession
 															id={session._id}
 															group="everyday:{wn}"
@@ -1481,6 +1546,12 @@
 																>
 																	{trainingById(session.training_id)?.title ?? '?'}
 																</span>
+																{#if played.length > 0}
+																	<PlayedSessionMarker
+																		{played}
+																		onOpen={(session) => (openedSession = session)}
+																	/>
+																{/if}
 																{#if session.locked}
 																	<div
 																		title={LOCKED_SESSION_REASON}
@@ -1538,6 +1609,12 @@
 												</div>
 											</DroppableCell>
 										</div>
+
+										<WeekPerformedSessions
+											weekNumber={wn}
+											sessions={sessionsOfWeek(playedSessions, program.start_date, wn)}
+											onOpen={(session) => (openedSession = session)}
+										/>
 									{/if}
 								</div>
 							{/if}
@@ -1762,5 +1839,22 @@
 		</div>
 	{/if}
 </AppShell>
+
+{#if openedSession}
+	<SessionDetailModal
+		{userId}
+		session={openedSession}
+		onClose={() => (openedSession = null)}
+		onReplied={applyReply}
+	/>
+{/if}
+
+{#if showAssessments}
+	<AssessmentsModal
+		athleteName={coacheeName}
+		records={coacheeAssessments}
+		onClose={() => (showAssessments = false)}
+	/>
+{/if}
 
 <UnsavedChangesGuard dirty={guardDirty} />
