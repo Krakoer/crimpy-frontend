@@ -77,7 +77,7 @@
 >
 	<div style="padding: 8px 12px; display: flex; flex-direction: column; gap: 2px;">
 		<div class="flex items-center gap-1.5">
-			<Icon name="play" size={11} color={failed ? 'var(--tx3)' : 'var(--gn)'} />
+			<Icon name="check" size={11} color={failed ? 'var(--tx3)' : 'var(--gn)'} />
 			<span
 				style="font-size: 10.5px; font-weight: 700; color: var(--tx2); letter-spacing: 0.06em; text-transform: uppercase;"
 			>
@@ -149,13 +149,15 @@
 								<Icon name="spark" size={9} color="var(--pl)" />
 							</div>
 						{/if}
-						{#if needsReply}
+						{#if session.notes?.trim()}
 							<div
-								title="The athlete is waiting for an answer"
+								title={needsReply
+									? 'The athlete is waiting for an answer'
+									: 'The athlete left notes, already answered'}
 								class="flex"
 								style="flex-shrink: 0;"
 							>
-								<Icon name="message" size={10} color="var(--pr)" />
+								<Icon name="message" size={10} color={needsReply ? 'var(--pr)' : 'var(--tx3)'} />
 							</div>
 						{/if}
 					</button>

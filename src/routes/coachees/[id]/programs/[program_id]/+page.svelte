@@ -197,6 +197,9 @@
 	let trainings = $state<TrainingSummary[]>([]);
 	let coacheeAssessments = $state<AssessmentResponse[]>([]);
 	let showAssessments = $state(false);
+	// Same reason as the sessions below: an empty list the coach cannot tell from
+	// a failed read is a claim about the athlete rather than about the request.
+	let coacheeAssessmentsFailed = $state(false);
 
 	// What the coachee actually did, so the coach editing the weeks ahead can
 	// read the load that was missed and the note left after a painful run
@@ -677,7 +680,7 @@
 		apiClient
 			.getClientAssessments(userId)
 			.then((a) => (coacheeAssessments = a ?? []))
-			.catch(() => {});
+			.catch(() => (coacheeAssessmentsFailed = true));
 		// Beside the program rather than in it: a run played off program still
 		// says how the week went, and a week the coach never opens costs nothing.
 		apiClient
@@ -1345,7 +1348,7 @@
 																		</div>
 																	{/if}
 																	<span
-																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
+																		style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 500;"
 																	>
 																		{trainingById(session.training_id)?.title ?? '?'}
 																	</span>
@@ -1456,7 +1459,7 @@
 																		</div>
 																	{/if}
 																	<span
-																		style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 600; min-width: 0; font-size: 10.5px;"
+																		style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 600; font-size: 10.5px;"
 																	>
 																		{trainingById(session.training_id)?.title ?? '?'}
 																	</span>
@@ -1555,7 +1558,7 @@
 																	</div>
 																{/if}
 																<span
-																	style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); font-weight: 500;"
+																	style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 500;"
 																>
 																	{trainingById(session.training_id)?.title ?? '?'}
 																</span>
@@ -1869,6 +1872,7 @@
 	<AssessmentsModal
 		athleteName={coacheeName}
 		records={coacheeAssessments}
+		failed={coacheeAssessmentsFailed}
 		onClose={() => (showAssessments = false)}
 	/>
 {/if}

@@ -6,6 +6,7 @@ import {
 	dragOnto,
 	isoDaysAgo,
 	mockApi,
+	mondayDaysAgo,
 	signIn,
 	stub,
 	testAssessmentRecord,
@@ -863,9 +864,19 @@ test('duplicating a week holding a played session yields an unlocked copy', asyn
 	).toBeVisible();
 });
 
-/** The program grid runs Monday first, where Date counts from Sunday. */
-function mondayFirstDay(iso: string): number {
-	return (new Date(iso).getDay() + 6) % 7;
+/**
+ * A moment inside week 1 of testProgram(), on the given day of that week counted
+ * from Monday. Derived from the program's own start date rather than from today,
+ * so which weekday the suite runs on cannot move a run into another week.
+ */
+const WEEK_ONE_TUESDAY = 1;
+const WEEK_ONE_WEDNESDAY = 2;
+
+function inFirstWeek(dayOfWeek: number, hour = 9): string {
+	const date = new Date(`${mondayDaysAgo(7)}T00:00:00`);
+	date.setDate(date.getDate() + dayOfWeek);
+	date.setHours(hour);
+	return date.toISOString();
 }
 
 /**
@@ -880,7 +891,7 @@ async function stubPlayedWeekWithSessions(page: Page): Promise<void> {
 			testSession({
 				id: 'played-1',
 				name: 'Power endurance block',
-				date: isoDaysAgo(5),
+				date: inFirstWeek(WEEK_ONE_TUESDAY),
 				origin: 'played',
 				program_session_id: 'ws-1',
 				notes: 'Right elbow hurt on the last set.'
@@ -888,7 +899,7 @@ async function stubPlayedWeekWithSessions(page: Page): Promise<void> {
 			testSession({
 				id: 'played-2',
 				name: 'Evening bouldering',
-				date: isoDaysAgo(4),
+				date: inFirstWeek(WEEK_ONE_WEDNESDAY),
 				origin: 'logged'
 			})
 		]
@@ -914,12 +925,29 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 
 	// Each run sits in the column of the day it was played, under the session
 	// that prescribed that day.
-	await expect(page.getByTestId(`performed:1:${mondayFirstDay(isoDaysAgo(5))}`)).toContainText(
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_TUESDAY}`)).toContainText(
 		'Power endurance block'
 	);
-	await expect(page.getByTestId(`performed:1:${mondayFirstDay(isoDaysAgo(4))}`)).toContainText(
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_WEDNESDAY}`)).toContainText(
 		'Evening bouldering'
 	);
+});
+
+test('says so when what the athlete played could not be read', async ({ page }) => {
+	await stubPlayedWeek(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+		status: 500,
+		body: { error: 'boom' }
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	// An empty week and a week nothing could be read for are opposite statements
+	// to a coach about to lower a load.
+	const performed = page.getByTestId('performed:1');
+	await expect(performed).toContainText('could not be loaded');
+	await expect(performed).not.toContainText('Nothing played this week yet.');
 });
 
 test('says nothing was played in a week the athlete skipped', async ({ page }) => {
@@ -938,7 +966,7 @@ test('opens the played run from the prescribed session it belongs to', async ({ 
 			testSession({
 				id: 'played-1',
 				name: 'Power endurance block',
-				date: isoDaysAgo(5),
+				date: inFirstWeek(WEEK_ONE_TUESDAY),
 				origin: 'played',
 				program_session_id: 'ws-1',
 				notes: 'Right elbow hurt on the last set.'
@@ -955,6 +983,21 @@ test('opens the played run from the prescribed session it belongs to', async ({ 
 
 	const modal = page.getByRole('dialog', { name: 'Session details' });
 	await expect(modal.getByRole('heading', { name: 'Power endurance block' })).toBeVisible();
+});
+
+test('says so when the assessments could not be read', async ({ page }) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+		status: 500,
+		body: { error: 'boom' }
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Assessments/ }).click();
+
+	const modal = page.getByRole('dialog', { name: 'Assessment results' });
+	await expect(modal).toContainText('could not be loaded');
+	await expect(modal).not.toContainText('No assessment records yet');
 });
 
 test('shows the coachee assessments without leaving the program', async ({ page }) => {
@@ -978,7 +1021,7 @@ test('answers the notes on a played run without leaving the program', async ({ p
 	const played = testSession({
 		id: 'played-1',
 		name: 'Power endurance block',
-		date: isoDaysAgo(5),
+		date: inFirstWeek(WEEK_ONE_TUESDAY),
 		origin: 'played',
 		program_session_id: 'ws-1',
 		notes: 'Right elbow hurt on the last set.'

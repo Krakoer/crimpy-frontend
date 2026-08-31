@@ -8,9 +8,13 @@
 		records: AssessmentResponse[];
 		// How many of the most recent results the table below the cards lists.
 		historyLength?: number;
+		// Set when the records could not be read. An athlete who has done no
+		// assessment and an athlete whose results failed to load both arrive here
+		// with an empty list, and they are not the same statement.
+		failed?: boolean;
 	}
 
-	let { records, historyLength = 8 }: Props = $props();
+	let { records, historyLength = 8, failed = false }: Props = $props();
 
 	const recorded = $derived(groupRecordedAssessments(records));
 	const history = $derived(
@@ -37,7 +41,16 @@
 	}
 </script>
 
-{#if recorded.length === 0}
+{#if failed}
+	<div
+		style="
+			background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
+			padding: 40px 24px; text-align: center; color: var(--rd); font-size: 13px;
+		"
+	>
+		The assessment results could not be loaded, so nothing here says what the athlete has measured.
+	</div>
+{:else if recorded.length === 0}
 	<div
 		style="
 			background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
