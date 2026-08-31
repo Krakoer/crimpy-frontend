@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SessionResponse } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
+	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
 	import {
 		awaitsCoachReply,
 		formatDuration,
@@ -71,7 +72,7 @@
 <div
 	data-testid="performed:{weekNumber}"
 	style="
-		display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
+		display: grid; grid-template-columns: {WEEK_GRID_COLUMNS};
 		border-top: 1px solid var(--bd2); background: var(--panel2);
 	"
 >
