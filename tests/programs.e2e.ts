@@ -48,6 +48,64 @@ test('shows the program with a row per week', async ({ page }) => {
 	await expect(page).toHaveTitle('Spring strength block - Crimpy');
 });
 
+test('lays the week grid out on one row, with the columns the day header names', async ({
+	page
+}) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+
+	await page.goto(PROGRAM_URL);
+
+	// The session count used to be an eleventh child of a ten column grid, so it
+	// wrapped onto an implicit second row and landed under the week label.
+	const weekRow = page.getByRole('button', { name: /Wk 1/ });
+	await expect(weekRow).toBeVisible();
+	expect(await weekRow.evaluate((row) => row.children.length)).toBe(10);
+	expect(
+		await weekRow.evaluate((row) => getComputedStyle(row).gridTemplateRows.split(' ').length)
+	).toBe(1);
+
+	// The sticky day header sits outside the week card while the grids it labels
+	// sit inside it, so a label only lands over its own column while the four
+	// grids resolve to the same tracks at the same offset.
+	await weekRow.click();
+	const [dayHeader, ...labelledGrids] = await page.evaluate(() => {
+		const gridOf = (element: Element | null) =>
+			element?.closest<HTMLElement>('[style*="grid-template-columns"]') ?? null;
+		const grids = [
+			gridOf(document.querySelector('[title*="Flexible"]')),
+			document.querySelector<HTMLElement>('[data-testid="performed:1"]'),
+			gridOf(document.querySelector('[data-testid="cell:1:1"]'))
+		];
+		return grids.map((grid) => {
+			if (!grid) return [];
+			const style = getComputedStyle(grid);
+			let edge =
+				grid.getBoundingClientRect().left +
+				parseFloat(style.paddingLeft) +
+				parseFloat(style.borderLeftWidth);
+			return style.gridTemplateColumns.split(' ').map((track) => (edge += parseFloat(track)));
+		});
+	});
+
+	expect(dayHeader).toHaveLength(10);
+	for (const grid of labelledGrids) {
+		expect(grid).toHaveLength(dayHeader.length);
+		// Not exact: the performed row spans nine columns with one cell when the week
+		// was not played, and the browser hands that grid its rounding remainder a
+		// couple of hundredths of a pixel differently. The defect this guards against
+		// was a whole pixel, from the header being two pixels wider than the card.
+		grid.forEach((edge, column) => expect(Math.abs(edge - dayHeader[column])).toBeLessThan(0.1));
+	}
+});
+
 test('breadcrumbs back to the coachee', async ({ page }) => {
 	await stubProgram(page);
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });

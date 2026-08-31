@@ -8,4 +8,4 @@
 // The three fixed columns share a constant width, so widening the week column
 // takes from the frequency and everyday columns and leaves the day cells, where
 // the sessions live, exactly as wide as they were.
-export const WEEK_GRID_COLUMNS = '144px repeat(7, minmax(0, 1fr)) 122px 122px';
+export const WEEK_GRID_COLUMNS = '148px repeat(7, minmax(0, 1fr)) 120px 120px';

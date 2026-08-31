@@ -1118,7 +1118,7 @@
 													<span
 														style="
 													flex-shrink: 0; font-size: 10px; color: var(--tx3); font-weight: 600;
-													background: var(--panel2); border: 1px solid var(--bd2);
+													background: {isCurrent ? 'var(--panel)' : 'var(--panel2)'}; border: 1px solid var(--bd2);
 													padding: 0 6px; border-radius: 999px; line-height: 15px;
 												">{sessCount}</span
 													>
