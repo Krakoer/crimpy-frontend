@@ -18,7 +18,13 @@
 		groupRecordedAssessments,
 		measuredAt
 	} from '$lib/components/assessment/assessment-records';
-	import { formatDuration, formatSessionTime, sessionActivityInfo } from '$lib/sessions';
+	import {
+		awaitsCoachReply,
+		formatDuration,
+		formatSessionTime,
+		sessionActivityInfo,
+		withCoachReply
+	} from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -279,30 +285,8 @@
 
 	const sessionGroups = $derived(groupSessionsByDate(displayedSessions));
 
-	// A session the athlete wrote feedback on and the coach has not answered yet.
-	// This is what the Reply badge marks in the list, so an unanswered note is
-	// visible without opening every session.
-	function awaitsReply(session: SessionResponse): boolean {
-		return Boolean(session.notes?.trim()) && !session.coach_reply;
-	}
-
-	// Swaps the replied session for the one the write returned, so the badge and
-	// the read receipt follow without refetching the whole history.
-	//
-	// The reply fields are restated rather than left to the spread: the server
-	// omits them entirely once an answer is taken back, and a spread cannot
-	// delete a key, so the row would keep the reply it just lost.
 	function applyReply(updated: SessionResponse) {
-		sessions = sessions.map((s) =>
-			s.id === updated.id
-				? {
-						...s,
-						...updated,
-						coach_reply: updated.coach_reply ?? null,
-						coach_reply_at: updated.coach_reply_at ?? null
-					}
-				: s
-		);
+		sessions = withCoachReply(sessions, updated);
 	}
 
 	const coacheeName = $derived(
@@ -656,7 +640,7 @@
 													{/if}
 												</div>
 												<div class="flex items-center gap-2">
-													{#if awaitsReply(session)}
+													{#if awaitsCoachReply(session)}
 														<span
 															style="
 														padding: 3px 8px; border-radius: 999px;
