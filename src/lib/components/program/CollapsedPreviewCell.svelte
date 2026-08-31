@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="ts" generics="T extends DraftSession">
 	import type { TrainingSummary } from '$lib/api/client';
 	import type { DraftSession } from '$lib/program-draft';
 	import { trainingTypeInfo } from '$lib/trainingTypes';
@@ -7,12 +7,13 @@
 		// The sessions of one column of a collapsed week row: a day, the
 		// frequency column or the everyday column. Empty is a valid column and
 		// still owes the grid a child, so the cell draws a placeholder itself.
-		sessions: DraftSession[];
+		sessions: T[];
 		trainings: TrainingSummary[];
 		// The frequency column says how many times a week a session was
 		// prescribed; the day and everyday columns have nothing to add to the
-		// training name.
-		prefix?: (session: DraftSession) => string;
+		// training name. Typed on the column's own session so the frequency call
+		// site keeps the times_per_week the plain DraftSession leaves optional.
+		prefix?: (session: T) => string;
 	}
 
 	let { sessions, trainings, prefix }: Props = $props();
@@ -23,9 +24,8 @@
 
 	// A collapsed row has room for a word per session, so the pill carries the
 	// first one and the title is left to the expanded form.
-	function pillLabel(session: DraftSession): string {
-		const firstWord = trainingOf(session.training_id)?.title?.split(' ')[0] ?? '?';
-		return `${prefix?.(session) ?? ''}${firstWord}`;
+	function pillLabel(session: T, training: TrainingSummary | undefined): string {
+		return `${prefix?.(session) ?? ''}${training?.title?.split(' ')[0] ?? '?'}`;
 	}
 </script>
 
@@ -33,7 +33,8 @@
 	style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
 >
 	{#each sessions as session (session._id)}
-		{@const info = trainingTypeInfo(trainingOf(session.training_id)?.training_type)}
+		{@const training = trainingOf(session.training_id)}
+		{@const info = trainingTypeInfo(training?.training_type)}
 		<div
 			style="
 				padding: 2px 5px; border-radius: 4px;
@@ -43,7 +44,7 @@
 				overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 			"
 		>
-			{pillLabel(session)}
+			{pillLabel(session, training)}
 		</div>
 	{/each}
 	{#if sessions.length === 0}
