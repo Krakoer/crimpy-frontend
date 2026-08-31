@@ -16,6 +16,7 @@
 	import SortableSession from '$lib/components/program/SortableSession.svelte';
 	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
 	import WeekPerformedSessions from '$lib/components/program/WeekPerformedSessions.svelte';
+	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
 	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
 	import type {
@@ -995,12 +996,14 @@
 			<div style="display: flex; align-items: flex-start;">
 				<div style="flex: 1; min-width: 0; padding: 16px 24px 40px;">
 					<div style="display: flex; flex-direction: column; gap: 6px;">
-						<!-- Sticky column headers -->
+						<!-- Sticky column headers. The 1px side padding matches the border of the
+							week cards below, whose grids start one pixel inside their own box, so a
+							label sits exactly over the column it names. -->
 						<div
 							style="
-						display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
+						display: grid; grid-template-columns: {WEEK_GRID_COLUMNS};
 						position: sticky; top: 0; z-index: 10;
-						background: var(--bg); padding-bottom: 2px;
+						background: var(--bg); padding: 0 1px 2px;
 					"
 						>
 							<div
@@ -1065,7 +1068,7 @@
 									<button
 										onclick={() => toggleWeek(wn)}
 										style="
-										display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
+										display: grid; grid-template-columns: {WEEK_GRID_COLUMNS};
 										width: 100%; align-items: center; cursor: pointer;
 										background: {isCurrent && !expanded
 											? 'var(--pr-fog)'
@@ -1103,8 +1106,23 @@
 													<span style="font-size: 9px; color: var(--pr);">*</span>
 												{/if}
 											</div>
-											<div style="font-size: 10px; color: var(--tx3); padding-left: 18px;">
-												{weekDateRange(wn)}
+											<div
+												style="display: flex; align-items: center; gap: 4px; padding-left: 18px;"
+											>
+												<span
+													style="flex: 1; min-width: 0; font-size: 10px; color: var(--tx3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+												>
+													{weekDateRange(wn)}
+												</span>
+												{#if !expanded && sessCount > 0}
+													<span
+														style="
+													flex-shrink: 0; font-size: 10px; color: var(--tx3); font-weight: 600;
+													background: var(--panel2); border: 1px solid var(--bd2);
+													padding: 0 6px; border-radius: 999px; line-height: 15px;
+												">{sessCount}</span
+													>
+												{/if}
 											</div>
 										</div>
 
@@ -1161,19 +1179,6 @@
 											<div></div>
 											<div></div>
 										{/if}
-
-										<div
-											style="padding: 8px 12px; display: flex; align-items: center; justify-content: flex-end; gap: 6px;"
-										>
-											{#if sessCount > 0}
-												<span
-													style="
-												font-size: 11px; color: var(--tx3); font-weight: 500;
-												background: var(--panel2); padding: 2px 7px; border-radius: 999px;
-											">{sessCount}</span
-												>
-											{/if}
-										</div>
 									</button>
 
 									<!-- Expanded body -->
@@ -1289,7 +1294,7 @@
 
 										<!-- Day grid -->
 										<div
-											style="display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px; min-height: 72px;"
+											style="display: grid; grid-template-columns: {WEEK_GRID_COLUMNS}; min-height: 72px;"
 										>
 											<!-- Left info -->
 											<div
