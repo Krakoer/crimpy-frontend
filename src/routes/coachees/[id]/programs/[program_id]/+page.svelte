@@ -995,7 +995,7 @@
 						<!-- Sticky column headers -->
 						<div
 							style="
-						display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
+						display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
 						position: sticky; top: 0; z-index: 10;
 						background: var(--bg); padding-bottom: 2px;
 					"
@@ -1062,7 +1062,7 @@
 									<button
 										onclick={() => toggleWeek(wn)}
 										style="
-										display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px;
+										display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px;
 										width: 100%; align-items: center; cursor: pointer;
 										background: {isCurrent && !expanded
 											? 'var(--pr-fog)'
@@ -1286,7 +1286,7 @@
 
 										<!-- Day grid -->
 										<div
-											style="display: grid; grid-template-columns: 128px repeat(7, 1fr) 130px 130px; min-height: 72px;"
+											style="display: grid; grid-template-columns: 128px repeat(7, minmax(0, 1fr)) 130px 130px; min-height: 72px;"
 										>
 											<!-- Left info -->
 											<div
@@ -1328,6 +1328,7 @@
 																disabled={!editMode}
 															>
 																<div
+																	title={trainingById(session.training_id)?.title}
 																	style="
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
@@ -1437,6 +1438,7 @@
 															disabled={!editMode}
 														>
 															<div
+																title={trainingById(session.training_id)?.title}
 																style="
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
@@ -1536,6 +1538,7 @@
 															disabled={!editMode}
 														>
 															<div
+																title={trainingById(session.training_id)?.title}
 																style="
 															display: flex; align-items: center; gap: 4px;
 															padding: 4px 5px; border-radius: 5px;

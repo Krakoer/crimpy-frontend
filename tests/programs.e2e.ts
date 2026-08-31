@@ -904,7 +904,11 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	const performed = page.getByTestId('performed:1');
 	await expect(performed).toContainText('2 sessions');
 	await expect(performed.getByRole('button', { name: 'Open Evening bouldering' })).toBeVisible();
-	await expect(performed.getByText('Right elbow hurt on the last set.')).toBeVisible();
+	// The card is one line, so the notes ride on its tooltip rather than being
+	// printed under it.
+	await expect(
+		performed.getByRole('button', { name: 'Open Power endurance block' })
+	).toHaveAttribute('title', /Right elbow hurt on the last set\./);
 	// The run the athlete started themselves is marked as off program.
 	await expect(performed.getByTitle('Played outside this program')).toBeVisible();
 
