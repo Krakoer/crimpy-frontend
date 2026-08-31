@@ -286,6 +286,71 @@ test('previews the frequency sessions of a collapsed week beside the count', asy
 	expect(await week1.evaluate((row) => row.children.length)).toBe(10);
 });
 
+test('colours the everyday preview pill by training type, like the day columns', async ({
+	page
+}) => {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/trainings', {
+		body: [testTraining({ training_type: 'climbing' })]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: {
+			id: 'week-1',
+			program_id: 'program-1',
+			week_number: 1,
+			notes: '',
+			created_at: '',
+			updated_at: '',
+			sessions: [
+				{
+					id: 'ws-1',
+					training_id: 'training-1',
+					training_title: 'Power endurance block',
+					training_type: 'climbing',
+					day_of_week: 0,
+					is_everyday: false,
+					position: 0,
+					overrides: []
+				},
+				{
+					id: 'ws-2',
+					training_id: 'training-1',
+					training_title: 'Power endurance block',
+					training_type: 'climbing',
+					is_everyday: true,
+					position: 1,
+					overrides: []
+				}
+			]
+		}
+	});
+
+	await page.goto(PROGRAM_URL);
+
+	const week1 = page.getByRole('button', { name: /Wk 1/ });
+	await expect(week1).toContainText('Power');
+
+	// The everyday pill used to hardcode a plum it shared with nothing, so one
+	// training read gold in a day column of the collapsed row and plum in the
+	// everyday column beside it.
+	const [dayPill, everydayPill] = await week1.evaluate((row) => {
+		const pillOf = (index: number) => {
+			const pill = row.children[index].firstElementChild as HTMLElement;
+			const style = getComputedStyle(pill);
+			return { background: style.backgroundColor, color: style.color };
+		};
+		return [pillOf(1), pillOf(9)];
+	});
+	expect(everydayPill).toEqual(dayPill);
+	// Climbing is gold, not the workout plum the hardcoded pill drew.
+	expect(everydayPill.color).toBe('rgb(212, 161, 94)');
+});
+
 test('sends existing sessions back with their id so the server keeps the row', async ({ page }) => {
 	const weekDetail = {
 		id: 'week-1',
