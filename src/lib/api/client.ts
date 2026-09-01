@@ -473,10 +473,33 @@ export interface WeekSummary {
 	updated_at: string;
 }
 
+// Every field a program session may replace on the training item it targets.
+// The set is closed: a key the backend does not name here is dropped from the
+// prescription the athlete plays rather than merely ignored, so it has to stay
+// in step with itemOverride in crimpy-backend/internal/handler/training_items.go
+// and with applyOverride in crimpy-app.
+//
+// hb_worktime_seconds is the trap: the override names the item's
+// worktime_seconds field with a different key, and every client reads it so.
+export interface ItemOverride {
+	cycles?: number;
+	cycle_rest_seconds?: number;
+	reps?: number;
+	rest_seconds?: number;
+	hb_worktime_seconds?: number;
+	hand?: HangboardHand;
+	granularity?: HangboardGranularity;
+	loads?: Load[];
+	left_loads?: Load[];
+	hand_positions?: string[][];
+	edge_sizes_mm?: number[];
+	variable_targets?: VariableTargets;
+}
+
 export interface SessionOverride {
 	id?: string;
 	item_id: string;
-	overrides: unknown;
+	overrides: ItemOverride;
 }
 
 export interface WeekSession {
