@@ -2,6 +2,7 @@
 	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import { EXERCISE_LOAD_UNITS } from './load-units';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
@@ -24,6 +25,17 @@
 
 	let { item = $bindable(), exercises, catalog, onRemove, onDuplicate }: Props = $props();
 
+	// A program week prescribes the same exercise with other numbers, so the
+	// controls that would change which exercise it is, or reach a field no
+	// override carries, are not rendered there.
+	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
+
+	// A week may not retime an exercise prescribed by duration: the override the
+	// clients merge carries no duration, so a number typed here would be dropped
+	// on the way to the athlete rather than saved.
+	const DURATION_FIXED_REASON =
+		'The duration belongs to the training and cannot be changed for one week';
+
 	const MAX_COMMENT_LENGTH = 200;
 
 	let collapsed = $state(false);
@@ -32,8 +44,12 @@
 
 	let loadAssessments = $derived(assessmentsForField('load', catalog));
 
+	// The name joined onto the item is what a reader outside the coach's own
+	// library has to go on, and is all a program week is given.
 	let exerciseName = $derived(
-		exercises.find((e) => e.id === item.exercise_id)?.name ?? 'Unknown exercise'
+		exercises.find((e) => e.id === item.exercise_id)?.name ??
+			item.exercise_name ??
+			'Unknown exercise'
 	);
 
 	let isDuration = $state((item.duration ?? 0) !== 0 && (item.reps ?? 0) === 0);
@@ -224,46 +240,48 @@
 				>
 			{/if}
 		</span>
-		<div
-			style="display: flex; gap: 3px; flex-shrink: 0;"
-			onclick={(e) => e.stopPropagation()}
-			role="none"
-		>
-			{#if confirmDelete}
-				<button
-					onclick={onRemove}
-					style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-					>Delete</button
-				>
-				<button
-					onclick={() => (confirmDelete = false)}
-					style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
-					>Cancel</button
-				>
-			{:else}
-				<button
-					onclick={() => (showEditModal = true)}
-					title="Change exercise"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-				>
-					<Icon name="edit" size={11} color="var(--tx3)" />
-				</button>
-				<button
-					onclick={onDuplicate}
-					title="Duplicate"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-				>
-					<Icon name="copy" size={11} color="var(--tx3)" />
-				</button>
-				<button
-					onclick={() => (confirmDelete = true)}
-					title="Delete"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-				>
-					<Icon name="trash" size={11} color="var(--tx3)" />
-				</button>
-			{/if}
-		</div>
+		{#if !overriding}
+			<div
+				style="display: flex; gap: 3px; flex-shrink: 0;"
+				onclick={(e) => e.stopPropagation()}
+				role="none"
+			>
+				{#if confirmDelete}
+					<button
+						onclick={onRemove}
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+						>Delete</button
+					>
+					<button
+						onclick={() => (confirmDelete = false)}
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+						>Cancel</button
+					>
+				{:else}
+					<button
+						onclick={() => (showEditModal = true)}
+						title="Change exercise"
+						style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+					>
+						<Icon name="edit" size={11} color="var(--tx3)" />
+					</button>
+					<button
+						onclick={onDuplicate}
+						title="Duplicate"
+						style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+					>
+						<Icon name="copy" size={11} color="var(--tx3)" />
+					</button>
+					<button
+						onclick={() => (confirmDelete = true)}
+						title="Delete"
+						style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+					>
+						<Icon name="trash" size={11} color="var(--tx3)" />
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	{#if !collapsed}
@@ -272,30 +290,32 @@
 		>
 			<!-- Reps vs Duration toggle -->
 			<div style="display: flex; flex-direction: column; gap: 4px;">
-				<div
-					style="display: flex; gap: 2px; background: var(--panel2); border-radius: 5px; padding: 2px;"
-				>
-					<button
-						onclick={() => setRepsMode()}
-						style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {!isDuration
-							? '#fff'
-							: 'transparent'}; color: {!isDuration
-							? 'var(--pr)'
-							: 'var(--tx3)'}; font-family: var(--font); box-shadow: {!isDuration
-							? 'var(--sh)'
-							: 'none'};">Reps</button
+				{#if !overriding}
+					<div
+						style="display: flex; gap: 2px; background: var(--panel2); border-radius: 5px; padding: 2px;"
 					>
-					<button
-						onclick={() => setDurationMode()}
-						style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {isDuration
-							? '#fff'
-							: 'transparent'}; color: {isDuration
-							? 'var(--pr)'
-							: 'var(--tx3)'}; font-family: var(--font); box-shadow: {isDuration
-							? 'var(--sh)'
-							: 'none'};">Duration</button
-					>
-				</div>
+						<button
+							onclick={() => setRepsMode()}
+							style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {!isDuration
+								? '#fff'
+								: 'transparent'}; color: {!isDuration
+								? 'var(--pr)'
+								: 'var(--tx3)'}; font-family: var(--font); box-shadow: {!isDuration
+								? 'var(--sh)'
+								: 'none'};">Reps</button
+						>
+						<button
+							onclick={() => setDurationMode()}
+							style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {isDuration
+								? '#fff'
+								: 'transparent'}; color: {isDuration
+								? 'var(--pr)'
+								: 'var(--tx3)'}; font-family: var(--font); box-shadow: {isDuration
+								? 'var(--sh)'
+								: 'none'};">Duration</button
+						>
+					</div>
+				{/if}
 				{#if variableTarget && !isAmrap}
 					<div style="display: flex; align-items: center; gap: 4px;">
 						<input
@@ -330,6 +350,8 @@
 								type="number"
 								min="0"
 								bind:value={durationMin}
+								disabled={overriding}
+								title={overriding ? DURATION_FIXED_REASON : undefined}
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
@@ -339,6 +361,8 @@
 								min="0"
 								max="59"
 								bind:value={durationSec}
+								disabled={overriding}
+								title={overriding ? DURATION_FIXED_REASON : undefined}
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
@@ -358,7 +382,7 @@
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
 					{/if}
-					{#if !isDuration}
+					{#if !isDuration && !overriding}
 						<button
 							data-testid="amrap-toggle"
 							onclick={(e) => {
@@ -376,7 +400,7 @@
 							>AMRAP</button
 						>
 					{/if}
-					{#if canBeVariable && !isAmrap}
+					{#if canBeVariable && !isAmrap && !overriding}
 						<button
 							onclick={(e) => {
 								e.stopPropagation();
@@ -424,16 +448,18 @@
 								<option value={u.value}>{u.label}</option>
 							{/each}
 						</select>
-						<button
-							onclick={(e) => {
-								e.stopPropagation();
-								removeLoad();
-							}}
-							title="Remove load"
-							style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 5px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-						>
-							<Icon name="x" size={11} color="var(--tx3)" />
-						</button>
+						{#if !overriding}
+							<button
+								onclick={(e) => {
+									e.stopPropagation();
+									removeLoad();
+								}}
+								title="Remove load"
+								style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 5px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+							>
+								<Icon name="x" size={11} color="var(--tx3)" />
+							</button>
+						{/if}
 					</div>
 					{#if item.loads[0].unit === 'percent_assessment'}
 						<AssessmentRefFields
@@ -490,23 +516,43 @@
 				</div>
 			</div>
 
-			<!-- Comment -->
-			<div style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;">
-				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
-					>COMMENT</span
+			<!-- Comment. A note to the athlete is written once, on the training, so a
+			     program week reads it rather than edits it. -->
+			{#if overriding}
+				{#if item.comment}
+					<div
+						style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;"
+					>
+						<span
+							style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+							>COMMENT</span
+						>
+						<p style="margin: 0; font-size: 12px; line-height: 1.4; color: var(--tx2);">
+							{item.comment}
+						</p>
+					</div>
+				{/if}
+			{:else}
+				<div
+					style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;"
 				>
-				<textarea
-					bind:value={item.comment}
-					maxlength={MAX_COMMENT_LENGTH}
-					rows="2"
-					placeholder="Optional note for the athlete (e.g. first rep in pronation, second in supination)"
-					onclick={(e) => e.stopPropagation()}
-					style="width: 100%; resize: vertical; min-height: 38px; padding: 6px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; line-height: 1.4; color: var(--tx); outline: none; background: #fff;"
-				></textarea>
-				<span style="font-size: 10px; color: var(--tx3); align-self: flex-end;"
-					>{(item.comment ?? '').length}/{MAX_COMMENT_LENGTH}</span
-				>
-			</div>
+					<span
+						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						>COMMENT</span
+					>
+					<textarea
+						bind:value={item.comment}
+						maxlength={MAX_COMMENT_LENGTH}
+						rows="2"
+						placeholder="Optional note for the athlete (e.g. first rep in pronation, second in supination)"
+						onclick={(e) => e.stopPropagation()}
+						style="width: 100%; resize: vertical; min-height: 38px; padding: 6px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; line-height: 1.4; color: var(--tx); outline: none; background: #fff;"
+					></textarea>
+					<span style="font-size: 10px; color: var(--tx3); align-self: flex-end;"
+						>{(item.comment ?? '').length}/{MAX_COMMENT_LENGTH}</span
+					>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>

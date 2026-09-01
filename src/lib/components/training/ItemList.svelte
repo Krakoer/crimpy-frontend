@@ -13,8 +13,10 @@
 	import { createTrainingItem } from './create-item';
 	import { containerChildTypes, type ContainerType } from './container-rules';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
-	import { setContext, untrack } from 'svelte';
+	import { getContext, setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
+	import ItemOverrideStrip from '$lib/components/program/ItemOverrideStrip.svelte';
 	import type { AssessmentCatalog } from '$lib/assessments';
 
 	interface Props {
@@ -39,6 +41,12 @@
 		depth = 0,
 		containerId = 'root'
 	}: Props = $props();
+
+	// A program week may change what the training asks for, never what it is made
+	// of, so nothing that adds, removes, reorders or regroups a block is rendered
+	// while the override context is set. The drag and drop primitives go with
+	// them: the tree is read outside any DragDropProvider there.
+	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
 
 	let collapseSignals = $state({ collapse: 0, expand: 0 });
 
@@ -148,7 +156,7 @@
 				tabindex="0"
 				onkeydown={(e) => e.key === 'Enter' && collapseSignals.collapse++}>Collapse all</span
 			>
-			{#if !selecting && items.length > 1}
+			{#if !overriding && !selecting && items.length > 1}
 				<span style="color: var(--tx3);">·</span>
 				<button
 					onclick={() => (selecting = true)}
@@ -201,62 +209,71 @@
 		{/if}
 	{/if}
 
+	{#snippet blockBody(item: TrainingItem, i: number)}
+		{#if item.type === 'exercise'}
+			<ExerciseItem
+				bind:item={items[i]}
+				{catalog}
+				{exercises}
+				onRemove={() => removeItem(i)}
+				onDuplicate={() => duplicateItem(i)}
+			/>
+		{:else if item.type === 'repeater'}
+			<HangboardItem
+				bind:item={items[i]}
+				{catalog}
+				onRemove={() => removeItem(i)}
+				onDuplicate={() => duplicateItem(i)}
+			/>
+		{:else if item.type === 'hangboard_rep'}
+			<HangboardRepItem
+				bind:item={items[i]}
+				{catalog}
+				onRemove={() => removeItem(i)}
+				onDuplicate={() => duplicateItem(i)}
+			/>
+		{:else if item.type === 'circuit'}
+			<CircuitItem
+				bind:item={items[i]}
+				{exercises}
+				{catalog}
+				onRemove={() => removeItem(i)}
+				onDuplicate={() => duplicateItem(i)}
+				{depth}
+				{innerAllowedTypes}
+			/>
+		{:else if item.type === 'emom'}
+			<EmomItem
+				bind:item={items[i]}
+				{exercises}
+				{catalog}
+				onRemove={() => removeItem(i)}
+				onDuplicate={() => duplicateItem(i)}
+				{depth}
+				{innerAllowedTypes}
+			/>
+		{:else if item.type === 'group'}
+			<GroupItem
+				bind:item={items[i]}
+				{exercises}
+				{catalog}
+				onRemove={() => removeItem(i)}
+				onDuplicate={() => duplicateItem(i)}
+				{depth}
+				{innerAllowedTypes}
+			/>
+		{/if}
+	{/snippet}
+
 	{#snippet blockRow(item: TrainingItem, i: number)}
-		<SortableWrapper id={item._id!} group={containerId} index={i}>
-			{#if item.type === 'exercise'}
-				<ExerciseItem
-					bind:item={items[i]}
-					{catalog}
-					{exercises}
-					onRemove={() => removeItem(i)}
-					onDuplicate={() => duplicateItem(i)}
-				/>
-			{:else if item.type === 'repeater'}
-				<HangboardItem
-					bind:item={items[i]}
-					{catalog}
-					onRemove={() => removeItem(i)}
-					onDuplicate={() => duplicateItem(i)}
-				/>
-			{:else if item.type === 'hangboard_rep'}
-				<HangboardRepItem
-					bind:item={items[i]}
-					{catalog}
-					onRemove={() => removeItem(i)}
-					onDuplicate={() => duplicateItem(i)}
-				/>
-			{:else if item.type === 'circuit'}
-				<CircuitItem
-					bind:item={items[i]}
-					{exercises}
-					{catalog}
-					onRemove={() => removeItem(i)}
-					onDuplicate={() => duplicateItem(i)}
-					{depth}
-					{innerAllowedTypes}
-				/>
-			{:else if item.type === 'emom'}
-				<EmomItem
-					bind:item={items[i]}
-					{exercises}
-					{catalog}
-					onRemove={() => removeItem(i)}
-					onDuplicate={() => duplicateItem(i)}
-					{depth}
-					{innerAllowedTypes}
-				/>
-			{:else if item.type === 'group'}
-				<GroupItem
-					bind:item={items[i]}
-					{exercises}
-					{catalog}
-					onRemove={() => removeItem(i)}
-					onDuplicate={() => duplicateItem(i)}
-					{depth}
-					{innerAllowedTypes}
-				/>
-			{/if}
-		</SortableWrapper>
+		{#if overriding}
+			{@render blockBody(item, i)}
+			<ItemOverrideStrip itemId={item.id} />
+		{:else}
+			<SortableWrapper id={item._id!} group={containerId} index={i}>
+				{@render blockBody(item, i)}
+			</SortableWrapper>
+		{/if}
 	{/snippet}
 
 	{#each items as item, i (item._id)}
@@ -283,5 +300,7 @@
 		{/if}
 	{/each}
 
-	<AddZone {containerId} {allowedTypes} onAdd={addItem} />
+	{#if !overriding}
+		<AddZone {containerId} {allowedTypes} onAdd={addItem} />
+	{/if}
 </div>
