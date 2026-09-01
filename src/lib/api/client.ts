@@ -559,6 +559,18 @@ export interface AvailabilityReminder {
 	minute: number;
 }
 
+/** An API failure that still knows its status, so a caller can tell a 404 that
+ *  means "there is none" from a failure that means "we could not read it". */
+export class ApiError extends Error {
+	readonly status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+	}
+}
+
 const ENDPOINTS_WITHOUT_TOKEN_REFRESH = [
 	'/auth/login',
 	'/auth/register',
@@ -607,7 +619,7 @@ class ApiClient {
 
 		if (!response.ok) {
 			const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-			throw new Error(error.error || `HTTP ${response.status}`);
+			throw new ApiError(error.error || `HTTP ${response.status}`, response.status);
 		}
 
 		if (response.status === 204) return null as T;
@@ -1011,12 +1023,14 @@ class ApiClient {
 	}
 
 	// Answers 404 until the coach has configured one, which is a state rather
-	// than a failure.
+	// than a failure. Anything else is rethrown: a settings form that silently
+	// showed its defaults would let a coach save over a reminder it never read.
 	async getAvailabilityReminder(): Promise<AvailabilityReminder | null> {
 		try {
 			return await this.request<AvailabilityReminder>('/api/coach/availability-reminder');
-		} catch {
-			return null;
+		} catch (e) {
+			if (e instanceof ApiError && e.status === 404) return null;
+			throw e;
 		}
 	}
 

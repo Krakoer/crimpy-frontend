@@ -1701,13 +1701,19 @@
 											onOpen={(session) => (openedSession = session)}
 										/>
 
-										<WeekCoacheeAvailability
-											weekNumber={wn}
-											availability={availabilityByWeekStart.get(
-												toDateOnly(weekStart(program.start_date, wn))
-											)}
-											failed={coacheeAvailabilityFailed}
-										/>
+										{@const declared = availabilityByWeekStart.get(
+											toDateOnly(weekStart(program.start_date, wn))
+										)}
+										<!-- An athlete only ever declares the week ahead, so a week
+											that is over would otherwise carry "has not said" forever.
+											Past weeks keep the row only when there is something in it. -->
+										{#if declared || Date.now() < weekStart(program.start_date, wn + 1).getTime()}
+											<WeekCoacheeAvailability
+												weekNumber={wn}
+												availability={declared}
+												failed={coacheeAvailabilityFailed}
+											/>
+										{/if}
 									{/if}
 								</div>
 							{/if}

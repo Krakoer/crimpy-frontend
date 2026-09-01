@@ -48,6 +48,20 @@ test('saves the day and hour the coach picked', async ({ page }) => {
 	expect(writes[0].body).toEqual({ enabled: true, day_of_week: 5, hour: 9, minute: 0 });
 });
 
+test('refuses to show the defaults when the reminder could not be read', async ({ page }) => {
+	// Rendering the off-by-default form here would let a coach save Friday 21:00
+	// over a reminder the page never managed to read.
+	await stub(page, 'GET', '/api/coach/availability-reminder', {
+		status: 500,
+		body: { error: 'Failed to retrieve reminder' }
+	});
+
+	await page.goto('/settings');
+
+	await expect(page.getByText('could not be read')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Save reminder' })).toHaveCount(0);
+});
+
 test('says so when the reminder could not be saved', async ({ page }) => {
 	await stub(page, 'GET', '/api/coach/availability-reminder', { status: 404, body: {} });
 	await stub(page, 'PUT', '/api/coach/availability-reminder', {

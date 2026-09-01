@@ -113,7 +113,7 @@
 				{:else}
 					<div
 						class="flex items-center justify-center"
-						title={day?.note?.trim() ? day.note : 'Not available'}
+						title={day?.note?.trim() ? `Not available - ${day.note}` : 'Not available'}
 						style="flex: 1; color: var(--bd); font-size: 14px;"
 					>
 						{#if day?.note?.trim()}

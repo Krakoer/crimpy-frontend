@@ -5,10 +5,10 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
-
-	const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+	import { DAY_LABELS_LONG } from '$lib/program-draft';
 
 	let loading = $state(true);
+	let loadFailed = $state(false);
 	let saving = $state(false);
 	let enabled = $state(false);
 	let dayOfWeek = $state(4);
@@ -26,6 +26,10 @@
 		try {
 			const reminder = await apiClient.getAvailabilityReminder();
 			if (reminder) applyReminder(reminder);
+		} catch {
+			// Showing the off-by-default form here would let a coach save over a
+			// reminder that was never read back.
+			loadFailed = true;
 		} finally {
 			loading = false;
 		}
@@ -66,6 +70,24 @@
 	<div style="padding: 24px 32px 40px; max-width: 720px;">
 		{#if loading}
 			<div style="font-size: 13px; color: var(--tx2);">Loading your settings...</div>
+		{:else if loadFailed}
+			<div
+				style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); padding: 22px 24px;"
+			>
+				<h3 style="font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">
+					Availability reminder
+				</h3>
+				<p style="font-size: 13px; color: var(--tx2); margin-bottom: 16px;">
+					Your reminder could not be read, so it is not shown here. Saving now would write over
+					whatever is set. Reload to try again.
+				</p>
+				<button
+					onclick={() => location.reload()}
+					style="padding: 8px 16px; border-radius: var(--rs); border: 1px solid var(--bd); background: var(--panel); color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+				>
+					Reload
+				</button>
+			</div>
 		{:else}
 			<div
 				style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
@@ -106,7 +128,7 @@
 								disabled={!enabled}
 								style="{controlStyle} width: 100%; opacity: {enabled ? 1 : 0.5};"
 							>
-								{#each DAY_LABELS as label, index (index)}
+								{#each DAY_LABELS_LONG as label, index (index)}
 									<option value={index}>{label}</option>
 								{/each}
 							</select>
