@@ -17,7 +17,8 @@
 		diffOverrides,
 		itemIsOverridden,
 		mergeOverrides,
-		resetItemToBase
+		resetItemToBase,
+		type ScheduledRow
 	} from '$lib/program-overrides';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
 	import { trainingTypeInfo } from '$lib/trainingTypes';
@@ -29,9 +30,9 @@
 		weekNumber: number;
 		placement: string;
 		overrides: SessionOverride[];
-		// Every week of the program that schedules the same training, so the strip
+		// Every row of the program that schedules the same training, so the strip
 		// under each item can say what the others already ask of it.
-		scheduledWeeks: { week: number; overrides: SessionOverride[]; current: boolean }[];
+		scheduledWeeks: ScheduledRow[];
 		catalog: AssessmentCatalog;
 		readOnly: boolean;
 		readOnlyReason: string;
@@ -68,7 +69,6 @@
 	let baseItems = $derived.by(() => {
 		if (!training) return [];
 		const items = $state.snapshot(training.items) as TrainingItem[];
-		ensureClientIds(items);
 		normalizeHangboardItems(items);
 		applyItemReadDefaults(items, loadAssessments);
 		return items;
@@ -82,6 +82,7 @@
 		const merged = mergeOverrides(baseItems, $state.snapshot(overrides) as SessionOverride[]);
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
+		ensureClientIds(merged);
 		items = merged;
 		editedTraining = training.id;
 	});
@@ -124,10 +125,15 @@
 		onApply(edited);
 	}
 
+	// Fresh keys, for the same reason resetItemToBase mints one: an editor that
+	// mirrors a field into its own boxes reads the item when it is created, and a
+	// reused one would write the cleared value straight back.
 	function clearAll() {
-		items = mergeOverrides(baseItems, []);
-		normalizeHangboardItems(items);
-		applyItemReadDefaults(items, loadAssessments);
+		const cleared = mergeOverrides(baseItems, []);
+		normalizeHangboardItems(cleared);
+		applyItemReadDefaults(cleared, loadAssessments);
+		ensureClientIds(cleared);
+		items = cleared;
 	}
 
 	let customisedCount = $derived(edited.length);

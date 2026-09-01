@@ -35,11 +35,11 @@
 				style="font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--tx3); flex-shrink: 0;"
 				>PER WEEK</span
 			>
-			{#each weeks as entry (entry.week)}
+			{#each weeks as entry (entry.key)}
 				<span
 					title={entry.summary
-						? `Week ${entry.week} asks for ${entry.summary}`
-						: `Week ${entry.week} runs this as the training writes it`}
+						? `${entry.label} asks for ${entry.summary}`
+						: `${entry.label} runs this as the training writes it`}
 					style="
 						display: inline-flex; align-items: baseline; gap: 4px;
 						padding: 2px 7px; border-radius: 999px; font-size: 10.5px;
@@ -49,7 +49,7 @@
 					"
 				>
 					<span style="font-weight: 700; color: {entry.current ? 'var(--pr)' : 'var(--tx3)'};"
-						>W{entry.week}</span
+						>{entry.label}</span
 					>
 					{entry.summary || 'as written'}
 				</span>
