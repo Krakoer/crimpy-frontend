@@ -16,6 +16,7 @@
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import SortableSession from '$lib/components/program/SortableSession.svelte';
 	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
+	import SessionCoverButton from '$lib/components/program/SessionCoverButton.svelte';
 	import WeekPerformedSessions from '$lib/components/program/WeekPerformedSessions.svelte';
 	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
@@ -37,13 +38,16 @@
 	import {
 		cellID,
 		cellSessions,
+		DAY_LABELS,
 		draftSessions,
 		duplicatedDraftSession,
 		emptyDraft,
 		moveSession,
 		parseCell,
 		restoreWeekSessions,
+		scheduledRows,
 		sessionForCell,
+		sessionPlacement,
 		snapshotWeekSessions,
 		type DaySession,
 		type DraftSession,
@@ -526,8 +530,6 @@
 		snackbar.show(`Week ${sourceWn} duplicated to week ${targetWn}`);
 	}
 
-	const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 	// The session the parameters modal is about, read back from the drafts rather
 	// than held, so a session dragged or dropped while the modal is open leaves it
 	// by itself.
@@ -544,36 +546,18 @@
 		overridesTarget ? (trainingCache[overridesTarget.session.training_id] ?? null) : null
 	);
 
-	// Which cell holds it, in the words the grid uses for that column.
-	function sessionPlacement(draft: WeekDraft, sessionID: string): string {
-		for (let day = 0; day < 7; day++) {
-			if (draft.days[day].some((s) => s._id === sessionID)) return DAY_LABELS[day];
-		}
-		const freq = draft.freqSessions.find((s) => s._id === sessionID);
-		if (freq) return `${freq.times_per_week} per week`;
-		if (draft.everydaySessions.some((s) => s._id === sessionID)) return 'Every day';
-		return '';
-	}
-
-	// Every week that schedules the same training, so a coach setting this week's
+	// Every row that schedules the same training, so a coach setting this week's
 	// load reads the ones they already set without leaving the modal.
-	const overridesWeeks = $derived.by(() => {
-		if (!overridesTarget) return [];
-		const scheduled: { week: number; overrides: SessionOverride[]; current: boolean }[] = [];
-		for (const wn of weekNumbers()) {
-			const draft = weekDrafts[wn];
-			if (!draft) continue;
-			for (const session of draftSessions(draft)) {
-				if (session.training_id !== overridesTarget.session.training_id) continue;
-				scheduled.push({
-					week: wn,
-					overrides: session.overrides,
-					current: session._id === overridesTarget.session._id
-				});
-			}
-		}
-		return scheduled;
-	});
+	const overridesWeeks = $derived(
+		overridesTarget
+			? scheduledRows(
+					weekDrafts,
+					weekNumbers(),
+					overridesTarget.session.training_id,
+					overridesTarget.session._id
+				)
+			: []
+	);
 
 	async function openOverrides(wn: number, session: DraftSession) {
 		overridesTargetID = { wn, sessionID: session._id };
@@ -816,43 +800,12 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- The whole card opens what the week asks of its training, through a cover
-	rather than a control in the row: a day cell is narrow enough that anything in
-	flow squeezes the title out of it entirely.
-
-	It is a div, not a button, because dnd-kit refuses to start a drag from inside
-	a button and this covers the card a coach grabs. A press that does not travel
-	stays under the eight pixels the sensor needs and opens the parameters, one
-	that travels drags the session. The badges beside it are positioned, so they
-	are painted over the cover and keep their own clicks.
-
-	dnd-kit also marks the sortable wrapper aria-disabled and drops its pointer
-	events while the program is read only, which would take the cover down with
-	it. Both are stated back here, as PlayedSessionMarker does: the row cannot be
-	dragged then, but what the week asks of the training is exactly what a coach
-	reading the program came for, and it opens read only. -->
 {#snippet customiseButton(wn: number, session: DraftSession)}
-	{@const customised = session.overrides.length > 0}
-	<div
-		role="button"
-		tabindex="-1"
-		onclick={() => openOverrides(wn, session)}
-		onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openOverrides(wn, session)}
-		aria-label="{customised ? 'Customised training' : 'Training'} parameters, week {wn}"
-		aria-disabled="false"
-		title={customised
-			? 'This week asks for something the training does not. Open its parameters.'
-			: 'Set what this week asks of the training'}
-		style="position: absolute; inset: 0; cursor: pointer; pointer-events: auto;"
-	></div>
-	{#if customised}
-		<!-- Painted over the cover so it is not dimmed by it, and deaf to the pointer
-			so the middle of the card still opens the parameters. What it means is on
-			the cover's own tooltip. -->
-		<div style="display: flex; flex-shrink: 0; position: relative; pointer-events: none;">
-			<Icon name="settings" size={9} color="var(--pr)" />
-		</div>
-	{/if}
+	<SessionCoverButton
+		weekNumber={wn}
+		customised={session.overrides.length > 0}
+		onOpen={() => openOverrides(wn, session)}
+	/>
 {/snippet}
 
 <AppShell
