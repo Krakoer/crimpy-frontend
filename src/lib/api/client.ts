@@ -535,6 +535,30 @@ export interface WeekRequest {
 	sessions: SessionRequest[];
 }
 
+export interface DayAvailability {
+	// Monday first, like day_of_week on a program session.
+	day_of_week: number;
+	is_available: boolean;
+	duration_minutes?: number;
+	note?: string;
+}
+
+export interface WeekAvailability {
+	user_id: string;
+	// The Monday of a calendar week, YYYY-MM-DD. Not a program week number: an
+	// athlete declares whether or not a program covers that week.
+	week_start: string;
+	updated_at: string;
+	days: DayAvailability[];
+}
+
+export interface AvailabilityReminder {
+	enabled: boolean;
+	day_of_week: number;
+	hour: number;
+	minute: number;
+}
+
 const ENDPOINTS_WITHOUT_TOKEN_REFRESH = [
 	'/auth/login',
 	'/auth/register',
@@ -980,6 +1004,27 @@ class ApiClient {
 			`/api/coach/clients/${userId}/programs/${programId}/weeks/${weekNumber}`,
 			{ method: 'PUT', body: JSON.stringify(data) }
 		);
+	}
+
+	async getClientAvailability(userId: string): Promise<WeekAvailability[]> {
+		return this.requestList<WeekAvailability>(`/api/coach/clients/${userId}/availability`);
+	}
+
+	// Answers 404 until the coach has configured one, which is a state rather
+	// than a failure.
+	async getAvailabilityReminder(): Promise<AvailabilityReminder | null> {
+		try {
+			return await this.request<AvailabilityReminder>('/api/coach/availability-reminder');
+		} catch {
+			return null;
+		}
+	}
+
+	async setAvailabilityReminder(data: AvailabilityReminder): Promise<AvailabilityReminder> {
+		return this.request<AvailabilityReminder>('/api/coach/availability-reminder', {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
 	}
 
 	async deleteWeek(

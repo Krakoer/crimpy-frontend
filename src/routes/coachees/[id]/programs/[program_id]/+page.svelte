@@ -18,6 +18,7 @@
 	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
 	import SessionCoverButton from '$lib/components/program/SessionCoverButton.svelte';
 	import WeekPerformedSessions from '$lib/components/program/WeekPerformedSessions.svelte';
+	import WeekCoacheeAvailability from '$lib/components/program/WeekCoacheeAvailability.svelte';
 	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
 	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
@@ -27,6 +28,7 @@
 		Program,
 		ProgramRequest,
 		SessionResponse,
+		WeekAvailability,
 		WeekSummary,
 		WeekDetail,
 		SessionOverride,
@@ -59,6 +61,7 @@
 		type WeekSessionsSnapshot
 	} from '$lib/program-draft';
 	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
+	import { toDateOnly } from '$lib/date';
 	import { withCoachReply } from '$lib/sessions';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
@@ -218,6 +221,16 @@
 	// coach about to lower a load, so the strip is told which one it is showing.
 	let playedSessionsFailed = $state(false);
 	let openedSession = $state<SessionResponse | null>(null);
+
+	// When the athlete said they can train, read beside the week being written so
+	// the program is built around the week they actually have.
+	let coacheeAvailability = $state<WeekAvailability[]>([]);
+	let coacheeAvailabilityFailed = $state(false);
+	// Keyed by the Monday the athlete declared for. Program weeks start on a
+	// Monday, so a program week maps onto exactly one of these.
+	const availabilityByWeekStart = $derived(
+		new Map(coacheeAvailability.map((week) => [week.week_start, week]))
+	);
 
 	// What a single week asks of the training it schedules. The training itself is
 	// read once per id and kept, since the same one is usually scheduled in
@@ -755,6 +768,10 @@
 			.getClientSessions(userId)
 			.then((sessions) => (playedSessions = sessions ?? []))
 			.catch(() => (playedSessionsFailed = true));
+		apiClient
+			.getClientAvailability(userId)
+			.then((weeks) => (coacheeAvailability = weeks ?? []))
+			.catch(() => (coacheeAvailabilityFailed = true));
 		// The catalog names an assessment the coachee has never done, which has no
 		// result row to take a label from.
 		assessmentCatalog.load();
@@ -1682,6 +1699,14 @@
 											failed={playedSessionsFailed}
 											startsInTheFuture={Date.now() < weekStart(program.start_date, wn).getTime()}
 											onOpen={(session) => (openedSession = session)}
+										/>
+
+										<WeekCoacheeAvailability
+											weekNumber={wn}
+											availability={availabilityByWeekStart.get(
+												toDateOnly(weekStart(program.start_date, wn))
+											)}
+											failed={coacheeAvailabilityFailed}
 										/>
 									{/if}
 								</div>

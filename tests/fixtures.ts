@@ -433,6 +433,40 @@ export function testProgram(overrides: Partial<TestProgram> = {}): TestProgram {
 	};
 }
 
+export interface TestDayAvailability {
+	day_of_week: number;
+	is_available: boolean;
+	duration_minutes?: number;
+	note?: string;
+}
+
+export interface TestWeekAvailability {
+	user_id: string;
+	week_start: string;
+	updated_at: string;
+	days: TestDayAvailability[];
+}
+
+/**
+ * A declared calendar week. Days not named are declared unavailable, since the
+ * API only ever holds a week that was written whole.
+ */
+export function testWeekAvailability(
+	weekStart: string,
+	available: Record<number, Partial<TestDayAvailability>> = {}
+): TestWeekAvailability {
+	return {
+		user_id: 'coachee-1',
+		week_start: weekStart,
+		updated_at: isoDaysAgo(1),
+		days: Array.from({ length: 7 }, (_unused, day) => ({
+			day_of_week: day,
+			is_available: false,
+			...available[day]
+		}))
+	};
+}
+
 export interface TestSession {
 	id: string;
 	user_id: string;
