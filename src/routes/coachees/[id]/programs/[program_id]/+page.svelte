@@ -12,6 +12,7 @@
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
+	import CollapsedPreviewCell from '$lib/components/program/CollapsedPreviewCell.svelte';
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import SortableSession from '$lib/components/program/SortableSession.svelte';
 	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
@@ -1129,71 +1130,14 @@
 										<!-- Collapsed preview: abbreviated training pills -->
 										{#if !expanded}
 											{#each DAY_LABELS as _, di (di)}
-												<div
-													style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
-												>
-													{#each draft.days[di] as s (s._id)}
-														{@const t = trainingById(s.training_id)}
-														<div
-															style="
-														padding: 2px 5px; border-radius: 4px;
-														background: {trainingTint(s.training_id)};
-														font-size: 9px; color: {trainingColor(s.training_id)};
-														font-weight: 600; max-width: 100%;
-														overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-													"
-														>
-															{t?.title?.split(' ')[0] ?? '?'}
-														</div>
-													{/each}
-													{#if draft.days[di].length === 0}
-														<span style="font-size: 10px; color: var(--bd);">-</span>
-													{/if}
-												</div>
+												<CollapsedPreviewCell sessions={draft.days[di]} {trainings} />
 											{/each}
-											<!-- /WK collapsed preview -->
-											<div
-												style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
-											>
-												{#each draft.freqSessions as s (s._id)}
-													{@const t = trainingById(s.training_id)}
-													<div
-														style="
-													padding: 2px 5px; border-radius: 4px;
-													background: {trainingTint(s.training_id)};
-													font-size: 9px; color: {trainingColor(s.training_id)};
-													font-weight: 600; max-width: 100%;
-													overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-												"
-													>
-														{s.times_per_week}x {t?.title?.split(' ')[0] ?? '?'}
-													</div>
-												{/each}
-												{#if draft.freqSessions.length === 0}
-													<span style="font-size: 10px; color: var(--bd);">-</span>
-												{/if}
-											</div>
-											<!-- DAILY collapsed preview -->
-											<div
-												style="padding: 4px 2px; display: flex; flex-direction: column; gap: 2px; align-items: center;"
-											>
-												{#each draft.everydaySessions as s (s._id)}
-													{@const t = trainingById(s.training_id)}
-													<div
-														style="
-													padding: 2px 5px; border-radius: 4px;
-													background: #ede8f5; font-size: 9px; color: var(--pl);
-													font-weight: 600; max-width: 100%;
-													overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-												"
-													>
-														{t?.title?.split(' ')[0] ?? '?'}
-													</div>
-												{/each}
-												{#if draft.everydaySessions.length === 0}
-													<span style="font-size: 10px; color: var(--bd);">-</span>
-												{/if}
-											</div>
+											<CollapsedPreviewCell
+												sessions={draft.freqSessions}
+												{trainings}
+												prefix={(s) => `${s.times_per_week}x `}
+											/>
+											<CollapsedPreviewCell sessions={draft.everydaySessions} {trainings} />
 										{:else}
 											{#each DAY_LABELS as _, i (i)}<div></div>{/each}
 											<div></div>
@@ -1552,7 +1496,7 @@
 												padding: 5px 4px; min-height: 72px;
 												display: flex; flex-direction: column; gap: 3px;
 												border-left: 1px solid var(--bd2);
-												background: #faf7fe;
+												background: var(--pl-fog);
 											"
 												>
 													{#each draft.everydaySessions as session, sessionIndex (session._id)}
