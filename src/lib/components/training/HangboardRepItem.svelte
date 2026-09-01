@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { LoadUnit, TrainingItem } from '$lib/api/client';
-	import { untrack } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { HANGBOARD_LOAD_UNITS, loadUnitHasValue } from './load-units';
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import HangboardCard from './HangboardCard.svelte';
+	import { applyHangboardRepReadDefaults } from './item-defaults';
+	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
 	import { HANGBOARD_REP_HANDS, hangboardHand, saneCount } from './hangboard-granularity';
 	import {
@@ -26,9 +28,17 @@
 
 	let { item = $bindable(), catalog, onRemove, onDuplicate }: Props = $props();
 
-	item.hand ??= 'both';
-	item.worktime_seconds ??= 7;
-	item.rest_seconds ??= 3;
+	// A program week changes what the hang asks for, not what it is. Two controls
+	// stay with the training there. The hand mode, because a mode that hangs both
+	// hands together needs the left loads gone and a sparse override has no way to
+	// say so. The load unit, because a max effort is still carried by the item's
+	// own load_is_max flag for older clients, and no override may move it, so a
+	// week switching between max and kilograms would read one way in the app and
+	// another in the plan.
+	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
+	const FIXED_BY_TRAINING = 'This belongs to the training and is the same in every week';
+
+	applyHangboardRepReadDefaults(item);
 
 	// A hang rep may arrive from the app with any of its configuration arrays
 	// missing, so it is rewritten into the single row it stands for before the
@@ -103,7 +113,12 @@
 	);
 </script>
 
-<HangboardCard title="Hang rep" summary={collapsedSummary} {onRemove} {onDuplicate}>
+<HangboardCard
+	title="Hang rep"
+	summary={collapsedSummary}
+	onRemove={overriding ? undefined : onRemove}
+	onDuplicate={overriding ? undefined : onDuplicate}
+>
 	{#snippet body()}
 		<div class="hb-sentence">
 			<input
@@ -132,7 +147,8 @@
 						class="hb-pill"
 						class:hb-on={hand === option.value}
 						onclick={() => (item.hand = option.value)}
-						title={option.hint}
+						disabled={overriding}
+						title={overriding ? FIXED_BY_TRAINING : option.hint}
 						role="radio"
 						aria-checked={hand === option.value}>{option.label}</button
 					>
@@ -194,6 +210,8 @@
 						class="hb-select"
 						aria-label="Load unit"
 						value={config.loadRight.unit}
+						disabled={overriding}
+						title={overriding ? FIXED_BY_TRAINING : undefined}
 						onchange={(e) => setLoadUnit(e.currentTarget.value as LoadUnit)}
 					>
 						{#each HANGBOARD_LOAD_UNITS as unit (unit.value)}

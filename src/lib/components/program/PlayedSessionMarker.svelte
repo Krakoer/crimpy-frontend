@@ -40,7 +40,7 @@
 	aria-disabled="false"
 	style="
 		display: flex; align-items: center; gap: 2px; flex-shrink: 0;
-		pointer-events: auto;
+		pointer-events: auto; position: relative;
 		padding: 0 3px; height: 16px; border-radius: 3px;
 		border: none; background: none; cursor: pointer; font-family: var(--font);
 		font-size: 9px; font-weight: 700; color: {needsReply ? 'var(--pr)' : 'var(--gn)'};

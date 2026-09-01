@@ -1,4 +1,5 @@
 import type { SessionOverride } from '$lib/api/client';
+import type { ScheduledRow } from '$lib/program-overrides';
 import { arrayMove } from '$lib/sortable';
 
 // _id is a local key for drag and drop only. id is the server row the session
@@ -241,4 +242,46 @@ export function restoreWeekSessions(drafts: WeekDrafts, snapshot: WeekSessionsSn
 		draft.everydaySessions = saved ? saved.everydaySessions : [];
 		draft.dirty = saved ? saved.dirty : false;
 	}
+}
+
+// The days a week grid lays out, Monday first, which is the order day_of_week
+// counts in.
+export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// Which cell of the week holds a session, in the words the grid column uses.
+export function sessionPlacement(draft: WeekDraft, sessionID: string): string {
+	for (let day = 0; day < 7; day++) {
+		if (draft.days[day].some((session) => session._id === sessionID)) return DAY_LABELS[day];
+	}
+	const frequency = draft.freqSessions.find((session) => session._id === sessionID);
+	if (frequency) return `${frequency.times_per_week} per week`;
+	if (draft.everydaySessions.some((session) => session._id === sessionID)) return 'Every day';
+	return '';
+}
+
+// Every row of the program that schedules one training, in week order, with the
+// one being edited marked. A week may schedule the same training more than once,
+// so each row stands on its own rather than being folded into its week.
+export function scheduledRows(
+	drafts: WeekDrafts,
+	weekNumbers: number[],
+	trainingID: string,
+	currentSessionID: string
+): ScheduledRow[] {
+	const rows: ScheduledRow[] = [];
+	for (const week of weekNumbers) {
+		const draft = drafts[week];
+		if (!draft) continue;
+		for (const session of draftSessions(draft)) {
+			if (session.training_id !== trainingID) continue;
+			rows.push({
+				key: session._id,
+				week,
+				placement: sessionPlacement(draft, session._id),
+				overrides: session.overrides,
+				current: session._id === currentSessionID
+			});
+		}
+	}
+	return rows;
 }

@@ -4,6 +4,7 @@
 	import ItemList from './ItemList.svelte';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import Icon from '$lib/components/Icon.svelte';
 	import { containerChildTypes } from './container-rules';
 	import { formatInterval } from './emom-format';
@@ -32,6 +33,15 @@
 	let confirmDelete = $state(false);
 
 	if (!item.items) item.items = [];
+
+	// A program week changes what the emom prescribes, never the blocks it holds.
+	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
+
+	// What makes the block every minute on the minute belongs to the training: the
+	// override the clients merge carries no interval, so a week may change how
+	// many rounds are run but not the clock they start on.
+	const INTERVAL_FIXED_REASON =
+		'The interval belongs to the training and cannot be changed for one week';
 
 	let intervalMin = $state(Math.floor((item.interval_seconds ?? 60) / 60));
 	let intervalSec = $state((item.interval_seconds ?? 60) % 60);
@@ -92,39 +102,41 @@
 			EMOM
 			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
 		</span>
-		<div
-			style="display: flex; gap: 3px; flex-shrink: 0;"
-			onclick={(e) => e.stopPropagation()}
-			role="none"
-		>
-			{#if confirmDelete}
-				<button
-					onclick={onRemove}
-					style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-					>Delete</button
-				>
-				<button
-					onclick={() => (confirmDelete = false)}
-					style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
-					>Cancel</button
-				>
-			{:else}
-				<button
-					onclick={onDuplicate}
-					title="Duplicate"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-				>
-					<Icon name="copy" size={11} color="var(--tx3)" />
-				</button>
-				<button
-					onclick={() => (confirmDelete = true)}
-					title="Delete"
-					style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
-				>
-					<Icon name="trash" size={11} color="var(--tx3)" />
-				</button>
-			{/if}
-		</div>
+		{#if !overriding}
+			<div
+				style="display: flex; gap: 3px; flex-shrink: 0;"
+				onclick={(e) => e.stopPropagation()}
+				role="none"
+			>
+				{#if confirmDelete}
+					<button
+						onclick={onRemove}
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+						>Delete</button
+					>
+					<button
+						onclick={() => (confirmDelete = false)}
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+						>Cancel</button
+					>
+				{:else}
+					<button
+						onclick={onDuplicate}
+						title="Duplicate"
+						style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+					>
+						<Icon name="copy" size={11} color="var(--tx3)" />
+					</button>
+					<button
+						onclick={() => (confirmDelete = true)}
+						title="Delete"
+						style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+					>
+						<Icon name="trash" size={11} color="var(--tx3)" />
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	{#if !collapsed}
@@ -157,6 +169,8 @@
 							min="0"
 							aria-label="Interval minutes"
 							bind:value={intervalMin}
+							disabled={overriding}
+							title={overriding ? INTERVAL_FIXED_REASON : undefined}
 							onclick={(e) => e.stopPropagation()}
 							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
@@ -167,6 +181,8 @@
 							max="59"
 							aria-label="Interval seconds"
 							bind:value={intervalSec}
+							disabled={overriding}
+							title={overriding ? INTERVAL_FIXED_REASON : undefined}
 							onclick={(e) => e.stopPropagation()}
 							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>

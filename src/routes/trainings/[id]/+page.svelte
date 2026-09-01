@@ -35,16 +35,9 @@
 	import { isHangboardItem, saneCount } from '$lib/components/training/hangboard-granularity';
 	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
 	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
-	import { createTrainingItem } from '$lib/components/training/create-item';
+	import { createTrainingItem, ensureClientIds } from '$lib/components/training/create-item';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
-
-	function ensureClientIds(items: TrainingItem[]) {
-		for (const item of items) {
-			if (!item._id) item._id = crypto.randomUUID();
-			if (item.items) ensureClientIds(item.items);
-		}
-	}
 
 	function collectExerciseIds(items: TrainingItem[]): string[] {
 		const ids: string[] = [];

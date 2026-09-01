@@ -16,10 +16,12 @@
 	import DroppableCell from '$lib/components/program/DroppableCell.svelte';
 	import SortableSession from '$lib/components/program/SortableSession.svelte';
 	import PlayedSessionMarker from '$lib/components/program/PlayedSessionMarker.svelte';
+	import SessionCoverButton from '$lib/components/program/SessionCoverButton.svelte';
 	import WeekPerformedSessions from '$lib/components/program/WeekPerformedSessions.svelte';
 	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
 	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
+	import SessionOverridesModal from '$lib/components/program/SessionOverridesModal.svelte';
 	import type {
 		AssessmentResponse,
 		Program,
@@ -27,20 +29,25 @@
 		SessionResponse,
 		WeekSummary,
 		WeekDetail,
+		SessionOverride,
 		SessionRequest,
+		Training,
 		TrainingItem,
 		TrainingSummary
 	} from '$lib/api/client';
 	import {
 		cellID,
 		cellSessions,
+		DAY_LABELS,
 		draftSessions,
 		duplicatedDraftSession,
 		emptyDraft,
 		moveSession,
 		parseCell,
 		restoreWeekSessions,
+		scheduledRows,
 		sessionForCell,
+		sessionPlacement,
 		snapshotWeekSessions,
 		type DaySession,
 		type DraftSession,
@@ -211,6 +218,14 @@
 	// coach about to lower a load, so the strip is told which one it is showing.
 	let playedSessionsFailed = $state(false);
 	let openedSession = $state<SessionResponse | null>(null);
+
+	// What a single week asks of the training it schedules. The training itself is
+	// read once per id and kept, since the same one is usually scheduled in
+	// several weeks and the strip under each block reads all of them.
+	let trainingCache = $state<Record<string, Training>>({});
+	let overridesTargetID = $state<{ wn: number; sessionID: string } | null>(null);
+	let overridesLoading = $state(false);
+	let overridesError = $state('');
 	const playedByProgramSession = $derived(sessionsByProgramSession(playedSessions));
 
 	function playedFor(session: DraftSession): SessionResponse[] {
@@ -515,7 +530,58 @@
 		snackbar.show(`Week ${sourceWn} duplicated to week ${targetWn}`);
 	}
 
-	const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+	// The session the parameters modal is about, read back from the drafts rather
+	// than held, so a session dragged or dropped while the modal is open leaves it
+	// by itself.
+	const overridesTarget = $derived.by(() => {
+		const target = overridesTargetID;
+		if (!target) return null;
+		const draft = weekDrafts[target.wn];
+		if (!draft) return null;
+		const session = draftSessions(draft).find((s) => s._id === target.sessionID);
+		return session ? { wn: target.wn, draft, session } : null;
+	});
+
+	const overridesTraining = $derived(
+		overridesTarget ? (trainingCache[overridesTarget.session.training_id] ?? null) : null
+	);
+
+	// Every row that schedules the same training, so a coach setting this week's
+	// load reads the ones they already set without leaving the modal.
+	const overridesWeeks = $derived(
+		overridesTarget
+			? scheduledRows(
+					weekDrafts,
+					weekNumbers(),
+					overridesTarget.session.training_id,
+					overridesTarget.session._id
+				)
+			: []
+	);
+
+	async function openOverrides(wn: number, session: DraftSession) {
+		overridesTargetID = { wn, sessionID: session._id };
+		overridesError = '';
+		if (trainingCache[session.training_id]) return;
+		overridesLoading = true;
+		try {
+			trainingCache[session.training_id] = await apiClient.getTraining(session.training_id);
+		} catch {
+			overridesError =
+				'The training could not be read, so what this week asks of it cannot be shown.';
+		} finally {
+			overridesLoading = false;
+		}
+	}
+
+	// Written into the week draft rather than saved on its own: the week is the
+	// unit the server takes, so the coach saves these the way they save a move.
+	function applyOverrides(overrides: SessionOverride[]) {
+		if (!overridesTarget) return;
+		overridesTarget.session.overrides = overrides;
+		overridesTarget.draft.dirty = true;
+		overridesTargetID = null;
+	}
 
 	const TRAINING_FILTERS: { id: string; label: string }[] = [
 		{ id: 'all', label: 'All' },
@@ -733,6 +799,14 @@
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
+
+{#snippet customiseButton(wn: number, session: DraftSession)}
+	<SessionCoverButton
+		weekNumber={wn}
+		customised={session.overrides.length > 0}
+		onOpen={() => openOverrides(wn, session)}
+	/>
+{/snippet}
 
 <AppShell
 	title={program?.name ?? 'Program'}
@@ -1302,6 +1376,7 @@
 																<div
 																	title={trainingById(session.training_id)?.title}
 																	style="
+																position: relative;
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
 																background: {tint}; border: 1px solid {color}30;
@@ -1316,6 +1391,7 @@
 																			<Icon name="spark" size={9} color="var(--pl)" />
 																		</div>
 																	{/if}
+																	{@render customiseButton(wn, session)}
 																	<span
 																		style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 500;"
 																	>
@@ -1330,7 +1406,7 @@
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
-																			style="display: flex; flex-shrink: 0; pointer-events: auto;"
+																			style="display: flex; flex-shrink: 0; pointer-events: auto; position: relative;"
 																		>
 																			<Icon name="lock" size={10} color="var(--tx3)" />
 																		</div>
@@ -1339,7 +1415,7 @@
 																			onclick={() => removeSession(wn, session._id)}
 																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
-																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
 																			onmouseenter={(e) => {
 																				e.currentTarget.style.opacity = '1';
 																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1412,6 +1488,7 @@
 															<div
 																title={trainingById(session.training_id)?.title}
 																style="
+															position: relative;
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
 														"
@@ -1427,6 +1504,7 @@
 																			<Icon name="spark" size={9} color="var(--pl)" />
 																		</div>
 																	{/if}
+																	{@render customiseButton(wn, session)}
 																	<span
 																		style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 600; font-size: 10.5px;"
 																	>
@@ -1445,7 +1523,7 @@
 																		}}
 																		min="1"
 																		max="14"
-																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700;"
+																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700; position: relative;"
 																	/>
 																	<span style="font-size: 10px; color: {color}; font-weight: 600;"
 																		>x/wk</span
@@ -1460,7 +1538,7 @@
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
-																			style="display: flex; flex-shrink: 0; pointer-events: auto;"
+																			style="display: flex; flex-shrink: 0; pointer-events: auto; position: relative;"
 																		>
 																			<Icon name="lock" size={10} color="var(--tx3)" />
 																		</div>
@@ -1469,7 +1547,7 @@
 																			onclick={() => removeSession(wn, session._id)}
 																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
-																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
 																			onmouseenter={(e) => {
 																				e.currentTarget.style.opacity = '1';
 																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1512,6 +1590,7 @@
 															<div
 																title={trainingById(session.training_id)?.title}
 																style="
+															position: relative;
 															display: flex; align-items: center; gap: 4px;
 															padding: 4px 5px; border-radius: 5px;
 															background: {tint}; border: 1px solid {color}30;
@@ -1526,6 +1605,7 @@
 																		<Icon name="spark" size={9} color="var(--pl)" />
 																	</div>
 																{/if}
+																{@render customiseButton(wn, session)}
 																<span
 																	style="flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--tx); font-weight: 500;"
 																>
@@ -1540,7 +1620,7 @@
 																{#if session.locked}
 																	<div
 																		title={LOCKED_SESSION_REASON}
-																		style="display: flex; flex-shrink: 0; pointer-events: auto;"
+																		style="display: flex; flex-shrink: 0; pointer-events: auto; position: relative;"
 																	>
 																		<Icon name="lock" size={10} color="var(--tx3)" />
 																	</div>
@@ -1549,7 +1629,7 @@
 																		onclick={() => removeSession(wn, session._id)}
 																		aria-label="Remove session"
 																		onpointerdown={(e) => e.stopPropagation()}
-																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6;"
+																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
 																		onmouseenter={(e) => {
 																			e.currentTarget.style.opacity = '1';
 																			e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1843,6 +1923,25 @@
 		records={coacheeAssessments}
 		failed={coacheeAssessmentsFailed}
 		onClose={() => (showAssessments = false)}
+	/>
+{/if}
+
+{#if overridesTarget}
+	<SessionOverridesModal
+		training={overridesTraining}
+		weekNumber={overridesTarget.wn}
+		placement={sessionPlacement(overridesTarget.draft, overridesTarget.session._id)}
+		overrides={overridesTarget.session.overrides}
+		scheduledWeeks={overridesWeeks}
+		catalog={assessmentCatalog.catalog}
+		readOnly={!editMode || overridesTarget.session.locked === true}
+		readOnlyReason={overridesTarget.session.locked
+			? LOCKED_SESSION_REASON
+			: 'Turn on Edit to change what this week asks of the training.'}
+		loading={overridesLoading}
+		loadError={overridesError}
+		onClose={() => (overridesTargetID = null)}
+		onApply={applyOverrides}
 	/>
 {/if}
 
