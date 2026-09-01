@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { TrainingItem, Load, LoadUnit } from '$lib/api/client';
-	import { untrack } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { HANGBOARD_LOAD_UNITS, loadUnitHasValue } from './load-units';
 	import AssessmentRefFields from './AssessmentRefFields.svelte';
 	import HangboardCard from './HangboardCard.svelte';
+	import { applyRepeaterReadDefaults } from './item-defaults';
+	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import Icon from '$lib/components/Icon.svelte';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
 	import {
@@ -47,6 +49,16 @@
 
 	let { item = $bindable(), catalog, onRemove, onDuplicate }: Props = $props();
 
+	// A program week changes what the hang asks for, not what it is. Two controls
+	// stay with the training there. The hand mode, because a mode that hangs both
+	// hands together needs the left loads gone and a sparse override has no way to
+	// say so. The load unit, because a max effort is still carried by the item's
+	// own load_is_max flag for older clients, and no override may move it, so a
+	// week switching between max and kilograms would read one way in the app and
+	// another in the plan.
+	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
+	const FIXED_BY_TRAINING = 'This belongs to the training and is the same in every week';
+
 	let collapsed = $state(false);
 	let cardElement = $state<HTMLDivElement | null>(null);
 
@@ -82,13 +94,8 @@
 		}
 	});
 
-	if (!item.hand) item.hand = 'both';
+	applyRepeaterReadDefaults(item);
 	if (!item.granularity) item.granularity = hangboardGranularity(item);
-	if (!item.reps) item.reps = 6;
-	if (!item.cycles) item.cycles = 3;
-	if (!item.worktime_seconds) item.worktime_seconds = 7;
-	if (!item.rest_seconds) item.rest_seconds = 3;
-	if (!item.cycle_rest_seconds) item.cycle_rest_seconds = 180;
 
 	// An item declares one row, one row per rep, or one row per rep of every set,
 	// and any of its arrays can be missing. The editor addresses every rep of
@@ -665,8 +672,8 @@
 <HangboardCard
 	title="Hangboard"
 	summary={collapsedSummary}
-	{onRemove}
-	{onDuplicate}
+	onRemove={overriding ? undefined : onRemove}
+	onDuplicate={overriding ? undefined : onDuplicate}
 	bind:element={cardElement}
 	bind:collapsed
 >
@@ -724,7 +731,8 @@
 						class="hb-pill"
 						class:hb-on={hangboardHand(item) === h.value}
 						onclick={() => requestChange({ kind: 'hand', value: h.value })}
-						title={h.hint}
+						disabled={overriding}
+						title={overriding ? FIXED_BY_TRAINING : h.hint}
 						role="radio"
 						aria-checked={hangboardHand(item) === h.value}>{h.label}</button
 					>
@@ -816,6 +824,8 @@
 							class="hb-select"
 							aria-label="Load unit"
 							value={loadUnitValue ?? ''}
+							disabled={overriding}
+							title={overriding ? FIXED_BY_TRAINING : undefined}
 							onchange={(e) => applyField('loadUnit', e.currentTarget.value)}
 						>
 							{#if loadUnitValue === null}
