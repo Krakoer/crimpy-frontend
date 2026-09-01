@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { TrainingItem } from '$lib/api/client';
-import { diffOverrides, mergeOverrides, overrideSummary } from './program-overrides';
+import type { ItemOverride, TrainingItem } from '$lib/api/client';
+import {
+	buildOverrideHistory,
+	diffOverrides,
+	mergeOverrides,
+	overrideSummary
+} from './program-overrides';
 import type { AssessmentCatalog } from '$lib/assessments';
 
 const catalog: AssessmentCatalog = {};
@@ -162,6 +167,22 @@ describe('diffOverrides', () => {
 		]);
 	});
 
+	it('reads a hand an override already carries back out, so Apply does not drop it', () => {
+		const base = [repeater('a', { hand: 'both' })];
+		const merged = mergeOverrides(base, [{ item_id: 'a', overrides: { hand: 'right' } }]);
+		const [override] = diffOverrides(base, merged);
+		expect(override.overrides.hand).toBe('right');
+	});
+
+	it('takes a field the API left null as the zero the editors write', () => {
+		// The API sends a column nothing was prescribed in as null, and the editors
+		// mirror the seconds into their own boxes and write a number straight back.
+		const base = [exercise('a', { rest_seconds: null as unknown as undefined })];
+		const edited = structuredClone(base);
+		edited[0].rest_seconds = 0;
+		expect(diffOverrides(base, edited)).toEqual([]);
+	});
+
 	it('diffs items nested in a container', () => {
 		const base: TrainingItem[] = [
 			{ id: 'c', _id: 'c', type: 'circuit', cycles: 3, items: [exercise('a')] }
@@ -203,5 +224,41 @@ describe('overrideSummary', () => {
 			catalog
 		);
 		expect(summary).toBe('20 kg and up');
+	});
+});
+
+describe('buildOverrideHistory', () => {
+	const row = (key: string, week: number, placement: string, overrides: ItemOverride | null) => ({
+		key,
+		week,
+		placement,
+		overrides: overrides ? [{ item_id: 'a', overrides }] : [],
+		current: key === 'current'
+	});
+
+	it('gives every scheduled row its own chip, named by its week', () => {
+		const history = buildOverrideHistory(
+			[exercise('a')],
+			[row('w1', 1, 'Mon', null), row('current', 2, 'Mon', { reps: 10 })],
+			catalog
+		);
+		expect(
+			history.a.map((entry) => [entry.key, entry.label, entry.summary, entry.current])
+		).toEqual([
+			['w1', 'W1', '', false],
+			['current', 'W2', '10 reps', true]
+		]);
+	});
+
+	it('names the day when one week schedules the training twice', () => {
+		// Two chips reading W2 would key the strip on the same value and take the
+		// page down with it, as well as saying nothing about which row is which.
+		const history = buildOverrideHistory(
+			[exercise('a')],
+			[row('mon', 2, 'Mon', { reps: 10 }), row('thu', 2, 'Thu', { reps: 6 })],
+			catalog
+		);
+		expect(history.a.map((entry) => entry.key)).toEqual(['mon', 'thu']);
+		expect(history.a.map((entry) => entry.label)).toEqual(['W2 Mon', 'W2 Thu']);
 	});
 });

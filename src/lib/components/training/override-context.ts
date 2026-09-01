@@ -21,7 +21,12 @@ export type OverrideMode = {
 export const OVERRIDE_HISTORY_KEY = Symbol('training-override-history');
 
 export type OverrideHistoryEntry = {
-	week: number;
+	// The scheduled row this chip is about. A week may hold the same training
+	// twice, so the week number alone does not identify one.
+	key: string;
+	// What names the row: its week, and the day too where the week schedules the
+	// training more than once.
+	label: string;
 	summary: string;
 	current: boolean;
 };

@@ -9,6 +9,15 @@ import type { Load, TrainingItem } from '$lib/api/client';
 // against the training it came from, so the training has to be read through the
 // same defaults, or opening a week would look like the coach changed it.
 
+// The seconds an editor mirrors into a minute and a second box, and writes back
+// whole the moment it renders. The API sends the column as null where nothing was
+// prescribed, so a tree that was never rendered has to be read as the zero the
+// editor would have written, or the difference reads as a change the coach made.
+function applyMirroredSeconds(item: TrainingItem): void {
+	if (item.type === 'exercise') item.rest_seconds ??= 0;
+	if (item.type === 'circuit') item.cycle_rest_seconds ??= 0;
+}
+
 export function applyHangboardRepReadDefaults(item: TrainingItem): void {
 	item.hand ??= 'both';
 	item.worktime_seconds ??= 7;
@@ -45,6 +54,7 @@ export function applyItemReadDefaults(items: TrainingItem[], loadAssessments: st
 	for (const item of items) {
 		if (item.type === 'repeater') applyRepeaterReadDefaults(item);
 		else if (item.type === 'hangboard_rep') applyHangboardRepReadDefaults(item);
+		applyMirroredSeconds(item);
 		resolveAssessmentLoads(item, loadAssessments);
 		if (item.items) applyItemReadDefaults(item.items, loadAssessments);
 	}

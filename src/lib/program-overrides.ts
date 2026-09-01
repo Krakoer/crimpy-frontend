@@ -62,8 +62,12 @@ export function mergeOverrides(
 	return merged;
 }
 
+// A column nothing was prescribed in comes back from the API as null, while the
+// editors write the zero that means the same thing, so the two are read as one
+// value here. Without that, merely opening a week would look like the coach had
+// set a rest of zero on every block whose rest the training never named.
 function numberChanged(base: number | undefined, edited: number | undefined): edited is number {
-	return edited != null && edited !== base;
+	return edited != null && edited !== (base ?? 0);
 }
 
 function arrayChanged<T>(base: T[] | undefined, edited: T[] | undefined): edited is T[] {
@@ -97,6 +101,11 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	if (numberChanged(base.worktime_seconds, edited.worktime_seconds)) {
 		override.hb_worktime_seconds = edited.worktime_seconds;
 	}
+	// The editors freeze the hand mode, so this normally finds nothing. It is
+	// still compared, because an override written elsewhere carries hand, the
+	// merge honours it, and a diff blind to it would drop it from the week the
+	// first time the coach opened the block and pressed Apply.
+	if (edited.hand && edited.hand !== base.hand) override.hand = edited.hand;
 	if (edited.granularity && edited.granularity !== base.granularity) {
 		override.granularity = edited.granularity;
 	}
@@ -119,7 +128,10 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	// They go out whole whenever anything the row count is derived from moved.
 	const resized =
 		GRID_ITEM_TYPES.includes(base.type) &&
-		(override.granularity != null || override.reps != null || override.cycles != null);
+		(override.granularity != null ||
+			override.hand != null ||
+			override.reps != null ||
+			override.cycles != null);
 	if (resized) {
 		if (!isEmpty(edited.loads)) override.loads = edited.loads;
 		if (!isEmpty(edited.left_loads)) override.left_loads = edited.left_loads;
@@ -153,6 +165,14 @@ export function diffOverrides(base: TrainingItem[], edited: TrainingItem[]): Ses
 	walk(base, edited);
 	return diffed;
 }
+
+const HAND_LABELS: Record<string, string> = {
+	both: 'both hands',
+	alternate: 'alternating hands',
+	split: 'split hands',
+	left: 'left hand',
+	right: 'right hand'
+};
 
 const GRANULARITY_LABELS: Record<string, string> = {
 	uniform: 'one setting',
@@ -194,6 +214,7 @@ export function overrideSummary(
 	if (override.cycle_rest_seconds != null) {
 		parts.push(`${fmtSeconds(override.cycle_rest_seconds)} set rest`);
 	}
+	if (override.hand) parts.push(HAND_LABELS[override.hand] ?? override.hand);
 	if (override.granularity) parts.push(GRANULARITY_LABELS[override.granularity]);
 	if (!isEmpty(override.loads)) parts.push(loadsSummary(override.loads!, catalog));
 	if (!isEmpty(override.left_loads)) {
@@ -242,6 +263,10 @@ export function resetItemToBase(
 	const baseItem = findItem(base, itemId);
 	const editedItem = findItem(edited, itemId);
 	if (!baseItem || !editedItem) return;
+	// The lists key on _id, and an editor that mirrors a field into its own boxes
+	// reads the item once when it is created. A fresh key is what makes it read
+	// the restored values rather than write its own back over them.
+	editedItem._id = crypto.randomUUID();
 	for (const field of [
 		'cycles',
 		'cycle_rest_seconds',
@@ -262,11 +287,23 @@ export function resetItemToBase(
 	}
 }
 
+// One row of the program that schedules the training the strip is about.
+export type ScheduledRow = {
+	key: string;
+	week: number;
+	// Where in the week it sits, in the words the grid uses for that column.
+	placement: string;
+	overrides: SessionOverride[];
+	current: boolean;
+};
+
 // What every week of the program asks of each item, for the strip that lets a
-// coach set this week's load next to the ones they already set.
+// coach set this week's load next to the ones they already set. A week that
+// schedules the training twice contributes a chip per row, named by its day, so
+// two rows asking different things are not folded into one claim.
 export function buildOverrideHistory(
 	items: TrainingItem[],
-	weeks: { week: number; overrides: SessionOverride[]; current: boolean }[],
+	rows: ScheduledRow[],
 	catalog: AssessmentCatalog
 ): OverrideHistoryByItem {
 	const history: OverrideHistoryByItem = {};
@@ -277,15 +314,22 @@ export function buildOverrideHistory(
 		}
 	};
 	collect(items);
-	for (const week of [...weeks].sort((a, b) => a.week - b.week)) {
-		const byItem = new Map(week.overrides.map((o) => [o.item_id, o.overrides]));
+	const perWeek = new Map<number, number>();
+	for (const row of rows) perWeek.set(row.week, (perWeek.get(row.week) ?? 0) + 1);
+	for (const row of [...rows].sort((a, b) => a.week - b.week)) {
+		const byItem = new Map(row.overrides.map((o) => [o.item_id, o.overrides]));
+		const label =
+			(perWeek.get(row.week) ?? 0) > 1 && row.placement
+				? `W${row.week} ${row.placement}`
+				: `W${row.week}`;
 		for (const itemId of Object.keys(history)) {
 			const base = findItem(items, itemId);
 			const override = byItem.get(itemId);
 			history[itemId].push({
-				week: week.week,
+				key: row.key,
+				label,
 				summary: base && override ? overrideSummary(base, override, catalog) : '',
-				current: week.current
+				current: row.current
 			});
 		}
 	}
