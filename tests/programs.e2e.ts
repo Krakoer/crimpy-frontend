@@ -1393,13 +1393,13 @@ test('reads what the other weeks of the program ask of the same block', async ({
 		.click();
 
 	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
-	await expect(modal.getByTitle('Week 2 asks for 5 sets')).toBeVisible();
-	await expect(modal.getByTitle('Week 1 runs this as the training writes it')).toBeVisible();
+	await expect(modal.getByTitle('W2 asks for 5 sets')).toBeVisible();
+	await expect(modal.getByTitle('W1 runs this as the training writes it')).toBeVisible();
 
 	// The week being edited follows the tree on screen, so the coach compares the
 	// number they are typing with the ones they already set.
 	await modal.getByRole('spinbutton').first().fill('4');
-	await expect(modal.getByTitle('Week 1 asks for 4 sets')).toBeVisible();
+	await expect(modal.getByTitle('W1 asks for 4 sets')).toBeVisible();
 });
 
 test('puts one block back to the training without touching the rest of the week', async ({
@@ -1471,4 +1471,68 @@ test('says so when the training behind a week could not be read', async ({ page 
 
 	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
 	await expect(modal.getByText('The training could not be read')).toBeVisible();
+});
+
+test('clears what a week asks and puts every field back on screen', async ({ page }) => {
+	await stubTwoWeekProgram(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	// The rest boxes of an exercise, which the editor mirrors into its own state
+	// and writes back: a clear that only resets the tree would leave them showing
+	// a value the week no longer asks for, and re-customise it on the next keystroke.
+	const restMinutes = modal.getByRole('spinbutton').nth(4);
+	await restMinutes.fill('2');
+	await expect(modal.getByText('1 block customised for this week')).toBeVisible();
+
+	await modal.getByRole('button', { name: 'Clear customisation' }).click();
+	await expect(modal.getByText('This week runs the training as it is written')).toBeVisible();
+	await expect(restMinutes).toHaveValue('1');
+});
+
+test('opens a week that schedules the same training twice', async ({ page }) => {
+	const weeks = twoWeeksOfTheSameTraining();
+	// Tuesday and Thursday of week 1, the Tuesday one asking for five sets. The
+	// strip under the block then has two rows to name inside one week.
+	weeks.details[0].sessions.push({
+		id: 'ws-3',
+		training_id: 'training-1',
+		training_title: 'Power endurance block',
+		training_type: 'workout',
+		day_of_week: 3,
+		is_everyday: false,
+		position: 1,
+		is_locked: false,
+		overrides: []
+	});
+	weeks.details[0].sessions[0].overrides = [
+		{ id: 'override-1', item_id: 'item-circuit', overrides: { cycles: 5 } }
+	];
+	await stubProgram(page, testProgram({ duration_weeks: 2, start_date: mondayDaysAgo(0) }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', { body: weeks.summaries });
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/1', { body: weeks.details[0] });
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', { body: weeks.details[1] });
+	await stub(page, 'GET', '/api/trainings/*', { body: circuitTraining() });
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:3')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	// The two rows of week 1 are told apart by their day rather than folded into
+	// one chip, which also keeps the strip's keys distinct.
+	await expect(modal.getByTitle('W1 Tue asks for 5 sets')).toBeVisible();
+	await expect(modal.getByTitle('W1 Thu runs this as the training writes it')).toBeVisible();
+	await expect(modal.getByText('This week runs the training as it is written')).toBeVisible();
 });
