@@ -3,19 +3,20 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { UserEnrollment, EnrolledUser, SessionResponse } from '$lib/api/client';
+	import type { CoachTodo, UserEnrollment, EnrolledUser } from '$lib/api/client';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-
-	type SessionWithUser = SessionResponse & { coachee: EnrolledUser };
+	import CoachFeed from '$lib/components/dashboard/CoachFeed.svelte';
+	import CoachTodoPanel from '$lib/components/dashboard/CoachTodo.svelte';
 
 	let coacheesCount = $state(0);
 	let exercisesCount = $state(0);
 	let trainingsCount = $state(0);
 	let coachees = $state<EnrolledUser[]>([]);
 	let userEnrollment = $state<UserEnrollment | null>(null);
-	let thisWeekCount = $state<number | null>(null);
-	let recentSessions = $state<SessionWithUser[]>([]);
+	let todo = $state<CoachTodo | null>(null);
+	let todoFailed = $state(false);
+	let loadingTodo = $state(true);
 
 	let loadingCoachees = $state(false);
 	let loadingEnrollment = $state(false);
@@ -64,36 +65,20 @@
 			coacheesCount = users.length;
 			exercisesCount = exPage?.total ?? 0;
 			trainingsCount = trainings.length;
-
-			if (users.length > 0) {
-				const allSessions = await Promise.all(
-					users.map((u) =>
-						apiClient
-							.getClientSessions(u.user_id)
-							.then((ss) => ss.map((s) => ({ ...s, coachee: u })))
-							.catch(() => [])
-					)
-				);
-				const flat = allSessions.flat();
-				const now = new Date();
-				const startOfWeek = new Date(now);
-				startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-				startOfWeek.setHours(0, 0, 0, 0);
-				const endOfWeek = new Date(startOfWeek);
-				endOfWeek.setDate(startOfWeek.getDate() + 7);
-				const weekSessions = flat.filter((s) => {
-					const d = new Date(s.date);
-					return d >= startOfWeek && d < endOfWeek;
-				});
-				thisWeekCount = weekSessions.length;
-				recentSessions = flat
-					.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-					.slice(0, 8);
-			} else {
-				thisWeekCount = 0;
-			}
 		} finally {
 			loadingCoachees = false;
+		}
+		await loadTodo();
+	}
+
+	async function loadTodo() {
+		loadingTodo = true;
+		try {
+			todo = await apiClient.getCoachTodo();
+		} catch {
+			todoFailed = true;
+		} finally {
+			loadingTodo = false;
 		}
 	}
 
@@ -216,7 +201,7 @@
 						This week
 					</div>
 					<div style="font-size: 22px; font-weight: 700; color: var(--pr); margin-top: 2px;">
-						{loadingCoachees ? '-' : (thisWeekCount ?? '-')}
+						{loadingTodo ? '-' : (todo?.sessions_this_week ?? '-')}
 					</div>
 					<div style="font-size: 10px; color: var(--tx3); margin-top: 1px;">sessions</div>
 				</div>
@@ -256,62 +241,12 @@
 				{/each}
 			</div>
 
-			<!-- Recent sessions + coachees side by side -->
-			{#if !loadingCoachees && (recentSessions.length > 0 || coachees.length > 0)}
-				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start;">
-					<!-- Recent sessions -->
-					{#if recentSessions.length > 0}
-						<div
-							style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
-						>
-							<div style="padding: 16px 20px 12px; border-bottom: 1px solid var(--bd2);">
-								<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">
-									Recent sessions
-								</h3>
-							</div>
-							{#each recentSessions as s, i (s.id)}
-								<button
-									onclick={() => goto(`/coachees/${s.coachee.user_id}`)}
-									style="
-									display: flex; align-items: center; gap: 12px;
-									padding: 10px 16px; width: 100%; text-align: left;
-									border-bottom: {i < recentSessions.length - 1 ? '1px solid var(--bd2)' : 'none'};
-									background: none; border-top: none; border-left: none; border-right: none;
-									cursor: pointer; font-family: var(--font);
-								"
-								>
-									<div
-										style="
-										width: 30px; height: 30px; border-radius: 50%;
-										background: var(--pr-lt); color: var(--pr);
-										display: flex; align-items: center; justify-content: center;
-										font-size: 11px; font-weight: 600; flex-shrink: 0;
-									"
-									>
-										{(s.coachee.user_firstname?.[0] ?? '').toUpperCase()}{(
-											s.coachee.user_lastname?.[0] ?? ''
-										).toUpperCase()}
-									</div>
-									<div style="flex: 1; min-width: 0;">
-										<div
-											style="font-size: 12.5px; font-weight: 600; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-										>
-											{s.coachee.user_firstname}
-											{s.coachee.user_lastname}
-										</div>
-										<div
-											style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-										>
-											{s.name || 'Training session'}
-										</div>
-									</div>
-									<div style="font-size: 11.5px; color: var(--tx3); white-space: nowrap;">
-										{formatDate(s.date)}
-									</div>
-								</button>
-							{/each}
-						</div>
-					{/if}
+			<!-- What needs the coach, and what their coachees have been doing -->
+			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start;">
+				<CoachFeed />
+
+				<div style="display: flex; flex-direction: column; gap: 14px;">
+					<CoachTodoPanel {todo} loading={loadingTodo} failed={todoFailed} />
 
 					<!-- Coachees quick list -->
 					{#if coachees.length > 0}
@@ -333,20 +268,20 @@
 								<button
 									onclick={() => goto(`/coachees/${coachee.user_id}`)}
 									style="
-									display: flex; align-items: center; gap: 12px;
-									padding: 10px 16px; width: 100%; text-align: left;
-									border-bottom: {i < Math.min(coachees.length, 8) - 1 ? '1px solid var(--bd2)' : 'none'};
-									background: none; border-top: none; border-left: none; border-right: none;
-									cursor: pointer; font-family: var(--font);
-								"
+								display: flex; align-items: center; gap: 12px;
+								padding: 10px 16px; width: 100%; text-align: left;
+								border-bottom: {i < Math.min(coachees.length, 8) - 1 ? '1px solid var(--bd2)' : 'none'};
+								background: none; border-top: none; border-left: none; border-right: none;
+								cursor: pointer; font-family: var(--font);
+							"
 								>
 									<div
 										style="
-										width: 30px; height: 30px; border-radius: 50%;
-										background: var(--pr); color: #fff;
-										display: flex; align-items: center; justify-content: center;
-										font-size: 11px; font-weight: 600; flex-shrink: 0;
-									"
+									width: 30px; height: 30px; border-radius: 50%;
+									background: var(--pr); color: #fff;
+									display: flex; align-items: center; justify-content: center;
+									font-size: 11px; font-weight: 600; flex-shrink: 0;
+								"
 									>
 										{(coachee.user_firstname?.[0] ?? '').toUpperCase()}{(
 											coachee.user_lastname?.[0] ?? ''
@@ -367,7 +302,7 @@
 						</div>
 					{/if}
 				</div>
-			{/if}
+			</div>
 
 			{#if loadingCoachees}
 				<div

@@ -276,6 +276,12 @@ export function isoDaysAgo(days: number): string {
 	return date.toISOString();
 }
 
+/** Hours rather than days, for feed fixtures that have to be ordered inside one
+ *  day. setDate truncates, so isoDaysAgo(1 / 24) is not an hour ago. */
+export function isoHoursAgo(hours: number): string {
+	return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
 export interface TestCoach {
 	id: string;
 	email: string;
@@ -672,4 +678,93 @@ export async function dragOnto(page: Page, source: Locator, target: Locator): Pr
 	await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 20, { steps: 5 });
 	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
 	await page.mouse.up();
+}
+
+export interface TestFeedEvent {
+	kind: 'session_completed' | 'availability_declared' | 'coachee_enrolled';
+	occurred_at: string;
+	user_id: string;
+	user_firstname: string;
+	user_lastname: string;
+	session_id?: string;
+	title?: string;
+	activity?: number;
+	origin?: string;
+	note?: string;
+	week_start?: string;
+}
+
+export function testFeedEvent(overrides: Partial<TestFeedEvent> = {}): TestFeedEvent {
+	return {
+		kind: 'session_completed',
+		occurred_at: isoDaysAgo(0),
+		user_id: 'user-42',
+		user_firstname: 'Robin',
+		user_lastname: 'Slab',
+		session_id: 'session-1',
+		title: 'Endurance 4x4',
+		activity: 1,
+		origin: 'played',
+		...overrides
+	};
+}
+
+export interface TestCoachTodoSettings {
+	empty_week_day_of_week: number;
+	empty_week_hour: number;
+	empty_week_minute: number;
+}
+
+export function testCoachTodoSettings(
+	overrides: Partial<TestCoachTodoSettings> = {}
+): TestCoachTodoSettings {
+	return { empty_week_day_of_week: 4, empty_week_hour: 21, empty_week_minute: 0, ...overrides };
+}
+
+export interface TestCoachTodo {
+	pending_feedback: {
+		session_id: string;
+		user_id: string;
+		user_firstname: string;
+		user_lastname: string;
+		session_name: string;
+		session_date: string;
+		activity: number;
+		notes: string;
+	}[];
+	empty_weeks: {
+		program_id: string;
+		program_name: string;
+		user_id: string;
+		user_firstname: string;
+		user_lastname: string;
+		week_number: number;
+		week_start: string;
+	}[];
+	empty_week_check: {
+		day_of_week: number;
+		hour: number;
+		minute: number;
+		reached: boolean;
+		week_start: string;
+	};
+	pending_feedback_total: number;
+	sessions_this_week: number;
+}
+
+export function testCoachTodo(overrides: Partial<TestCoachTodo> = {}): TestCoachTodo {
+	return {
+		pending_feedback: [],
+		empty_weeks: [],
+		empty_week_check: {
+			day_of_week: 4,
+			hour: 21,
+			minute: 0,
+			reached: true,
+			week_start: mondayDaysAgo(-7)
+		},
+		pending_feedback_total: 0,
+		sessions_this_week: 0,
+		...overrides
+	};
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mondayOf, toDateOnly } from './date';
+import { formatDayMonth, mondayOf, timeAgo, toDateOnly } from './date';
 
 describe('toDateOnly', () => {
 	it('keeps the calendar day a local Date is on', () => {
@@ -44,5 +44,51 @@ describe('mondayOf', () => {
 		// The Date constructor counts from Sunday, so this is the case that
 		// needs the special branch.
 		expect(mondayOf('2026-01-11')).toBe('2026-01-05');
+	});
+});
+
+describe('timeAgo', () => {
+	const now = new Date('2026-06-10T12:00:00Z');
+
+	it('calls the last minute just now', () => {
+		expect(timeAgo('2026-06-10T11:59:30Z', now)).toBe('just now');
+	});
+
+	it('counts minutes then hours inside the day', () => {
+		expect(timeAgo('2026-06-10T11:20:00Z', now)).toBe('40m ago');
+		expect(timeAgo('2026-06-10T05:00:00Z', now)).toBe('7h ago');
+	});
+
+	it('names yesterday and the days under a week', () => {
+		expect(timeAgo('2026-06-09T10:00:00Z', now)).toBe('yesterday');
+		expect(timeAgo('2026-06-07T10:00:00Z', now)).toBe('3 days ago');
+	});
+
+	it('falls back to the date once a week has passed', () => {
+		expect(timeAgo('2026-05-30T10:00:00Z', now)).toBe('30 May');
+	});
+
+	it('does not report a negative age for a session dated ahead', () => {
+		// A coachee can log a session with tomorrow's date, and "-1 days ago"
+		// would be the result of subtracting without this guard.
+		expect(timeAgo('2026-06-11T12:00:00Z', now)).toBe('just now');
+	});
+});
+
+describe('formatDayMonth', () => {
+	const now = new Date('2026-06-10T12:00:00Z');
+
+	it('leaves the year out inside the year being read from', () => {
+		expect(formatDayMonth('2026-05-30T10:00:00Z', now)).toBe('30 May');
+	});
+
+	it('names the year once the date is not in it', () => {
+		// Paging back through the feed reaches events older than a year, and
+		// "30 May" alone does not say which May.
+		expect(formatDayMonth('2025-05-30T10:00:00Z', now)).toBe('30 May 2025');
+	});
+
+	it('is what timeAgo falls back to past a week', () => {
+		expect(timeAgo('2025-05-30T10:00:00Z', now)).toBe('30 May 2025');
 	});
 });
