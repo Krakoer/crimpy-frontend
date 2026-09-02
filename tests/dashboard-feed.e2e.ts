@@ -115,6 +115,7 @@ test('lists what the coach still owes, and counts it', async ({ page }) => {
 			pending_feedback_total: 1,
 			empty_weeks: [
 				{
+					scope: 'next' as const,
 					program_id: 'program-3',
 					program_name: 'Winter block',
 					user_id: 'user-42',
@@ -134,8 +135,83 @@ test('lists what the coach still owes, and counts it', async ({ page }) => {
 	await expect(page.getByText('Waiting on your answer')).toBeVisible();
 	await expect(page.getByText('the last set was brutal')).toBeVisible();
 	await expect(page.getByText('Weeks left to program')).toBeVisible();
-	await expect(page.getByText(/Winter block - week 5/)).toBeVisible();
+	await expect(page.getByText(/Winter block - week 5 starts/)).toBeVisible();
 	await expect(page.getByText('This week').locator('..')).toContainText('6');
+});
+
+test('groups a current week nobody programmed apart from the one still to come', async ({
+	page
+}) => {
+	await stub(page, 'GET', '/api/coach/feed', { body: [] });
+	await stub(page, 'GET', '/api/coach/todo', {
+		body: testCoachTodo({
+			empty_weeks: [
+				{
+					scope: 'current' as const,
+					program_id: 'program-3',
+					program_name: 'Winter block',
+					user_id: 'user-42',
+					user_firstname: 'Robin',
+					user_lastname: 'Slab',
+					week_number: 5,
+					week_start: mondayDaysAgo(0)
+				},
+				{
+					scope: 'next' as const,
+					program_id: 'program-4',
+					program_name: 'Power block',
+					user_id: 'user-43',
+					user_firstname: 'Sam',
+					user_lastname: 'Jug',
+					week_number: 2,
+					week_start: mondayDaysAgo(-7)
+				}
+			]
+		})
+	});
+
+	await page.goto('/dashboard');
+
+	await expect(page.getByText('Being trained with nothing programmed')).toBeVisible();
+	await expect(page.getByText('Winter block - week 5, this week')).toBeVisible();
+	await expect(page.getByText('Weeks left to program')).toBeVisible();
+	await expect(page.getByText(/Power block - week 2 starts/)).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'To do' }).locator('..')).toContainText('2');
+});
+
+test('lists a current week even before the empty week check is due', async ({ page }) => {
+	// The athlete is training it right now, so holding it back until the coach's
+	// weekly moment is how a missed window loses the reminder for good.
+	await stub(page, 'GET', '/api/coach/feed', { body: [] });
+	await stub(page, 'GET', '/api/coach/todo', {
+		body: testCoachTodo({
+			empty_weeks: [
+				{
+					scope: 'current' as const,
+					program_id: 'program-3',
+					program_name: 'Winter block',
+					user_id: 'user-42',
+					user_firstname: 'Robin',
+					user_lastname: 'Slab',
+					week_number: 5,
+					week_start: mondayDaysAgo(0)
+				}
+			],
+			empty_week_check: {
+				day_of_week: 4,
+				hour: 21,
+				minute: 0,
+				reached: false,
+				week_start: mondayDaysAgo(-7)
+			}
+		})
+	});
+
+	await page.goto('/dashboard');
+
+	await expect(page.getByText('Winter block - week 5, this week')).toBeVisible();
+	await expect(page.getByText('Nothing waiting on you.')).toHaveCount(0);
+	await expect(page.getByText(/are listed from Friday at 21:00/)).toBeVisible();
 });
 
 test('caps each group and says how many are left over', async ({ page }) => {
@@ -234,6 +310,7 @@ test('opens the program of an unprogrammed week', async ({ page }) => {
 		body: testCoachTodo({
 			empty_weeks: [
 				{
+					scope: 'next' as const,
 					program_id: 'program-3',
 					program_name: 'Winter block',
 					user_id: 'user-42',

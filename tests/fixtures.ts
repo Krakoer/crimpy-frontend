@@ -733,6 +733,7 @@ export interface TestCoachTodo {
 		notes: string;
 	}[];
 	empty_weeks: {
+		scope: 'current' | 'next';
 		program_id: string;
 		program_name: string;
 		user_id: string;
