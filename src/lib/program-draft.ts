@@ -248,6 +248,19 @@ export function restoreWeekSessions(drafts: WeekDrafts, snapshot: WeekSessionsSn
 // counts in.
 export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+// The same days spelled out, for the places a column header is not the frame.
+// Indexed by the same 0-6 day_of_week, so the Monday first convention lives in
+// one file rather than being restated wherever a weekday is named.
+export const DAY_LABELS_LONG = [
+	'Monday',
+	'Tuesday',
+	'Wednesday',
+	'Thursday',
+	'Friday',
+	'Saturday',
+	'Sunday'
+];
+
 // Which cell of the week holds a session, in the words the grid column uses.
 export function sessionPlacement(draft: WeekDraft, sessionID: string): string {
 	for (let day = 0; day < 7; day++) {

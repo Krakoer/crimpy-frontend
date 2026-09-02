@@ -15,7 +15,8 @@ import {
 	testSession,
 	testSessionDetail,
 	testTraining,
-	testUser
+	testUser,
+	testWeekAvailability
 } from './fixtures';
 
 const PROGRAM_URL = '/coachees/coachee-1/programs/program-1';
@@ -29,6 +30,9 @@ async function stubProgram(page: Page, program = testProgram()): Promise<void> {
 	// The editor reads what the athlete played beside the program. A test that
 	// cares about those rows registers its own stub on top of this one.
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
+	// The editor also reads when the athlete said they can train. A test that
+	// cares about that row registers its own stub on top of this one.
+	await stub(page, 'GET', '/api/coach/clients/*/availability', { body: [] });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -51,7 +55,13 @@ test('shows the program with a row per week', async ({ page }) => {
 test('lays the week grid out on one row, with the columns the day header names', async ({
 	page
 }) => {
-	await stubProgram(page);
+	const program = testProgram();
+	await stubProgram(page, program);
+	// The availability row is one of the grids checked below, and a week that is
+	// over only carries it once the athlete has declared something.
+	await stub(page, 'GET', '/api/coach/clients/*/availability', {
+		body: [testWeekAvailability(program.start_date, { 1: { is_available: true } })]
+	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
 		body: [
 			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
@@ -82,6 +92,7 @@ test('lays the week grid out on one row, with the columns the day header names',
 		const grids = [
 			gridOf(document.querySelector('[title*="Flexible"]')),
 			document.querySelector<HTMLElement>('[data-testid="performed:1"]'),
+			document.querySelector<HTMLElement>('[data-testid="availability:1"]'),
 			gridOf(document.querySelector('[data-testid="cell:1:1"]'))
 		];
 		return grids.map((grid) => {
@@ -104,6 +115,88 @@ test('lays the week grid out on one row, with the columns the day header names',
 		// was a whole pixel, from the header being two pixels wider than the card.
 		grid.forEach((edge, column) => expect(Math.abs(edge - dayHeader[column])).toBeLessThan(0.1));
 	}
+});
+
+test('shows what the athlete said they can train, under the days it is about', async ({ page }) => {
+	const program = testProgram();
+	await stubProgram(page, program);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	// Week 1 of a program runs from its start date, which is always a Monday.
+	await stub(page, 'GET', '/api/coach/clients/*/availability', {
+		body: [
+			testWeekAvailability(program.start_date, {
+				1: { is_available: true, duration_minutes: 90, note: 'gym after work' },
+				4: { is_available: true }
+			})
+		]
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTestId('availability:1')).toContainText('2 days');
+	await expect(page.getByTestId('availability:1:1')).toContainText('1h 30m');
+	await expect(page.getByTestId('availability:1:1')).toContainText('gym after work');
+	// A day with no duration is still available, and says so without a number.
+	await expect(page.getByTestId('availability:1:4')).toContainText('Free');
+	await expect(page.getByTestId('availability:1:0')).not.toContainText('Free');
+});
+
+test('a week the athlete never declared says so, and a failed read says something else', async ({
+	page
+}) => {
+	// Week 1 has to be a week the athlete could still declare, since one that is
+	// over drops the row rather than saying "has not said" forever. It is then
+	// the NOW week, which the editor opens by itself, so nothing is clicked here.
+	await stubProgram(page, testProgram({ start_date: mondayDaysAgo(0) }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByTestId('availability:1')).toContainText(
+		'has not said when they can train'
+	);
+
+	// A read that failed is not a coachee who declared nothing: a coach about to
+	// build the week on that silence has to be told which one it is.
+	await stub(page, 'GET', '/api/coach/clients/*/availability', { status: 500, body: {} });
+	await page.reload();
+	await expect(page.getByTestId('availability:1')).toContainText('could not be loaded');
+});
+
+test('drops the availability row on a week that is over and was never declared', async ({
+	page
+}) => {
+	// An athlete only ever declares the week ahead, so a program's whole
+	// scroll-back would otherwise carry "has not said when they can train".
+	await stubProgram(page, testProgram({ start_date: mondayDaysAgo(14) }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTestId('performed:1')).toBeVisible();
+	await expect(page.getByTestId('availability:1')).toHaveCount(0);
 });
 
 test('breadcrumbs back to the coachee', async ({ page }) => {
