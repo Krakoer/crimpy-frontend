@@ -164,12 +164,12 @@
 			<div
 				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
 			>
-				Being trained with nothing programmed
+				Not programmed this week
 			</div>
 			{#each shownCurrentWeeks as week (week.program_id)}
 				{@render emptyWeekRow(
 					week,
-					`week ${week.week_number}, this week`,
+					`week ${week.week_number} started ${formatDate(`${week.week_start}T00:00:00`)}`,
 					'var(--pr)',
 					'var(--pr-lt)'
 				)}

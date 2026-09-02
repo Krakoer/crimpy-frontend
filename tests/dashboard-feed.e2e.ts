@@ -172,8 +172,8 @@ test('groups a current week nobody programmed apart from the one still to come',
 
 	await page.goto('/dashboard');
 
-	await expect(page.getByText('Being trained with nothing programmed')).toBeVisible();
-	await expect(page.getByText('Winter block - week 5, this week')).toBeVisible();
+	await expect(page.getByText('Not programmed this week')).toBeVisible();
+	await expect(page.getByText(/Winter block - week 5 started/)).toBeVisible();
 	await expect(page.getByText('Weeks left to program')).toBeVisible();
 	await expect(page.getByText(/Power block - week 2 starts/)).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'To do' }).locator('..')).toContainText('2');
@@ -209,7 +209,7 @@ test('lists a current week even before the empty week check is due', async ({ pa
 
 	await page.goto('/dashboard');
 
-	await expect(page.getByText('Winter block - week 5, this week')).toBeVisible();
+	await expect(page.getByText(/Winter block - week 5 started/)).toBeVisible();
 	await expect(page.getByText('Nothing waiting on you.')).toHaveCount(0);
 	await expect(page.getByText(/are listed from Friday at 21:00/)).toBeVisible();
 });
