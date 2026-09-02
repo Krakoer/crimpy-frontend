@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { type CoachTodo } from '$lib/api/client';
+	import { formatDayMonth } from '$lib/date';
 	import { DAY_LABELS_LONG } from '$lib/program-draft';
 	import { sessionActivityInfo } from '$lib/sessions';
 	import Icon from '$lib/components/Icon.svelte';
@@ -13,14 +14,16 @@
 		failed = false
 	}: { todo: CoachTodo | null; loading?: boolean; failed?: boolean } = $props();
 
-	const count = $derived(todo ? todo.pending_feedback.length + todo.empty_weeks.length : 0);
+	// pending_feedback is capped by the API, so the badge counts the total it
+	// reports rather than the rows that came back.
+	const count = $derived(todo ? todo.pending_feedback_total + todo.empty_weeks.length : 0);
 
 	// A coach who has let the answers pile up would otherwise push everything
 	// under this panel off the screen. The badge still counts them all.
 	const SHOWN_PER_GROUP = 5;
 	const shownFeedback = $derived(todo?.pending_feedback.slice(0, SHOWN_PER_GROUP) ?? []);
 	const shownEmptyWeeks = $derived(todo?.empty_weeks.slice(0, SHOWN_PER_GROUP) ?? []);
-	const hiddenFeedback = $derived((todo?.pending_feedback.length ?? 0) - shownFeedback.length);
+	const hiddenFeedback = $derived((todo?.pending_feedback_total ?? 0) - shownFeedback.length);
 	const hiddenEmptyWeeks = $derived((todo?.empty_weeks.length ?? 0) - shownEmptyWeeks.length);
 
 	const checkMoment = $derived.by(() => {
@@ -30,9 +33,7 @@
 		return `${DAY_LABELS_LONG[check.day_of_week]} at ${time}`;
 	});
 
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-	}
+	const formatDate = formatDayMonth;
 </script>
 
 <div

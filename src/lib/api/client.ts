@@ -610,6 +610,9 @@ export interface CoachTodo {
 	pending_feedback: PendingFeedback[];
 	empty_weeks: EmptyProgramWeek[];
 	empty_week_check: EmptyWeekCheck;
+	/** Every session waiting on an answer, which is more than pending_feedback
+	 *  holds once the API's cap is reached. */
+	pending_feedback_total: number;
 	sessions_this_week: number;
 }
 

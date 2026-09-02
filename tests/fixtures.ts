@@ -276,6 +276,12 @@ export function isoDaysAgo(days: number): string {
 	return date.toISOString();
 }
 
+/** Hours rather than days, for feed fixtures that have to be ordered inside one
+ *  day. setDate truncates, so isoDaysAgo(1 / 24) is not an hour ago. */
+export function isoHoursAgo(hours: number): string {
+	return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
 export interface TestCoach {
 	id: string;
 	email: string;
@@ -742,6 +748,7 @@ export interface TestCoachTodo {
 		reached: boolean;
 		week_start: string;
 	};
+	pending_feedback_total: number;
 	sessions_this_week: number;
 }
 
@@ -756,6 +763,7 @@ export function testCoachTodo(overrides: Partial<TestCoachTodo> = {}): TestCoach
 			reached: true,
 			week_start: mondayDaysAgo(-7)
 		},
+		pending_feedback_total: 0,
 		sessions_this_week: 0,
 		...overrides
 	};

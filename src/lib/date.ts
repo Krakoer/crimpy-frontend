@@ -42,5 +42,16 @@ export function timeAgo(iso: string, now: Date = new Date()): string {
 	const days = Math.floor(elapsed / DAY_MS);
 	if (days === 1) return 'yesterday';
 	if (days < 7) return `${days} days ago`;
-	return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+	return formatDayMonth(iso, now);
+}
+
+/** A day and month, carrying the year only once the date is not in the year
+ *  being read from, since "30 May" says nothing about which May it was. */
+export function formatDayMonth(iso: string, now: Date = new Date()): string {
+	const date = new Date(iso);
+	return date.toLocaleDateString('en-GB', {
+		day: 'numeric',
+		month: 'short',
+		year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric'
+	});
 }

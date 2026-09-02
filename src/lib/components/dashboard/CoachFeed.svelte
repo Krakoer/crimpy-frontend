@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient, type FeedEvent } from '$lib/api/client';
-	import { timeAgo } from '$lib/date';
+	import { formatDayMonth, timeAgo } from '$lib/date';
+	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { sessionActivityInfo } from '$lib/sessions';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -34,7 +35,10 @@
 			events = [...events, ...next];
 			reachedEnd = next.length < PAGE_SIZE;
 		} catch {
-			failed = true;
+			// The panel already shows a page, so the empty state below cannot
+			// carry this: without the snackbar the button just springs back and
+			// the coach clicks it again.
+			snackbar.show('Could not load older activity', 'error');
 		} finally {
 			loadingMore = false;
 		}
@@ -67,11 +71,7 @@
 	}
 
 	function formatWeek(weekStart?: string): string {
-		if (!weekStart) return '';
-		return new Date(`${weekStart}T00:00:00`).toLocaleDateString('en-GB', {
-			day: 'numeric',
-			month: 'short'
-		});
+		return weekStart ? formatDayMonth(`${weekStart}T00:00:00`) : '';
 	}
 </script>
 

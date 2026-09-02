@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mondayOf, timeAgo, toDateOnly } from './date';
+import { formatDayMonth, mondayOf, timeAgo, toDateOnly } from './date';
 
 describe('toDateOnly', () => {
 	it('keeps the calendar day a local Date is on', () => {
@@ -72,5 +72,23 @@ describe('timeAgo', () => {
 		// A coachee can log a session with tomorrow's date, and "-1 days ago"
 		// would be the result of subtracting without this guard.
 		expect(timeAgo('2026-06-11T12:00:00Z', now)).toBe('just now');
+	});
+});
+
+describe('formatDayMonth', () => {
+	const now = new Date('2026-06-10T12:00:00Z');
+
+	it('leaves the year out inside the year being read from', () => {
+		expect(formatDayMonth('2026-05-30T10:00:00Z', now)).toBe('30 May');
+	});
+
+	it('names the year once the date is not in it', () => {
+		// Paging back through the feed reaches events older than a year, and
+		// "30 May" alone does not say which May.
+		expect(formatDayMonth('2025-05-30T10:00:00Z', now)).toBe('30 May 2025');
+	});
+
+	it('is what timeAgo falls back to past a week', () => {
+		expect(timeAgo('2025-05-30T10:00:00Z', now)).toBe('30 May 2025');
 	});
 });
