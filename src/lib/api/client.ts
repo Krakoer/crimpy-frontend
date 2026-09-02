@@ -559,6 +559,66 @@ export interface AvailabilityReminder {
 	minute: number;
 }
 
+/** One thing a coachee did, derived by the API from what it already stores
+ *  rather than from an event log, so the feed reaches back over old data. */
+export interface FeedEvent {
+	kind: 'session_completed' | 'availability_declared' | 'coachee_enrolled';
+	occurred_at: string;
+	user_id: string;
+	user_firstname: string;
+	user_lastname: string;
+	session_id?: string;
+	title?: string;
+	activity?: number;
+	origin?: string;
+	note?: string;
+	week_start?: string;
+}
+
+export interface PendingFeedback {
+	session_id: string;
+	user_id: string;
+	user_firstname: string;
+	user_lastname: string;
+	session_name: string;
+	session_date: string;
+	activity: number;
+	notes: string;
+}
+
+export interface EmptyProgramWeek {
+	program_id: string;
+	program_name: string;
+	user_id: string;
+	user_firstname: string;
+	user_lastname: string;
+	week_number: number;
+	week_start: string;
+}
+
+/** When the empty week list is due, so an empty list can say whether nothing is
+ *  missing or the moment the coach chose has not come round yet. */
+export interface EmptyWeekCheck {
+	day_of_week: number;
+	hour: number;
+	minute: number;
+	reached: boolean;
+	week_start: string;
+}
+
+export interface CoachTodo {
+	pending_feedback: PendingFeedback[];
+	empty_weeks: EmptyProgramWeek[];
+	empty_week_check: EmptyWeekCheck;
+	sessions_this_week: number;
+}
+
+export interface CoachTodoSettings {
+	empty_week_day_of_week: number;
+	empty_week_hour: number;
+	empty_week_minute: number;
+}
+
 /** An API failure that still knows its status, so a caller can tell a 404 that
  *  means "there is none" from a failure that means "we could not read it". */
 export class ApiError extends Error {
@@ -1016,6 +1076,33 @@ class ApiClient {
 			`/api/coach/clients/${userId}/programs/${programId}/weeks/${weekNumber}`,
 			{ method: 'PUT', body: JSON.stringify(data) }
 		);
+	}
+
+	async getCoachFeed(params?: { limit?: number; before?: string }): Promise<FeedEvent[]> {
+		const query = new URLSearchParams();
+		if (params?.limit !== undefined) query.set('limit', String(params.limit));
+		if (params?.before) query.set('before', params.before);
+		const qs = query.toString();
+		return this.requestList<FeedEvent>(`/api/coach/feed${qs ? '?' + qs : ''}`);
+	}
+
+	// The moment a coach picked for their empty week check is a wall clock time
+	// in their own week, which the server cannot place without being told the
+	// offset the browser is on.
+	async getCoachTodo(): Promise<CoachTodo> {
+		const offset = -new Date().getTimezoneOffset();
+		return this.request<CoachTodo>(`/api/coach/todo?tz_offset_minutes=${offset}`);
+	}
+
+	async getCoachTodoSettings(): Promise<CoachTodoSettings> {
+		return this.request<CoachTodoSettings>('/api/coach/todo-settings');
+	}
+
+	async setCoachTodoSettings(data: CoachTodoSettings): Promise<CoachTodoSettings> {
+		return this.request<CoachTodoSettings>('/api/coach/todo-settings', {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
 	}
 
 	async getClientAvailability(userId: string): Promise<WeekAvailability[]> {
