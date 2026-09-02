@@ -215,7 +215,8 @@
 						</div>
 						<p style="font-size: 13px; color: var(--tx2); margin-bottom: 6px;">
 							From this moment each week, every program whose next week still holds no session is
-							listed in the to do panel on your dashboard.
+							listed in the to do panel on your dashboard. A week already being trained is listed
+							there whatever the moment says.
 						</p>
 						<p style="font-size: 12px; color: var(--tx3); margin-bottom: 18px;">
 							Read on your own clock, so it comes round at the hour you set wherever you are.

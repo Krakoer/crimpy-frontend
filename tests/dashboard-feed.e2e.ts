@@ -240,6 +240,48 @@ test('caps each group and says how many are left over', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'To do' }).locator('..')).toContainText('8');
 });
 
+test('caps each empty week group on its own count', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/feed', { body: [] });
+	await stub(page, 'GET', '/api/coach/todo', {
+		body: testCoachTodo({
+			empty_weeks: [
+				...Array.from({ length: 6 }, (_, index) => ({
+					scope: 'current' as const,
+					program_id: `current-${index}`,
+					program_name: `Current block ${index}`,
+					user_id: 'user-42',
+					user_firstname: 'Robin',
+					user_lastname: 'Slab',
+					week_number: 5,
+					week_start: mondayDaysAgo(0)
+				})),
+				...Array.from({ length: 7 }, (_, index) => ({
+					scope: 'next' as const,
+					program_id: `next-${index}`,
+					program_name: `Next block ${index}`,
+					user_id: 'user-43',
+					user_firstname: 'Sam',
+					user_lastname: 'Jug',
+					week_number: 2,
+					week_start: mondayDaysAgo(-7)
+				}))
+			]
+		})
+	});
+
+	await page.goto('/dashboard');
+
+	// Each group shows five and counts only its own leftovers, so a counter
+	// wired to the other group would read 2 or 1 in the wrong place.
+	await expect(page.getByText('Current block 4')).toBeVisible();
+	await expect(page.getByText('Current block 5')).toHaveCount(0);
+	await expect(page.getByText('Next block 4')).toBeVisible();
+	await expect(page.getByText('Next block 5')).toHaveCount(0);
+	await expect(page.getByText('and 1 more')).toBeVisible();
+	await expect(page.getByText('and 2 more')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'To do' }).locator('..')).toContainText('13');
+});
+
 test('counts the answers the API capped out of the list', async ({ page }) => {
 	// The API returns at most 50 rows. Counting the rows would freeze the badge
 	// at the cap and understate what is actually waiting.

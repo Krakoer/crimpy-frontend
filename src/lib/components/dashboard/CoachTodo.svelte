@@ -28,7 +28,10 @@
 	// has not started, and the API never holds it back, so the two are their own
 	// groups rather than one list.
 	const currentWeeks = $derived(todo?.empty_weeks.filter((w) => w.scope === 'current') ?? []);
-	const nextWeeks = $derived(todo?.empty_weeks.filter((w) => w.scope === 'next') ?? []);
+	// Anything not scoped to the current week falls in here, so an API that does
+	// not send a scope yet degrades to the single list this panel used to show
+	// rather than to a badge counting rows nothing renders.
+	const nextWeeks = $derived(todo?.empty_weeks.filter((w) => w.scope !== 'current') ?? []);
 	const shownCurrentWeeks = $derived(currentWeeks.slice(0, SHOWN_PER_GROUP));
 	const shownNextWeeks = $derived(nextWeeks.slice(0, SHOWN_PER_GROUP));
 	const hiddenCurrentWeeks = $derived(currentWeeks.length - shownCurrentWeeks.length);
@@ -212,8 +215,9 @@
 			<div
 				style="padding: 10px 20px 14px; border-top: 1px solid var(--bd2); font-size: 11.5px; color: var(--tx3);"
 			>
-				Programs with an empty week of {formatDate(`${todo.empty_week_check.week_start}T00:00:00`)}
-				are listed from {checkMoment}.
+				Programs whose week of {formatDate(`${todo.empty_week_check.week_start}T00:00:00`)} holds no session
+				are listed from {checkMoment}. A week already being trained is listed whatever the moment
+				says.
 			</div>
 		{/if}
 	{/if}
