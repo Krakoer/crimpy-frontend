@@ -136,6 +136,31 @@ test('lists what the coach still owes, and counts it', async ({ page }) => {
 	await expect(page.getByText('This week').locator('..')).toContainText('6');
 });
 
+test('caps each group and says how many are left over', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/feed', { body: [] });
+	await stub(page, 'GET', '/api/coach/todo', {
+		body: testCoachTodo({
+			pending_feedback: Array.from({ length: 8 }, (_, index) => ({
+				session_id: `session-${index}`,
+				user_id: 'user-42',
+				user_firstname: 'Robin',
+				user_lastname: 'Slab',
+				session_name: `Repeaters ${index}`,
+				session_date: isoDaysAgo(index),
+				activity: 0,
+				notes: `note ${index}`
+			}))
+		})
+	});
+
+	await page.goto('/dashboard');
+
+	await expect(page.getByText('note 4')).toBeVisible();
+	await expect(page.getByText('note 5')).toHaveCount(0);
+	await expect(page.getByText('and 3 more')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'To do' }).locator('..')).toContainText('8');
+});
+
 test('opens the program of an unprogrammed week', async ({ page }) => {
 	await stub(page, 'GET', '/api/coach/feed', { body: [] });
 	await stub(page, 'GET', '/api/coach/todo', {

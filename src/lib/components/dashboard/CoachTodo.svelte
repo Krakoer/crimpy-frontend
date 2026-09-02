@@ -15,6 +15,14 @@
 
 	const count = $derived(todo ? todo.pending_feedback.length + todo.empty_weeks.length : 0);
 
+	// A coach who has let the answers pile up would otherwise push everything
+	// under this panel off the screen. The badge still counts them all.
+	const SHOWN_PER_GROUP = 5;
+	const shownFeedback = $derived(todo?.pending_feedback.slice(0, SHOWN_PER_GROUP) ?? []);
+	const shownEmptyWeeks = $derived(todo?.empty_weeks.slice(0, SHOWN_PER_GROUP) ?? []);
+	const hiddenFeedback = $derived((todo?.pending_feedback.length ?? 0) - shownFeedback.length);
+	const hiddenEmptyWeeks = $derived((todo?.empty_weeks.length ?? 0) - shownEmptyWeeks.length);
+
 	const checkMoment = $derived.by(() => {
 		const check = todo?.empty_week_check;
 		if (!check) return '';
@@ -63,7 +71,7 @@
 			>
 				Waiting on your answer
 			</div>
-			{#each todo.pending_feedback as item (item.session_id)}
+			{#each shownFeedback as item (item.session_id)}
 				{@const activity = sessionActivityInfo(item.activity)}
 				<button
 					onclick={() => goto(`/coachees/${item.user_id}`)}
@@ -102,6 +110,11 @@
 					<Icon name="chevron" size={15} color="var(--tx3)" />
 				</button>
 			{/each}
+			{#if hiddenFeedback > 0}
+				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
+					and {hiddenFeedback} more
+				</div>
+			{/if}
 		{/if}
 
 		{#if todo.empty_weeks.length > 0}
@@ -110,7 +123,7 @@
 			>
 				Weeks left to program
 			</div>
-			{#each todo.empty_weeks as week (week.program_id)}
+			{#each shownEmptyWeeks as week (week.program_id)}
 				<button
 					onclick={() => goto(`/coachees/${week.user_id}/programs/${week.program_id}`)}
 					style="
@@ -145,6 +158,11 @@
 					<Icon name="chevron" size={15} color="var(--tx3)" />
 				</button>
 			{/each}
+			{#if hiddenEmptyWeeks > 0}
+				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
+					and {hiddenEmptyWeeks} more
+				</div>
+			{/if}
 		{/if}
 
 		{#if count === 0}
