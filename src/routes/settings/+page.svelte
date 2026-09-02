@@ -42,11 +42,14 @@
 	}
 
 	async function save() {
-		const [hour, minute] = time.split(':').map(Number);
-		if (Number.isNaN(hour) || Number.isNaN(minute)) {
+		// Checked on the raw value: an emptied field reads as '', which splits to
+		// [0] and carries no NaN to catch. The missing minute is then dropped by
+		// JSON.stringify and bound to 0 by the API, saving a midnight reminder.
+		if (!/^\d{2}:\d{2}/.test(time)) {
 			snackbar.show('Pick a time for the reminder', 'error');
 			return;
 		}
+		const [hour, minute] = time.split(':').map(Number);
 		saving = true;
 		try {
 			applyReminder(
