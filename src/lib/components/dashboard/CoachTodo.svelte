@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { type CoachTodo } from '$lib/api/client';
+	import { type CoachTodo, type EmptyProgramWeek } from '$lib/api/client';
 	import { formatDayMonth } from '$lib/date';
 	import { DAY_LABELS_LONG } from '$lib/program-draft';
 	import { sessionActivityInfo } from '$lib/sessions';
@@ -22,9 +22,20 @@
 	// under this panel off the screen. The badge still counts them all.
 	const SHOWN_PER_GROUP = 5;
 	const shownFeedback = $derived(todo?.pending_feedback.slice(0, SHOWN_PER_GROUP) ?? []);
-	const shownEmptyWeeks = $derived(todo?.empty_weeks.slice(0, SHOWN_PER_GROUP) ?? []);
 	const hiddenFeedback = $derived((todo?.pending_feedback_total ?? 0) - shownFeedback.length);
-	const hiddenEmptyWeeks = $derived((todo?.empty_weeks.length ?? 0) - shownEmptyWeeks.length);
+
+	// A week the athlete is already training reads as more urgent than one that
+	// has not started, and the API never holds it back, so the two are their own
+	// groups rather than one list.
+	const currentWeeks = $derived(todo?.empty_weeks.filter((w) => w.scope === 'current') ?? []);
+	// Anything not scoped to the current week falls in here, so an API that does
+	// not send a scope yet degrades to the single list this panel used to show
+	// rather than to a badge counting rows nothing renders.
+	const nextWeeks = $derived(todo?.empty_weeks.filter((w) => w.scope !== 'current') ?? []);
+	const shownCurrentWeeks = $derived(currentWeeks.slice(0, SHOWN_PER_GROUP));
+	const shownNextWeeks = $derived(nextWeeks.slice(0, SHOWN_PER_GROUP));
+	const hiddenCurrentWeeks = $derived(currentWeeks.length - shownCurrentWeeks.length);
+	const hiddenNextWeeks = $derived(nextWeeks.length - shownNextWeeks.length);
 
 	const checkMoment = $derived.by(() => {
 		const check = todo?.empty_week_check;
@@ -35,6 +46,40 @@
 
 	const formatDate = formatDayMonth;
 </script>
+
+{#snippet emptyWeekRow(week: EmptyProgramWeek, detail: string, color: string, tint: string)}
+	<button
+		onclick={() => goto(`/coachees/${week.user_id}/programs/${week.program_id}`)}
+		style="
+			display: flex; align-items: center; gap: 11px;
+			padding: 9px 16px 11px; width: 100%; text-align: left;
+			border: none; background: none; cursor: pointer; font-family: var(--font);
+		"
+	>
+		<div
+			style="
+				width: 28px; height: 28px; border-radius: var(--rs);
+				background: {tint};
+				display: flex; align-items: center; justify-content: center;
+				flex-shrink: 0;
+			"
+		>
+			<Icon name="calendar" size={14} {color} />
+		</div>
+		<div style="flex: 1; min-width: 0;">
+			<div style="font-size: 12.5px; color: var(--tx); font-weight: 600;">
+				{week.user_firstname}
+				{week.user_lastname}
+			</div>
+			<div
+				style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+			>
+				{week.program_name} - {detail}
+			</div>
+		</div>
+		<Icon name="chevron" size={15} color="var(--tx3)" />
+	</button>
+{/snippet}
 
 <div
 	style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
@@ -118,50 +163,44 @@
 			{/if}
 		{/if}
 
-		{#if todo.empty_weeks.length > 0}
+		{#if currentWeeks.length > 0}
+			<div
+				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
+			>
+				Not programmed this week
+			</div>
+			{#each shownCurrentWeeks as week (week.program_id)}
+				{@render emptyWeekRow(
+					week,
+					`week ${week.week_number} started ${formatDate(`${week.week_start}T00:00:00`)}`,
+					'var(--pr)',
+					'var(--pr-lt)'
+				)}
+			{/each}
+			{#if hiddenCurrentWeeks > 0}
+				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
+					and {hiddenCurrentWeeks} more
+				</div>
+			{/if}
+		{/if}
+
+		{#if nextWeeks.length > 0}
 			<div
 				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
 			>
 				Weeks left to program
 			</div>
-			{#each shownEmptyWeeks as week (week.program_id)}
-				<button
-					onclick={() => goto(`/coachees/${week.user_id}/programs/${week.program_id}`)}
-					style="
-						display: flex; align-items: center; gap: 11px;
-						padding: 9px 16px 11px; width: 100%; text-align: left;
-						border: none; background: none; cursor: pointer; font-family: var(--font);
-					"
-				>
-					<div
-						style="
-							width: 28px; height: 28px; border-radius: var(--rs);
-							background: var(--gd-lt);
-							display: flex; align-items: center; justify-content: center;
-							flex-shrink: 0;
-						"
-					>
-						<Icon name="calendar" size={14} color="var(--gd)" />
-					</div>
-					<div style="flex: 1; min-width: 0;">
-						<div style="font-size: 12.5px; color: var(--tx); font-weight: 600;">
-							{week.user_firstname}
-							{week.user_lastname}
-						</div>
-						<div
-							style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-						>
-							{week.program_name} - week {week.week_number} starts {formatDate(
-								`${week.week_start}T00:00:00`
-							)}
-						</div>
-					</div>
-					<Icon name="chevron" size={15} color="var(--tx3)" />
-				</button>
+			{#each shownNextWeeks as week (week.program_id)}
+				{@render emptyWeekRow(
+					week,
+					`week ${week.week_number} starts ${formatDate(`${week.week_start}T00:00:00`)}`,
+					'var(--gd)',
+					'var(--gd-lt)'
+				)}
 			{/each}
-			{#if hiddenEmptyWeeks > 0}
+			{#if hiddenNextWeeks > 0}
 				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
-					and {hiddenEmptyWeeks} more
+					and {hiddenNextWeeks} more
 				</div>
 			{/if}
 		{/if}
@@ -176,8 +215,9 @@
 			<div
 				style="padding: 10px 20px 14px; border-top: 1px solid var(--bd2); font-size: 11.5px; color: var(--tx3);"
 			>
-				Programs with an empty week of {formatDate(`${todo.empty_week_check.week_start}T00:00:00`)}
-				are listed from {checkMoment}.
+				Programs whose week of {formatDate(`${todo.empty_week_check.week_start}T00:00:00`)} holds no session
+				are listed from {checkMoment}. A week already being trained is listed whatever the moment
+				says.
 			</div>
 		{/if}
 	{/if}

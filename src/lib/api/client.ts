@@ -587,6 +587,9 @@ export interface PendingFeedback {
 }
 
 export interface EmptyProgramWeek {
+	/** Which week the item is about: the one being trained right now, listed
+	 *  whatever the moment says, or the one starting on the coming Monday. */
+	scope: 'current' | 'next';
 	program_id: string;
 	program_name: string;
 	user_id: string;
