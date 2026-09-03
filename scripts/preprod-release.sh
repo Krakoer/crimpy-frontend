@@ -50,4 +50,4 @@ git push origin origin/dev:refs/heads/main
 
 echo
 echo "main updated, the CI is building krakoer/crimpy-frontend:edge"
-echo "once it is green, redeploy the preproduction stack on the server"
+echo "once it is green, redeploy the stack from crimpy-backend with just preprod-up"
