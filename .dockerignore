@@ -25,6 +25,5 @@ coverage
 .eslintcache
 .prettierignore
 .editorconfig
-docker-compose.yml
 Dockerfile
 .dockerignore

@@ -47,6 +47,10 @@ Releases are cut from `dev`, with `main` acting as the promoted branch. Pushing
 `main` publishes `krakoer/crimpy-frontend:edge`, which preproduction runs;
 pushing a `vX.Y.Z` tag publishes `:vX.Y.Z` and `:latest`, which production runs.
 
+The compose files that deploy this image live in the crimpy-backend repository,
+which describes the whole stack in one place. Nothing here is deployed on its
+own.
+
 ```sh
 # Fast-forward main to dev, which publishes :edge, then validate dev.crimpy.app
 just preprod-release
@@ -55,11 +59,10 @@ just preprod-release
 just prod-release patch    # or minor, major, or an explicit 1.4.0
 ```
 
-The stack selects the api, the migrate job and this frontend from one shared
-`VERSION`, and the two repos are tagged on their own numbers, so `VERSION=vX.Y.Z`
-only resolves when crimpy-backend carries the same tag. When it does not, leave
-`VERSION` unset and let the stack take `:latest`, which a tag build publishes in
-both repos. Krakoer/crimpy#56 tracks splitting that variable per image.
+The stack selects this image with `FRONTEND_VERSION` in `.env.prod`, separate
+from the `API_VERSION` that drives crimpy-api and crimpy-migrate, so the two
+repos are promoted and rolled back independently. Leave it unset to take the
+compose default, `latest` in production and `edge` in preproduction.
 
 `prod-release` refuses to run until `main` and `dev` match, so a version can
 only be tagged once preproduction has actually run it. The version comes from
