@@ -1742,12 +1742,25 @@ test.describe('reordering root blocks', () => {
 		expect(items.map((item) => item.group_title)).toEqual(['Cooldown', 'Warmup']);
 	});
 
-	// dnd-kit's keyboard sensor drives the same move the pointer one does, and it
-	// is the only way to reorder without a mouse. It reaches the block because the
-	// drag handle is a focusable button. Two exercises rather than two groups: a
+	/** Tab until the drag handle has focus, answering whether it is reachable. */
+	async function tabToDragHandle(page: Page): Promise<boolean> {
+		for (let step = 0; step < 60; step++) {
+			await page.keyboard.press('Tab');
+			const reached = await page.evaluate(
+				() => document.activeElement?.getAttribute('aria-label') === 'Drag to reorder'
+			);
+			if (reached) return true;
+		}
+		return false;
+	}
+
+	// The handle is the only way to pick a block up, so it has to be reachable by
+	// tab rather than merely focusable from a script: it used to carry
+	// tabindex="-1", which is focusable but skipped by the tab order, so focusing
+	// it directly would pass either way. Two exercises rather than two groups: a
 	// container swallows anything dragged over its body, keyboard or not, and the
-	// keys move straight down the middle of it.
-	test('moves a block down from the keyboard', async ({ page }) => {
+	// keys travel straight down the middle of it.
+	test('reaches the drag handle by tabbing and moves the block down', async ({ page }) => {
 		const exerciseBlock = (id: string, reps: number) => ({
 			id,
 			type: 'exercise',
@@ -1767,7 +1780,7 @@ test.describe('reordering root blocks', () => {
 		await page.goto('/trainings/training-1');
 		await page.getByRole('button', { name: 'Edit' }).click();
 
-		await dragHandles(page).nth(0).focus();
+		expect(await tabToDragHandle(page)).toBe(true);
 		await page.keyboard.press('Space');
 		await page.keyboard.press('ArrowDown');
 		await page.keyboard.press('Space');
@@ -1836,6 +1849,35 @@ test.describe('reordering root blocks', () => {
 		const items = (posted[0].body as TrainingRequest).items;
 		expect(items.map((item) => item.type)).toEqual(['circuit']);
 		expect(items[0].items?.map((item) => item.type)).toEqual(['hangboard_rep']);
+	});
+
+	// The rail items are drag sources, and dnd-kit's keyboard sensor answers Enter
+	// and Space on a drag source by picking it up. Where the item also adds a
+	// block on click, that is what the two keys have to keep meaning, or the only
+	// way to use the rail without a pointer would be to drag from it.
+	test('adds a block when the rail item is activated from the keyboard', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Board session');
+		const rail = page.getByTestId('block-palette');
+		await rail.getByRole('button', { name: 'Circuit' }).focus();
+		await page.keyboard.press('Space');
+		await expect(page.getByText('1 blocks')).toBeVisible();
+
+		await rail.getByRole('button', { name: 'Group' }).focus();
+		await page.keyboard.press('Enter');
+		await expect(page.getByText('2 blocks')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+		await expect.poll(() => posted.length).toBe(1);
+		expect((posted[0].body as TrainingRequest).items?.map((item) => item.type)).toEqual([
+			'circuit',
+			'group'
+		]);
 	});
 
 	test('moves a block down in a training that has not been saved yet', async ({ page }) => {
