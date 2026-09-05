@@ -8,6 +8,7 @@ import {
 	targetInsertIndex,
 	type DropTarget
 } from '$lib/training-drag';
+import { createDragOverLatch } from '$lib/dnd-drag-over-latch';
 
 // Both training editors drive the same tree with the same three handlers, and a
 // guard that only half of them carried is a guard the other half is missing.
@@ -22,31 +23,25 @@ export function createTrainingDragHandlers(
 	onBlockCreated: (type: TrainingItemType, exerciseId?: string) => void
 ): TrainingDragHandlers {
 	let itemsSnapshot: TrainingItem[] | null = null;
-	// The block only moves when the target under the pointer changes, and a block
-	// hovering itself is no change. Acting on every event instead made a hovered
-	// block swap back and forth: the swap slides the target out from under the
-	// pointer, the block itself takes its place, and the next event swaps it
-	// straight back. A pointer that leaves every target clears the latch, so
-	// coming back to a block moves it again.
-	let lastTargetId = '';
+	const latch = createDragOverLatch();
 
 	return {
 		onDragStart() {
-			lastTargetId = '';
-			itemsSnapshot = structuredClone($state.snapshot(draft().items) as TrainingItem[]);
+			latch.clear();
+			// $state.snapshot already hands back a copy detached from the reactive
+			// tree, which is the whole of what a revert needs.
+			itemsSnapshot = $state.snapshot(draft().items) as TrainingItem[];
 		},
 
 		onDragOver({ operation: { source, target } }) {
 			if (!source || !isSortable(source as never)) return;
 			if (!target) {
-				lastTargetId = '';
+				latch.clear();
 				return;
 			}
 
 			const sourceId = String((source as { id: string }).id);
-			const targetId = String((target as DropTarget).id);
-			if (targetId === sourceId || targetId === lastTargetId) return;
-			lastTargetId = targetId;
+			if (!latch.accepts(sourceId, String((target as DropTarget).id))) return;
 
 			applyDragOver(
 				draft().items,
