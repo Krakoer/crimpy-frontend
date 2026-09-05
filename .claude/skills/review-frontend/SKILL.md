@@ -93,9 +93,12 @@ established pattern rather than reinventing it:
   reverts from a snapshot. Use `isSortable(source)` to tell the two source kinds
   apart. Handlers live in `*-drag-handlers.svelte.ts`, not inline in a route.
 - Because the move runs on drag over, a week or a list the pointer merely crossed
-  has already been changed and flagged by the time the drag ends. Whatever
-  decides "was this really edited" has to be settled against the drag-start
-  snapshot, not accumulated per move.
+  has already been changed by the time the drag ends. Whatever decides "was this
+  really edited" compares what is held now against what was loaded or last
+  saved, the way the training editor's `savedSnapshot` and the program week's
+  `isWeekDirty` do. A flag set per edit is a finding: the gesture that undoes an
+  edit does not clear it, so a week put back as it was keeps claiming unsaved
+  work.
 - **`tabindex` on a drag activator is a finding.** dnd-kit sets `tabindex="0"`, a
   role and `aria-roledescription` on any activator that carries none, and that is
   what puts a drag within reach of a keyboard. A hand written `tabindex="-1"` on

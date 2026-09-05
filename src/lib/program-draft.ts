@@ -27,12 +27,17 @@ export type DaySession = DraftSession;
 export type FreqSession = DraftSession & { times_per_week: number };
 export type EverydaySession = DraftSession;
 
+// savedSnapshot is what the week held when it was last read from the server or
+// written back to it. Whether the week has unsaved changes is answered by
+// comparing it to what the week holds now, rather than by a flag the edits set:
+// a flag set by one gesture and never cleared by the one that undid it makes a
+// week nobody changed claim unsaved work.
 export type WeekDraft = {
 	notes: string;
 	days: DaySession[][];
 	freqSessions: FreqSession[];
 	everydaySessions: EverydaySession[];
-	dirty: boolean;
+	savedSnapshot: string;
 	saving: boolean;
 	saveError: string;
 	deleteConfirm: boolean;
@@ -42,13 +47,96 @@ export type WeekDraft = {
 // The weeks the coach has opened, by week number.
 export type WeekDrafts = Record<number, WeekDraft>;
 
+// What a week would be saved as, which is what having unsaved changes comes
+// down to: a week that would write the rows and the notes the server already
+// holds was not edited, whatever gestures it took to get back there.
+//
+// Two things make a plain JSON.stringify of a session wrong here. Its keys come
+// out in whatever order built it, and movedDraftSession rebuilds them in a
+// different order from the one a week read from the server used, so a session
+// that had merely been picked up and put back read as changed. And a session
+// that passed through the frequency cell keeps the times_per_week it was given
+// there, a field only the frequency column ever saves, so carrying it back to a
+// day cell read as changed too. Only the frequency column is asked for that
+// count.
+function sessionFingerprint(session: DraftSession, readsFrequency: boolean): unknown[] {
+	return [
+		session._id,
+		session.id ?? null,
+		session.originWn ?? null,
+		session.training_id,
+		session.notes ?? null,
+		session.locked ?? false,
+		readsFrequency ? (session.times_per_week ?? 1) : null,
+		overridesFingerprint(session.overrides)
+	];
+}
+
+// The same values whatever order their keys arrived in, and without the ones
+// JSON.stringify would drop anyway.
+function orderedValue(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(orderedValue);
+	if (value === null || typeof value !== 'object') return value;
+	return Object.entries(value as Record<string, unknown>)
+		.filter(([, entry]) => entry !== undefined)
+		.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+		.map(([key, entry]) => [key, orderedValue(entry)]);
+}
+
+// What the week asks of each item it customises. An override read from the
+// server carries the row id it was stored under and the key order the database
+// kept it in, while the parameters modal rebuilds it from the training item and
+// the fields the coach set: same request, different object. Only what is asked
+// for is fingerprinted, item by item, so re-applying a customisation without
+// touching it is not an edit.
+function overridesFingerprint(overrides: SessionOverride[]): unknown[] {
+	return [...overrides]
+		.sort((left, right) =>
+			left.item_id < right.item_id ? -1 : left.item_id > right.item_id ? 1 : 0
+		)
+		.map((override) => [override.item_id, orderedValue(override.overrides)]);
+}
+
+// What a week holds, apart from what it is doing about it.
+export type WeekContent = {
+	notes: string;
+	days: DaySession[][];
+	freqSessions: FreqSession[];
+	everydaySessions: EverydaySession[];
+};
+
+// The notes and the sessions, in the order that decides what the save writes.
+// The notes are trimmed the way the save trims them, so whitespace typed and
+// taken back out again is not a change.
+export function weekFingerprint(week: WeekContent): string {
+	return JSON.stringify([
+		week.notes.trim(),
+		week.days.map((day) => day.map((session) => sessionFingerprint(session, false))),
+		week.freqSessions.map((session) => sessionFingerprint(session, true)),
+		week.everydaySessions.map((session) => sessionFingerprint(session, false))
+	]);
+}
+
+// A week as the server last gave it, carrying the snapshot every later edit is
+// measured against. Used when a week is read and again when it is saved, since
+// the response is what the week holds from then on.
+export function savedWeek(content: WeekContent): WeekContent & { savedSnapshot: string } {
+	return { ...content, savedSnapshot: weekFingerprint(content) };
+}
+
+// Whether the week holds anything the server has not been told about.
+export function isWeekDirty(draft: WeekDraft): boolean {
+	return weekFingerprint(draft) !== draft.savedSnapshot;
+}
+
 export function emptyDraft(): WeekDraft {
 	return {
-		notes: '',
-		days: Array.from({ length: 7 }, () => []),
-		freqSessions: [],
-		everydaySessions: [],
-		dirty: false,
+		...savedWeek({
+			notes: '',
+			days: Array.from({ length: 7 }, () => []),
+			freqSessions: [],
+			everydaySessions: []
+		}),
 		saving: false,
 		saveError: '',
 		deleteConfirm: false,
@@ -195,30 +283,25 @@ export function moveSession(drafts: WeekDrafts, sessionId: string, drop: Session
 	if (from.sessions === target) {
 		if (drop.overSessionID === null) return;
 		const overIndex = target.findIndex((s) => s._id === drop.overSessionID);
-		// A session dropped on itself has not moved, so the week is left alone
-		// rather than flagged dirty over a drag that changed nothing.
 		if (overIndex === -1 || overIndex === from.index) return;
 		arrayMove(target, from.index, overIndex);
 	} else {
 		const [session] = from.sessions.splice(from.index, 1);
 		target.splice(Math.min(drop.index, target.length), 0, sessionForCell(session, drop.cell));
 	}
-
-	drafts[from.cell.wn].dirty = true;
-	drafts[drop.cell.wn].dirty = true;
 }
 
 // Only the session arrays are snapshotted, not the whole draft: a save that
-// lands mid-drag clears its own flags and restoring the draft wholesale would
-// bring them back. Such a save drops the snapshot outright, so a cancel after
-// it restores nothing rather than what the week held before the save.
+// lands mid-drag rebuilds the week from what the server returned, and restoring
+// the draft wholesale would put the pre-save arrays back on top of it. Such a
+// save drops the snapshot outright, so a cancel after it restores nothing
+// rather than what the week held before the save.
 export type WeekSessionsSnapshot = Record<
 	number,
 	{
 		days: DaySession[][];
 		freqSessions: FreqSession[];
 		everydaySessions: EverydaySession[];
-		dirty: boolean;
 	}
 >;
 
@@ -235,86 +318,16 @@ export function snapshotWeekSessions(drafts: WeekDrafts, clone: DeepClone): Week
 		snapshot[wn] = clone({
 			days: draft.days,
 			freqSessions: draft.freqSessions,
-			everydaySessions: draft.everydaySessions,
-			dirty: draft.dirty
+			everydaySessions: draft.everydaySessions
 		});
 	}
 	return snapshot;
 }
 
-// What a session would be saved as from the cell it currently sits in, listed
-// rather than serialised as an object.
-//
-// Two things make a plain JSON.stringify of the session wrong here. Its keys
-// come out in whatever order built it, and movedDraftSession rebuilds them in a
-// different order from the one weekDetailToDraft used, so a session that had
-// merely been picked up and put back read as changed. And a session that passed
-// through the frequency cell keeps the times_per_week it was given there, a
-// field only the frequency column ever saves, so carrying it back to a day cell
-// read as changed too. Only the frequency column is asked for that count.
-function sessionFingerprint(session: DraftSession, readsFrequency: boolean): unknown[] {
-	return [
-		session._id,
-		session.id ?? null,
-		session.originWn ?? null,
-		session.training_id,
-		session.notes ?? null,
-		session.locked ?? false,
-		readsFrequency ? (session.times_per_week ?? 1) : null,
-		session.overrides
-	];
-}
-
-// The sessions a week holds, in the order that decides what the save writes.
-function weekSessionsFingerprint(week: {
-	days: DaySession[][];
-	freqSessions: FreqSession[];
-	everydaySessions: EverydaySession[];
-}): string {
-	return JSON.stringify([
-		week.days.map((day) => day.map((session) => sessionFingerprint(session, false))),
-		week.freqSessions.map((session) => sessionFingerprint(session, true)),
-		week.everydaySessions.map((session) => sessionFingerprint(session, false))
-	]);
-}
-
-const EMPTY_WEEK_SESSIONS = {
-	days: Array.from({ length: 7 }, () => []) as DaySession[][],
-	freqSessions: [] as FreqSession[],
-	everydaySessions: [] as EverydaySession[]
-};
-
-// The move runs on drag over, so by the time the drag ends every week the
-// pointer crossed has already had the session pass through it and has been
-// flagged dirty for it. Which weeks actually changed is decided here instead,
-// against what each held when the drag started: a week that ends holding what
-// it started with was not edited, however the pointer got there. Without this a
-// session dragged from week one to week three leaves week two claiming unsaved
-// changes, and so does one dropped back on the day it came from.
-export function settleWeekSessions(
-	drafts: WeekDrafts,
-	snapshot: WeekSessionsSnapshot,
-	clone: DeepClone
-): void {
-	for (const wnStr of Object.keys(drafts)) {
-		const wn = parseInt(wnStr);
-		const draft = drafts[wn];
-		const saved = snapshot[wn];
-		const now = weekSessionsFingerprint(
-			clone({
-				days: draft.days,
-				freqSessions: draft.freqSessions,
-				everydaySessions: draft.everydaySessions
-			})
-		);
-		if (now !== weekSessionsFingerprint(saved ?? EMPTY_WEEK_SESSIONS)) continue;
-		// A week the drag opened and left empty was never dirty to begin with.
-		draft.dirty = saved ? saved.dirty : false;
-	}
-}
-
 // A week absent from the snapshot was opened by the drag itself, so it is
-// emptied rather than left holding a copy of the session being restored.
+// emptied rather than left holding a copy of the session being restored. What
+// each week reports as unsaved follows from what it holds, so putting the
+// sessions back is all a cancel has to do.
 export function restoreWeekSessions(drafts: WeekDrafts, snapshot: WeekSessionsSnapshot): void {
 	for (const wnStr of Object.keys(drafts)) {
 		const wn = parseInt(wnStr);
@@ -323,7 +336,6 @@ export function restoreWeekSessions(drafts: WeekDrafts, snapshot: WeekSessionsSn
 		draft.days = saved ? saved.days : Array.from({ length: 7 }, () => []);
 		draft.freqSessions = saved ? saved.freqSessions : [];
 		draft.everydaySessions = saved ? saved.everydaySessions : [];
-		draft.dirty = saved ? saved.dirty : false;
 	}
 }
 
