@@ -29,11 +29,11 @@
 		items: TrainingItem[];
 		exercises: Exercise[];
 		catalog: AssessmentCatalog;
-		allowedTypes?: TrainingItemType[];
+		allowedTypes?: readonly TrainingItemType[];
 		// What every container nested below may hold, when the training restricts
 		// it. Circuits and groups both honour it, and both pass it further down, so
 		// a training type that forbids a block forbids it at every depth.
-		innerAllowedTypes?: TrainingItemType[];
+		innerAllowedTypes?: readonly TrainingItemType[];
 		depth?: number;
 		containerId?: string;
 	}

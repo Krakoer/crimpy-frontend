@@ -16,7 +16,7 @@
 		onRemove: () => void;
 		onDuplicate: () => void;
 		depth: number;
-		innerAllowedTypes?: TrainingItemType[];
+		innerAllowedTypes?: readonly TrainingItemType[];
 	}
 
 	let {

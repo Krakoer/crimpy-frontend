@@ -10,7 +10,7 @@ export function isContainerType(type: TrainingItemType): type is ContainerType {
 
 // Every block a training can be made of, which is what a training puts no
 // restriction on takes.
-export const ALL_BLOCK_TYPES: TrainingItemType[] = [
+export const ALL_BLOCK_TYPES: readonly TrainingItemType[] = [
 	'exercise',
 	'circuit',
 	'emom',
@@ -37,8 +37,8 @@ const GROUP_TYPES: TrainingItemType[] = [...LEAF_TYPES, 'emom'];
 export function containerChildTypes(
 	containerType: ContainerType,
 	depth: number,
-	innerAllowedTypes?: TrainingItemType[]
-): TrainingItemType[] {
+	innerAllowedTypes?: readonly TrainingItemType[]
+): readonly TrainingItemType[] {
 	if (innerAllowedTypes) return innerAllowedTypes;
 	if (containerType === 'group') return depth < 1 ? GROUP_TYPES : LEAF_TYPES;
 	if (containerType === 'circuit' && depth < 1) return ROOT_CIRCUIT_TYPES;
@@ -52,7 +52,7 @@ export function trainingAllowedTypes(
 	trainingType: TrainingType | undefined,
 	items: TrainingItem[],
 	ignoreItemId?: string
-): TrainingItemType[] {
+): readonly TrainingItemType[] {
 	if (trainingType !== 'stretching') return ALL_BLOCK_TYPES;
 	const hasCircuit = items.some((item) => item.type === 'circuit' && item._id !== ignoreItemId);
 	return hasCircuit ? ['exercise'] : ['exercise', 'circuit'];
@@ -63,6 +63,6 @@ export function trainingAllowedTypes(
 // above in charge.
 export function trainingInnerAllowedTypes(
 	trainingType: TrainingType | undefined
-): TrainingItemType[] | undefined {
+): readonly TrainingItemType[] | undefined {
 	return trainingType === 'stretching' ? ['exercise'] : undefined;
 }

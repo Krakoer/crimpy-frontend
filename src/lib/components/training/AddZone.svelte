@@ -6,7 +6,7 @@
 
 	interface Props {
 		isDropTarget: boolean;
-		allowedTypes: TrainingItemType[];
+		allowedTypes: readonly TrainingItemType[];
 		onAdd: (type: TrainingItemType, exerciseId?: string) => void;
 	}
 
