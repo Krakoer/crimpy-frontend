@@ -6,6 +6,7 @@ import {
 	duplicatedDraftSession,
 	emptyDraft,
 	locateSession,
+	lockedSessionWeek,
 	moveSession,
 	parseCell,
 	restoreWeekSessions,
@@ -79,6 +80,22 @@ describe('locateSession', () => {
 
 	it('returns null for a session no week holds', () => {
 		expect(locateSession(draftsWithMonday('a'), 'gone')).toBeNull();
+	});
+});
+
+describe('lockedSessionWeek', () => {
+	it('names the week of a played session', () => {
+		const drafts = draftsWithMonday('a');
+		drafts[1].days[1][0].locked = true;
+		expect(lockedSessionWeek(drafts, 'a')).toBe(1);
+	});
+
+	it('answers null for a session free to move', () => {
+		expect(lockedSessionWeek(draftsWithMonday('a'), 'a')).toBeNull();
+	});
+
+	it('answers null for a session no week holds', () => {
+		expect(lockedSessionWeek(draftsWithMonday('a'), 'gone')).toBeNull();
 	});
 });
 
@@ -317,6 +334,57 @@ describe('settleWeekSessions', () => {
 
 		moveTo(drafts, 'a', 2, 1);
 		moveTo(drafts, 'a', 1, 1);
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[1].dirty).toBe(true);
+	});
+
+	// weekDetailToDraft builds a frequency session by spreading, so its keys end
+	// with times_per_week, while movedDraftSession puts that key in the middle.
+	// Comparing serialisations rather than content read the two as different.
+	it('clears a frequency session dragged onto a day and back', () => {
+		const drafts: WeekDrafts = { 1: emptyDraft() };
+		drafts[1].freqSessions = [{ ...session('a'), times_per_week: 2 }];
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveTo(drafts, 'a', 1, 2);
+		moveSession(drafts, 'a', {
+			cell: { kind: 'freq', wn: 1 },
+			overSessionID: null,
+			index: Infinity
+		});
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[1].freqSessions.map((s) => s.times_per_week)).toEqual([2]);
+		expect(drafts[1].dirty).toBe(false);
+	});
+
+	// Only the frequency column saves the count, so a day session that picked one
+	// up on its way through is not a day session that changed.
+	it('clears a day session dragged over the frequency cell and back', () => {
+		const drafts = draftsWithMonday('a');
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveSession(drafts, 'a', {
+			cell: { kind: 'freq', wn: 1 },
+			overSessionID: null,
+			index: Infinity
+		});
+		moveTo(drafts, 'a', 1, 1);
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[1].days[1].map((s) => s._id)).toEqual(['a']);
+		expect(drafts[1].dirty).toBe(false);
+	});
+
+	// The count is what the frequency column saves, so changing it is a real edit.
+	it('keeps a week dirty when the frequency count really changed', () => {
+		const drafts: WeekDrafts = { 1: emptyDraft() };
+		drafts[1].freqSessions = [{ ...session('a'), times_per_week: 2 }];
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		drafts[1].freqSessions[0].times_per_week = 3;
+		drafts[1].dirty = true;
 		settleWeekSessions(drafts, snapshot, clone);
 
 		expect(drafts[1].dirty).toBe(true);
