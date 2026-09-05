@@ -38,12 +38,6 @@
 	// A program week changes what the emom prescribes, never the blocks it holds.
 	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
 
-	// What makes the block every minute on the minute belongs to the training: the
-	// override the clients merge carries no interval, so a week may change how
-	// many rounds are run but not the clock they start on.
-	const INTERVAL_FIXED_REASON =
-		'The interval belongs to the training and cannot be changed for one week';
-
 	let intervalMin = $state(Math.floor((item.interval_seconds ?? 60) / 60));
 	let intervalSec = $state((item.interval_seconds ?? 60) % 60);
 
@@ -170,8 +164,6 @@
 							min="0"
 							aria-label="Interval minutes"
 							bind:value={intervalMin}
-							disabled={overriding}
-							title={overriding ? INTERVAL_FIXED_REASON : undefined}
 							onclick={(e) => e.stopPropagation()}
 							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
@@ -182,8 +174,6 @@
 							max="59"
 							aria-label="Interval seconds"
 							bind:value={intervalSec}
-							disabled={overriding}
-							title={overriding ? INTERVAL_FIXED_REASON : undefined}
 							onclick={(e) => e.stopPropagation()}
 							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>

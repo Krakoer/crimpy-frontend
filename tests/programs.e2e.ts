@@ -1541,13 +1541,56 @@ function twoWeeksOfTheSameTraining(secondWeekOverrides: unknown[] = []) {
 	};
 }
 
-async function stubTwoWeekProgram(page: Page, secondWeekOverrides: unknown[] = []): Promise<void> {
+/**
+ * A training whose blocks carry the fields a week may only vary since
+ * Krakoer/crimpy#51: a timed exercise, an emom clock and a rep count.
+ */
+function openBlocksTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		items: [
+			{
+				id: 'item-plank',
+				type: 'exercise',
+				position: 0,
+				exercise_id: 'exercise-1',
+				exercise_name: 'Plank',
+				duration: 30,
+				rest_seconds: 60
+			},
+			{
+				id: 'item-emom',
+				type: 'emom',
+				position: 1,
+				cycles: 10,
+				interval_seconds: 60,
+				items: [
+					{
+						id: 'item-exercise',
+						type: 'exercise',
+						position: 0,
+						exercise_id: 'exercise-1',
+						exercise_name: 'Pull up',
+						reps: 8
+					}
+				]
+			}
+		]
+	});
+}
+
+async function stubTwoWeekProgram(
+	page: Page,
+	secondWeekOverrides: unknown[] = [],
+	training = circuitTraining()
+): Promise<void> {
 	const weeks = twoWeeksOfTheSameTraining(secondWeekOverrides);
 	await stubProgram(page, testProgram({ duration_weeks: 2, start_date: mondayDaysAgo(0) }));
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', { body: weeks.summaries });
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/1', { body: weeks.details[0] });
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', { body: weeks.details[1] });
-	await stub(page, 'GET', '/api/trainings/*', { body: circuitTraining() });
+	await stub(page, 'GET', '/api/trainings/*', { body: training });
 	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
 		body: weeks.details[0]
 	});
@@ -1594,6 +1637,42 @@ test('customises one week of a scheduled training and saves only what moved', as
 	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
 	expect(week?.body).toMatchObject({
 		sessions: [{ overrides: [{ item_id: 'item-circuit', overrides: { cycles: 5 } }] }]
+	});
+});
+
+test('a week retimes a duration, moves an emom clock and opens a rep count', async ({ page }) => {
+	await stubTwoWeekProgram(page, [], openBlocksTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await modal.getByLabel('Duration seconds').fill('45');
+	await modal.getByLabel('Interval minutes').fill('1');
+	await modal.getByLabel('Interval seconds').fill('30');
+	await modal.getByTestId('amrap-toggle').click();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
+	expect(week?.body).toMatchObject({
+		sessions: [
+			{
+				overrides: [
+					{ item_id: 'item-plank', overrides: { duration: 45 } },
+					{ item_id: 'item-emom', overrides: { interval_seconds: 90 } },
+					{ item_id: 'item-exercise', overrides: { reps_is_max: true } }
+				]
+			}
+		]
 	});
 });
 

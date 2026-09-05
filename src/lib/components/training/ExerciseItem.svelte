@@ -30,12 +30,6 @@
 	// override carries, are not rendered there.
 	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
 
-	// A week may not retime an exercise prescribed by duration: the override the
-	// clients merge carries no duration, so a number typed here would be dropped
-	// on the way to the athlete rather than saved.
-	const DURATION_FIXED_REASON =
-		'The duration belongs to the training and cannot be changed for one week';
-
 	const MAX_COMMENT_LENGTH = 200;
 
 	let collapsed = $state(false);
@@ -349,9 +343,8 @@
 							<input
 								type="number"
 								min="0"
+								aria-label="Duration minutes"
 								bind:value={durationMin}
-								disabled={overriding}
-								title={overriding ? DURATION_FIXED_REASON : undefined}
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
@@ -360,9 +353,8 @@
 								type="number"
 								min="0"
 								max="59"
+								aria-label="Duration seconds"
 								bind:value={durationSec}
-								disabled={overriding}
-								title={overriding ? DURATION_FIXED_REASON : undefined}
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
@@ -382,7 +374,7 @@
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
 					{/if}
-					{#if !isDuration && !overriding}
+					{#if !isDuration}
 						<button
 							data-testid="amrap-toggle"
 							onclick={(e) => {
