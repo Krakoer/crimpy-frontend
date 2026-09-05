@@ -673,10 +673,24 @@ export async function dragOnto(page: Page, source: Locator, target: Locator): Pr
 	const to = await target.boundingBox();
 	if (!from || !to) throw new Error('Cannot drag between elements that are not laid out');
 
-	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+	const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+
+	await page.mouse.move(start.x, start.y);
 	await page.mouse.down();
-	await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 20, { steps: 5 });
-	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+	// Past the activation distance first, then across in steps the drag and drop
+	// layer gets a frame to answer: it recomputes what is under the pointer on
+	// animation frames, so a move made in one tick is read at most once.
+	await page.mouse.move(start.x + 20, start.y + 20, { steps: 5 });
+	await page.waitForTimeout(50);
+	for (let step = 1; step <= 4; step++) {
+		await page.mouse.move(
+			start.x + ((end.x - start.x) * step) / 4,
+			start.y + ((end.y - start.y) * step) / 4,
+			{ steps: 5 }
+		);
+		await page.waitForTimeout(50);
+	}
 	await page.mouse.up();
 }
 

@@ -1,23 +1,16 @@
 <script lang="ts">
-	import { createDroppable } from '@dnd-kit/svelte';
 	import type { Exercise, TrainingItemType } from '$lib/api/client';
 	import SelectExerciseModal from './SelectExerciseModal.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 
 	interface Props {
-		containerId: string;
+		isDropTarget: boolean;
 		allowedTypes: TrainingItemType[];
 		onAdd: (type: TrainingItemType, exerciseId?: string) => void;
 	}
 
-	let { containerId, allowedTypes, onAdd }: Props = $props();
-
-	const droppable = createDroppable({
-		get id() {
-			return containerId;
-		}
-	});
+	let { isDropTarget, allowedTypes, onAdd }: Props = $props();
 
 	let expanded = $state(false);
 	let showExerciseModal = $state(false);
@@ -38,18 +31,18 @@
 	}
 </script>
 
-<div {@attach droppable.attach} class="mt-2" style="border-radius: var(--rl);">
+<div class="mt-2" style="border-radius: var(--rl);">
 	{#if !expanded}
 		<button
 			onclick={() => (expanded = true)}
 			class="w-full"
 			style="
 				padding: 10px 14px; border-radius: var(--rl);
-				border: 1.5px dashed {droppable.isDropTarget ? 'var(--pr)' : 'var(--bd)'};
+				border: 1.5px dashed {isDropTarget ? 'var(--pr)' : 'var(--bd)'};
 				display: flex; align-items: center; justify-content: center; gap: 6px;
-				color: {droppable.isDropTarget ? 'var(--pr)' : 'var(--tx3)'};
+				color: {isDropTarget ? 'var(--pr)' : 'var(--tx3)'};
 				font-size: 12.5px; font-weight: 500; cursor: pointer;
-				background: {droppable.isDropTarget ? 'var(--pr-fog)' : 'transparent'};
+				background: {isDropTarget ? 'var(--pr-fog)' : 'transparent'};
 				font-family: var(--font); transition: border-color 0.15s, color 0.15s;
 			"
 		>

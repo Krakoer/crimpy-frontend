@@ -1,31 +1,44 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { createSortable } from '@dnd-kit/svelte/sortable';
+	import { pointerIntersection } from '@dnd-kit/collision';
+	import { createDragSourceGuard } from './drag-source-guard.svelte';
 
 	interface Props {
 		id: string;
 		group: string;
 		index: number;
+		collisionPriority: number;
 		children: Snippet;
 	}
 
-	let { id, group, index, children }: Props = $props();
+	let { id, group, index, collisionPriority, children }: Props = $props();
+
+	const guard = createDragSourceGuard();
 
 	const sortable = createSortable({
 		get id() {
 			return id;
+		},
+		get disabled() {
+			return guard.insideDragSource;
 		},
 		get group() {
 			return group;
 		},
 		get index() {
 			return index;
-		}
+		},
+		get collisionPriority() {
+			return collisionPriority;
+		},
+		collisionDetector: pointerIntersection
 	});
 </script>
 
 <div
 	{@attach sortable.attach}
+	{@attach guard.attach}
 	class="group relative"
 	style:opacity={sortable.isDragging ? '0.4' : undefined}
 >

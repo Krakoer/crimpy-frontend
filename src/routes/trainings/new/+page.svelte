@@ -19,7 +19,6 @@
 		type AssessmentDraft
 	} from '$lib/components/training/assessment-draft';
 	import ItemList from '$lib/components/training/ItemList.svelte';
-	import { isHangboardItem } from '$lib/components/training/hangboard-granularity';
 	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
 	import { createTrainingItem } from '$lib/components/training/create-item';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
@@ -32,98 +31,25 @@
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { isSortable } from '@dnd-kit/svelte/sortable';
-	import { arrayMove } from '$lib/sortable';
-
-	type FindResult = { container: TrainingItem[]; containerId: string; index: number };
-
-	function findItemInTree(
-		treeItems: TrainingItem[],
-		targetId: string,
-		cid = 'root'
-	): FindResult | null {
-		for (let i = 0; i < treeItems.length; i++) {
-			if (treeItems[i]._id === targetId)
-				return { container: treeItems, containerId: cid, index: i };
-			if (treeItems[i].items) {
-				const found = findItemInTree(
-					treeItems[i].items!,
-					targetId,
-					'container:' + treeItems[i]._id!
-				);
-				if (found) return found;
-			}
-		}
-		return null;
-	}
-
-	function findContainerArray(treeItems: TrainingItem[], cid: string): TrainingItem[] | null {
-		if (cid === 'root') return treeItems;
-		const itemId = cid.startsWith('container:') ? cid.slice(10) : cid;
-		for (const item of treeItems) {
-			if (item._id === itemId) return item.items ?? (item.items = []);
-			if (item.items) {
-				const found = findContainerArray(item.items, cid);
-				if (found !== null) return found;
-			}
-		}
-		return null;
-	}
-
-	function findItemById(treeItems: TrainingItem[], id: string): TrainingItem | null {
-		for (const item of treeItems) {
-			if (item._id === id) return item;
-			if (item.items) {
-				const found = findItemById(item.items, id);
-				if (found) return found;
-			}
-		}
-		return null;
-	}
-
-	function isValidMove(movedItem: TrainingItem, targetContainerId: string): boolean {
-		if (draft.training_type === 'stretching') {
-			if (movedItem.type === 'group' || movedItem.type === 'emom' || isHangboardItem(movedItem))
-				return false;
-			if (movedItem.type === 'circuit' && draft.items.some((i) => i.type === 'circuit'))
-				return false;
-		}
-		if (targetContainerId === 'root') return true;
-		if (movedItem.type === 'circuit') return false;
-		// The two containers that nest do so in one place each: a group inside a
-		// root circuit, an emom inside a root group. Anywhere else is a container
-		// the child rules refuse, or a block on a clock inside rounds that are
-		// not, which is two paces for one block.
-		const containerItemId = targetContainerId.slice(10);
-		if (movedItem.type === 'group') {
-			return findItemById(draft.items, containerItemId)?.type === 'circuit';
-		}
-		if (movedItem.type === 'emom') {
-			return draft.items.some((item) => item._id === containerItemId && item.type === 'group');
-		}
-		return true;
-	}
+	import {
+		applyDragOver,
+		insertNewItem,
+		parseNewItemId,
+		targetContainerId,
+		targetInsertIndex,
+		type DropTarget
+	} from '$lib/training-drag';
 
 	let itemsSnapshot: TrainingItem[] | null = null;
-	let lastSwapKey = '';
-	let lastSwapTime = 0;
-	const SWAP_COOLDOWN_MS = 150;
-
-	function moveCrossContainer(sourceId: string, targetContainerId: string, insertIndex: number) {
-		const activeResult = findItemInTree(draft.items, sourceId);
-		if (!activeResult) return;
-		const movedItem = activeResult.container[activeResult.index];
-		if (activeResult.containerId === targetContainerId) return;
-		if (!isValidMove(movedItem, targetContainerId)) return;
-		const targetContainer = findContainerArray(draft.items, targetContainerId);
-		if (!targetContainer) return;
-		const [item] = activeResult.container.splice(activeResult.index, 1);
-		const clampedIndex = Math.min(insertIndex, targetContainer.length);
-		targetContainer.splice(clampedIndex, 0, item);
-	}
+	// The block only moves when the target under the pointer changes, and a block
+	// hovering itself is no change. Acting on every event instead made a hovered
+	// block swap back and forth: the swap slides the target out from under the
+	// pointer, the block itself takes its place, and the next event swaps it
+	// straight back.
+	let lastTargetId = '';
 
 	function onDragStart() {
-		lastSwapKey = '';
-		lastSwapTime = 0;
+		lastTargetId = '';
 		itemsSnapshot = structuredClone($state.snapshot(draft.items) as TrainingItem[]);
 	}
 
@@ -132,39 +58,18 @@
 		if (!source || !target) return;
 		if (!isSortable(source as never)) return;
 
-		const srcId = String((source as { id: string }).id);
-		let swapKey: string;
+		const sourceId = String((source as { id: string }).id);
+		const targetId = String((target as DropTarget).id);
+		if (targetId === sourceId || targetId === lastTargetId) return;
+		lastTargetId = targetId;
 
-		if (isSortable(target as never)) {
-			const tgt = target as { id: string; group?: string; index: number };
-			const tgtId = String(tgt.id);
-			const tgtContainerId = tgt.group ?? 'root';
-			const tgtIndex = tgt.index;
-			swapKey = `${srcId}:${tgtId}`;
-			const now = Date.now();
-			if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
-			const activeResult = findItemInTree(draft.items, srcId);
-			if (!activeResult) return;
-			if (activeResult.containerId === tgtContainerId) {
-				const overResult = findItemInTree(draft.items, tgtId);
-				// A block dropped on itself has not moved, and letting it through
-				// would rewrite the swap key the cooldown reads.
-				if (!overResult || activeResult.index === overResult.index) return;
-				arrayMove(activeResult.container, activeResult.index, overResult.index);
-			} else {
-				moveCrossContainer(srcId, tgtContainerId, tgtIndex);
-			}
-			lastSwapKey = swapKey;
-			lastSwapTime = now;
-		} else {
-			const tgtId = String((target as { id: string }).id);
-			swapKey = `${srcId}:container:${tgtId}`;
-			const now = Date.now();
-			if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
-			moveCrossContainer(srcId, tgtId, Infinity);
-			lastSwapKey = swapKey;
-			lastSwapTime = now;
-		}
+		applyDragOver(
+			draft.items,
+			draft.training_type,
+			sourceId,
+			target as DropTarget,
+			isSortable(target as never)
+		);
 	}
 
 	function onDragEnd(event: {
@@ -179,41 +84,25 @@
 		itemsSnapshot = null;
 
 		const { source, target } = event.operation;
-		if (!source || !isSortable(source as never)) {
-			if (!source) return;
-			const srcId = String((source as { id: string }).id);
-			if (!srcId.startsWith('__new__:')) return;
-			const rest = srcId.slice(8);
-			const colonIdx = rest.indexOf(':');
-			const type = (colonIdx === -1 ? rest : rest.slice(0, colonIdx)) as TrainingItemType;
-			const exerciseId = colonIdx === -1 ? undefined : rest.slice(colonIdx + 1);
+		if (!source || !target) return;
+		if (isSortable(source as never)) return;
 
-			if (!target) return;
+		const newItem = parseNewItemId(String((source as { id: string }).id));
+		if (!newItem) return;
 
-			let targetContainerId: string;
-			let insertIndex: number;
-
-			if (isSortable(target as never)) {
-				const tgt = target as { group?: string; index: number };
-				targetContainerId = tgt.group ?? 'root';
-				insertIndex = tgt.index;
-			} else {
-				targetContainerId = String((target as { id: string }).id);
-				insertIndex = Infinity;
-			}
-
-			if (!isValidMove({ type } as TrainingItem, targetContainerId)) return;
-			const container = findContainerArray(draft.items, targetContainerId);
-			if (!container) return;
-			container.splice(
-				Math.min(insertIndex, container.length),
-				0,
-				createTrainingItem(type, exerciseId)
-			);
-			if (type === 'exercise' && exerciseId) {
-				const ex = sidebarResults.find((e) => e.id === exerciseId);
-				if (ex && !exercises.find((e) => e.id === exerciseId)) exercises.push(ex);
-			}
+		const isSortableTarget = isSortable(target as never);
+		const added = insertNewItem(
+			draft.items,
+			draft.training_type,
+			newItem.type,
+			newItem.exerciseId,
+			targetContainerId(target as DropTarget, isSortableTarget),
+			targetInsertIndex(target as DropTarget, isSortableTarget)
+		);
+		if (!added) return;
+		if (newItem.type === 'exercise' && newItem.exerciseId) {
+			const dropped = sidebarResults.find((e) => e.id === newItem.exerciseId);
+			if (dropped && !exercises.find((e) => e.id === newItem.exerciseId)) exercises.push(dropped);
 		}
 	}
 

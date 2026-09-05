@@ -47,6 +47,7 @@
 		"vitest": "^4.1.11"
 	},
 	"dependencies": {
+		"@dnd-kit/collision": "^0.4.0",
 		"@dnd-kit/svelte": "^0.4.0",
 		"@fullcalendar/core": "^6.1.20",
 		"@fullcalendar/daygrid": "^6.1.20",
