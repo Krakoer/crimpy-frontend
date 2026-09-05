@@ -19,7 +19,11 @@
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import ItemOverrideStrip from '$lib/components/program/ItemOverrideStrip.svelte';
 	import type { AssessmentCatalog } from '$lib/assessments';
-	import { containerCollisionPriority, itemCollisionPriority } from '$lib/training-drag';
+	import {
+		containerCollisionPriority,
+		itemCollisionPriority,
+		ROOT_CONTAINER_ID
+	} from '$lib/training-drag';
 
 	interface Props {
 		items: TrainingItem[];
@@ -41,7 +45,7 @@
 		allowedTypes = ['exercise', 'circuit', 'emom', 'group', 'repeater', 'hangboard_rep'],
 		innerAllowedTypes,
 		depth = 0,
-		containerId = 'root'
+		containerId = ROOT_CONTAINER_ID
 	}: Props = $props();
 
 	// A program week may change what the training asks for, never what it is made

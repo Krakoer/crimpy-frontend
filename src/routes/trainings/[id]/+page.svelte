@@ -28,15 +28,7 @@
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
 	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
 	import { PointerActivationConstraints } from '@dnd-kit/dom';
-	import { isSortable } from '@dnd-kit/svelte/sortable';
-	import {
-		applyDragOver,
-		insertNewItem,
-		parseNewItemId,
-		targetContainerId,
-		targetInsertIndex,
-		type DropTarget
-	} from '$lib/training-drag';
+	import { createTrainingDragHandlers } from '$lib/training-drag-handlers.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { saneCount } from '$lib/components/training/hangboard-granularity';
@@ -71,71 +63,14 @@
 		}));
 	}
 
-	let itemsSnapshot: TrainingItem[] | null = null;
-	// The block only moves when the target under the pointer changes, and a block
-	// hovering itself is no change. Acting on every event instead made a hovered
-	// block swap back and forth: the swap slides the target out from under the
-	// pointer, the block itself takes its place, and the next event swaps it
-	// straight back.
-	let lastTargetId = '';
-
-	function onDragStart() {
-		lastTargetId = '';
-		itemsSnapshot = structuredClone($state.snapshot(draft.items) as TrainingItem[]);
-	}
-
-	function onDragOver(event: { operation: { source: unknown; target: unknown } }) {
-		const { source, target } = event.operation;
-		if (!source || !target) return;
-		if (!isSortable(source as never)) return;
-
-		const sourceId = String((source as { id: string }).id);
-		const targetId = String((target as DropTarget).id);
-		if (targetId === sourceId || targetId === lastTargetId) return;
-		lastTargetId = targetId;
-
-		applyDragOver(
-			draft.items,
-			draft.training_type,
-			sourceId,
-			target as DropTarget,
-			isSortable(target as never)
-		);
-	}
-
-	function onDragEnd(event: {
-		canceled: boolean;
-		operation: { source: unknown; target: unknown };
-	}) {
-		if (event.canceled) {
-			if (itemsSnapshot) draft.items = itemsSnapshot as typeof draft.items;
-			itemsSnapshot = null;
-			return;
+	const { onDragStart, onDragOver, onDragEnd } = createTrainingDragHandlers(
+		() => draft,
+		(type, exerciseId) => {
+			if (type !== 'exercise' || !exerciseId) return;
+			const dropped = sidebarResults.find((e) => e.id === exerciseId);
+			if (dropped && !exercises.find((e) => e.id === exerciseId)) exercises.push(dropped);
 		}
-		itemsSnapshot = null;
-
-		const { source, target } = event.operation;
-		if (!source || !target) return;
-		if (isSortable(source as never)) return;
-
-		const newItem = parseNewItemId(String((source as { id: string }).id));
-		if (!newItem) return;
-
-		const isSortableTarget = isSortable(target as never);
-		const added = insertNewItem(
-			draft.items,
-			draft.training_type,
-			newItem.type,
-			newItem.exerciseId,
-			targetContainerId(target as DropTarget, isSortableTarget),
-			targetInsertIndex(target as DropTarget, isSortableTarget)
-		);
-		if (!added) return;
-		if (newItem.type === 'exercise' && newItem.exerciseId) {
-			const dropped = sidebarResults.find((e) => e.id === newItem.exerciseId);
-			if (dropped && !exercises.find((e) => e.id === newItem.exerciseId)) exercises.push(dropped);
-		}
-	}
+	);
 
 	const dndSensors = [
 		PointerSensor.configure({

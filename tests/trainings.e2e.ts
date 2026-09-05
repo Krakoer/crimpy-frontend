@@ -1,9 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import type { TrainingRequest } from '../src/lib/api/client';
 import {
 	BUILTIN_CRITICAL_FORCE,
 	builtinAssessmentDefinitions,
 	capture,
+	dragInto,
 	dragOnto,
 	exercisePage,
 	mockApi,
@@ -1715,34 +1716,6 @@ test.describe('reordering root blocks', () => {
 		return page.getByRole('button', { name: 'Add item' });
 	}
 
-	/**
-	 * Dropping into a container is aimed at a target that moves: the tree is
-	 * rewritten under the pointer while the drag is on. Reading the target again
-	 * after every hop follows it, the way a coach watching the screen does, and
-	 * the drop happens once it has stopped moving.
-	 */
-	async function dragInto(page: Page, source: Locator, target: Locator): Promise<void> {
-		const from = await source.boundingBox();
-		if (!from) throw new Error('Cannot drag an element that is not laid out');
-
-		await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-		await page.mouse.down();
-		await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 20, { steps: 5 });
-		await page.waitForTimeout(50);
-
-		let previous: { x: number; y: number } | null = null;
-		for (let hop = 0; hop < 5; hop++) {
-			const to = await target.boundingBox();
-			if (!to) throw new Error('Cannot drag onto an element that is not laid out');
-			const aim = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
-			if (previous && Math.abs(previous.x - aim.x) < 2 && Math.abs(previous.y - aim.y) < 2) break;
-			await page.mouse.move(aim.x, aim.y, { steps: 5 });
-			await page.waitForTimeout(80);
-			previous = aim;
-		}
-		await page.mouse.up();
-	}
-
 	const cooldownGroup = {
 		id: 'item-2',
 		type: 'group',
@@ -1801,6 +1774,26 @@ test.describe('reordering root blocks', () => {
 		// The first add zone is the one inside the circuit, the last one closes the
 		// root list.
 		await dragInto(page, dragHandles(page).nth(0), addZones(page).first());
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+		await expect.poll(() => posted.length).toBe(1);
+		const items = (posted[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.type)).toEqual(['circuit']);
+		expect(items[0].items?.map((item) => item.type)).toEqual(['hangboard_rep']);
+	});
+
+	test('drops a new block from the rail into a circuit', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Board session');
+		const rail = page.getByTestId('block-palette');
+		await rail.getByRole('button', { name: 'Circuit' }).click();
+
+		await dragInto(page, rail.getByRole('button', { name: 'Hang rep' }), addZones(page).first());
 
 		await page.getByRole('button', { name: 'Save training' }).click();
 		await expect.poll(() => posted.length).toBe(1);

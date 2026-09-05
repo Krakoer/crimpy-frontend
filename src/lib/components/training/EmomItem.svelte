@@ -2,6 +2,7 @@
 	import type { AssessmentCatalog } from '$lib/assessments';
 	import type { Exercise, TrainingItem, TrainingItemType } from '$lib/api/client';
 	import ItemList from './ItemList.svelte';
+	import { containerIdOf } from '$lib/training-drag';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
@@ -204,7 +205,7 @@
 					allowedTypes={containerChildTypes('emom', depth, innerAllowedTypes)}
 					{innerAllowedTypes}
 					depth={depth + 1}
-					containerId={'container:' + item._id}
+					containerId={containerIdOf(item._id!)}
 				/>
 			</div>
 		</div>
