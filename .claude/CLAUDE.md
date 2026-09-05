@@ -90,13 +90,31 @@ Navigation uses `goto()` from `$app/navigation`. Protected pages wrap their cont
 
 ### Drag-and-drop (`@dnd-kit/svelte`)
 
-Used in the training editor. Key patterns:
+Used by the training editor and the program week calendar. Key patterns:
 
 - Wrap the interactive area in `<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>`.
-- `PointerSensor.configure({ activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })] })` prevents accidental drags on clicks.
-- **Source items** (sidebar): `createDraggable({ id })` with `{@attach draggable.attach}`. IDs prefixed with `__new__:<type>:<extraData>` signal "create new" in `onDragEnd`.
+- `dndSensors` comes from `$lib/dnd-sensors` and is shared by every editor. It
+  holds the pointer sensor with an 8px activation distance, so a click is not a
+  drag, **and the keyboard sensor**. Naming sensors replaces dnd-kit's default
+  pair rather than adding to it, so a local list that leaves the keyboard out
+  silently removes the only non-pointer way to reorder anything.
+- **Source items** (sidebar): `createDraggable({ id })` with `{@attach draggable.attach}`.
+  Ids built with `newItemId()` from `$lib/dnd-new-item` mean "create new" on drop;
+  read back with `newItemPayload()`, or `parseNewItemId()` for the training
+  editor's `<type>[:<exerciseId>]` payload.
 - **Sortable items** (reorderable list): `createSortable({ id, group, index })` with `{@attach sortable.attach}`. The `group` field identifies the container (e.g. `'root'` or `'container:<parentId>'`).
-- `onDragOver` runs the move with a 200ms debounce timer; `onDragEnd` commits or reverts via snapshot. Check `isSortable(source)` to distinguish sortable vs. draggable sources.
+- `onDragOver` runs the move, guarded by `createDragOverLatch()` from
+  `$lib/dnd-drag-over-latch` so a hovered pair does not swap back and forth.
+  `onDragEnd` commits or reverts via a snapshot taken in `onDragStart`. Check
+  `isSortable(source)` to distinguish sortable from draggable sources.
+- The handlers themselves live outside the routes: `training-drag-handlers.svelte.ts`
+  and `program-drag-handlers.svelte.ts`.
+- Disable a sortable or droppable through its own `disabled` option. Do not
+  reach for `pointer-events: none`: it takes down everything inside the card
+  with it, and dnd-kit already refuses to start a drag from a disabled source.
+- What a container accepts is answered in one place, `container-rules.ts`. Both
+  the add zone and `isValidMove` read it, so a block the palette refuses to add
+  cannot be dropped into the same place instead.
 - Existing reusable components: `SidePanelDraggable.svelte` (draggable button), `SortableWrapper.svelte` (sortable div).
 
 ### FullCalendar
