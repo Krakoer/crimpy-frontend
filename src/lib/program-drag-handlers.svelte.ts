@@ -1,7 +1,7 @@
 import { isSortable } from '@dnd-kit/svelte/sortable';
 import {
 	cellSessions,
-	draftSessions,
+	lockedSessionWeek,
 	moveSession,
 	parseCell,
 	restoreWeekSessions,
@@ -22,8 +22,10 @@ export interface ProgramDragHandlers {
 	onDragEnd(event: { canceled: boolean; operation: { source: unknown; target: unknown } }): void;
 	// A save that lands mid-drag rebuilds the week it saved from what the server
 	// returned, fresh local keys and all. Cancelling the drag after that must not
-	// put the pre-save arrays back on top of them, so the week the save touched
-	// gives up its claim on being restored.
+	// put the pre-save arrays back on top of them, so the drag gives up its
+	// snapshot outright. It gives up settling with it: the weeks the pointer
+	// crossed stay dirty, which is the right way round, since nothing is left to
+	// tell whether they ended where they started.
 	dropSnapshot(): void;
 }
 
@@ -39,16 +41,6 @@ function dropTarget(target: unknown): SessionDrop | null {
 	}
 	const cell = parseCell(id);
 	return cell ? { cell, overSessionID: null, index: Infinity } : null;
-}
-
-// The week holding this session when it is locked, null when it is free to move.
-function lockedSessionWeek(drafts: WeekDrafts, sessionId: string): number | null {
-	for (const wnStr of Object.keys(drafts)) {
-		const wn = parseInt(wnStr);
-		const session = draftSessions(drafts[wn]).find((s) => s._id === sessionId);
-		if (session) return session.locked ? wn : null;
-	}
-	return null;
 }
 
 const detach = <T>(value: T): T => $state.snapshot(value) as T;
