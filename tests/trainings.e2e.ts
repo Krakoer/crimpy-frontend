@@ -4,6 +4,7 @@ import {
 	BUILTIN_CRITICAL_FORCE,
 	builtinAssessmentDefinitions,
 	capture,
+	dragInto,
 	dragOnto,
 	exercisePage,
 	mockApi,
@@ -1703,8 +1704,16 @@ test.describe('custom assessments', () => {
 });
 
 test.describe('reordering root blocks', () => {
+	// A circuit holding a block is taller than the default window, and a drag
+	// that reaches past the fold scrolls the page out from under itself.
+	test.use({ viewport: { width: 1280, height: 1000 } });
+
 	function dragHandles(page: Page) {
 		return page.getByRole('button', { name: 'Drag to reorder' });
+	}
+
+	function addZones(page: Page) {
+		return page.getByRole('button', { name: 'Add item' });
 	}
 
 	const cooldownGroup = {
@@ -1749,6 +1758,48 @@ test.describe('reordering root blocks', () => {
 		expect(updates).toHaveLength(1);
 		const items = (updates[0].body as TrainingRequest).items;
 		expect(items.map((item) => item.group_title)).toEqual(['Cooldown', 'Warmup']);
+	});
+
+	test('drops a block into an empty circuit when it is dragged over its body', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Board session');
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Hang rep' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Circuit' }).click();
+
+		// The first add zone is the one inside the circuit, the last one closes the
+		// root list.
+		await dragInto(page, dragHandles(page).nth(0), addZones(page).first());
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+		await expect.poll(() => posted.length).toBe(1);
+		const items = (posted[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.type)).toEqual(['circuit']);
+		expect(items[0].items?.map((item) => item.type)).toEqual(['hangboard_rep']);
+	});
+
+	test('drops a new block from the rail into a circuit', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Board session');
+		const rail = page.getByTestId('block-palette');
+		await rail.getByRole('button', { name: 'Circuit' }).click();
+
+		await dragInto(page, rail.getByRole('button', { name: 'Hang rep' }), addZones(page).first());
+
+		await page.getByRole('button', { name: 'Save training' }).click();
+		await expect.poll(() => posted.length).toBe(1);
+		const items = (posted[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.type)).toEqual(['circuit']);
+		expect(items[0].items?.map((item) => item.type)).toEqual(['hangboard_rep']);
 	});
 
 	test('moves a block down in a training that has not been saved yet', async ({ page }) => {
