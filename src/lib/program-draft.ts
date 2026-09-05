@@ -230,6 +230,50 @@ export function snapshotWeekSessions(drafts: WeekDrafts, clone: DeepClone): Week
 	return snapshot;
 }
 
+// The sessions a week holds, in the order that decides what the save writes.
+function weekSessionsFingerprint(week: {
+	days: DaySession[][];
+	freqSessions: FreqSession[];
+	everydaySessions: EverydaySession[];
+}): string {
+	return JSON.stringify([week.days, week.freqSessions, week.everydaySessions]);
+}
+
+const EMPTY_WEEK_SESSIONS = {
+	days: Array.from({ length: 7 }, () => []) as DaySession[][],
+	freqSessions: [] as FreqSession[],
+	everydaySessions: [] as EverydaySession[]
+};
+
+// The move runs on drag over, so by the time the drag ends every week the
+// pointer crossed has already had the session pass through it and has been
+// flagged dirty for it. Which weeks actually changed is decided here instead,
+// against what each held when the drag started: a week that ends holding what
+// it started with was not edited, however the pointer got there. Without this a
+// session dragged from week one to week three leaves week two claiming unsaved
+// changes, and so does one dropped back on the day it came from.
+export function settleWeekSessions(
+	drafts: WeekDrafts,
+	snapshot: WeekSessionsSnapshot,
+	clone: DeepClone
+): void {
+	for (const wnStr of Object.keys(drafts)) {
+		const wn = parseInt(wnStr);
+		const draft = drafts[wn];
+		const saved = snapshot[wn];
+		const now = weekSessionsFingerprint(
+			clone({
+				days: draft.days,
+				freqSessions: draft.freqSessions,
+				everydaySessions: draft.everydaySessions
+			})
+		);
+		if (now !== weekSessionsFingerprint(saved ?? EMPTY_WEEK_SESSIONS)) continue;
+		// A week the drag opened and left empty was never dirty to begin with.
+		draft.dirty = saved ? saved.dirty : false;
+	}
+}
+
 // A week absent from the snapshot was opened by the drag itself, so it is
 // emptied rather than left holding a copy of the session being restored.
 export function restoreWeekSessions(drafts: WeekDrafts, snapshot: WeekSessionsSnapshot): void {

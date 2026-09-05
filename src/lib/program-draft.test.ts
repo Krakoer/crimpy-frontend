@@ -10,6 +10,7 @@ import {
 	parseCell,
 	restoreWeekSessions,
 	sessionForCell,
+	settleWeekSessions,
 	snapshotWeekSessions,
 	type DraftSession,
 	type WeekDrafts
@@ -251,6 +252,86 @@ describe('snapshot and restore', () => {
 		restoreWeekSessions(drafts, snapshot);
 
 		expect(drafts[1].dirty).toBe(true);
+	});
+});
+
+// The move runs on drag over, so every week the pointer crossed has already been
+// flagged dirty by the time the drag ends.
+describe('settleWeekSessions', () => {
+	function moveTo(drafts: WeekDrafts, id: string, wn: number, day: number) {
+		moveSession(drafts, id, {
+			cell: { kind: 'day', wn, day },
+			overSessionID: null,
+			index: Infinity
+		});
+	}
+
+	it('clears a week the session only passed through', () => {
+		const drafts: WeekDrafts = { 1: emptyDraft(), 2: emptyDraft(), 3: emptyDraft() };
+		drafts[1].days[1] = [session('a')];
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveTo(drafts, 'a', 2, 1);
+		moveTo(drafts, 'a', 3, 1);
+		expect(drafts[2].dirty).toBe(true);
+
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[2].dirty).toBe(false);
+		expect(drafts[1].dirty).toBe(true);
+		expect(drafts[3].dirty).toBe(true);
+	});
+
+	it('clears a week the session left and came back to', () => {
+		const drafts = draftsWithMonday('a', 'b');
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveTo(drafts, 'a', 1, 3);
+		moveSession(drafts, 'a', {
+			cell: { kind: 'day', wn: 1, day: 1 },
+			overSessionID: 'b',
+			index: 0
+		});
+		expect(drafts[1].dirty).toBe(true);
+
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(ids(drafts[1].days[1])).toEqual(['a', 'b']);
+		expect(drafts[1].dirty).toBe(false);
+	});
+
+	it('keeps a week the drag really changed dirty', () => {
+		const drafts = draftsWithMonday('a', 'b');
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveTo(drafts, 'a', 1, 3);
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[1].dirty).toBe(true);
+	});
+
+	it('leaves a week that was dirty before the drag dirty', () => {
+		const drafts = draftsWithMonday('a');
+		drafts[1].dirty = true;
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveTo(drafts, 'a', 2, 1);
+		moveTo(drafts, 'a', 1, 1);
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[1].dirty).toBe(true);
+	});
+
+	it('leaves a week the drag opened and left empty clean', () => {
+		const drafts = draftsWithMonday('a');
+		const snapshot = snapshotWeekSessions(drafts, clone);
+
+		moveTo(drafts, 'a', 6, 0);
+		moveTo(drafts, 'a', 1, 1);
+		settleWeekSessions(drafts, snapshot, clone);
+
+		expect(drafts[6].dirty).toBe(false);
+		expect(drafts[1].dirty).toBe(false);
 	});
 });
 

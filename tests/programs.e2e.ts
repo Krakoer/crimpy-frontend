@@ -4,6 +4,7 @@ import {
 	builtinAssessmentDefinitions,
 	capture,
 	dragOnto,
+	dragVia,
 	isoDaysAgo,
 	mockApi,
 	mondayDaysAgo,
@@ -869,6 +870,69 @@ test('keeps the session id when it is dragged to another week and back', async (
 	expect(weekOneSave?.body).toMatchObject({
 		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }]
 	});
+});
+
+// The move runs on drag over, so the session is really put into every week the
+// pointer crosses and taken back out again on the way past. A week that ends
+// holding what it started with was not edited, and saving it would rewrite rows
+// nobody touched.
+test('does not save a week a session was only dragged through', async ({ page }) => {
+	const emptyWeek = (n: number) => ({
+		id: `week-${n}`,
+		program_id: 'program-1',
+		week_number: n,
+		notes: '',
+		created_at: '',
+		updated_at: '',
+		sessions: []
+	});
+
+	// Three weeks on screen at once, so the drag from the first to the last has
+	// to cross the middle one rather than aim straight at its target.
+	await page.setViewportSize({ width: 1280, height: 1800 });
+	await stubProgram(page, testProgram({ duration_weeks: 3, start_date: mondayDaysAgo(0) }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [1, 2, 3].map((n) => ({
+			id: `week-${n}`,
+			program_id: 'program-1',
+			week_number: n,
+			created_at: '',
+			updated_at: ''
+		}))
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithSession()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', { body: emptyWeek(2) });
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/3', { body: emptyWeek(3) });
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithSession()
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/2', { body: emptyWeek(2) });
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/3', { body: emptyWeek(3) });
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByTitle('Expand all').click();
+
+	// One drag, stopping in week two on the way, which is what puts the session
+	// into it and flags it. Two separate drags would be two edits.
+	await dragVia(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		[page.getByTestId('cell:2:1'), page.getByTestId('cell:3:1')]
+	);
+
+	await expect(
+		page.getByTestId('cell:3:1').getByRole('button', { name: 'Power endurance block' })
+	).toBeVisible();
+	await expect(page.getByTestId('cell:2:1').getByText('Power endurance block')).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(saves.map((s) => s.url.split('/weeks/')[1]).sort()).toEqual(['1', '3']);
 });
 
 /** A week whose session the coachee has already played, so the server locks it. */
