@@ -42,11 +42,14 @@
 	class="group relative"
 	style:opacity={sortable.isDragging ? '0.4' : undefined}
 >
+	<!-- Reachable by tab, and shown once it is: the handle is the only way to pick
+		a block up, so hiding it from the keyboard hid reordering with it. dnd-kit
+		binds the keyboard sensor to this element, which is why it carries the
+		handle rather than the block. -->
 	<button
 		{@attach sortable.attachHandle}
-		class="absolute inset-y-0 left-0 z-10 flex w-5 cursor-grab items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+		class="absolute inset-y-0 left-0 z-10 flex w-5 cursor-grab items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
 		style="color: var(--tx3); border: none; background: transparent; padding: 0;"
-		tabindex="-1"
 		aria-label="Drag to reorder"
 	>
 		<svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">

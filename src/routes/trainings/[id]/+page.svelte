@@ -26,15 +26,20 @@
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
-	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
-	import { PointerActivationConstraints } from '@dnd-kit/dom';
+	import { DragDropProvider } from '@dnd-kit/svelte';
+	import { dndSensors } from '$lib/dnd-sensors';
 	import { createTrainingDragHandlers } from '$lib/training-drag-handlers.svelte';
+	import { newBlockId } from '$lib/training-drag';
+	import {
+		trainingAllowedTypes,
+		trainingInnerAllowedTypes
+	} from '$lib/components/training/container-rules';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { saneCount } from '$lib/components/training/hangboard-granularity';
 	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
 	import { STRUCTURE_BLOCKS } from '$lib/block-presentation';
-	import { createTrainingItem, ensureClientIds } from '$lib/components/training/create-item';
+	import { createTrainingItem, prepareEditableTree } from '$lib/components/training/create-item';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
 
@@ -71,12 +76,6 @@
 			if (dropped && !exercises.find((e) => e.id === exerciseId)) exercises.push(dropped);
 		}
 	);
-
-	const dndSensors = [
-		PointerSensor.configure({
-			activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
-		})
-	];
 
 	let trainingId = $derived($page.params.id as string);
 
@@ -287,7 +286,7 @@
 			.getTraining(trainingId)
 			.then(async (training) => {
 				const items = training.items ?? [];
-				ensureClientIds(items);
+				prepareEditableTree(items);
 				// The hangboard editor addresses every rep of every set, so items
 				// stored in another layout are rewritten here rather than on mount:
 				// the baseline below then covers the rewrite and opening a training
@@ -674,12 +673,8 @@
 						bind:items={draft.items}
 						{exercises}
 						catalog={assessmentCatalog.catalog}
-						allowedTypes={draft.training_type === 'stretching'
-							? draft.items.some((i) => i.type === 'circuit')
-								? ['exercise']
-								: ['exercise', 'circuit']
-							: ['exercise', 'circuit', 'emom', 'group', 'repeater', 'hangboard_rep']}
-						innerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
+						allowedTypes={trainingAllowedTypes(draft.training_type, draft.items)}
+						innerAllowedTypes={trainingInnerAllowedTypes(draft.training_type)}
 					/>
 				</div>
 
@@ -701,7 +696,7 @@
 							<div data-testid="block-palette" style="display: flex; flex-wrap: wrap; gap: 6px;">
 								{#each allowedStructureButtons as btn (btn.type)}
 									<SidePanelDraggable
-										id={'__new__:' + btn.type}
+										id={newBlockId(btn.type)}
 										onclick={() => addRootItem(btn.type)}
 										style="
 											display: flex; align-items: center; gap: 6px;
@@ -793,7 +788,7 @@
 						{:else if sidebarResults.length > 0}
 							{#each sidebarResults as ex (ex.id)}
 								<SidePanelDraggable
-									id={'__new__:exercise:' + ex.id}
+									id={newBlockId('exercise', ex.id)}
 									onclick={() => addExerciseToTraining(ex)}
 									style="
 										display: flex; align-items: center; gap: 8px;

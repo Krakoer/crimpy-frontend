@@ -1742,6 +1742,42 @@ test.describe('reordering root blocks', () => {
 		expect(items.map((item) => item.group_title)).toEqual(['Cooldown', 'Warmup']);
 	});
 
+	// dnd-kit's keyboard sensor drives the same move the pointer one does, and it
+	// is the only way to reorder without a mouse. It reaches the block because the
+	// drag handle is a focusable button. Two exercises rather than two groups: a
+	// container swallows anything dragged over its body, keyboard or not, and the
+	// keys move straight down the middle of it.
+	test('moves a block down from the keyboard', async ({ page }) => {
+		const exerciseBlock = (id: string, reps: number) => ({
+			id,
+			type: 'exercise',
+			position: reps,
+			exercise_id: testExercise().id,
+			reps,
+			rest_seconds: 0
+		});
+		const training = testTraining({
+			items: [exerciseBlock('item-1', 3), exerciseBlock('item-2', 8)]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await dragHandles(page).nth(0).focus();
+		await page.keyboard.press('Space');
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Space');
+
+		await saveTraining(page);
+		expect(updates).toHaveLength(1);
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items.map((item) => item.reps)).toEqual([8, 3]);
+	});
+
 	test('moves a block up when it is dropped onto the one above it', async ({ page }) => {
 		const training = testTraining({ items: [warmupGroup, cooldownGroup] });
 		await stub(page, 'GET', '/api/trainings/*', { body: training });
