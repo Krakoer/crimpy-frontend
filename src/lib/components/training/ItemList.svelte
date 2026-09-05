@@ -12,7 +12,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 	import { createTrainingItem } from './create-item';
-	import { containerChildTypes, type ContainerType } from './container-rules';
+	import { ALL_BLOCK_TYPES, containerChildTypes, type ContainerType } from './container-rules';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { getContext, setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
@@ -42,7 +42,7 @@
 		items = $bindable(),
 		exercises,
 		catalog,
-		allowedTypes = ['exercise', 'circuit', 'emom', 'group', 'repeater', 'hangboard_rep'],
+		allowedTypes = ALL_BLOCK_TYPES,
 		innerAllowedTypes,
 		depth = 0,
 		containerId = ROOT_CONTAINER_ID
