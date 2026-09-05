@@ -106,6 +106,9 @@
 	function setAmrap(on: boolean) {
 		item.reps_is_max = on;
 		if (on) toggleVariable('reps', false);
+		// Closing an open rep count has to land on a number the athlete can run,
+		// and an item that was written as an AMRAP may carry none at all.
+		else if (!item.reps || item.reps === 0) item.reps = 1;
 	}
 
 	// Reps and duration are exclusive, so only the active one can be variable.

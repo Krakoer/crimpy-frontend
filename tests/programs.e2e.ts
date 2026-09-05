@@ -1575,6 +1575,19 @@ function openBlocksTraining() {
 						reps: 8
 					}
 				]
+			},
+			{
+				id: 'item-hang',
+				type: 'hangboard_rep',
+				position: 2,
+				worktime_seconds: 7,
+				rest_seconds: 180,
+				hand: 'both',
+				granularity: 'uniform',
+				load_is_max: true,
+				loads: [{ value: 0, unit: 'max' }],
+				edge_sizes_mm: [20],
+				hand_positions: [['HC']]
 			}
 		]
 	});
@@ -1670,6 +1683,48 @@ test('a week retimes a duration, moves an emom clock and opens a rep count', asy
 					{ item_id: 'item-plank', overrides: { duration: 45 } },
 					{ item_id: 'item-emom', overrides: { interval_seconds: 90 } },
 					{ item_id: 'item-exercise', overrides: { reps_is_max: true } }
+				]
+			}
+		]
+	});
+});
+
+test('a week that lowers a max hang to kilograms clears the max effort marker', async ({
+	page
+}) => {
+	// The marker is what older clients read a max effort from, so a week that
+	// prescribes a number has to send it cleared or the app says MAX where the
+	// plan says the number. It is derived from the load units by an effect in the
+	// editor, which is the coupling this drives rather than asserts by hand.
+	await stubTwoWeekProgram(page, [], openBlocksTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await modal.getByLabel('Load unit').selectOption('kg');
+	await modal.getByLabel('Load', { exact: true }).fill('25');
+	await modal.getByLabel('Load', { exact: true }).blur();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
+	expect(week?.body).toMatchObject({
+		sessions: [
+			{
+				overrides: [
+					{
+						item_id: 'item-hang',
+						overrides: { loads: [{ value: 25, unit: 'kg' }], load_is_max: false }
+					}
 				]
 			}
 		]

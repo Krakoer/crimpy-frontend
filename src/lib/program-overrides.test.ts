@@ -195,6 +195,19 @@ describe('diffOverrides', () => {
 		]);
 	});
 
+	it('leaves the rep count out when the same edit opens it', () => {
+		// The coach may type a number on the way to pressing AMRAP. Sending both
+		// contradicts the chip and sits dead in the snapshot, which resolves the
+		// marker first.
+		const base = [exercise('a', { reps: 5 })];
+		const edited = structuredClone(base);
+		edited[0].reps = 8;
+		edited[0].reps_is_max = true;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'a', overrides: { reps_is_max: true } }
+		]);
+	});
+
 	it('states a rep count closed again rather than dropping the marker', () => {
 		const base = [exercise('a', { reps_is_max: true })];
 		const edited = structuredClone(base);

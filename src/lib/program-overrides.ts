@@ -93,10 +93,18 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	// leave open. The backend refuses it anywhere else.
 	const isExercise = base.type === 'exercise';
 
-	if (!isSingleHang && numberChanged(base.reps, edited.reps)) override.reps = edited.reps;
+	// An open rep count prescribes no number, so a count edited on the way to
+	// pressing AMRAP is not sent: it would contradict the marker in the chip and
+	// sit dead in the prescription snapshot, which resolves the marker first.
+	const opensRepCount = isExercise && edited.reps_is_max === true;
+	if (!isSingleHang && !opensRepCount && numberChanged(base.reps, edited.reps)) {
+		override.reps = edited.reps;
+	}
 	if (isExercise && (edited.reps_is_max ?? false) !== (base.reps_is_max ?? false)) {
 		override.reps_is_max = edited.reps_is_max ?? false;
 	}
+	// Only an exercise is prescribed by time, and it is the only editor that
+	// writes a duration, so there is no type to keep this off.
 	if (numberChanged(base.duration, edited.duration)) override.duration = edited.duration;
 	// What makes the block every minute on the minute is its interval, and the
 	// backend refuses one on anything that is not an emom.
