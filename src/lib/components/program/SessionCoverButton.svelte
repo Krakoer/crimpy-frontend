@@ -25,11 +25,11 @@
 	It carries no title of its own, so the card's own tooltip, which is how a coach
 	reads a name clamped to two lines in a narrow cell, still comes through.
 
-	dnd-kit also marks the sortable wrapper aria-disabled and drops its pointer
-	events while the program is read only, which would take the cover down with
-	it. Both are stated back here, as PlayedSessionMarker does: the row cannot be
-	dragged then, but what the week asks of the training is exactly what a coach
-	reading the program came for, and it opens read only. -->
+	dnd-kit marks the sortable this covers aria-disabled while the program is read
+	only, which reads down onto everything inside it, so the cover states its own
+	answer back, as PlayedSessionMarker does: the row cannot be dragged then, but
+	what the week asks of the training is exactly what a coach reading the program
+	came for, and it opens read only. -->
 <div
 	role="button"
 	tabindex="0"
@@ -41,7 +41,7 @@
 	}}
 	aria-label="{customised ? 'Customised training' : 'Training'} parameters, week {weekNumber}"
 	aria-disabled="false"
-	style="position: absolute; inset: 0; cursor: pointer; pointer-events: auto;"
+	style="position: absolute; inset: 0; cursor: pointer;"
 ></div>
 {#if customised}
 	<!-- Painted over the cover so it is not dimmed by it, and deaf to the pointer
