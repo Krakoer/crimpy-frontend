@@ -79,9 +79,11 @@ established pattern rather than reinventing it:
 
 - `<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>`,
   with `dndSensors` imported from `$lib/dnd-sensors`. A route that builds its own
-  sensor list is a finding: naming sensors replaces dnd-kit's default pair, and a
-  list without `KeyboardSensor` takes reordering away from anyone not holding a
-  pointer.
+  sensor list is a finding, on the grounds of three copies drifting apart, not on
+  correctness: `DragDropProvider` constructs its manager with dnd-kit's defaults
+  before assigning the prop, so the keyboard sensor is bound either way. Do not
+  report a missing `KeyboardSensor` as switching keyboard dragging off. It does
+  not.
 - Source items: `createDraggable({ id })` with `{@attach draggable.attach}`; ids
   built with `newItemId()` from `$lib/dnd-new-item` mean "create new" on drop. A
   hand written `'__new__:'` literal or a `slice(8)` is a finding.
@@ -94,6 +96,16 @@ established pattern rather than reinventing it:
   has already been changed and flagged by the time the drag ends. Whatever
   decides "was this really edited" has to be settled against the drag-start
   snapshot, not accumulated per move.
+- **`tabindex` on a drag activator is a finding.** dnd-kit sets `tabindex="0"`, a
+  role and `aria-roledescription` on any activator that carries none, and that is
+  what puts a drag within reach of a keyboard. A hand written `tabindex="-1"` on
+  a drag handle stops it doing so and quietly makes the drag pointer-only, which
+  no test using `.focus()` will catch: focus works on a `tabindex="-1"` element,
+  tabbing to it does not. A keyboard drag spec has to reach the handle by Tab.
+- Enter and Space on a drag source belong to the keyboard sensor, which binds on
+  the element, while Svelte delegates plain `onkeydown` to the root. A source
+  that also acts on click has to take them back with `onkeydowncapture` and
+  `preventDefault`, or its own key handler is dead code.
 - Turning a target off means the `disabled` option of `createSortable` or
   `createDroppable`. A `pointer-events: none` on a wrapper is a finding: it takes
   down every control inside the card, and dnd-kit already refuses to start a drag
