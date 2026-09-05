@@ -766,12 +766,17 @@ test('keeps the weekly count of a session dragged over a day and back', async ({
 	);
 
 	await expect(page.getByTestId('freq:1').getByRole('spinbutton')).toHaveValue('4');
+	// The week ends holding what it was loaded with, so there is nothing to write.
+	await expect(page.getByRole('button', { name: 'Saved' })).toBeVisible();
 
+	// The count is the only thing the frequency column saves, so changing it is
+	// what gives this week something to write, on the row it was loaded with.
+	await page.getByTestId('freq:1').getByRole('spinbutton').fill('5');
 	await page.getByRole('button', { name: 'Save program' }).click();
 	await expect(page.getByText('Program saved')).toBeVisible();
 	expect(saves).toHaveLength(1);
 	expect(saves[0].body).toMatchObject({
-		sessions: [{ id: 'ws-1', training_id: 'training-1', times_per_week: 4 }]
+		sessions: [{ id: 'ws-1', training_id: 'training-1', times_per_week: 5 }]
 	});
 });
 
@@ -808,8 +813,9 @@ test('keeps the session id when it is dragged within its own week', async ({ pag
 	});
 });
 
-test('keeps the session id when it is dragged to another week and back', async ({ page }) => {
-	const weekTwo = {
+/** The empty second week the cross-week drags below move a session into. */
+function emptyWeekTwo(): Record<string, unknown> {
+	return {
 		id: 'week-2',
 		program_id: 'program-1',
 		week_number: 2,
@@ -818,9 +824,14 @@ test('keeps the session id when it is dragged to another week and back', async (
 		updated_at: '',
 		sessions: []
 	};
+}
 
-	// Both weeks have to be on screen at once for a cross-week drag, so the
-	// program is two weeks long and the viewport is tall enough to hold them.
+/**
+ * The two weeks the cross-week drags below move a session between. Both have to
+ * be on screen at once for such a drag, so the program is two weeks long and the
+ * viewport is tall enough to hold them.
+ */
+async function stubTwoWeeks(page: Page, weekTwo: Record<string, unknown>): Promise<void> {
 	await page.setViewportSize({ width: 1280, height: 1400 });
 	await stubProgram(page, testProgram({ duration_weeks: 2, start_date: mondayDaysAgo(0) }));
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
@@ -837,6 +848,10 @@ test('keeps the session id when it is dragged to another week and back', async (
 		body: weekOneWithSession()
 	});
 	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/2', { body: weekTwo });
+}
+
+test('keeps the session id when it is dragged to another week and back', async ({ page }) => {
+	await stubTwoWeeks(page, emptyWeekTwo());
 	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
 	await page.goto(PROGRAM_URL);
@@ -854,13 +869,15 @@ test('keeps the session id when it is dragged to another week and back', async (
 	// dnd-kit animates the dropped card back into place, and dragging again while
 	// that clone is still mounted picks up a stale position, so wait it out.
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
+	// Onto another day of week one, so the week the row belongs to has an edit to
+	// write and the save is not skipped for want of anything to save.
 	await dragOnto(
 		page,
 		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
-		page.getByTestId('cell:1:1')
+		page.getByTestId('cell:1:3')
 	);
 	await expect(
-		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' })
+		page.getByTestId('cell:1:3').getByRole('button', { name: 'Power endurance block' })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Save program' }).click();
 
@@ -868,8 +885,76 @@ test('keeps the session id when it is dragged to another week and back', async (
 
 	const weekOneSave = saves.find((s) => s.url.endsWith('/weeks/1'));
 	expect(weekOneSave?.body).toMatchObject({
-		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 1 }]
+		sessions: [{ id: 'ws-1', training_id: 'training-1', day_of_week: 3 }]
 	});
+});
+
+// One drag puts the session into week two, another takes it back out. Neither
+// drag can see the other, so what week two holds at the end is the only thing
+// that can tell it was not edited.
+test('does not save a week a session was dropped into and dragged back out of', async ({
+	page
+}) => {
+	await stubTwoWeeks(page, emptyWeekTwo());
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByTitle('Expand all').click();
+
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:2:0')
+	);
+	// dnd-kit animates the dropped card back into place, and dragging again while
+	// that clone is still mounted picks up a stale position, so wait it out.
+	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
+	// Back into week one, on another day, so week one has a real edit to save and
+	// the save is not skipped for want of anything to write.
+	await dragOnto(
+		page,
+		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:1:3')
+	);
+	await expect(page.getByTestId('cell:1:3').getByText('Power endurance block')).toHaveCount(1);
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(saves.map((s) => s.url.split('/weeks/')[1])).toEqual(['1']);
+});
+
+// The guard is what stands between the coach and losing work, so it must not
+// ask about a program put back exactly as it was read.
+test('leaves the program without asking once the session is dragged back', async ({ page }) => {
+	await stubTwoWeeks(page, emptyWeekTwo());
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByTitle('Expand all').click();
+
+	await dragOnto(
+		page,
+		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:2:0')
+	);
+	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
+	await dragOnto(
+		page,
+		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
+		page.getByTestId('cell:1:1')
+	);
+	await expect(page.getByTestId('cell:1:1').getByText('Power endurance block')).toHaveCount(1);
+
+	await page
+		.getByRole('navigation')
+		.first()
+		.getByRole('button', { name: 'Trainings', exact: true })
+		.click();
+
+	await expect(page).toHaveURL('/trainings');
+	await expect(page.getByRole('dialog', { name: 'Unsaved changes' })).toBeHidden();
 });
 
 // The move runs on drag over, so the session is really put into every week the

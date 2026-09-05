@@ -6,7 +6,6 @@ import {
 	parseCell,
 	restoreWeekSessions,
 	sessionForCell,
-	settleWeekSessions,
 	snapshotWeekSessions,
 	type DraftSession,
 	type SessionDrop,
@@ -23,9 +22,7 @@ export interface ProgramDragHandlers {
 	// A save that lands mid-drag rebuilds the week it saved from what the server
 	// returned, fresh local keys and all. Cancelling the drag after that must not
 	// put the pre-save arrays back on top of them, so the drag gives up its
-	// snapshot outright. It gives up settling with it: the weeks the pointer
-	// crossed stay dirty, which is the right way round, since nothing is left to
-	// tell whether they ended where they started.
+	// snapshot outright and a cancel from there restores nothing.
 	dropSnapshot(): void;
 }
 
@@ -121,15 +118,14 @@ export function createProgramDragHandlers(
 					0,
 					sessionForCell(newSession(newTrainingId), drop.cell)
 				);
-				drafts()[drop.cell.wn].dirty = true;
 				return;
 			}
 
 			// The move itself already happened on drag over, week by week as the
-			// pointer crossed them. What is left is settling which of those weeks
-			// the drag actually changed, and telling the coach why a played session
-			// refused to follow the pointer.
-			if (snapshot) settleWeekSessions(drafts(), snapshot, detach);
+			// pointer crossed them, and each week reports unsaved changes by
+			// comparing what it holds to what was loaded, so a week the pointer
+			// merely crossed settles itself. What is left is telling the coach why a
+			// played session refused to follow the pointer.
 			if (!drop) return;
 
 			const lockedWn = lockedSessionWeek(drafts(), sourceId);

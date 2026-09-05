@@ -43,6 +43,8 @@
 		draftSessions,
 		duplicatedDraftSession,
 		emptyDraft,
+		isWeekDirty,
+		savedWeek,
 		scheduledRows,
 		sessionPlacement,
 		type DaySession,
@@ -120,11 +122,7 @@
 			}
 		}
 		return {
-			notes: detail.notes ?? '',
-			days,
-			freqSessions,
-			everydaySessions,
-			dirty: false,
+			...savedWeek({ notes: detail.notes ?? '', days, freqSessions, everydaySessions }),
 			saving: false,
 			saveError: '',
 			deleteConfirm: false,
@@ -267,7 +265,7 @@
 		})
 	);
 
-	const isDirty = $derived(Object.values(weekDrafts).some((d) => d.dirty));
+	const isDirty = $derived(Object.values(weekDrafts).some(isWeekDirty));
 	const isSaving = $derived(Object.values(weekDrafts).some((d) => d.saving));
 
 	let leavingAfterDelete = $state(false);
@@ -316,20 +314,17 @@
 			const idx = draft.days[day].findIndex((s) => s._id === sessionId);
 			if (idx !== -1) {
 				draft.days[day].splice(idx, 1);
-				draft.dirty = true;
 				return;
 			}
 		}
 		const freqIdx = draft.freqSessions.findIndex((s) => s._id === sessionId);
 		if (freqIdx !== -1) {
 			draft.freqSessions.splice(freqIdx, 1);
-			draft.dirty = true;
 			return;
 		}
 		const everydayIdx = draft.everydaySessions.findIndex((s) => s._id === sessionId);
 		if (everydayIdx !== -1) {
 			draft.everydaySessions.splice(everydayIdx, 1);
-			draft.dirty = true;
 		}
 	}
 
@@ -395,7 +390,7 @@
 
 	async function saveAllProgram() {
 		const dirtyWns = Object.entries(weekDrafts)
-			.filter(([, d]) => d.dirty)
+			.filter(([, d]) => isWeekDirty(d))
 			.map(([n]) => parseInt(n));
 		if (dirtyWns.length === 0) return;
 		try {
@@ -424,8 +419,7 @@
 			notes: src.notes,
 			days: src.days.map((d) => d.map(duplicatedDraftSession)),
 			freqSessions: src.freqSessions.map(duplicatedDraftSession),
-			everydaySessions: src.everydaySessions.map(duplicatedDraftSession),
-			dirty: true
+			everydaySessions: src.everydaySessions.map(duplicatedDraftSession)
 		};
 		dupModalSourceWn = null;
 		snackbar.show(`Week ${sourceWn} duplicated to week ${targetWn}`);
@@ -480,7 +474,6 @@
 	function applyOverrides(overrides: SessionOverride[]) {
 		if (!overridesTarget) return;
 		overridesTarget.session.overrides = overrides;
-		overridesTarget.draft.dirty = true;
 		overridesTargetID = null;
 	}
 
@@ -596,7 +589,6 @@
 			freqSessions: draft.freqSessions.filter((s) => s.locked),
 			everydaySessions: draft.everydaySessions.filter((s) => s.locked),
 			notes: '',
-			dirty: true,
 			deleteConfirm: false
 		};
 		if (kept) {
@@ -1082,7 +1074,7 @@
 														>NOW</span
 													>
 												{/if}
-												{#if draft.dirty}
+												{#if isWeekDirty(draft)}
 													<span style="font-size: 9px; color: var(--pr);">*</span>
 												{/if}
 											</div>
@@ -1139,10 +1131,7 @@
 												<input
 													value={draft.notes}
 													onclick={(e) => e.stopPropagation()}
-													oninput={(e) => {
-														draft.notes = e.currentTarget.value;
-														draft.dirty = true;
-													}}
+													oninput={(e) => (draft.notes = e.currentTarget.value)}
 													placeholder="Week notes..."
 													style="
 												flex: 1; border: none; outline: none; background: transparent;
@@ -1422,10 +1411,9 @@
 																	<input
 																		type="number"
 																		value={session.times_per_week}
-																		oninput={(e) => {
-																			session.times_per_week = parseInt(e.currentTarget.value) || 1;
-																			draft.dirty = true;
-																		}}
+																		oninput={(e) =>
+																			(session.times_per_week =
+																				parseInt(e.currentTarget.value) || 1)}
 																		min="1"
 																		max="14"
 																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700; position: relative;"
