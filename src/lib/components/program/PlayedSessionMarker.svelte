@@ -27,11 +27,14 @@
 	);
 </script>
 
-<!-- dnd-kit marks the sortable wrapper this sits in role="button" aria-disabled
-	while the program is read only, and the wrapper drops its pointer events with
-	it, which would take the marker down too. Both are stated back here: the row
-	cannot be dragged then, but the run it points at is exactly what a coach
-	reading the program came for. -->
+<!-- Positioned, so it is painted over the cover that opens the week's parameters
+	and keeps its own clicks. The pointer down is stopped short of the sortable
+	the row sits in, or grabbing the marker would start dragging the session.
+
+	dnd-kit marks that sortable aria-disabled while the program is read only,
+	which reads down onto everything inside it, so the marker states its own
+	answer back: the row cannot be dragged then, but the run it points at is
+	exactly what a coach reading the program came for. -->
 <button
 	onclick={() => onOpen(latest)}
 	onpointerdown={(e) => e.stopPropagation()}
@@ -40,7 +43,7 @@
 	aria-disabled="false"
 	style="
 		display: flex; align-items: center; gap: 2px; flex-shrink: 0;
-		pointer-events: auto; position: relative;
+		position: relative;
 		padding: 0 3px; height: 16px; border-radius: 3px;
 		border: none; background: none; cursor: pointer; font-family: var(--font);
 		font-size: 9px; font-weight: 700; color: {needsReply ? 'var(--pr)' : 'var(--gn)'};

@@ -23,13 +23,18 @@
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
-	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
+	import { DragDropProvider } from '@dnd-kit/svelte';
+	import { dndSensors } from '$lib/dnd-sensors';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO } from '$lib/trainingTypes';
-	import { PointerActivationConstraints } from '@dnd-kit/dom';
 	import { createTrainingDragHandlers } from '$lib/training-drag-handlers.svelte';
+	import { newBlockId } from '$lib/training-drag';
+	import {
+		trainingAllowedTypes,
+		trainingInnerAllowedTypes
+	} from '$lib/components/training/container-rules';
 
 	const { onDragStart, onDragOver, onDragEnd } = createTrainingDragHandlers(
 		() => draft,
@@ -39,12 +44,6 @@
 			if (dropped && !exercises.find((e) => e.id === exerciseId)) exercises.push(dropped);
 		}
 	);
-
-	const dndSensors = [
-		PointerSensor.configure({
-			activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
-		})
-	];
 
 	function emptyDraft(): TrainingRequest {
 		return {
@@ -392,12 +391,8 @@
 						bind:items={draft.items}
 						{exercises}
 						catalog={assessmentCatalog.catalog}
-						allowedTypes={draft.training_type === 'stretching'
-							? draft.items.some((i) => i.type === 'circuit')
-								? ['exercise']
-								: ['exercise', 'circuit']
-							: ['exercise', 'circuit', 'emom', 'group', 'repeater', 'hangboard_rep']}
-						innerAllowedTypes={draft.training_type === 'stretching' ? ['exercise'] : undefined}
+						allowedTypes={trainingAllowedTypes(draft.training_type, draft.items)}
+						innerAllowedTypes={trainingInnerAllowedTypes(draft.training_type)}
 					/>
 				</div>
 
@@ -420,7 +415,7 @@
 							<div data-testid="block-palette" style="display: flex; flex-wrap: wrap; gap: 6px;">
 								{#each allowedStructureButtons as btn (btn.type)}
 									<SidePanelDraggable
-										id={'__new__:' + btn.type}
+										id={newBlockId(btn.type)}
 										onclick={() => addRootItem(btn.type)}
 										style="
 											display: flex; align-items: center; gap: 6px;
@@ -513,7 +508,7 @@
 						{:else if sidebarResults.length > 0}
 							{#each sidebarResults as ex (ex.id)}
 								<SidePanelDraggable
-									id={'__new__:exercise:' + ex.id}
+									id={newBlockId('exercise', ex.id)}
 									onclick={() => addExerciseToTraining(ex)}
 									style="
 										display: flex; align-items: center; gap: 8px;

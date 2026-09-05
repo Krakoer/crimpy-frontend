@@ -5,9 +5,10 @@
 	import { apiClient } from '$lib/api/client';
 	import { mondayOf } from '$lib/date';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
-	import { DragDropProvider, PointerSensor } from '@dnd-kit/svelte';
-	import { isSortable } from '@dnd-kit/svelte/sortable';
-	import { PointerActivationConstraints } from '@dnd-kit/dom';
+	import { DragDropProvider } from '@dnd-kit/svelte';
+	import { dndSensors } from '$lib/dnd-sensors';
+	import { newItemId } from '$lib/dnd-new-item';
+	import { createProgramDragHandlers } from '$lib/program-drag-handlers.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -38,27 +39,18 @@
 		TrainingSummary
 	} from '$lib/api/client';
 	import {
-		cellID,
-		cellSessions,
 		DAY_LABELS,
 		draftSessions,
 		duplicatedDraftSession,
 		emptyDraft,
-		moveSession,
-		parseCell,
-		restoreWeekSessions,
 		scheduledRows,
-		sessionForCell,
 		sessionPlacement,
-		snapshotWeekSessions,
 		type DaySession,
 		type DraftSession,
 		type EverydaySession,
 		type FreqSession,
-		type SessionDrop,
 		type WeekDraft,
-		type WeekDrafts,
-		type WeekSessionsSnapshot
+		type WeekDrafts
 	} from '$lib/program-draft';
 	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
 	import { toDateOnly } from '$lib/date';
@@ -293,115 +285,12 @@
 
 	let dupModalSourceWn = $state<number | null>(null);
 
-	const dndSensors = [
-		PointerSensor.configure({
-			activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })]
-		})
-	];
-
-	// The cell a drop lands in and the index inside it. A sortable target is one
-	// of the sessions, so the drop takes its place; anything else is the cell
-	// itself and the session goes to the end.
-	function dropTarget(target: unknown): SessionDrop | null {
-		const id = String((target as { id: string }).id);
-		if (isSortable(target as never)) {
-			const sortable = target as { id: string; group?: string; index: number };
-			const cell = parseCell(String(sortable.group ?? ''));
-			return cell ? { cell, overSessionID: id, index: sortable.index } : null;
-		}
-		const cell = parseCell(id);
-		return cell ? { cell, overSessionID: null, index: Infinity } : null;
-	}
-
-	// The week holding this session when it is locked, null when it is free to move.
-	function lockedSessionWeek(sessionId: string): number | null {
-		for (const wnStr of Object.keys(weekDrafts)) {
-			const wn = parseInt(wnStr);
-			const session = draftSessions(weekDrafts[wn]).find((s) => s._id === sessionId);
-			if (session) return session.locked ? wn : null;
-		}
-		return null;
-	}
-
-	// Reordering happens while the pointer moves, so the cells show the result
-	// before the drop. The cooldown stops a hovered pair from swapping back and
-	// forth every frame once the move has put the pointer over the other one.
-	const SWAP_COOLDOWN_MS = 200;
-	let lastSwapKey = '';
-	let lastSwapTime = 0;
-	let sessionsSnapshot: WeekSessionsSnapshot | null = null;
-
-	function onDragStart() {
-		lastSwapKey = '';
-		lastSwapTime = 0;
-		sessionsSnapshot = snapshotWeekSessions(
-			weekDrafts,
-			(value) => $state.snapshot(value) as typeof value
-		);
-	}
-
-	function onDragOver(event: { operation: { source: unknown; target: unknown } }) {
-		const { source, target } = event.operation;
-		if (!editMode || !source || !target) return;
-		// A training dragged out of the library has nothing to move yet: it is
-		// created on drop.
-		if (!isSortable(source as never)) return;
-
-		const sourceId = String((source as { id: string }).id);
-		const drop = dropTarget(target);
-		if (!drop) return;
-
-		// Rescheduling a played session is fine, moving it to another week is not:
-		// it would drop the row out of the week it was prescribed in.
-		const lockedWn = lockedSessionWeek(sourceId);
-		if (lockedWn !== null && lockedWn !== drop.cell.wn) return;
-
-		const swapKey = `${sourceId}:${drop.overSessionID ?? cellID(drop.cell)}`;
-		const now = Date.now();
-		if (swapKey === lastSwapKey && now - lastSwapTime < SWAP_COOLDOWN_MS) return;
-		moveSession(weekDrafts, sourceId, drop);
-		lastSwapKey = swapKey;
-		lastSwapTime = now;
-	}
-
-	function onDragEnd(event: {
-		canceled: boolean;
-		operation: { source: unknown; target: unknown };
-	}) {
-		const snapshot = sessionsSnapshot;
-		sessionsSnapshot = null;
-
-		const source = event.operation.source;
-		const target = event.operation.target;
-		if (event.canceled || !editMode) {
-			if (snapshot) restoreWeekSessions(weekDrafts, snapshot);
-			return;
-		}
-		if (!source || !target) return;
-
-		const sourceId = String((source as { id: string }).id);
-		const drop = dropTarget(target);
-		if (!drop) return;
-
-		if (sourceId.startsWith('__new__:')) {
-			const trainingId = sourceId.slice(8);
-			const sessions = cellSessions(weekDrafts, drop.cell);
-			sessions.splice(
-				Math.min(drop.index, sessions.length),
-				0,
-				sessionForCell(newDraftSession(trainingId), drop.cell)
-			);
-			weekDrafts[drop.cell.wn].dirty = true;
-			return;
-		}
-
-		// The move itself already happened on drag over. What is left is telling
-		// the coach why a played session refused to follow the pointer.
-		const lockedWn = lockedSessionWeek(sourceId);
-		if (lockedWn !== null && lockedWn !== drop.cell.wn) {
-			snackbar.show(LOCKED_SESSION_MOVE_REASON, 'warning');
-		}
-	}
+	const { onDragStart, onDragOver, onDragEnd, dropSnapshot } = createProgramDragHandlers(
+		() => weekDrafts,
+		() => editMode,
+		newDraftSession,
+		() => snackbar.show(LOCKED_SESSION_MOVE_REASON, 'warning')
+	);
 
 	function hasLockedSessions(draft: WeekDraft | undefined): boolean {
 		return draft ? draftSessions(draft).some((s) => s.locked) : false;
@@ -473,10 +362,9 @@
 				sessions: draftToSessionRequests(draft, wn)
 			});
 			weekDrafts[wn] = weekDetailToDraft(detail, wn);
-			// Ctrl+S fires during a drag, and what comes back carries fresh local
-			// keys and the ids the server just assigned. Cancelling the drag after
-			// that must not put the pre-save arrays back on top of them.
-			sessionsSnapshot = null;
+			// Ctrl+S fires during a drag, and this week now holds what the server
+			// just returned rather than what the drag started from.
+			dropSnapshot();
 			if (!weeks.some((w) => w.week_number === wn)) {
 				weeks.push({
 					id: detail.id,
@@ -1423,7 +1311,7 @@
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
-																			style="display: flex; flex-shrink: 0; pointer-events: auto; position: relative;"
+																			style="display: flex; flex-shrink: 0; position: relative;"
 																		>
 																			<Icon name="lock" size={10} color="var(--tx3)" />
 																		</div>
@@ -1555,7 +1443,7 @@
 																	{#if session.locked}
 																		<div
 																			title={LOCKED_SESSION_REASON}
-																			style="display: flex; flex-shrink: 0; pointer-events: auto; position: relative;"
+																			style="display: flex; flex-shrink: 0; position: relative;"
 																		>
 																			<Icon name="lock" size={10} color="var(--tx3)" />
 																		</div>
@@ -1637,7 +1525,7 @@
 																{#if session.locked}
 																	<div
 																		title={LOCKED_SESSION_REASON}
-																		style="display: flex; flex-shrink: 0; pointer-events: auto; position: relative;"
+																		style="display: flex; flex-shrink: 0; position: relative;"
 																	>
 																		<Icon name="lock" size={10} color="var(--tx3)" />
 																	</div>
@@ -1787,7 +1675,7 @@
 							{#each filteredTrainings as t (t.id)}
 								{@const info = trainingTypeInfo(t.training_type)}
 								<SidePanelDraggable
-									id="__new__:{t.id}"
+									id={newItemId(t.id)}
 									style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--rs); background: var(--panel); border: 1px solid var(--bd); cursor: grab; font-size: 12px; color: var(--tx); width: 100%; text-align: left;"
 								>
 									<div

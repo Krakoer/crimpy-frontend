@@ -10,7 +10,7 @@
 		type OverrideMode
 	} from '$lib/components/training/override-context';
 	import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
-	import { ensureClientIds } from '$lib/components/training/create-item';
+	import { prepareEditableTree } from '$lib/components/training/create-item';
 	import { applyItemReadDefaults } from '$lib/components/training/item-defaults';
 	import {
 		buildOverrideHistory,
@@ -82,7 +82,7 @@
 		const merged = mergeOverrides(baseItems, $state.snapshot(overrides) as SessionOverride[]);
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
-		ensureClientIds(merged);
+		prepareEditableTree(merged);
 		items = merged;
 		editedTraining = training.id;
 	});
@@ -132,7 +132,7 @@
 		const cleared = mergeOverrides(baseItems, []);
 		normalizeHangboardItems(cleared);
 		applyItemReadDefaults(cleared, loadAssessments);
-		ensureClientIds(cleared);
+		prepareEditableTree(cleared);
 		items = cleared;
 	}
 

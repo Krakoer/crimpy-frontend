@@ -70,11 +70,17 @@ describe('findContainerArray', () => {
 		expect(findContainerArray(items, ROOT_CONTAINER_ID)).toBe(items);
 	});
 
-	it('gives an empty container a list to receive blocks in', () => {
-		const empty: TrainingItem = { type: 'circuit', _id: 'c' };
-		const container = findContainerArray([empty], containerIdOf('c'));
-		expect(container).toEqual([]);
-		expect(empty.items).toBe(container);
+	it('answers an empty container with the list it holds', () => {
+		const empty = circuit('c');
+		expect(findContainerArray([empty], containerIdOf('c'))).toBe(empty.items);
+	});
+
+	// prepareEditableTree is what gives a container read from the API its list,
+	// so the lookup never edits the tree it is reading.
+	it('leaves a container that has no list alone', () => {
+		const missing: TrainingItem = { type: 'circuit', _id: 'c' };
+		expect(findContainerArray([missing], containerIdOf('c'))).toBeNull();
+		expect(missing.items).toBeUndefined();
 	});
 });
 
@@ -100,6 +106,22 @@ describe('isValidMove', () => {
 		expect(isValidMove(items, 'workout', emom, containerIdOf('c'))).toBe(false);
 	});
 
+	// A circuit nested in another one is not something the editor can build, but
+	// a tree read from the API could carry one, and the rule the add zone applies
+	// there is the depth rule, not the root one.
+	it('refuses a group inside a circuit that is not at the root', () => {
+		const nested = [circuit('outer', [circuit('inner')])];
+		expect(isValidMove(nested, 'workout', group('x'), containerIdOf('inner'))).toBe(false);
+	});
+
+	it('refuses a container the tree does not hold', () => {
+		expect(isValidMove(items, 'workout', exercise('x'), containerIdOf('missing'))).toBe(false);
+	});
+
+	it('refuses a block that names a leaf as its container', () => {
+		expect(isValidMove([exercise('a')], 'workout', exercise('x'), containerIdOf('a'))).toBe(false);
+	});
+
 	it('refuses the blocks a stretching training does not carry', () => {
 		const stretching: TrainingType = 'stretching';
 		expect(isValidMove([], stretching, group('x'), ROOT_CONTAINER_ID)).toBe(false);
@@ -108,6 +130,19 @@ describe('isValidMove', () => {
 		);
 		expect(isValidMove([circuit('c')], stretching, circuit('x'), ROOT_CONTAINER_ID)).toBe(false);
 		expect(isValidMove([], stretching, exercise('x'), ROOT_CONTAINER_ID)).toBe(true);
+	});
+
+	// Reordering the one circuit a stretching training is allowed must not read
+	// that circuit as a second one already in the list.
+	it('lets a stretching training keep the circuit it already has', () => {
+		const only = circuit('c');
+		expect(isValidMove([only], 'stretching', only, ROOT_CONTAINER_ID)).toBe(true);
+	});
+
+	it('lets a stretching circuit hold stretches and nothing else', () => {
+		const stretching = [circuit('c')];
+		expect(isValidMove(stretching, 'stretching', exercise('x'), containerIdOf('c'))).toBe(true);
+		expect(isValidMove(stretching, 'stretching', group('x'), containerIdOf('c'))).toBe(false);
 	});
 });
 

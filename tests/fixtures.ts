@@ -695,6 +695,29 @@ export async function dragOnto(page: Page, source: Locator, target: Locator): Pr
 }
 
 /**
+ * One drag that stops on each target in turn before releasing on the last. The
+ * pointer really rests on the ones in between, the way it does when a coach
+ * drags across the program, which is what makes them answer the drag.
+ */
+export async function dragVia(page: Page, source: Locator, waypoints: Locator[]): Promise<void> {
+	const from = await source.boundingBox();
+	if (!from) throw new Error('Cannot drag an element that is not laid out');
+
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 20, { steps: 5 });
+	await page.waitForTimeout(50);
+
+	for (const waypoint of waypoints) {
+		const to = await waypoint.boundingBox();
+		if (!to) throw new Error('Cannot drag onto an element that is not laid out');
+		await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 5 });
+		await page.waitForTimeout(120);
+	}
+	await page.mouse.up();
+}
+
+/**
  * Dropping into a container is aimed at a target that moves: the tree is
  * rewritten under the pointer while the drag is on. Reading the target again
  * after every hop follows it, the way a coach watching the screen does, and

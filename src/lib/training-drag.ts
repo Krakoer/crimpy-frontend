@@ -1,7 +1,13 @@
 import type { TrainingItem, TrainingItemType, TrainingType } from '$lib/api/client';
-import { isHangboardItem } from '$lib/components/training/hangboard-granularity';
+import {
+	containerChildTypes,
+	isContainerType,
+	trainingAllowedTypes,
+	trainingInnerAllowedTypes
+} from '$lib/components/training/container-rules';
 import { createTrainingItem } from '$lib/components/training/create-item';
 import { arrayMove } from '$lib/sortable';
+import { newItemId, newItemPayload } from '$lib/dnd-new-item';
 
 export const ROOT_CONTAINER_ID = 'root';
 const CONTAINER_ID_PREFIX = 'container:';
@@ -59,6 +65,10 @@ export function findItemById(items: TrainingItem[], id: string): TrainingItem | 
 	return null;
 }
 
+// Containers reach the editor holding a list, whether they came from
+// createTrainingItem or through prepareEditableTree, so this only ever reads the
+// tree. A lookup that filled the list in as it went would edit the training
+// merely by being dragged over.
 export function findContainerArray(
 	items: TrainingItem[],
 	containerId: string
@@ -66,7 +76,7 @@ export function findContainerArray(
 	if (containerId === ROOT_CONTAINER_ID) return items;
 	const itemId = itemIdOf(containerId);
 	for (const item of items) {
-		if (item._id === itemId) return item.items ?? (item.items = []);
+		if (item._id === itemId) return item.items ?? null;
 		if (item.items) {
 			const found = findContainerArray(item.items, containerId);
 			if (found !== null) return found;
@@ -75,31 +85,44 @@ export function findContainerArray(
 	return null;
 }
 
+// The container a drop target names, and the depth of the list it sits in,
+// which is what decides what it takes.
+function findContainer(
+	items: TrainingItem[],
+	containerId: string,
+	depth = 0
+): { item: TrainingItem; depth: number } | null {
+	const itemId = itemIdOf(containerId);
+	for (const item of items) {
+		if (item._id === itemId) return { item, depth };
+		if (item.items) {
+			const found = findContainer(item.items, containerId, depth + 1);
+			if (found) return found;
+		}
+	}
+	return null;
+}
+
+// Whether a drag may put this block here. It reads the same rules the add zone
+// and the grouping bar read: a block the palette refuses to add must not be
+// droppable into the same place instead.
 export function isValidMove(
 	items: TrainingItem[],
 	trainingType: TrainingType | undefined,
 	movedItem: TrainingItem,
 	targetContainerId: string
 ): boolean {
-	if (trainingType === 'stretching') {
-		if (movedItem.type === 'group' || movedItem.type === 'emom' || isHangboardItem(movedItem))
-			return false;
-		if (movedItem.type === 'circuit' && items.some((i) => i.type === 'circuit')) return false;
+	if (targetContainerId === ROOT_CONTAINER_ID) {
+		// A circuit already at the root is not a second one on its way in.
+		return trainingAllowedTypes(trainingType, items, movedItem._id).includes(movedItem.type);
 	}
-	if (targetContainerId === ROOT_CONTAINER_ID) return true;
-	if (movedItem.type === 'circuit') return false;
-	// The two containers that nest do so in one place each: a group inside a
-	// root circuit, an emom inside a root group. Anywhere else is a container
-	// the child rules refuse, or a block on a clock inside rounds that are
-	// not, which is two paces for one block.
-	const containerItemId = itemIdOf(targetContainerId);
-	if (movedItem.type === 'group') {
-		return findItemById(items, containerItemId)?.type === 'circuit';
-	}
-	if (movedItem.type === 'emom') {
-		return items.some((item) => item._id === containerItemId && item.type === 'group');
-	}
-	return true;
+	const target = findContainer(items, targetContainerId);
+	if (!target || !isContainerType(target.item.type)) return false;
+	return containerChildTypes(
+		target.item.type,
+		target.depth,
+		trainingInnerAllowedTypes(trainingType)
+	).includes(movedItem.type);
 }
 
 // A container cannot be dropped inside itself: it would take the list it lands
@@ -182,16 +205,20 @@ export function insertNewItem(
 	return true;
 }
 
-const NEW_ITEM_PREFIX = '__new__:';
+// The training editor's half of the create-new drag id: a block type, and the
+// exercise to build it around when the rail dragged a named one.
+export function newBlockId(type: TrainingItemType, exerciseId?: string): string {
+	return newItemId(exerciseId ? `${type}:${exerciseId}` : type);
+}
 
 export function parseNewItemId(id: string): { type: TrainingItemType; exerciseId?: string } | null {
-	if (!id.startsWith(NEW_ITEM_PREFIX)) return null;
-	const rest = id.slice(NEW_ITEM_PREFIX.length);
-	const separator = rest.indexOf(':');
+	const payload = newItemPayload(id);
+	if (payload === null) return null;
+	const separator = payload.indexOf(':');
 	return separator === -1
-		? { type: rest as TrainingItemType }
+		? { type: payload as TrainingItemType }
 		: {
-				type: rest.slice(0, separator) as TrainingItemType,
-				exerciseId: rest.slice(separator + 1)
+				type: payload.slice(0, separator) as TrainingItemType,
+				exerciseId: payload.slice(separator + 1)
 			};
 }

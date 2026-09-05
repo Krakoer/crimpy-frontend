@@ -90,13 +90,43 @@ Navigation uses `goto()` from `$app/navigation`. Protected pages wrap their cont
 
 ### Drag-and-drop (`@dnd-kit/svelte`)
 
-Used in the training editor. Key patterns:
+Used by the training editor and the program week calendar. Key patterns:
 
 - Wrap the interactive area in `<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>`.
-- `PointerSensor.configure({ activationConstraints: [new PointerActivationConstraints.Distance({ value: 8 })] })` prevents accidental drags on clicks.
-- **Source items** (sidebar): `createDraggable({ id })` with `{@attach draggable.attach}`. IDs prefixed with `__new__:<type>:<extraData>` signal "create new" in `onDragEnd`.
+- `dndSensors` comes from `$lib/dnd-sensors` and is shared by every editor. It
+  holds the pointer sensor with an 8px activation distance, so a click is not a
+  drag, and the keyboard sensor, which is what answers Space, Enter and the
+  arrows. Both are listed for the sake of saying so: `DragDropProvider`
+  constructs its manager with dnd-kit's defaults before it assigns the `sensors`
+  prop, so the keyboard sensor is bound whether or not a list names it. What
+  does decide whether a keyboard can reach a drag is the activator's tabindex,
+  below.
+- **Source items** (sidebar): `createDraggable({ id })` with `{@attach draggable.attach}`.
+  Ids built with `newItemId()` from `$lib/dnd-new-item` mean "create new" on drop;
+  read back with `newItemPayload()`, or `parseNewItemId()` for the training
+  editor's `<type>[:<exerciseId>]` payload.
 - **Sortable items** (reorderable list): `createSortable({ id, group, index })` with `{@attach sortable.attach}`. The `group` field identifies the container (e.g. `'root'` or `'container:<parentId>'`).
-- `onDragOver` runs the move with a 200ms debounce timer; `onDragEnd` commits or reverts via snapshot. Check `isSortable(source)` to distinguish sortable vs. draggable sources.
+- `onDragOver` runs the move, guarded by `createDragOverLatch()` from
+  `$lib/dnd-drag-over-latch` so a hovered pair does not swap back and forth.
+  `onDragEnd` commits or reverts via a snapshot taken in `onDragStart`. Check
+  `isSortable(source)` to distinguish sortable from draggable sources.
+- The handlers themselves live outside the routes: `training-drag-handlers.svelte.ts`
+  and `program-drag-handlers.svelte.ts`.
+- Disable a sortable or droppable through its own `disabled` option. Do not
+  reach for `pointer-events: none`: it takes down everything inside the card
+  with it, and dnd-kit already refuses to start a drag from a disabled source.
+- Leave the activator's `tabindex` alone. dnd-kit sets `tabindex="0"`, a role and
+  `aria-roledescription` on any activator that has none, which is what makes a
+  drag reachable from the keyboard. Writing `tabindex="-1"` on a drag handle
+  stops dnd-kit setting it and takes the handle out of the tab order, so the
+  drag becomes pointer-only.
+- Enter and Space on a drag source belong to the keyboard sensor, which listens
+  on the element while Svelte delegates plain `onkeydown` to the root. A source
+  that also does something on click has to claim them back with
+  `onkeydowncapture` plus `preventDefault`, the way `SidePanelDraggable` does.
+- What a container accepts is answered in one place, `container-rules.ts`. Both
+  the add zone and `isValidMove` read it, so a block the palette refuses to add
+  cannot be dropped into the same place instead.
 - Existing reusable components: `SidePanelDraggable.svelte` (draggable button), `SortableWrapper.svelte` (sortable div).
 
 ### FullCalendar

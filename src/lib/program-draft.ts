@@ -163,6 +163,18 @@ export function locateSession(drafts: WeekDrafts, sessionId: string): SessionLoc
 	return null;
 }
 
+// The week holding this session when it is locked, null when it is free to move
+// or absent. A played session may be rescheduled inside its own week but not out
+// of it: the row it points at belongs to the week it was prescribed in.
+export function lockedSessionWeek(drafts: WeekDrafts, sessionId: string): number | null {
+	for (const wnStr of Object.keys(drafts)) {
+		const wn = parseInt(wnStr);
+		const session = draftSessions(drafts[wn]).find((s) => s._id === sessionId);
+		if (session) return session.locked ? wn : null;
+	}
+	return null;
+}
+
 // A frequency cell is the only one that reads the count, so a session entering
 // it must end up with one. A session that never had it starts at 1; one coming
 // back from another cell gets the count it left with. Going through here is
@@ -228,6 +240,77 @@ export function snapshotWeekSessions(drafts: WeekDrafts, clone: DeepClone): Week
 		});
 	}
 	return snapshot;
+}
+
+// What a session would be saved as from the cell it currently sits in, listed
+// rather than serialised as an object.
+//
+// Two things make a plain JSON.stringify of the session wrong here. Its keys
+// come out in whatever order built it, and movedDraftSession rebuilds them in a
+// different order from the one weekDetailToDraft used, so a session that had
+// merely been picked up and put back read as changed. And a session that passed
+// through the frequency cell keeps the times_per_week it was given there, a
+// field only the frequency column ever saves, so carrying it back to a day cell
+// read as changed too. Only the frequency column is asked for that count.
+function sessionFingerprint(session: DraftSession, readsFrequency: boolean): unknown[] {
+	return [
+		session._id,
+		session.id ?? null,
+		session.originWn ?? null,
+		session.training_id,
+		session.notes ?? null,
+		session.locked ?? false,
+		readsFrequency ? (session.times_per_week ?? 1) : null,
+		session.overrides
+	];
+}
+
+// The sessions a week holds, in the order that decides what the save writes.
+function weekSessionsFingerprint(week: {
+	days: DaySession[][];
+	freqSessions: FreqSession[];
+	everydaySessions: EverydaySession[];
+}): string {
+	return JSON.stringify([
+		week.days.map((day) => day.map((session) => sessionFingerprint(session, false))),
+		week.freqSessions.map((session) => sessionFingerprint(session, true)),
+		week.everydaySessions.map((session) => sessionFingerprint(session, false))
+	]);
+}
+
+const EMPTY_WEEK_SESSIONS = {
+	days: Array.from({ length: 7 }, () => []) as DaySession[][],
+	freqSessions: [] as FreqSession[],
+	everydaySessions: [] as EverydaySession[]
+};
+
+// The move runs on drag over, so by the time the drag ends every week the
+// pointer crossed has already had the session pass through it and has been
+// flagged dirty for it. Which weeks actually changed is decided here instead,
+// against what each held when the drag started: a week that ends holding what
+// it started with was not edited, however the pointer got there. Without this a
+// session dragged from week one to week three leaves week two claiming unsaved
+// changes, and so does one dropped back on the day it came from.
+export function settleWeekSessions(
+	drafts: WeekDrafts,
+	snapshot: WeekSessionsSnapshot,
+	clone: DeepClone
+): void {
+	for (const wnStr of Object.keys(drafts)) {
+		const wn = parseInt(wnStr);
+		const draft = drafts[wn];
+		const saved = snapshot[wn];
+		const now = weekSessionsFingerprint(
+			clone({
+				days: draft.days,
+				freqSessions: draft.freqSessions,
+				everydaySessions: draft.everydaySessions
+			})
+		);
+		if (now !== weekSessionsFingerprint(saved ?? EMPTY_WEEK_SESSIONS)) continue;
+		// A week the drag opened and left empty was never dirty to begin with.
+		draft.dirty = saved ? saved.dirty : false;
+	}
 }
 
 // A week absent from the snapshot was opened by the drag itself, so it is
