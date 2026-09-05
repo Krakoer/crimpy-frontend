@@ -63,6 +63,35 @@ describe('mergeOverrides', () => {
 		expect(merged[0].variable_targets).toEqual({});
 	});
 
+	it('retimes a duration and moves an emom clock', () => {
+		const base: TrainingItem[] = [
+			exercise('a', { reps: undefined, duration: 30 }),
+			{ id: 'e', _id: 'e', type: 'emom', cycles: 10, interval_seconds: 60 }
+		];
+		const merged = mergeOverrides(base, [
+			{ item_id: 'a', overrides: { duration: 45 } },
+			{ item_id: 'e', overrides: { interval_seconds: 90 } }
+		]);
+		expect(merged[0].duration).toBe(45);
+		expect(merged[1].interval_seconds).toBe(90);
+	});
+
+	it('takes a marker turned off as a value rather than a no op', () => {
+		const base = [
+			exercise('a', { reps_is_max: true }),
+			repeater('h', { load_is_max: true, loads: [{ value: 0, unit: 'max' }] })
+		];
+		const merged = mergeOverrides(base, [
+			{ item_id: 'a', overrides: { reps_is_max: false } },
+			{
+				item_id: 'h',
+				overrides: { load_is_max: false, loads: [{ value: 25, unit: 'kg' }] }
+			}
+		]);
+		expect(merged[0].reps_is_max).toBe(false);
+		expect(merged[1].load_is_max).toBe(false);
+	});
+
 	it('reaches items nested in a container', () => {
 		const base: TrainingItem[] = [
 			{ id: 'c', _id: 'c', type: 'circuit', cycles: 3, items: [exercise('a')] }
@@ -134,6 +163,64 @@ describe('diffOverrides', () => {
 		edited[0].rest_seconds = 20;
 		edited[0].cycle_rest_seconds = 20;
 		expect(diffOverrides(base, edited)).toEqual([{ item_id: 'a', overrides: { cycles: 8 } }]);
+	});
+
+	it('emits the duration a week retimed', () => {
+		const base = [exercise('a', { reps: undefined, duration: 30 })];
+		const edited = structuredClone(base);
+		edited[0].duration = 45;
+		expect(diffOverrides(base, edited)).toEqual([{ item_id: 'a', overrides: { duration: 45 } }]);
+	});
+
+	it('emits the interval of an emom and of nothing else', () => {
+		const base: TrainingItem[] = [
+			{ id: 'e', _id: 'e', type: 'emom', cycles: 10, interval_seconds: 60 },
+			{ id: 'c', _id: 'c', type: 'circuit', cycles: 3, interval_seconds: 60 }
+		];
+		const edited = structuredClone(base);
+		edited[0].interval_seconds = 90;
+		edited[1].interval_seconds = 90;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'e', overrides: { interval_seconds: 90 } }
+		]);
+	});
+
+	it('emits the AMRAP marker of an exercise and of nothing else', () => {
+		const base: TrainingItem[] = [exercise('a'), repeater('r')];
+		const edited = structuredClone(base);
+		edited[0].reps_is_max = true;
+		edited[1].reps_is_max = true;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'a', overrides: { reps_is_max: true } }
+		]);
+	});
+
+	it('states a rep count closed again rather than dropping the marker', () => {
+		const base = [exercise('a', { reps_is_max: true })];
+		const edited = structuredClone(base);
+		edited[0].reps_is_max = false;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'a', overrides: { reps_is_max: false } }
+		]);
+	});
+
+	it('sends the max effort marker with the loads it mirrors', () => {
+		const base = [repeater('a', { load_is_max: true, loads: [{ value: 0, unit: 'max' }] })];
+		const edited = structuredClone(base);
+		edited[0].loads = [{ value: 25, unit: 'kg' }];
+		edited[0].load_is_max = false;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'a', overrides: { loads: [{ value: 25, unit: 'kg' }], load_is_max: false } }
+		]);
+	});
+
+	it('leaves the max effort marker alone when the loads did not move', () => {
+		// A training whose flag drifted from its load units must not read as a week
+		// that overrode something, merely because the editor put the two back in step.
+		const base = [repeater('a', { load_is_max: false, loads: [{ value: 0, unit: 'max' }] })];
+		const edited = structuredClone(base);
+		edited[0].load_is_max = true;
+		expect(diffOverrides(base, edited)).toEqual([]);
 	});
 
 	it('resends the layout arrays when the grid is resized', () => {
@@ -210,6 +297,23 @@ describe('overrideSummary', () => {
 	it('calls the cycles of an emom rounds', () => {
 		const base = { id: 'a', _id: 'a', type: 'emom', cycles: 5 } as TrainingItem;
 		expect(overrideSummary(base, { cycles: 8 }, catalog)).toBe('8 rounds');
+	});
+
+	it('names the timings a week moved', () => {
+		expect(overrideSummary(exercise('a'), { duration: 45 }, catalog)).toBe('45s');
+		const emom = { id: 'e', _id: 'e', type: 'emom', cycles: 10 } as TrainingItem;
+		expect(overrideSummary(emom, { interval_seconds: 90 }, catalog)).toBe('every 1mn 30s');
+	});
+
+	it('names an open rep count, and the count that closes it again', () => {
+		expect(overrideSummary(exercise('a'), { reps_is_max: true }, catalog)).toBe('AMRAP');
+		expect(
+			overrideSummary(
+				exercise('a', { reps: 8, reps_is_max: true }),
+				{ reps_is_max: false },
+				catalog
+			)
+		).toBe('8 reps');
 	});
 
 	it('says the loads climb rather than naming every one', () => {

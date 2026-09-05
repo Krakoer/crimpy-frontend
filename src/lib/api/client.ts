@@ -484,11 +484,15 @@ export interface WeekSummary {
 export interface ItemOverride {
 	cycles?: number;
 	cycle_rest_seconds?: number;
+	interval_seconds?: number;
 	reps?: number;
+	reps_is_max?: boolean;
+	duration?: number;
 	rest_seconds?: number;
 	hb_worktime_seconds?: number;
 	hand?: HangboardHand;
 	granularity?: HangboardGranularity;
+	load_is_max?: boolean;
 	loads?: Load[];
 	left_loads?: Load[];
 	hand_positions?: string[][];

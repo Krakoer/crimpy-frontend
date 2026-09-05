@@ -29,11 +29,15 @@ function isEmpty(value: unknown[] | undefined | null): boolean {
 function applyItemOverride(item: TrainingItem, override: ItemOverride): void {
 	if (override.cycles != null) item.cycles = override.cycles;
 	if (override.cycle_rest_seconds != null) item.cycle_rest_seconds = override.cycle_rest_seconds;
+	if (override.interval_seconds != null) item.interval_seconds = override.interval_seconds;
 	if (override.reps != null) item.reps = override.reps;
+	if (override.reps_is_max != null) item.reps_is_max = override.reps_is_max;
+	if (override.duration != null) item.duration = override.duration;
 	if (override.rest_seconds != null) item.rest_seconds = override.rest_seconds;
 	if (override.hb_worktime_seconds != null) item.worktime_seconds = override.hb_worktime_seconds;
 	if (override.hand != null) item.hand = override.hand;
 	if (override.granularity != null) item.granularity = override.granularity;
+	if (override.load_is_max != null) item.load_is_max = override.load_is_max;
 	if (!isEmpty(override.loads)) item.loads = override.loads;
 	if (!isEmpty(override.left_loads)) item.left_loads = override.left_loads;
 	if (!isEmpty(override.hand_positions)) item.hand_positions = override.hand_positions;
@@ -85,8 +89,20 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	// The leftover of an emom interval is already the rest of its round, so a
 	// stored rest would read as a gap the block never plays.
 	const isEmom = base.type === 'emom';
+	// The AMRAP marker stands in for a rep count, and only an exercise has one to
+	// leave open. The backend refuses it anywhere else.
+	const isExercise = base.type === 'exercise';
 
 	if (!isSingleHang && numberChanged(base.reps, edited.reps)) override.reps = edited.reps;
+	if (isExercise && (edited.reps_is_max ?? false) !== (base.reps_is_max ?? false)) {
+		override.reps_is_max = edited.reps_is_max ?? false;
+	}
+	if (numberChanged(base.duration, edited.duration)) override.duration = edited.duration;
+	// What makes the block every minute on the minute is its interval, and the
+	// backend refuses one on anything that is not an emom.
+	if (isEmom && numberChanged(base.interval_seconds, edited.interval_seconds)) {
+		override.interval_seconds = edited.interval_seconds;
+	}
 	if (!isSingleHang && numberChanged(base.cycles, edited.cycles)) override.cycles = edited.cycles;
 	if (
 		!isSingleHang &&
@@ -137,6 +153,16 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 		if (!isEmpty(edited.left_loads)) override.left_loads = edited.left_loads;
 		if (!isEmpty(edited.hand_positions)) override.hand_positions = edited.hand_positions;
 		if (!isEmpty(edited.edge_sizes_mm)) override.edge_sizes_mm = edited.edge_sizes_mm;
+	}
+
+	// The item level marker is what older clients read a max effort from, so a
+	// week that lowers one to a number has to clear it or the app says MAX where
+	// the plan says the number. It mirrors the load units and moves only when they
+	// do, so it goes out with them: reading it alone would make a training whose
+	// flag drifted from its loads look overridden the moment a week was opened.
+	const loadsMoved = override.loads != null || override.left_loads != null;
+	if (loadsMoved && (edited.load_is_max ?? false) !== (base.load_is_max ?? false)) {
+		override.load_is_max = edited.load_is_max ?? false;
 	}
 
 	return override;
@@ -204,6 +230,16 @@ export function overrideSummary(
 ): string {
 	const parts: string[] = [];
 	if (override.reps != null) parts.push(`${override.reps} reps`);
+	// A week that closes an open rep count carries the marker and keeps the count
+	// the training named, so the chip reads that one rather than saying nothing.
+	if (override.reps_is_max === true) parts.push('AMRAP');
+	else if (override.reps_is_max === false && override.reps == null) {
+		parts.push(`${base.reps ?? 0} reps`);
+	}
+	if (override.duration != null) parts.push(fmtSeconds(override.duration));
+	if (override.interval_seconds != null) {
+		parts.push(`every ${fmtSeconds(override.interval_seconds)}`);
+	}
 	if (override.cycles != null) {
 		parts.push(`${override.cycles} ${base.type === 'emom' ? 'rounds' : 'sets'}`);
 	}
@@ -270,11 +306,15 @@ export function resetItemToBase(
 	for (const field of [
 		'cycles',
 		'cycle_rest_seconds',
+		'interval_seconds',
 		'reps',
+		'reps_is_max',
+		'duration',
 		'rest_seconds',
 		'worktime_seconds',
 		'hand',
 		'granularity',
+		'load_is_max',
 		'loads',
 		'left_loads',
 		'hand_positions',
