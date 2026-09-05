@@ -1,14 +1,24 @@
 import type { TrainingItem, TrainingItemType } from '$lib/api/client';
 import { applyHangboardDefaults, applyHangboardRepDefaults } from './hangboard-granularity';
+import { isContainerType } from './container-rules';
 
+// What a tree read from the API needs before it can be edited.
+//
 // The lists and the sortables key on _id, which is a local handle rather than
-// the server row, so a tree read from the API is given one before it is edited.
-// Every editing surface needs it, whether it is the training itself or a program
-// week reading the same tree to change what it asks for.
-export function ensureClientIds(items: TrainingItem[]): void {
+// the server row, so every block is given one. Every editing surface needs it,
+// whether it is the training itself or a program week reading the same tree to
+// change what it asks for.
+//
+// A container is also given the list it holds. The API omits it when it is
+// empty, and a drop into an empty circuit would otherwise have to conjure one
+// mid-drag: the tree would then differ from the saved one by an empty array
+// nobody added, which is enough to make an untouched training claim unsaved
+// changes.
+export function prepareEditableTree(items: TrainingItem[]): void {
 	for (const item of items) {
 		if (!item._id) item._id = crypto.randomUUID();
-		if (item.items) ensureClientIds(item.items);
+		if (!item.items && isContainerType(item.type)) item.items = [];
+		if (item.items) prepareEditableTree(item.items);
 	}
 }
 
