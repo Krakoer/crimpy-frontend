@@ -434,6 +434,36 @@ describe('isWeekDirty', () => {
 		drafts[1].days[1][0].overrides = [];
 		expect(isWeekDirty(drafts[1])).toBe(false);
 	});
+
+	// The modal rebuilds every override from the training item, so what Apply
+	// hands back carries neither the row id the server sent nor its key order,
+	// and lists the items in the order the training does. Applying it without
+	// touching a field asks for exactly what the week already asks for.
+	it('reads a customisation reapplied untouched as saved', () => {
+		const drafts = draftsWithMonday('a');
+		drafts[1].days[1][0].overrides = [
+			{ id: 'ov-2', item_id: 'item-2', overrides: { reps: 3 } },
+			{ id: 'ov-1', item_id: 'item-1', overrides: { cycles: 2, reps: 4 } }
+		];
+		loaded(drafts[1]);
+
+		drafts[1].days[1][0].overrides = [
+			{ item_id: 'item-1', overrides: { reps: 4, cycles: 2 } },
+			{ item_id: 'item-2', overrides: { reps: 3 } }
+		];
+
+		expect(isWeekDirty(drafts[1])).toBe(false);
+	});
+
+	it('reads a customisation the coach really changed as unsaved', () => {
+		const drafts = draftsWithMonday('a');
+		drafts[1].days[1][0].overrides = [{ id: 'ov-1', item_id: 'item-1', overrides: { reps: 4 } }];
+		loaded(drafts[1]);
+
+		drafts[1].days[1][0].overrides = [{ item_id: 'item-1', overrides: { reps: 5 } }];
+
+		expect(isWeekDirty(drafts[1])).toBe(true);
+	});
 });
 
 describe('draft sessions', () => {

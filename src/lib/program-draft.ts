@@ -68,8 +68,33 @@ function sessionFingerprint(session: DraftSession, readsFrequency: boolean): unk
 		session.notes ?? null,
 		session.locked ?? false,
 		readsFrequency ? (session.times_per_week ?? 1) : null,
-		session.overrides
+		overridesFingerprint(session.overrides)
 	];
+}
+
+// The same values whatever order their keys arrived in, and without the ones
+// JSON.stringify would drop anyway.
+function orderedValue(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(orderedValue);
+	if (value === null || typeof value !== 'object') return value;
+	return Object.entries(value as Record<string, unknown>)
+		.filter(([, entry]) => entry !== undefined)
+		.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+		.map(([key, entry]) => [key, orderedValue(entry)]);
+}
+
+// What the week asks of each item it customises. An override read from the
+// server carries the row id it was stored under and the key order the database
+// kept it in, while the parameters modal rebuilds it from the training item and
+// the fields the coach set: same request, different object. Only what is asked
+// for is fingerprinted, item by item, so re-applying a customisation without
+// touching it is not an edit.
+function overridesFingerprint(overrides: SessionOverride[]): unknown[] {
+	return [...overrides]
+		.sort((left, right) =>
+			left.item_id < right.item_id ? -1 : left.item_id > right.item_id ? 1 : 0
+		)
+		.map((override) => [override.item_id, orderedValue(override.overrides)]);
 }
 
 // What a week holds, apart from what it is doing about it.
