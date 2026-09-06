@@ -10,6 +10,7 @@ import {
 	mondayDaysAgo,
 	signIn,
 	stub,
+	testAssessmentDefinition,
 	testAssessmentRecord,
 	testEnrolledUser,
 	testProgram,
@@ -1593,6 +1594,51 @@ function openBlocksTraining() {
 	});
 }
 
+/**
+ * The assessment a rep count can be a percentage of, and a training that
+ * prescribes one that way. Only the AMRAP round trip needs them: the toggle is
+ * what clears the percentage, and the week editor offers no way to put it back.
+ */
+const REPS_ASSESSMENT = 'assessment-max-pull-ups';
+
+function percentTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		items: [
+			{
+				id: 'item-exercise',
+				type: 'exercise',
+				position: 0,
+				exercise_id: 'exercise-1',
+				exercise_name: 'Pull up',
+				reps: 8,
+				variable_targets: {
+					reps: { assessment_id: REPS_ASSESSMENT, percent: 75, fallback: 8 }
+				}
+			}
+		]
+	});
+}
+
+/** An exercise written as an AMRAP, carrying no rep count to fall back on. */
+function openRepCountTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		items: [
+			{
+				id: 'item-exercise',
+				type: 'exercise',
+				position: 0,
+				exercise_id: 'exercise-1',
+				exercise_name: 'Pull up',
+				reps_is_max: true
+			}
+		]
+	});
+}
+
 async function stubTwoWeekProgram(
 	page: Page,
 	secondWeekOverrides: unknown[] = [],
@@ -1729,6 +1775,110 @@ test('a week that lowers a max hang to kilograms clears the max effort marker', 
 			}
 		]
 	});
+});
+
+test('a week that turns AMRAP on and off again puts the percentage back', async ({ page }) => {
+	// The toggle clears the training's rep percentage, and the % button that would
+	// restore it belongs to the training and is not offered in a week. Without a
+	// symmetric toggle the coach silently drops the percentage for that week, and
+	// the override that says so summarises to nothing.
+	await stubTwoWeekProgram(page, [], percentTraining());
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: [
+			...builtinAssessmentDefinitions(),
+			testAssessmentDefinition({
+				id: REPS_ASSESSMENT,
+				label: 'Max pull ups',
+				unit: 'repetitions',
+				per_hand: false,
+				is_builtin: false
+			})
+		]
+	});
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await modal.getByTestId('amrap-toggle').click();
+	await expect(modal.getByText('1 block customised for this week')).toBeVisible();
+	await modal.getByTestId('amrap-toggle').click();
+	await expect(modal.getByText('This week runs the training as it is written')).toBeVisible();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+
+	// The week is back to what the training prescribes, so the grid marks nothing
+	// and there is no unsaved change to save. Before the toggle was symmetric this
+	// left a customised week whose chip summarised to nothing.
+	await expect(
+		page
+			.getByTestId('cell:1:1')
+			.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+	).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
+	expect(saved).toHaveLength(0);
+});
+
+test('a week that closes an open rep count lands on a number the athlete can run', async ({
+	page
+}) => {
+	await stubTwoWeekProgram(page, [], openRepCountTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await modal.getByTestId('amrap-toggle').click();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
+	expect(week?.body).toMatchObject({
+		sessions: [
+			{ overrides: [{ item_id: 'item-exercise', overrides: { reps: 1, reps_is_max: false } }] }
+		]
+	});
+});
+
+test('a week cannot save a duration of nothing on the way to typing one', async ({ page }) => {
+	await stubTwoWeekProgram(page, [], openBlocksTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await modal.getByLabel('Duration seconds').fill('');
+	await modal.getByLabel('Duration minutes').fill('');
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
+	const plank = week?.body.sessions[0].overrides.find(
+		(o: { item_id: string }) => o.item_id === 'item-plank'
+	);
+	expect(plank.overrides.duration).toBe(1);
 });
 
 test('reads a week that already asks for something back into the editor', async ({ page }) => {

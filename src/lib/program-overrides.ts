@@ -3,7 +3,8 @@ import type {
 	Load,
 	SessionOverride,
 	TrainingItem,
-	TrainingItemType
+	TrainingItemType,
+	VariableTargets
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
 import type { OverrideHistoryByItem } from '$lib/components/training/override-context';
@@ -21,6 +22,12 @@ const GRID_ITEM_TYPES: TrainingItemType[] = ['repeater', 'hangboard_rep'];
 
 function isEmpty(value: unknown[] | undefined | null): boolean {
 	return !value || value.length === 0;
+}
+
+// An override carrying an empty variable_targets is a value, not a no-op: it
+// says this week prescribes no percentage where the training holds one.
+function isEmptyTargets(targets: VariableTargets | undefined): boolean {
+	return targets != null && Object.keys(targets).length === 0;
 }
 
 // An override carrying an empty layout array prescribes nothing, so every client
@@ -272,6 +279,13 @@ export function overrideSummary(
 	if (!isEmpty(override.hand_positions)) parts.push('grips');
 	const target = override.variable_targets?.reps ?? override.variable_targets?.duration;
 	if (target) parts.push(`${target.percent}% ${assessmentLabel(target.assessment_id, catalog)}`);
+	// A week that only clears the training's percentage prescribes the plain
+	// value instead. Left unnamed it summarises to nothing, and the strip then
+	// hides a block the footer counts as customised, so the coach sees a week
+	// they cannot read.
+	if (parts.length === 0 && isEmptyTargets(override.variable_targets)) {
+		parts.push(base.duration ? fmtSeconds(base.duration) : `${base.reps ?? 0} reps`);
+	}
 	return parts.join(', ');
 }
 

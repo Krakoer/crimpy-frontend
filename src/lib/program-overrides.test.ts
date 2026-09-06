@@ -329,6 +329,21 @@ describe('overrideSummary', () => {
 		).toBe('8 reps');
 	});
 
+	it('names the plain value a week that cleared the percentage falls back to', () => {
+		// Left unnamed the chip is blank, and the strip hides a block the footer
+		// counts as customised.
+		expect(overrideSummary(exercise('a', { reps: 8 }), { variable_targets: {} }, catalog)).toBe(
+			'8 reps'
+		);
+		expect(
+			overrideSummary(
+				exercise('a', { reps: undefined, duration: 90 }),
+				{ variable_targets: {} },
+				catalog
+			)
+		).toBe('1mn 30s');
+	});
+
 	it('says the loads climb rather than naming every one', () => {
 		const summary = overrideSummary(
 			repeater('a'),
