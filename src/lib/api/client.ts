@@ -500,6 +500,38 @@ export interface ItemOverride {
 	variable_targets?: VariableTargets;
 }
 
+// The item field each override key replaces. Nearly all of them are named after
+// the field, and hb_worktime_seconds is the one that is not.
+//
+// It types as a Record over both interfaces, so an override key with no entry
+// and an entry naming a field TrainingItem does not have are both compile
+// errors: this is what keeps the runtime list below in step with the interface
+// above, which is erased and cannot be read at runtime. The list itself is held
+// to contract/override-keys.json, the copy of the backend's key set that the app
+// is held to as well, by override-contract.test.ts.
+export const OVERRIDE_ITEM_FIELDS = {
+	cycles: 'cycles',
+	cycle_rest_seconds: 'cycle_rest_seconds',
+	interval_seconds: 'interval_seconds',
+	reps: 'reps',
+	reps_is_max: 'reps_is_max',
+	duration: 'duration',
+	rest_seconds: 'rest_seconds',
+	hb_worktime_seconds: 'worktime_seconds',
+	hand: 'hand',
+	granularity: 'granularity',
+	load_is_max: 'load_is_max',
+	loads: 'loads',
+	left_loads: 'left_loads',
+	hand_positions: 'hand_positions',
+	edge_sizes_mm: 'edge_sizes_mm',
+	variable_targets: 'variable_targets'
+} as const satisfies Record<keyof ItemOverride, keyof TrainingItem>;
+
+export type OverrideKey = keyof typeof OVERRIDE_ITEM_FIELDS;
+
+export const OVERRIDE_KEYS = Object.keys(OVERRIDE_ITEM_FIELDS) as OverrideKey[];
+
 export interface SessionOverride {
 	id?: string;
 	item_id: string;

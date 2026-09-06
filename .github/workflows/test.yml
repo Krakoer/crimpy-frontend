@@ -18,5 +18,31 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run test:unit
 
+  # The override key set is the backend's, and a key it names that this portal
+  # does not read is dropped from the prescription the athlete plays rather than
+  # merely ignored here. The vendored copy is what the unit tests hold the merge
+  # to, so it has to be the copy the backend actually ships.
+  contract:
+    name: Override key contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare the override key set with crimpy-backend
+        run: |
+          URL=https://raw.githubusercontent.com/Krakoer/crimpy-backend/dev/contract/override-keys.json
+          if ! curl -fsSL "$URL" -o canonical.json; then
+            echo "Could not read $URL."
+            echo "The canonical list lives in crimpy-backend; restore it there before this can pass."
+            exit 1
+          fi
+          if ! diff -u canonical.json contract/override-keys.json; then
+            echo
+            echo "contract/override-keys.json has drifted from crimpy-backend dev."
+            echo "Copy the canonical file over, then make the override contract tests pass:"
+            echo "a key added on the left has to be read by applyItemOverride, diffItem,"
+            echo "overrideSummary and resetItemToBase before a coach can use it."
+            exit 1
+          fi
+
   e2e:
     uses: ./.github/workflows/e2e.yml

@@ -1,10 +1,11 @@
-import type {
-	ItemOverride,
-	Load,
-	SessionOverride,
-	TrainingItem,
-	TrainingItemType,
-	VariableTargets
+import {
+	OVERRIDE_ITEM_FIELDS,
+	type ItemOverride,
+	type Load,
+	type SessionOverride,
+	type TrainingItem,
+	type TrainingItemType,
+	type VariableTargets
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
 import type { OverrideHistoryByItem } from '$lib/components/training/override-context';
@@ -325,24 +326,10 @@ export function resetItemToBase(
 	// reads the item once when it is created. A fresh key is what makes it read
 	// the restored values rather than write its own back over them.
 	editedItem._id = crypto.randomUUID();
-	for (const field of [
-		'cycles',
-		'cycle_rest_seconds',
-		'interval_seconds',
-		'reps',
-		'reps_is_max',
-		'duration',
-		'rest_seconds',
-		'worktime_seconds',
-		'hand',
-		'granularity',
-		'load_is_max',
-		'loads',
-		'left_loads',
-		'hand_positions',
-		'edge_sizes_mm',
-		'variable_targets'
-	] as const) {
+	// Read off the override key set rather than listed again here, so a key the
+	// backend adds cannot leave a field the week can change and the reset cannot
+	// put back.
+	for (const field of Object.values(OVERRIDE_ITEM_FIELDS)) {
 		const value = baseItem[field];
 		if (value === undefined) delete editedItem[field];
 		else (editedItem[field] as unknown) = structuredClone(value);
