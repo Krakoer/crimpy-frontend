@@ -30,9 +30,10 @@ jobs:
       - name: Compare the override key set with crimpy-backend
         run: |
           URL=https://raw.githubusercontent.com/Krakoer/crimpy-backend/dev/contract/override-keys.json
-          if ! curl -fsSL "$URL" -o canonical.json; then
+          if ! curl -fsSL --retry 3 "$URL" -o canonical.json; then
             echo "Could not read $URL."
-            echo "The canonical list lives in crimpy-backend; restore it there before this can pass."
+            echo "Either the fetch failed, or the canonical list is gone from crimpy-backend,"
+            echo "which is where it lives and where it has to be restored."
             exit 1
           fi
           if ! diff -u canonical.json contract/override-keys.json; then

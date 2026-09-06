@@ -7,3 +7,7 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Vendored byte for byte from crimpy-backend, where nothing runs prettier. The
+# contract CI job compares the bytes, so reformatting it here breaks the copy.
+/contract/

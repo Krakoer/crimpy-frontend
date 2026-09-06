@@ -17,3 +17,7 @@ jobs:
       # eslint's type-aware Svelte rules need the generated .svelte-kit types.
       - run: npx svelte-kit sync
       - run: npm run lint
+      # The override key map is held to ItemOverride by the type checker alone,
+      # so a key added to the interface and not to the map is caught here and
+      # nowhere else. eslint reports rules, not type errors.
+      - run: npm run check

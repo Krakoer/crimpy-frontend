@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
 	OVERRIDE_ITEM_FIELDS,
-	OVERRIDE_KEYS,
 	type ItemOverride,
 	type OverrideKey,
 	type TrainingItem,
@@ -98,7 +97,9 @@ const silentSummaryKeys: OverrideKey[] = ['load_is_max'];
 
 describe('the override key contract', () => {
 	it('names the same keys as the backend', () => {
-		expect([...OVERRIDE_KEYS].sort()).toEqual(contract.keys.map((entry) => entry.key).sort());
+		expect(Object.keys(OVERRIDE_ITEM_FIELDS).sort()).toEqual(
+			contract.keys.map((entry) => entry.key).sort()
+		);
 	});
 
 	it('maps every key to a field the item carries', () => {
@@ -109,6 +110,12 @@ describe('the override key contract', () => {
 
 	it('merges every key onto the item', () => {
 		for (const entry of contract.keys) {
+			// Without this the assertion below can pass on a key nothing merges,
+			// where the base happens to already hold the sample.
+			expect(
+				baseItem()[entry.item_field],
+				`${entry.key}: the base has to differ from the contract sample or the merge proves nothing`
+			).not.toEqual(entry.sample);
 			const merged = mergeOverrides(
 				[baseItem()],
 				[{ item_id: 'a', overrides: { [entry.key]: entry.sample } }]
