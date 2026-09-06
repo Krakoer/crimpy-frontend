@@ -3,7 +3,8 @@ import type {
 	Load,
 	SessionOverride,
 	TrainingItem,
-	TrainingItemType
+	TrainingItemType,
+	VariableTargets
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
 import type { OverrideHistoryByItem } from '$lib/components/training/override-context';
@@ -23,17 +24,27 @@ function isEmpty(value: unknown[] | undefined | null): boolean {
 	return !value || value.length === 0;
 }
 
+// An override carrying an empty variable_targets is a value, not a no-op: it
+// says this week prescribes no percentage where the training holds one.
+function isEmptyTargets(targets: VariableTargets | undefined): boolean {
+	return targets != null && Object.keys(targets).length === 0;
+}
+
 // An override carrying an empty layout array prescribes nothing, so every client
 // leaves the base value in place rather than wiping it. The merge has to agree,
 // and the diff must never emit one.
 function applyItemOverride(item: TrainingItem, override: ItemOverride): void {
 	if (override.cycles != null) item.cycles = override.cycles;
 	if (override.cycle_rest_seconds != null) item.cycle_rest_seconds = override.cycle_rest_seconds;
+	if (override.interval_seconds != null) item.interval_seconds = override.interval_seconds;
 	if (override.reps != null) item.reps = override.reps;
+	if (override.reps_is_max != null) item.reps_is_max = override.reps_is_max;
+	if (override.duration != null) item.duration = override.duration;
 	if (override.rest_seconds != null) item.rest_seconds = override.rest_seconds;
 	if (override.hb_worktime_seconds != null) item.worktime_seconds = override.hb_worktime_seconds;
 	if (override.hand != null) item.hand = override.hand;
 	if (override.granularity != null) item.granularity = override.granularity;
+	if (override.load_is_max != null) item.load_is_max = override.load_is_max;
 	if (!isEmpty(override.loads)) item.loads = override.loads;
 	if (!isEmpty(override.left_loads)) item.left_loads = override.left_loads;
 	if (!isEmpty(override.hand_positions)) item.hand_positions = override.hand_positions;
@@ -85,8 +96,28 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	// The leftover of an emom interval is already the rest of its round, so a
 	// stored rest would read as a gap the block never plays.
 	const isEmom = base.type === 'emom';
+	// The AMRAP marker stands in for a rep count, and only an exercise has one to
+	// leave open. The backend refuses it anywhere else.
+	const isExercise = base.type === 'exercise';
 
-	if (!isSingleHang && numberChanged(base.reps, edited.reps)) override.reps = edited.reps;
+	// An open rep count prescribes no number, so a count edited on the way to
+	// pressing AMRAP is not sent: it would contradict the marker in the chip and
+	// sit dead in the prescription snapshot, which resolves the marker first.
+	const opensRepCount = isExercise && edited.reps_is_max === true;
+	if (!isSingleHang && !opensRepCount && numberChanged(base.reps, edited.reps)) {
+		override.reps = edited.reps;
+	}
+	if (isExercise && (edited.reps_is_max ?? false) !== (base.reps_is_max ?? false)) {
+		override.reps_is_max = edited.reps_is_max ?? false;
+	}
+	// Only an exercise is prescribed by time, and it is the only editor that
+	// writes a duration, so there is no type to keep this off.
+	if (numberChanged(base.duration, edited.duration)) override.duration = edited.duration;
+	// What makes the block every minute on the minute is its interval, and the
+	// backend refuses one on anything that is not an emom.
+	if (isEmom && numberChanged(base.interval_seconds, edited.interval_seconds)) {
+		override.interval_seconds = edited.interval_seconds;
+	}
 	if (!isSingleHang && numberChanged(base.cycles, edited.cycles)) override.cycles = edited.cycles;
 	if (
 		!isSingleHang &&
@@ -137,6 +168,16 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 		if (!isEmpty(edited.left_loads)) override.left_loads = edited.left_loads;
 		if (!isEmpty(edited.hand_positions)) override.hand_positions = edited.hand_positions;
 		if (!isEmpty(edited.edge_sizes_mm)) override.edge_sizes_mm = edited.edge_sizes_mm;
+	}
+
+	// The item level marker is what older clients read a max effort from, so a
+	// week that lowers one to a number has to clear it or the app says MAX where
+	// the plan says the number. It mirrors the load units and moves only when they
+	// do, so it goes out with them: reading it alone would make a training whose
+	// flag drifted from its loads look overridden the moment a week was opened.
+	const loadsMoved = override.loads != null || override.left_loads != null;
+	if (loadsMoved && (edited.load_is_max ?? false) !== (base.load_is_max ?? false)) {
+		override.load_is_max = edited.load_is_max ?? false;
 	}
 
 	return override;
@@ -204,6 +245,16 @@ export function overrideSummary(
 ): string {
 	const parts: string[] = [];
 	if (override.reps != null) parts.push(`${override.reps} reps`);
+	// A week that closes an open rep count carries the marker and keeps the count
+	// the training named, so the chip reads that one rather than saying nothing.
+	if (override.reps_is_max === true) parts.push('AMRAP');
+	else if (override.reps_is_max === false && override.reps == null) {
+		parts.push(`${base.reps ?? 0} reps`);
+	}
+	if (override.duration != null) parts.push(fmtSeconds(override.duration));
+	if (override.interval_seconds != null) {
+		parts.push(`every ${fmtSeconds(override.interval_seconds)}`);
+	}
 	if (override.cycles != null) {
 		parts.push(`${override.cycles} ${base.type === 'emom' ? 'rounds' : 'sets'}`);
 	}
@@ -228,6 +279,13 @@ export function overrideSummary(
 	if (!isEmpty(override.hand_positions)) parts.push('grips');
 	const target = override.variable_targets?.reps ?? override.variable_targets?.duration;
 	if (target) parts.push(`${target.percent}% ${assessmentLabel(target.assessment_id, catalog)}`);
+	// A week that only clears the training's percentage prescribes the plain
+	// value instead. Left unnamed it summarises to nothing, and the strip then
+	// hides a block the footer counts as customised, so the coach sees a week
+	// they cannot read.
+	if (parts.length === 0 && isEmptyTargets(override.variable_targets)) {
+		parts.push(base.duration ? fmtSeconds(base.duration) : `${base.reps ?? 0} reps`);
+	}
 	return parts.join(', ');
 }
 
@@ -270,11 +328,15 @@ export function resetItemToBase(
 	for (const field of [
 		'cycles',
 		'cycle_rest_seconds',
+		'interval_seconds',
 		'reps',
+		'reps_is_max',
+		'duration',
 		'rest_seconds',
 		'worktime_seconds',
 		'hand',
 		'granularity',
+		'load_is_max',
 		'loads',
 		'left_loads',
 		'hand_positions',

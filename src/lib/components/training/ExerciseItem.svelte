@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem } from '$lib/api/client';
+	import type { Exercise, TrainingItem, VariableTarget } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
@@ -30,12 +30,6 @@
 	// override carries, are not rendered there.
 	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
 
-	// A week may not retime an exercise prescribed by duration: the override the
-	// clients merge carries no duration, so a number typed here would be dropped
-	// on the way to the athlete rather than saved.
-	const DURATION_FIXED_REASON =
-		'The duration belongs to the training and cannot be changed for one week';
-
 	const MAX_COMMENT_LENGTH = 200;
 
 	let collapsed = $state(false);
@@ -57,9 +51,13 @@
 	let durationMin = $state(Math.floor((item.duration ?? 0) / 60));
 	let durationSec = $state((item.duration ?? 0) % 60);
 
+	// A duration of nothing is a block with no time to run for, and the editors
+	// hold the floor at one second so a coach clearing both boxes on the way to
+	// typing a new value cannot save one. Without it a week saves duration 0,
+	// which reads back as a rep exercise rather than the timed one it is.
 	$effect(() => {
 		if (isDuration) {
-			item.duration = durationMin * 60 + durationSec;
+			item.duration = Math.max(1, durationMin * 60 + durationSec);
 		}
 	});
 
@@ -109,9 +107,28 @@
 	// both the fixed one and the percentage that would compute one.
 	let isAmrap = $derived(item.reps_is_max === true);
 
+	// The percentage an AMRAP ruled out, kept so pressing the toggle back puts it
+	// where it was. A program week has no other way to restore it: the % button
+	// belongs to the training and is not offered there, so without this a coach
+	// who changed their mind would leave the week on a plain count and the
+	// training's percentage silently dropped for that week.
+	let clearedRepsTarget: VariableTarget | undefined;
+
 	function setAmrap(on: boolean) {
 		item.reps_is_max = on;
-		if (on) toggleVariable('reps', false);
+		if (on) {
+			clearedRepsTarget = item.variable_targets?.reps;
+			toggleVariable('reps', false);
+			return;
+		}
+		if (clearedRepsTarget) {
+			item.variable_targets = { ...item.variable_targets, reps: clearedRepsTarget };
+			clearedRepsTarget = undefined;
+			return;
+		}
+		// Closing an open rep count has to land on a number the athlete can run,
+		// and an item that was written as an AMRAP may carry none at all.
+		if (!item.reps || item.reps === 0) item.reps = 1;
 	}
 
 	// Reps and duration are exclusive, so only the active one can be variable.
@@ -349,9 +366,8 @@
 							<input
 								type="number"
 								min="0"
+								aria-label="Duration minutes"
 								bind:value={durationMin}
-								disabled={overriding}
-								title={overriding ? DURATION_FIXED_REASON : undefined}
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
@@ -360,9 +376,8 @@
 								type="number"
 								min="0"
 								max="59"
+								aria-label="Duration seconds"
 								bind:value={durationSec}
-								disabled={overriding}
-								title={overriding ? DURATION_FIXED_REASON : undefined}
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
@@ -382,7 +397,7 @@
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
 					{/if}
-					{#if !isDuration && !overriding}
+					{#if !isDuration}
 						<button
 							data-testid="amrap-toggle"
 							onclick={(e) => {

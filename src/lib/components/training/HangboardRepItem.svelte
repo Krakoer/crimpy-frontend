@@ -28,13 +28,10 @@
 
 	let { item = $bindable(), catalog, onRemove, onDuplicate }: Props = $props();
 
-	// A program week changes what the hang asks for, not what it is. Two controls
-	// stay with the training there. The hand mode, because a mode that hangs both
-	// hands together needs the left loads gone and a sparse override has no way to
-	// say so. The load unit, because a max effort is still carried by the item's
-	// own load_is_max flag for older clients, and no override may move it, so a
-	// week switching between max and kilograms would read one way in the app and
-	// another in the plan.
+	// A program week changes what the hang asks for, not what it is. The hand mode
+	// stays with the training there, because a mode that hangs both hands together
+	// needs the left loads gone and a sparse override has no way to say so: an
+	// empty array is read as a no-op by every client.
 	const overriding = getContext<OverrideMode | undefined>(OVERRIDE_KEY) !== undefined;
 	const FIXED_BY_TRAINING = 'This belongs to the training and is the same in every week';
 
@@ -210,8 +207,6 @@
 						class="hb-select"
 						aria-label="Load unit"
 						value={config.loadRight.unit}
-						disabled={overriding}
-						title={overriding ? FIXED_BY_TRAINING : undefined}
 						onchange={(e) => setLoadUnit(e.currentTarget.value as LoadUnit)}
 					>
 						{#each HANGBOARD_LOAD_UNITS as unit (unit.value)}
