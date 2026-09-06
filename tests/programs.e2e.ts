@@ -1875,7 +1875,8 @@ test('a week cannot save a duration of nothing on the way to typing one', async 
 	await expect(page.getByText('Program saved')).toBeVisible();
 
 	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
-	const body = week?.body as {
+	expect(week).toBeDefined();
+	const body = week!.body as {
 		sessions: { overrides: { item_id: string; overrides: { duration: number } }[] }[];
 	};
 	const plank = body.sessions[0].overrides.find((o) => o.item_id === 'item-plank');
