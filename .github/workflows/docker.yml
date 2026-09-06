@@ -9,8 +9,42 @@ jobs:
   e2e:
     uses: ./.github/workflows/e2e.yml
 
+  # Nothing in this repo changes when the backend adds an override key, so an
+  # image built off an unchanged main is the one path that could ship a portal
+  # whose merge drops one. The question is narrower than the one the PR job asks:
+  # not whether the vendored list is the current one, but whether this image
+  # reads every key the deployed backend can send. The backend deploys from main,
+  # and this portal running ahead of it is normal.
+  #
+  # It compares the key sets and not the merge, which the unit tests own.
+  contract:
+    name: Deployed override keys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the deployed backend sends no override key this image drops
+        run: |
+          URL=https://raw.githubusercontent.com/Krakoer/crimpy-backend/main/contract/override-keys.json
+          if ! curl -fsSL --retry 3 --retry-all-errors "$URL" -o deployed.json; then
+            echo "Could not read $URL." >&2
+            echo "Either the fetch failed, or the canonical list is gone from crimpy-backend," >&2
+            echo "which is where it lives and where it has to be restored." >&2
+            exit 1
+          fi
+          missing=$(jq -rn \
+            --slurpfile deployed deployed.json \
+            --slurpfile vendored contract/override-keys.json \
+            '[$deployed[0].keys[].key] - [$vendored[0].keys[].key] | join(", ")')
+          rm -f deployed.json
+          if [ -n "$missing" ]; then
+            echo "the deployed backend sends override keys this image drops: $missing" >&2
+            echo "Vendor contract/override-keys.json from crimpy-backend and read them in" >&2
+            echo "applyItemOverride, diffItem, overrideSummary and resetItemToBase." >&2
+            exit 1
+          fi
+
   docker:
-    needs: e2e
+    needs: [e2e, contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
