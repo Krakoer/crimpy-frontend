@@ -23,11 +23,13 @@ jobs:
   # was written from the itemOverride struct the deployed backend already ships: a
   # backend older than the file names no key this image is missing.
   #
-  # A 404 is also what a moved file, a renamed path, a deleted one and a typo in
-  # the URL return, and those have to stay red. So the pass is taken only once the
-  # same path on dev answers 200, which proves the URL still resolves and is the
-  # very file the PR check holds the vendored copy to. Any other status, and a
-  # fetch that never got one, is red either way.
+  # A 404 is also what a moved file, a renamed path, a deleted one, a wrong ref
+  # and a typo in the repo return, and those have to stay red. So the pass is
+  # taken only once two probes answer 200: go.mod on the same ref, which proves
+  # the repo and the ref resolve, and the contract path on dev, which proves the
+  # file still lives where the PR check holds the vendored copy to it. One BASE
+  # builds all three URLs, so the ref is the only token they do not share. Any
+  # other status, and a fetch that never got one, is red either way.
   contract:
     name: Deployed override keys
     runs-on: ubuntu-latest
@@ -36,19 +38,24 @@ jobs:
       - name: Check the deployed backend sends no override key this image drops
         run: |
           CONTRACT=contract/override-keys.json
-          URL=https://raw.githubusercontent.com/Krakoer/crimpy-backend/main/$CONTRACT
-          DEV_URL=https://raw.githubusercontent.com/Krakoer/crimpy-backend/dev/$CONTRACT
+          BASE=https://raw.githubusercontent.com/Krakoer/crimpy-backend
+          REF=main
+          URL=$BASE/$REF/$CONTRACT
           trap 'rm -f deployed.json' EXIT
           code=$(curl -sSL --retry 3 --retry-all-errors -o deployed.json -w '%{http_code}' "$URL") || code=000
           if [ "$code" = "404" ]; then
-            probe=$(curl -sSL --retry 3 --retry-all-errors -o /dev/null -w '%{http_code}' "$DEV_URL") || probe=000
-            if [ "$probe" != "200" ]; then
-              echo "Neither $URL nor $DEV_URL is readable (dev answered ${probe:-000})." >&2
-              echo "The contract has moved or the URL is wrong: this gate cannot tell whether" >&2
-              echo "the deployed backend sends a key this image drops, so it will not pass." >&2
+            ref_code=$(curl -sSL --retry 3 --retry-all-errors -o /dev/null -w '%{http_code}' "$BASE/$REF/go.mod") || ref_code=000
+            path_code=$(curl -sSL --retry 3 --retry-all-errors -o /dev/null -w '%{http_code}' "$BASE/dev/$CONTRACT") || path_code=000
+            if [ "$ref_code" != "200" ] || [ "$path_code" != "200" ]; then
+              echo "$URL is missing and this gate cannot tell why." >&2
+              echo "$BASE/$REF/go.mod answered ${ref_code:-000}, $BASE/dev/$CONTRACT answered ${path_code:-000}," >&2
+              echo "and both have to answer 200 for the miss to mean the backend simply has not" >&2
+              echo "released the contract yet. So the ref moved, the contract moved, the URL is" >&2
+              echo "wrong, or crimpy-backend is unreachable. A gate that cannot see what it guards" >&2
+              echo "does not pass." >&2
               exit 1
             fi
-            echo "::warning::crimpy-backend main carries no $CONTRACT yet, so this image was not compared against the deployed key set"
+            echo "::warning::crimpy-backend $REF carries no $CONTRACT yet, so this image was not compared against the deployed key set"
             echo "The deployed backend predates the override key contract, so there is nothing"
             echo "to compare against and no key it can send this image drops."
             exit 0
@@ -59,8 +66,9 @@ jobs:
             echo "which is where it lives and where it has to be restored." >&2
             exit 1
           fi
-          if ! jq -e . deployed.json >/dev/null 2>&1; then
-            echo "$URL did not answer JSON, so the deployed key set could not be read." >&2
+          if ! jq -e '.keys | type == "array"' deployed.json >/dev/null 2>&1; then
+            echo "$URL did not answer the contract: no keys array, so the deployed key set" >&2
+            echo "could not be read. An error page served with a 200 looks like this." >&2
             exit 1
           fi
           missing=$(jq -rn \
