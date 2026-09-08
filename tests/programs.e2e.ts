@@ -1853,25 +1853,35 @@ test('a week that turns AMRAP on and off again puts the percentage back', async 
 	expect(saved).toHaveLength(0);
 });
 
-/** What the saved week asks of one item, and nothing else. */
-function savedOverrides(saved: CapturedRequest[], itemId: string): Record<string, unknown> {
-	const week = saved.find((request) => request.url.endsWith('/weeks/1'));
+/**
+ * What the saved week asks of one item, and undefined when it asks nothing of
+ * it. An override that came out empty is not the same answer as no override at
+ * all, and a helper returning {} for both lets a test claiming one pass on the
+ * other.
+ */
+function savedOverrides(
+	saved: CapturedRequest[],
+	itemId: string,
+	weekNumber = 1
+): Record<string, unknown> | undefined {
+	const week = saved.find((request) => request.url.endsWith(`/weeks/${weekNumber}`));
 	const body = week?.body as {
 		sessions: { overrides: { item_id: string; overrides: Record<string, unknown> }[] }[];
 	};
-	const item = body?.sessions[0].overrides.find((override) => override.item_id === itemId);
-	return item?.overrides ?? {};
+	return body?.sessions[0].overrides.find((override) => override.item_id === itemId)?.overrides;
 }
 
-async function openWeekOneParameters(page: Page) {
+// A week that already asks for something is opened through a button of another
+// name, so the name is matched on the part the two of them share.
+async function openWeekParameters(page: Page, weekNumber = 1) {
 	await page.goto(PROGRAM_URL);
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
-	await openWeek(page, 1);
+	await openWeek(page, weekNumber);
 	await page
-		.getByTestId('cell:1:1')
-		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.getByTestId(`cell:${weekNumber}:1`)
+		.getByRole('button', { name: new RegExp(`training parameters, week ${weekNumber}$`, 'i') })
 		.click();
-	return page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	return page.getByRole('dialog', { name: `Week ${weekNumber} training parameters` });
 }
 
 test('a week raises the fallback of a percentage without prescribing a number', async ({
@@ -1886,7 +1896,7 @@ test('a week raises the fallback of a percentage without prescribing a number', 
 	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
 	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
-	const modal = await openWeekOneParameters(page);
+	const modal = await openWeekParameters(page);
 	// A week reads and edits the percentage rather than only destroying it.
 	await expect(modal.getByText('% of')).toBeVisible();
 	await expect(modal.getByTestId('variable-toggle')).toBeVisible();
@@ -1915,7 +1925,7 @@ test('a week that turns the percentage off prescribes the plain value instead', 
 	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
 	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
-	const modal = await openWeekOneParameters(page);
+	const modal = await openWeekParameters(page);
 	await modal.getByTestId('variable-toggle').click();
 	await expect(modal.getByText('% of')).toHaveCount(0);
 
@@ -1939,7 +1949,7 @@ test('a week that turns the percentage off and on again puts it back', async ({ 
 	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
 	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
-	const modal = await openWeekOneParameters(page);
+	const modal = await openWeekParameters(page);
 	await modal.getByTestId('variable-toggle').click();
 	await modal.getByLabel('Duration seconds').fill('30');
 	await expect(modal.getByText('1 block customised for this week')).toBeVisible();
@@ -1951,6 +1961,121 @@ test('a week that turns the percentage off and on again puts it back', async ({ 
 	await modal.getByRole('button', { name: 'Apply' }).click();
 	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
 	expect(saved).toHaveLength(0);
+});
+
+/**
+ * The week this feature writes on its first save: the plain value the coach
+ * prescribed, plus the emptied targets that cleared the training's percentage.
+ * Reopened, that is the state the toggles are pressed in, and neither of them
+ * may lose the number the week already asks for.
+ */
+const weekPrescribingAPlainDuration = [
+	{ id: 'override-1', item_id: 'item-plank', overrides: { duration: 150, variable_targets: {} } }
+];
+
+const weekPrescribingAPlainRepCount = [
+	{ id: 'override-1', item_id: 'item-exercise', overrides: { reps: 12, variable_targets: {} } }
+];
+
+test('a week reopened on a plain duration keeps it through a percentage round trip', async ({
+	page
+}) => {
+	// Turning the percentage on shows its fallback in the boxes, which displaces
+	// the number the week prescribes. Turning it straight back off has to put that
+	// number back: without it the boxes fall to the training's fallback and the
+	// week silently drops to it.
+	await stubTwoWeekProgram(page, weekPrescribingAPlainDuration, durationPercentTraining());
+	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByText('% of')).toHaveCount(0);
+	await expect(modal.getByLabel('Duration minutes')).toHaveValue('2');
+	await expect(modal.getByLabel('Duration seconds')).toHaveValue('30');
+
+	await modal.getByTestId('variable-toggle').click();
+	await expect(modal.getByText('% of')).toBeVisible();
+	await expect(modal.getByLabel('Duration seconds')).toHaveValue('0');
+
+	await modal.getByTestId('variable-toggle').click();
+	await expect(modal.getByText('% of')).toHaveCount(0);
+	await expect(modal.getByLabel('Duration minutes')).toHaveValue('2');
+	await expect(modal.getByLabel('Duration seconds')).toHaveValue('30');
+	await expect(modal.getByText('1 block customised for this week')).toBeVisible();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
+	expect(saved).toHaveLength(0);
+});
+
+test('a week reopened on a plain rep count keeps it through an AMRAP round trip', async ({
+	page
+}) => {
+	// AMRAP puts back the percentage AMRAP took away, and this week has none: the
+	// coach turned it off before prescribing the count. Reaching past that to the
+	// training's own percentage resurrects what the week says it does not want.
+	await stubTwoWeekProgram(page, weekPrescribingAPlainRepCount, percentTraining());
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: [
+			...builtinAssessmentDefinitions(),
+			testAssessmentDefinition({
+				id: REPS_ASSESSMENT,
+				label: 'Max pull ups',
+				unit: 'repetitions',
+				per_hand: false,
+				is_builtin: false
+			})
+		]
+	});
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByLabel('Reps')).toHaveValue('12');
+	await expect(modal.getByText('% of')).toHaveCount(0);
+
+	await modal.getByTestId('amrap-toggle').click();
+	await expect(modal.getByText('As many as possible')).toBeVisible();
+
+	await modal.getByTestId('amrap-toggle').click();
+	await expect(modal.getByText('% of')).toHaveCount(0);
+	await expect(modal.getByLabel('Reps')).toHaveValue('12');
+	await expect(modal.getByText('1 block customised for this week')).toBeVisible();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
+	expect(saved).toHaveLength(0);
+});
+
+test('a week emptying the reps box sends a fallback the backend accepts', async ({ page }) => {
+	// An empty number input binds as null, and the backend answers that a fallback
+	// must be zero or more, which fails the whole week save rather than the field.
+	await stubTwoWeekProgram(page, [], percentTraining());
+	await stub(page, 'GET', '/api/assessment-definitions', {
+		body: [
+			...builtinAssessmentDefinitions(),
+			testAssessmentDefinition({
+				id: REPS_ASSESSMENT,
+				label: 'Max pull ups',
+				unit: 'repetitions',
+				per_hand: false,
+				is_builtin: false
+			})
+		]
+	});
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page);
+	await modal.getByLabel('Reps').fill('');
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(savedOverrides(saved, 'item-exercise')).toEqual({
+		variable_targets: {
+			reps: { assessment_id: REPS_ASSESSMENT, percent: 75, fallback: 1 }
+		}
+	});
 });
 
 test('a week that closes an open rep count lands on a number the athlete can run', async ({

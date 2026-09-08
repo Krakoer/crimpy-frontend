@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import type { TrainingRequest } from '../src/lib/api/client';
 import {
 	BUILTIN_CRITICAL_FORCE,
+	BUILTIN_ENDURANCE_60,
 	builtinAssessmentDefinitions,
 	capture,
 	dragInto,
@@ -1700,6 +1701,64 @@ test.describe('custom assessments', () => {
 			assessment_id: 'assessment-9',
 			percent: 75
 		});
+	});
+});
+
+test.describe('percentage prescriptions', () => {
+	function timedPercentTraining(fallback: number) {
+		return testTraining({
+			items: [
+				{
+					id: 'item-1',
+					type: 'exercise',
+					position: 0,
+					exercise_id: testExercise().id,
+					reps: 0,
+					duration: 120,
+					rest_seconds: 60,
+					variable_targets: {
+						duration: { assessment_id: BUILTIN_ENDURANCE_60, percent: 75, fallback }
+					}
+				}
+			]
+		});
+	}
+
+	// A training writes the same number twice: the fallback the percentage falls
+	// back on, and the plain duration beside it. Only a program week can mean
+	// something else by the plain field, so here the boxes move both, and a
+	// training left holding two different numbers plays neither reliably.
+	test('keeps the plain duration in step with the fallback it is written beside', async ({
+		page
+	}) => {
+		const training = timedPercentTraining(120);
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByLabel('Duration minutes').fill('0');
+		await page.getByLabel('Duration seconds').fill('30');
+		await saveTraining(page);
+
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items[0].duration).toBe(30);
+		expect(items[0].variable_targets?.duration).toMatchObject({ fallback: 30 });
+	});
+
+	// The line under a percentage names the fixed number a client without the
+	// assessment runs, which is the fallback and not the plain field beside it. A
+	// program week may raise one without the other, and the same card is what a
+	// played session shows its prescription through.
+	test('reads the fallback off the target it belongs to', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', { body: timedPercentTraining(30) });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('fallback 30s')).toBeVisible();
 	});
 });
 

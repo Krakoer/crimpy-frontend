@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem, VariableTargets } from '$lib/api/client';
+	import type { Exercise, TrainingItem, VariableTarget, VariableTargets } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
@@ -60,30 +60,47 @@
 	const initialSeconds = item.variable_targets?.duration?.fallback ?? item.duration ?? 0;
 	let durationMin = $state(Math.floor(initialSeconds / 60));
 	let durationSec = $state(initialSeconds % 60);
-	let repsCount = $state(item.variable_targets?.reps?.fallback ?? item.reps ?? 0);
+	let repsCount = $state<number | null>(item.variable_targets?.reps?.fallback ?? item.reps ?? 0);
 
 	// A duration of nothing is a block with no time to run for, and the editors
 	// hold the floor at one second so a coach clearing both boxes on the way to
 	// typing a new value cannot save one. Without it a week saves duration 0,
-	// which reads back as a rep exercise rather than the timed one it is.
+	// which reads back as a rep exercise rather than the timed one it is. An
+	// emptied number box binds as null, which the backend refuses as a fallback
+	// and which fails the whole save, so the rep count takes the same floor.
+	function prescribedSeconds(): number {
+		return Math.max(1, durationMin * 60 + durationSec);
+	}
+
+	function prescribedReps(): number {
+		return Math.max(1, repsCount ?? 0);
+	}
+
+	// While a percentage stands the boxes hold its fallback. In a training the
+	// plain field is that same number written twice, so it moves with it: the
+	// read-only views and every client that cannot resolve the percentage read one
+	// of the two, and a training holding two different numbers plays neither.
 	//
-	// While a percentage stands the boxes are its fallback and nothing else.
-	// Writing the plain field too would have a week that only raised the
-	// fallback say it prescribes a flat value, and every client resolves the
-	// percentage first, so the flat value is the one that would be dropped.
+	// A week is the one place they may differ, because there a plain number beside
+	// the percentage says the week prescribes a flat value instead, and every
+	// client resolves the percentage first, so the flat value is the one that
+	// would be dropped.
 	$effect(() => {
 		if (!isDuration) return;
-		const seconds = Math.max(1, durationMin * 60 + durationSec);
+		const seconds = prescribedSeconds();
 		const target = item.variable_targets?.duration;
 		if (target) target.fallback = seconds;
-		else item.duration = seconds;
+		if (!target || !overriding) item.duration = seconds;
 	});
 
+	// An open rep count prescribes no number at all, so the box behind it writes
+	// nothing while it stands.
 	$effect(() => {
-		if (isDuration) return;
+		if (isDuration || isAmrap) return;
+		const reps = prescribedReps();
 		const target = item.variable_targets?.reps;
-		if (target) target.fallback = repsCount;
-		else item.reps = repsCount;
+		if (target) target.fallback = reps;
+		if (!target || !overriding) item.reps = reps;
 	});
 
 	let restMin = $state(Math.floor((item.rest_seconds ?? 0) / 60));
@@ -132,21 +149,43 @@
 	// both the fixed one and the percentage that would compute one.
 	let isAmrap = $derived(item.reps_is_max === true);
 
-	// The percentage a toggle ruled out, kept so pressing it back puts the item
-	// where it was rather than on a fresh one. Both the AMRAP button and the %
-	// button clear a percentage, and a week that cleared one cannot read it off
-	// the tree on screen: the override was merged into it before the editor saw
-	// it. Without this a coach who changed their mind leaves the week on a plain
-	// number with the training's percentage silently dropped for that week.
+	// The plain value a percentage was put back over the top of, beside the
+	// fallback that took its place in the boxes. It only goes back when the boxes
+	// still read that fallback: a coach who typed over it since meant the number
+	// they typed.
+	type DisplacedValue = { plain: number; shown: number };
+
+	// What each button took away, so releasing one puts back what that one
+	// displaced and nothing else. None of it is readable off the tree on screen in
+	// a week: the override was merged into it before the editor saw it.
+	//
+	// The % button says whether this week prescribes a plain value, so it owns
+	// both directions: off keeps the percentage, on keeps the plain value it
+	// covers up. The AMRAP button keeps its own percentage rather than sharing
+	// either, because releasing it would otherwise reach for the % button's or the
+	// training's and resurrect one the coach turned off on purpose.
 	let clearedTargets: VariableTargets = {};
+	let displacedValues: Partial<Record<DurationOrReps, DisplacedValue>> = {};
+	let amrapClearedTarget: VariableTarget | undefined;
 
 	function trainingItem(): TrainingItem | undefined {
 		return item.id ? overrideMode?.baseItem(item.id) : undefined;
 	}
 
-	function clearTarget(field: DurationOrReps) {
-		clearedTargets[field] = $state.snapshot(item.variable_targets?.[field]);
-		toggleVariable(field, false);
+	function prescribedValue(field: DurationOrReps): number {
+		return field === 'duration' ? prescribedSeconds() : prescribedReps();
+	}
+
+	// The boxes read as the fallback while a percentage stands, so a percentage
+	// put back brings its own number with it: that is what makes the toggle undo
+	// itself rather than leave the plain value the coach typed reading as one.
+	function showValue(field: DurationOrReps, value: number) {
+		if (field === 'duration') {
+			durationMin = Math.floor(value / 60);
+			durationSec = value % 60;
+		} else {
+			repsCount = value;
+		}
 	}
 
 	// The plain field is not a week's to send while a percentage stands: the
@@ -160,37 +199,26 @@
 		else item.reps = base.reps;
 	}
 
-	function restoreTarget(field: DurationOrReps): boolean {
-		const remembered = clearedTargets[field] ?? trainingItem()?.variable_targets?.[field];
-		if (!remembered) return false;
-		delete clearedTargets[field];
-		// Copied rather than held: the fallback follows the boxes from here, and
-		// the training this week is read against is not the week's to write into.
-		item.variable_targets = { ...item.variable_targets, [field]: { ...remembered } };
-		showFallback(field, remembered.fallback);
+	// Copied rather than held: the fallback follows the boxes from here, and the
+	// training this week is read against is not the week's to write into.
+	function applyTarget(field: DurationOrReps, target: VariableTarget) {
+		item.variable_targets = { ...item.variable_targets, [field]: { ...target } };
+		showValue(field, target.fallback);
 		restorePrescribedValue(field);
-		return true;
-	}
-
-	// The boxes read as the fallback while a percentage stands, so a percentage
-	// put back brings its own number with it: that is what makes the toggle undo
-	// itself rather than leave the plain value the coach typed reading as one.
-	function showFallback(field: DurationOrReps, fallback: number) {
-		if (field === 'duration') {
-			durationMin = Math.floor(fallback / 60);
-			durationSec = fallback % 60;
-		} else {
-			repsCount = fallback;
-		}
 	}
 
 	function setAmrap(on: boolean) {
 		item.reps_is_max = on;
 		if (on) {
-			clearTarget('reps');
+			amrapClearedTarget = $state.snapshot(item.variable_targets?.reps);
+			toggleVariable('reps', false);
 			return;
 		}
-		if (restoreTarget('reps')) return;
+		if (amrapClearedTarget) {
+			applyTarget('reps', amrapClearedTarget);
+			amrapClearedTarget = undefined;
+			return;
+		}
 		// Closing an open rep count has to land on a number the athlete can run,
 		// and an item that was written as an AMRAP may carry none at all.
 		if (!repsCount) repsCount = 1;
@@ -209,7 +237,7 @@
 			targets[field] = {
 				assessment_id: assessmentsForField(field, catalog)[0],
 				percent: 75,
-				fallback: field === 'duration' ? Math.max(1, durationMin * 60 + durationSec) : repsCount
+				fallback: prescribedValue(field)
 			};
 		} else {
 			delete targets[field];
@@ -224,10 +252,22 @@
 	function setVariable(on: boolean) {
 		const field = variableField;
 		if (!on) {
-			clearTarget(field);
+			clearedTargets[field] = $state.snapshot(item.variable_targets?.[field]);
+			toggleVariable(field, false);
+			const displaced = displacedValues[field];
+			if (displaced && prescribedValue(field) === displaced.shown) {
+				showValue(field, displaced.plain);
+			}
+			delete displacedValues[field];
 			return;
 		}
-		if (restoreTarget(field)) return;
+		const remembered = clearedTargets[field] ?? trainingItem()?.variable_targets?.[field];
+		if (remembered) {
+			displacedValues[field] = { plain: prescribedValue(field), shown: remembered.fallback };
+			delete clearedTargets[field];
+			applyTarget(field, remembered);
+			return;
+		}
 		toggleVariable(field, true);
 		restorePrescribedValue(field);
 	}
