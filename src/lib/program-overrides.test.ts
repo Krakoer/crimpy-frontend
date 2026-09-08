@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { ItemOverride, TrainingItem } from '$lib/api/client';
 import {
 	buildOverrideHistory,
+	carryStaleFlags,
 	diffOverrides,
 	mergeOverrides,
-	overrideSummary
+	overrideSummary,
+	staleOverrideNotice,
+	staleOverrides,
+	standingStaleOverrides
 } from './program-overrides';
 import type { AssessmentCatalog } from '$lib/assessments';
 
@@ -392,5 +396,67 @@ describe('buildOverrideHistory', () => {
 		);
 		expect(history.a.map((entry) => entry.key)).toEqual(['mon', 'thu']);
 		expect(history.a.map((entry) => entry.label)).toEqual(['W2 Mon', 'W2 Thu']);
+	});
+});
+
+describe('stale overrides', () => {
+	const refused = {
+		id: 'row-1',
+		item_id: 'a',
+		overrides: { reps_is_max: true },
+		override_stale: true,
+		stale_reason:
+			'reps_is_max leaves the rep count open and cannot also be a percentage of an assessment'
+	};
+
+	it('names only the overrides the server refused', () => {
+		expect(
+			staleOverrides([refused, { item_id: 'b', overrides: { reps: 5 }, override_stale: false }])
+		).toEqual([refused]);
+	});
+
+	it('keeps the refusal standing while the week asks the same thing', () => {
+		// The modal rebuilds the request from the training item, so the same
+		// override comes back as a different object with its keys in another order.
+		const current = [{ item_id: 'a', overrides: { reps_is_max: true } }];
+		expect(standingStaleOverrides([refused], current)).toEqual([refused]);
+	});
+
+	it('drops the refusal once the block is cleared or rewritten', () => {
+		expect(standingStaleOverrides([refused], [])).toEqual([]);
+		expect(standingStaleOverrides([refused], [{ item_id: 'a', overrides: { reps: 4 } }])).toEqual(
+			[]
+		);
+	});
+
+	it('carries the refusal onto a week applied without clearing it', () => {
+		const applied = carryStaleFlags(
+			[refused],
+			[
+				{ item_id: 'a', overrides: { reps_is_max: true } },
+				{ item_id: 'b', overrides: { reps: 5 } }
+			]
+		);
+		expect(applied[0].override_stale).toBe(true);
+		expect(applied[0].stale_reason).toBe(refused.stale_reason);
+		expect(applied[1].override_stale).toBeUndefined();
+	});
+
+	it('lets a rewritten override go back to the server unflagged', () => {
+		// Only the write path judges a value the read never saw, so the save is
+		// what tells the coach whether the rewrite holds.
+		const applied = carryStaleFlags([refused], [{ item_id: 'a', overrides: { reps: 4 } }]);
+		expect(applied[0].override_stale).toBeUndefined();
+	});
+
+	it('quotes the validator rather than passing its words off as coach copy', () => {
+		const notice = staleOverrideNotice(refused.stale_reason);
+		expect(notice).toContain('The training changed');
+		expect(notice).toContain(`The check refuses it as: ${refused.stale_reason}`);
+	});
+
+	it('still says what happened when the refusal came without a reason', () => {
+		expect(staleOverrideNotice()).toContain('The training changed');
+		expect(staleOverrideNotice('  ')).not.toContain('refuses it as');
 	});
 });

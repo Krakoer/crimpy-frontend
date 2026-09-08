@@ -119,6 +119,8 @@
 		<rect x="5" y="10.5" width="14" height="9" rx="2" /><path
 			d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"
 		/>
+	{:else if name === 'alert'}
+		<path d="M12 4.5 3.5 19h17L12 4.5Z" /><path d="M12 10v4" /><path d="M12 16.6v.1" />
 	{:else if name === 'x'}
 		<path d="M18 6L6 18M6 6l12 12" />
 	{:else}

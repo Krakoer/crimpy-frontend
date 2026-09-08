@@ -18,6 +18,8 @@
 		itemIsOverridden,
 		mergeOverrides,
 		resetItemToBase,
+		standingStaleOverrides,
+		staleOverrideNotice,
 		type ScheduledRow
 	} from '$lib/program-overrides';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
@@ -87,17 +89,29 @@
 		editedTraining = training.id;
 	});
 
+	// What this week would ask for if the coach applied now.
+	let edited = $derived(diffOverrides(baseItems, items));
+
+	// The overrides the server refused, still asking what they asked when it did.
+	// Read against the tree on screen rather than against the saved week, so a
+	// block the coach has just cleared stops being marked before they apply.
+	let standing = $derived(standingStaleOverrides(overrides, edited));
+
 	const mode: OverrideMode = {
 		get readOnly() {
 			return readOnly;
 		},
+		get readOnlyReason() {
+			return readOnlyReason;
+		},
 		isOverridden: (itemId: string) => itemIsOverridden(baseItems, items, itemId),
+		staleNotice: (itemId: string) => {
+			const stale = standing.find((override) => override.item_id === itemId);
+			return stale ? staleOverrideNotice(stale.stale_reason) : null;
+		},
 		resetItem: (itemId: string) => resetItemToBase(baseItems, items, itemId)
 	};
 	setContext(OVERRIDE_KEY, mode);
-
-	// What this week would ask for if the coach applied now.
-	let edited = $derived(diffOverrides(baseItems, items));
 
 	// Handed to the strips through the context rather than down the list, behind a
 	// getter so the training arriving after the modal opened fills them in where
@@ -202,6 +216,23 @@
 					? readOnlyReason
 					: 'The exercises and the blocks belong to the training. What this week asks of them is yours to change here, and only this week changes.'}
 			</p>
+
+			{#if standing.length > 0}
+				<div
+					data-testid="stale-overrides-banner"
+					class="flex items-start gap-2"
+					style="border: 1px solid var(--gd); background: var(--gd-lt); border-radius: var(--rs); padding: 9px 11px;"
+				>
+					<div style="padding-top: 1px;"><Icon name="alert" size={14} color="var(--gd)" /></div>
+					<span style="font-size: 12px; color: var(--tx2);">
+						{standing.length === 1
+							? 'One block below asks for something the training no longer takes.'
+							: `${standing.length} blocks below ask for something the training no longer takes.`} The
+						athlete is handed the training as it is written there, and this week cannot be saved until
+						that is cleared.
+					</span>
+				</div>
+			{/if}
 
 			{#if loadError}
 				<div

@@ -534,6 +534,18 @@ export interface SessionOverride {
 	id?: string;
 	item_id: string;
 	overrides: ItemOverride;
+	// Computed by the coach week read against the training as it now stands,
+	// never stored and never sent back: the item no longer takes what this
+	// override asks, so the athlete is handed the block without it and the next
+	// save of the week is refused until the coach clears or rewrites it.
+	//
+	// Only the GET answers it. The upsert echo answers false by construction,
+	// since a save carrying a stale override is refused before it gets that far.
+	override_stale?: boolean;
+	// The refusal the write path answers for this same override, in the
+	// validator's own words rather than words written for a coach, which is why
+	// every screen quotes it instead of presenting it as its own explanation.
+	stale_reason?: string;
 }
 
 export interface WeekSession {

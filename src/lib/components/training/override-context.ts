@@ -6,13 +6,20 @@
 export const OVERRIDE_KEY = Symbol('training-override');
 
 // readOnly freezes what is left, for a session the athlete already played or a
-// program the coach is only reading. The two callbacks let the strip under an
-// item say whether this week asks anything of it, and put it back to what the
-// training says, without the list in between owning the training it was read
+// program the coach is only reading, and readOnlyReason says which of the two it
+// is, so a strip that cannot offer a control says why instead of showing a dead
+// one. The callbacks let the strip under an item say whether this week asks
+// anything of it, whether what it asks stopped applying, and put it back to what
+// the training says, without the list in between owning the training it was read
 // from.
 export type OverrideMode = {
 	readOnly: boolean;
+	readOnlyReason: string;
 	isOverridden: (itemId: string) => boolean;
+	// What the coach is told when the training no longer takes the override this
+	// week has stored on the item, and null when it still applies. Only the week
+	// read knows: an override the coach has since rewritten is judged by the save.
+	staleNotice: (itemId: string) => string | null;
 	resetItem: (itemId: string) => void;
 };
 

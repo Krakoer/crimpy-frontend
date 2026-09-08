@@ -54,6 +54,7 @@
 		type WeekDraft,
 		type WeekDrafts
 	} from '$lib/program-draft';
+	import { carryStaleFlags, staleOverrides } from '$lib/program-overrides';
 	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
 	import { toDateOnly } from '$lib/date';
 	import { withCoachReply } from '$lib/sessions';
@@ -294,6 +295,14 @@
 		return draft ? draftSessions(draft).some((s) => s.locked) : false;
 	}
 
+	// How many sessions of the week hold an override the training no longer takes.
+	// Counted by session rather than by override, since a session is what the
+	// coach opens to clear one.
+	function staleWeekOverrides(draft: WeekDraft | undefined): number {
+		if (!draft) return 0;
+		return draftSessions(draft).filter((s) => staleOverrides(s.overrides).length > 0).length;
+	}
+
 	const LOCKED_SESSION_REASON =
 		'This session has already been played, so its training and its overrides cannot be changed and it cannot be removed from the week.';
 
@@ -471,9 +480,16 @@
 
 	// Written into the week draft rather than saved on its own: the week is the
 	// unit the server takes, so the coach saves these the way they save a move.
+	//
+	// A refusal the server answered is carried onto an override that came back
+	// asking exactly what it asked before, so a week merely opened and applied
+	// does not read as fixed while the save is still going to be refused.
 	function applyOverrides(overrides: SessionOverride[]) {
 		if (!overridesTarget) return;
-		overridesTarget.session.overrides = overrides;
+		overridesTarget.session.overrides = carryStaleFlags(
+			overridesTarget.session.overrides,
+			overrides
+		);
 		overridesTargetID = null;
 	}
 
@@ -701,6 +717,7 @@
 	<SessionCoverButton
 		weekNumber={wn}
 		customised={session.overrides.length > 0}
+		stale={staleOverrides(session.overrides).length > 0}
 		onOpen={() => openOverrides(wn, session)}
 	/>
 {/snippet}
@@ -1210,6 +1227,20 @@
 												style="padding: 6px 12px; background: #fef2f2; color: #b91c1c; font-size: 12px; border-bottom: 1px solid #fca5a5;"
 											>
 												{draft.saveError}
+											</div>
+										{/if}
+
+										{#if staleWeekOverrides(draft) > 0}
+											<div
+												data-testid="stale-week-{wn}"
+												style="padding: 6px 12px; background: var(--gd-lt); color: var(--tx2); font-size: 11.5px; border-bottom: 1px solid var(--bd2); display: flex; align-items: center; gap: 6px;"
+											>
+												<Icon name="alert" size={11} color="var(--gd)" />
+												{staleWeekOverrides(draft) === 1
+													? 'One session of this week asks for something its training no longer takes.'
+													: `${staleWeekOverrides(draft)} sessions of this week ask for something their training no longer takes.`}
+												The athlete is handed the training as it is written there, and the week cannot
+												be saved until that is cleared. Open the marked session to clear it.
 											</div>
 										{/if}
 

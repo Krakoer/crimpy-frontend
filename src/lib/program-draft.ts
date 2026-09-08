@@ -1,5 +1,5 @@
 import type { SessionOverride } from '$lib/api/client';
-import type { ScheduledRow } from '$lib/program-overrides';
+import { orderedValue, type ScheduledRow } from '$lib/program-overrides';
 import { arrayMove } from '$lib/sortable';
 
 // _id is a local key for drag and drop only. id is the server row the session
@@ -72,23 +72,13 @@ function sessionFingerprint(session: DraftSession, readsFrequency: boolean): unk
 	];
 }
 
-// The same values whatever order their keys arrived in, and without the ones
-// JSON.stringify would drop anyway.
-function orderedValue(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(orderedValue);
-	if (value === null || typeof value !== 'object') return value;
-	return Object.entries(value as Record<string, unknown>)
-		.filter(([, entry]) => entry !== undefined)
-		.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-		.map(([key, entry]) => [key, orderedValue(entry)]);
-}
-
 // What the week asks of each item it customises. An override read from the
 // server carries the row id it was stored under and the key order the database
 // kept it in, while the parameters modal rebuilds it from the training item and
 // the fields the coach set: same request, different object. Only what is asked
 // for is fingerprinted, item by item, so re-applying a customisation without
-// touching it is not an edit.
+// touching it is not an edit. It is also what says the server's refusal still
+// stands, which is why both read the same ordering.
 function overridesFingerprint(overrides: SessionOverride[]): unknown[] {
 	return [...overrides]
 		.sort((left, right) =>

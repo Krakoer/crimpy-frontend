@@ -6,10 +6,13 @@
 		// is choosing between when the same training sits in several of them.
 		weekNumber: number;
 		customised: boolean;
+		// One of the things this week asks of the training stopped applying, which
+		// is only visible from the grid if the card says so.
+		stale: boolean;
 		onOpen: () => void;
 	}
 
-	let { weekNumber, customised, onOpen }: Props = $props();
+	let { weekNumber, customised, stale, onOpen }: Props = $props();
 </script>
 
 <!-- The whole card opens what the week asks of its training, through a cover
@@ -39,7 +42,9 @@
 		e.preventDefault();
 		onOpen();
 	}}
-	aria-label="{customised ? 'Customised training' : 'Training'} parameters, week {weekNumber}"
+	aria-label="{customised ? 'Customised training' : 'Training'} parameters, week {weekNumber}{stale
+		? ', a change stopped applying'
+		: ''}"
 	aria-disabled="false"
 	style="position: absolute; inset: 0; cursor: pointer;"
 ></div>
@@ -48,5 +53,12 @@
 		so the middle of the card still opens the parameters. -->
 	<div style="display: flex; flex-shrink: 0; position: relative; pointer-events: none;">
 		<Icon name="settings" size={9} color="var(--pr)" />
+	</div>
+{/if}
+{#if stale}
+	<!-- The cover states it too, since the badge is deaf to the pointer and so
+		carries no tooltip of its own. -->
+	<div style="display: flex; flex-shrink: 0; position: relative; pointer-events: none;">
+		<Icon name="alert" size={10} color="var(--gd)" />
 	</div>
 {/if}

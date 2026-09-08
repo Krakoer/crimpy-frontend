@@ -384,3 +384,73 @@ export function buildOverrideHistory(
 	}
 	return history;
 }
+
+// The same values whatever order their keys arrived in, and without the ones
+// JSON.stringify would drop anyway. An override read from the server carries the
+// key order the database kept it in, while the modal rebuilds it from the
+// training item and the fields the coach set: same request, different object.
+export function orderedValue(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(orderedValue);
+	if (value === null || typeof value !== 'object') return value;
+	return Object.entries(value as Record<string, unknown>)
+		.filter(([, entry]) => entry !== undefined)
+		.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+		.map(([key, entry]) => [key, orderedValue(entry)]);
+}
+
+function sameRequest(left: ItemOverride, right: ItemOverride): boolean {
+	return JSON.stringify(orderedValue(left)) === JSON.stringify(orderedValue(right));
+}
+
+// An override the training item it targets no longer takes. The server computes
+// it on the week read, against the training as it now stands: the athlete is
+// handed the block without it, and the write path refuses the same override with
+// the same words, so the week cannot be saved again until it is cleared.
+export function staleOverrides(overrides: SessionOverride[]): SessionOverride[] {
+	return overrides.filter((override) => override.override_stale === true);
+}
+
+// The refusals still standing against what the week asks now. An item whose
+// override the coach has since changed or cleared is left out: only the server
+// judges an override, and the one it refused is no longer the one being sent.
+export function standingStaleOverrides(
+	stored: SessionOverride[],
+	current: SessionOverride[]
+): SessionOverride[] {
+	const currentByItem = new Map(current.map((override) => [override.item_id, override.overrides]));
+	return staleOverrides(stored).filter((override) => {
+		const now = currentByItem.get(override.item_id);
+		return now != null && sameRequest(now, override.overrides);
+	});
+}
+
+// What the week holds after the coach applies the modal. A refusal is carried
+// onto an override that came back asking exactly what it asked before, so a week
+// merely opened and applied does not read as fixed while the save is still
+// refused. An override the coach rewrote loses the flag: the server has not
+// judged the new value, and the save is what will tell them.
+export function carryStaleFlags(
+	stored: SessionOverride[],
+	edited: SessionOverride[]
+): SessionOverride[] {
+	const standing = new Map(
+		standingStaleOverrides(stored, edited).map((override) => [override.item_id, override])
+	);
+	return edited.map((override) => {
+		const stale = standing.get(override.item_id);
+		if (!stale) return override;
+		return { ...override, override_stale: true, stale_reason: stale.stale_reason };
+	});
+}
+
+const STALE_OVERRIDE_LEAD =
+	'The training changed and no longer takes what this week asks of this block, so the athlete plays it as the training writes it and the week cannot be saved until this is cleared.';
+
+// stale_reason is the wording the write path answers a refused save with, not
+// copy written for a coach, so it is quoted as the check's own answer rather
+// than passed off as an explanation of what to do about it.
+export function staleOverrideNotice(reason?: string): string {
+	const refusal = reason?.trim();
+	if (!refusal) return STALE_OVERRIDE_LEAD;
+	return `${STALE_OVERRIDE_LEAD} The check refuses it as: ${refusal}`;
+}
