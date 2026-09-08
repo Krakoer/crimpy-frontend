@@ -2110,6 +2110,9 @@ test('marks an override the training stopped taking and clears it into a saveabl
 	// The block itself carries the refusal, quoted as the check's own answer.
 	const notice = modal.getByTestId('stale-override');
 	await expect(notice).toContainText(STALE_REASON);
+	// Clearing the refused block and resetting it are the same act, so only the
+	// other customised block, the circuit, still offers the plain reset.
+	await expect(modal.getByRole('button', { name: 'Reset to the training' })).toHaveCount(1);
 
 	await notice.getByRole('button', { name: 'Clear this override' }).click();
 	await expect(modal.getByTestId('stale-override')).toHaveCount(0);

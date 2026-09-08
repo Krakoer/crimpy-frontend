@@ -48,17 +48,20 @@
 	aria-disabled="false"
 	style="position: absolute; inset: 0; cursor: pointer;"
 ></div>
-{#if customised}
+{#if stale || customised}
 	<!-- Painted over the cover so it is not dimmed by it, and deaf to the pointer
-		so the middle of the card still opens the parameters. -->
-	<div style="display: flex; flex-shrink: 0; position: relative; pointer-events: none;">
-		<Icon name="settings" size={9} color="var(--pr)" />
-	</div>
-{/if}
-{#if stale}
-	<!-- The cover states it too, since the badge is deaf to the pointer and so
+		so the middle of the card still opens the parameters.
+
+		A session whose override stopped applying is a customised one, and a day
+		cell is narrow enough that a second badge would take the training title
+		with it, so the warning stands in for the gear rather than beside it. The
+		cover says the same thing in its label, since a badge deaf to the pointer
 		carries no tooltip of its own. -->
 	<div style="display: flex; flex-shrink: 0; position: relative; pointer-events: none;">
-		<Icon name="alert" size={10} color="var(--gd)" />
+		{#if stale}
+			<Icon name="alert" size={10} color="var(--gd)" />
+		{:else}
+			<Icon name="settings" size={9} color="var(--pr)" />
+		{/if}
 	</div>
 {/if}

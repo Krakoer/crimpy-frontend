@@ -97,7 +97,9 @@
 				{/each}
 			{/if}
 			<div style="flex: 1;"></div>
-			{#if overridden && !mode.readOnly}
+			<!-- Reset and clear are the same act on the same block, so the notice
+				above owns it while it stands rather than naming it twice. -->
+			{#if overridden && !mode.readOnly && !staleNotice}
 				<button
 					onclick={() => mode.resetItem(itemId)}
 					style="border: none; background: transparent; padding: 2px 4px; font-family: var(--font); font-size: 10.5px; font-weight: 600; color: var(--tx3); cursor: pointer;"
