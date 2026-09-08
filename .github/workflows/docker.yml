@@ -37,9 +37,9 @@ jobs:
           code=$(curl -sSL --retry 3 --retry-all-errors -o deployed.json -w '%{http_code}' "$URL") || code=000
           if [ "$code" != "200" ]; then
             echo "Could not read $URL (HTTP ${code:-000})." >&2
-            echo "Either the fetch failed, or the $REF ref moved, or the contract moved or is" >&2
-            echo "gone from crimpy-backend, which is where it lives and where it has to be" >&2
-            echo "restored. All three read as a 404 here, so check the ref before the file." >&2
+            echo "000 means the fetch never landed, so the contract itself may be fine." >&2
+            echo "A 404 cannot tell a moved ref from a moved or deleted file, so check the ref" >&2
+            echo "in the URL above before restoring anything in crimpy-backend." >&2
             exit 1
           fi
           if ! jq -e '.keys | type == "array"' deployed.json >/dev/null 2>&1; then
