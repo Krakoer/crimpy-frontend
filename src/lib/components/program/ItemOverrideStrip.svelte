@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { STALE_OVERRIDE_RESET_WARNING } from '$lib/program-overrides';
+	import { STALE_OVERRIDE_APPLY_NOTE, STALE_OVERRIDE_RESET_WARNING } from '$lib/program-overrides';
 	import {
 		OVERRIDE_HISTORY_KEY,
 		OVERRIDE_KEY,
@@ -45,11 +45,15 @@
 			>
 				<div style="padding-top: 1px;"><Icon name="alert" size={13} color="var(--gd)" /></div>
 				<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
-					<span style="font-size: 11.5px; color: var(--tx2);">{staleNotice}</span>
+					<span style="font-size: 11.5px; color: var(--tx2);">{staleNotice.text}</span>
 					<!-- The reset is judged as one row, so the coach is told what else
 						goes with it before they press it rather than after. -->
 					<span style="font-size: 11px; color: var(--tx3);">
-						{mode.readOnly ? mode.readOnlyReason : STALE_OVERRIDE_RESET_WARNING}
+						{mode.readOnly
+							? mode.readOnlyReason
+							: staleNotice.clearedByApply
+								? STALE_OVERRIDE_APPLY_NOTE
+								: STALE_OVERRIDE_RESET_WARNING}
 					</span>
 				</div>
 				{#if mode.locked}
@@ -67,7 +71,18 @@
 					<span
 						data-testid="stale-override-blocked"
 						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
-						>Turn Edit on to clear it</span
+						>{staleNotice.clearedByApply
+							? 'Turn Edit on to drop it'
+							: 'Turn Edit on to clear it'}</span
+					>
+				{:else if staleNotice.clearedByApply}
+					<!-- The request is already gone from the tree, so a reset here would
+						have nothing to shrink and would leave the coach pressing a control
+						that cannot move. Apply is the gesture that drops the row. -->
+					<span
+						data-testid="stale-override-dropped"
+						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
+						>Applying drops it</span
 					>
 				{:else}
 					<!-- Clearing is putting the block back to the training: what the

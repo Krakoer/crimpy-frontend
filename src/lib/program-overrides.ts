@@ -398,8 +398,8 @@ export function orderedValue(value: unknown): unknown {
 		.map(([key, entry]) => [key, orderedValue(entry)]);
 }
 
-function sameRequest(left: ItemOverride | undefined, right: ItemOverride | undefined): boolean {
-	if (left === undefined || right === undefined) return left === right;
+function sameRequest(left: ItemOverride, right: ItemOverride | undefined): boolean {
+	if (right === undefined) return false;
 	return JSON.stringify(orderedValue(left)) === JSON.stringify(orderedValue(right));
 }
 
@@ -415,7 +415,7 @@ export function staleOverrides(overrides: SessionOverride[]): SessionOverride[] 
 	return overrides.filter((override) => override.override_stale === true);
 }
 
-// The refusals still standing against what the week asks now. An item whose
+// The refusals the block on screen can still be asked to clear. An item whose
 // override the coach has since changed or cleared is left out: only the server
 // judges an override, and the one it refused is no longer the one being sent.
 //
@@ -426,6 +426,10 @@ export function staleOverrides(overrides: SessionOverride[]): SessionOverride[] 
 // comparison against that row would leave every grid override unmarked. What is
 // compared instead is the diff the modal built when it opened, which carries the
 // same normalisation as the diff on screen.
+//
+// An item the modal opened on with nothing to diff is not one of these: there is
+// no request on screen to keep or rewrite, so nothing here can clear it. Those
+// are staleOverridesDroppedByApply.
 export function standingStaleOverrides(
 	stored: SessionOverride[],
 	opening: SessionOverride[],
@@ -433,27 +437,47 @@ export function standingStaleOverrides(
 ): SessionOverride[] {
 	const openingByItem = requestByItem(opening);
 	const currentByItem = requestByItem(current);
-	return staleOverrides(stored).filter((override) =>
-		sameRequest(openingByItem.get(override.item_id), currentByItem.get(override.item_id))
+	return staleOverrides(stored).filter((override) => {
+		const opened = openingByItem.get(override.item_id);
+		return opened !== undefined && sameRequest(opened, currentByItem.get(override.item_id));
+	});
+}
+
+// The refusals the merge and the normalisation already undid. A week can store
+// a left hand column against an item the training now hangs with both hands
+// together: the server refuses the row, and the merge sets it while the
+// normalisation wipes it straight back, so the tree the modal opened on asks
+// nothing of that item and the diff emits nothing to reset. The row still
+// blocks the save while the week holds it, and applying is what drops it.
+export function staleOverridesDroppedByApply(
+	stored: SessionOverride[],
+	opening: SessionOverride[]
+): SessionOverride[] {
+	const openingByItem = requestByItem(opening);
+	return staleOverrides(stored).filter(
+		(override) => openingByItem.get(override.item_id) === undefined
 	);
 }
 
 // What the week holds after the coach applies the modal. A refusal is carried
-// onto an override that came back asking exactly what it asked before, so a week
-// merely opened and applied does not read as fixed while the save is still
-// refused. An override the coach rewrote loses the flag: the server has not
-// judged the new value, and the save is what will tell them.
+// onto an override that goes back asking exactly what the server refused, so a
+// week merely opened and applied does not read as fixed while the save is still
+// going to be refused.
+//
+// This is not the question the marking inside the modal answers. There it is
+// whether the coach has touched the item since it opened; here it is whether the
+// request the server judged is the request about to be sent, and the stored row
+// is the only thing that can say so. A grid override the merge rewrote into the
+// layout the training now declares is a different request, one the write path
+// takes, so carrying the refusal onto it would mark a week that saves.
 export function carryStaleFlags(
 	stored: SessionOverride[],
-	opening: SessionOverride[],
 	edited: SessionOverride[]
 ): SessionOverride[] {
-	const standing = new Map(
-		standingStaleOverrides(stored, opening, edited).map((override) => [override.item_id, override])
-	);
+	const refused = new Map(staleOverrides(stored).map((override) => [override.item_id, override]));
 	return edited.map((override) => {
-		const stale = standing.get(override.item_id);
-		if (!stale) return override;
+		const stale = refused.get(override.item_id);
+		if (!stale || !sameRequest(stale.overrides, override.overrides)) return override;
 		return { ...override, override_stale: true, stale_reason: stale.stale_reason };
 	});
 }
@@ -461,17 +485,37 @@ export function carryStaleFlags(
 const STALE_OVERRIDE_LEAD =
 	'The training changed and no longer takes what this week asks of this block, so the athlete plays it as the training writes it and the week cannot be saved until this is cleared.';
 
+// The same refusal on a block whose request the merge already undid. There is
+// nothing on screen asking for it any more, so the coach is pointed at Apply
+// rather than at a reset that has nothing left to shrink.
+const STALE_OVERRIDE_DROPPED_LEAD =
+	'The training changed and no longer takes what this week asked of this block, and nothing of it is left to change here: the athlete plays it as the training writes it, and the week cannot be saved until the refused row goes.';
+
 // Clearing is resetItemToBase: the server stores and judges what a week asks of
 // an item as one row, so the refused part cannot be dropped on its own, and a
 // coach who set a rest here as well loses that with it.
 export const STALE_OVERRIDE_RESET_WARNING =
 	'Resetting puts this block back to the training whole, so anything else this week asks of it goes too.';
 
+// The refused row is the whole of what this week asked of the item, or the diff
+// would have kept the rest of it on screen, so applying costs the coach nothing
+// they can still see.
+export const STALE_OVERRIDE_APPLY_NOTE =
+	'Applying this week drops the refused row, and nothing else this week asks of the block goes with it.';
+
 // stale_reason is the wording the write path answers a refused save with, not
 // copy written for a coach, so it is quoted as the check's own answer rather
 // than passed off as an explanation of what to do about it.
-export function staleOverrideNotice(reason?: string): string {
+function noticeWithRefusal(lead: string, reason?: string): string {
 	const refusal = reason?.trim();
-	if (!refusal) return STALE_OVERRIDE_LEAD;
-	return `${STALE_OVERRIDE_LEAD} The check refuses it as: ${refusal}`;
+	if (!refusal) return lead;
+	return `${lead} The check refuses it as: ${refusal}`;
+}
+
+export function staleOverrideNotice(reason?: string): string {
+	return noticeWithRefusal(STALE_OVERRIDE_LEAD, reason);
+}
+
+export function staleOverrideDroppedNotice(reason?: string): string {
+	return noticeWithRefusal(STALE_OVERRIDE_DROPPED_LEAD, reason);
 }

@@ -22,8 +22,17 @@ export type OverrideMode = {
 	// What the coach is told when the training no longer takes the override this
 	// week has stored on the item, and null when it still applies. Only the week
 	// read knows: an override the coach has since rewritten is judged by the save.
-	staleNotice: (itemId: string) => string | null;
+	staleNotice: (itemId: string) => StaleNotice | null;
 	resetItem: (itemId: string) => void;
+};
+
+// A refusal as the block under it has to render it. clearedByApply says the
+// merge and the normalisation already undid the request, so there is nothing
+// left on screen for a reset to shrink and applying the week is what drops the
+// row the server refuses. A control offered there could not move.
+export type StaleNotice = {
+	text: string;
+	clearedByApply: boolean;
 };
 
 // What the other weeks of the program ask of the same item, so a coach setting

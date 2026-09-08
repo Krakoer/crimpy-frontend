@@ -2149,8 +2149,9 @@ test('keeps the marking on a week reopened and applied without clearing it', asy
 	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
 	await modal.getByRole('button', { name: 'Apply' }).click();
 
-	// Nothing about the refused override changed, so the week still says the save
-	// will be refused rather than reading as fixed.
+	// The AMRAP marker goes back to the server exactly as the server refused it,
+	// key for key, so the refusal it answered still stands and the week says the
+	// save will be refused rather than reading as fixed.
 	await expect(page.getByTestId('stale-week-2')).toBeVisible();
 });
 
@@ -2269,10 +2270,11 @@ function staleGridOverride() {
 	};
 }
 
-test('marks a grid override the training outgrew and keeps it marked through an apply', async ({
+test('marks a grid override the training outgrew and lets the apply repair it', async ({
 	page
 }) => {
 	await stubTwoWeekProgram(page, [staleGridOverride()], grownGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
 	await page.goto(PROGRAM_URL);
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -2298,11 +2300,66 @@ test('marks a grid override the training outgrew and keeps it marked through an 
 		notice.getByRole('button', { name: 'Reset this block to the training' })
 	).toBeVisible();
 
-	// Applying without touching a thing leaves the same refused override in the
-	// week, so the marking has to survive it.
+	// What the apply sends is not what the server refused: the merge and the
+	// normalisation rewrote the six stored loads into the eight rows this training
+	// declares, which is a request the write path takes. So the week stops being
+	// marked, and the loads that go back are the rewritten ones rather than the
+	// coach's work thrown away.
 	await modal.getByRole('button', { name: 'Apply' }).click();
-	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
+	await expect(
+		page
+			.getByTestId('cell:2:1')
+			.getByRole('button', { name: 'Customised training parameters, week 2', exact: true })
+	).toBeVisible();
 
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const week = saved.find((request) => request.url.endsWith('/weeks/2'));
+	expect(week).toBeDefined();
+	const body = week!.body as {
+		sessions: { overrides: { item_id: string; overrides: { loads: unknown[] } }[] }[];
+	};
+	const sent = body.sessions[0].overrides;
+	expect(sent).toHaveLength(1);
+	expect(sent[0].item_id).toBe('item-grid');
+	expect(sent[0].overrides.loads).toHaveLength(8);
+});
+
+/**
+ * The wording the write path answers a left hand column on an item both hands
+ * hang together with.
+ */
+const UNDONE_STALE_REASON = 'left_loads is set but the "both" mode hangs both hands together';
+
+/**
+ * A week that asks the grid for a separate left hand column, on a training that
+ * now hangs both hands together. The merge sets the column and the normalisation
+ * wipes it straight back, so the tree the modal opens on asks nothing of the
+ * block and there is no diff a reset could shrink.
+ */
+function undoneStaleOverride() {
+	return {
+		id: 'override-1',
+		item_id: 'item-grid',
+		overrides: {
+			left_loads: [kg(14), kg(14), kg(16), kg(16), kg(14), kg(14), kg(16), kg(16)]
+		},
+		override_stale: true,
+		stale_reason: UNDONE_STALE_REASON
+	};
+}
+
+test('points at the apply where the refused row leaves nothing to reset', async ({ page }) => {
+	await stubTwoWeekProgram(page, [undoneStaleOverride()], grownGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
 	await page
 		.getByTestId('cell:2:1')
 		.getByRole('button', {
@@ -2310,9 +2367,29 @@ test('marks a grid override the training outgrew and keeps it marked through an 
 			exact: true
 		})
 		.click();
-	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON);
-	await modal.getByRole('button', { name: 'Reset this block to the training' }).click();
-	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	const notice = modal.getByTestId('stale-override');
+	await expect(notice).toContainText(UNDONE_STALE_REASON);
+	await expect(notice).toContainText('nothing of it is left to change here');
+	// A reset here could not move the block, so it is not offered: the coach is
+	// pointed at the gesture that does drop the row.
+	await expect(
+		notice.getByRole('button', { name: 'Reset this block to the training' })
+	).toHaveCount(0);
+	await expect(notice.getByTestId('stale-override-dropped')).toContainText('Applying drops it');
+	// And the footer says what applying does rather than claiming, beside a banner
+	// saying the week cannot be saved, that the week runs as written.
+	await expect(
+		modal.getByText('Applying drops what this week asks that the training no longer takes')
+	).toBeVisible();
+
 	await modal.getByRole('button', { name: 'Apply' }).click();
 	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	const week = saved.find((request) => request.url.endsWith('/weeks/2'));
+	expect(week?.body).toMatchObject({ sessions: [{ overrides: [] }] });
 });

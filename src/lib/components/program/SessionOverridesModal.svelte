@@ -20,7 +20,9 @@
 		mergeOverrides,
 		resetItemToBase,
 		standingStaleOverrides,
+		staleOverrideDroppedNotice,
 		staleOverrideNotice,
+		staleOverridesDroppedByApply,
 		type ScheduledRow
 	} from '$lib/program-overrides';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
@@ -109,6 +111,13 @@
 	// block the coach has just cleared stops being marked before they apply.
 	let standing = $derived(standingStaleOverrides(overrides, openingRequest, edited));
 
+	// The refused rows the merge and the normalisation already undid. Nothing on
+	// screen asks for them, so the block is marked without being offered a reset,
+	// and applying the week is what drops them.
+	let droppedByApply = $derived(staleOverridesDroppedByApply(overrides, openingRequest));
+
+	let markedBlocks = $derived(standing.length + droppedByApply.length);
+
 	const mode: OverrideMode = {
 		get readOnly() {
 			return readOnly;
@@ -122,7 +131,14 @@
 		isOverridden: (itemId: string) => itemIsOverridden(baseItems, items, itemId),
 		staleNotice: (itemId: string) => {
 			const stale = standing.find((override) => override.item_id === itemId);
-			return stale ? staleOverrideNotice(stale.stale_reason) : null;
+			if (stale) {
+				return { text: staleOverrideNotice(stale.stale_reason), clearedByApply: false };
+			}
+			const dropped = droppedByApply.find((override) => override.item_id === itemId);
+			if (dropped) {
+				return { text: staleOverrideDroppedNotice(dropped.stale_reason), clearedByApply: true };
+			}
+			return null;
 		},
 		resetItem: (itemId: string) => resetItemToBase(baseItems, items, itemId)
 	};
@@ -150,13 +166,14 @@
 
 	let type = $derived(trainingTypeInfo(training?.training_type));
 
-	// A refusal the server answered is carried onto an override that came back
-	// asking exactly what it asked when the modal opened, so a week merely opened
-	// and applied does not read as fixed while the save is still going to be
-	// refused. It is done here rather than in the page because the baseline it is
-	// measured against is the one this modal built.
+	// A refusal the server answered is carried onto an override that goes back
+	// asking exactly what the server refused, so a week merely opened and applied
+	// does not read as fixed while the save is still going to be refused. What
+	// the marking above is measured against is the week the modal opened on; what
+	// this is measured against is the row the server judged, since that is what
+	// decides the next save.
 	function apply() {
-		onApply(carryStaleFlags(overrides, openingRequest, edited));
+		onApply(carryStaleFlags(overrides, edited));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that
@@ -171,6 +188,17 @@
 	}
 
 	let customisedCount = $derived(edited.length);
+
+	// A week whose only leftover is a refused row the merge undid asks nothing on
+	// screen, so counting it as written would read as a contradiction of the
+	// banner above. It is said as what applying does instead.
+	let footerSummary = $derived(
+		customisedCount > 0
+			? `${customisedCount} ${customisedCount === 1 ? 'block' : 'blocks'} customised for this week`
+			: droppedByApply.length > 0
+				? 'Applying drops what this week asks that the training no longer takes'
+				: 'This week runs the training as it is written'
+	);
 
 	function onKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
@@ -237,7 +265,7 @@
 					: 'The exercises and the blocks belong to the training. What this week asks of them is yours to change here, and only this week changes.'}
 			</p>
 
-			{#if standing.length > 0}
+			{#if markedBlocks > 0}
 				<div
 					data-testid="stale-overrides-banner"
 					class="flex items-start gap-2"
@@ -245,11 +273,11 @@
 				>
 					<div style="padding-top: 1px;"><Icon name="alert" size={14} color="var(--gd)" /></div>
 					<span style="font-size: 12px; color: var(--tx2);">
-						{standing.length === 1
+						{markedBlocks === 1
 							? 'One block below asks for something the training no longer takes.'
-							: `${standing.length} blocks below ask for something the training no longer takes.`} The
-						athlete is handed the training as it is written there, and this week cannot be saved until
-						that is cleared.
+							: `${markedBlocks} blocks below ask for something the training no longer takes.`} The athlete
+						is handed the training as it is written there, and this week cannot be saved until that is
+						cleared. Each marked block below says how.
 					</span>
 				</div>
 			{/if}
@@ -281,11 +309,7 @@
 			class="flex shrink-0 items-center gap-2"
 			style="padding: 12px 20px; border-top: 1px solid var(--bd); background: var(--panel);"
 		>
-			<span style="font-size: 12px; color: var(--tx3);">
-				{customisedCount === 0
-					? 'This week runs the training as it is written'
-					: `${customisedCount} ${customisedCount === 1 ? 'block' : 'blocks'} customised for this week`}
-			</span>
+			<span style="font-size: 12px; color: var(--tx3);">{footerSummary}</span>
 			<div style="flex: 1;"></div>
 			{#if !readOnly && customisedCount > 0}
 				<button
