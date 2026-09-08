@@ -267,6 +267,106 @@ describe('diffOverrides', () => {
 		]);
 	});
 
+	it('clears the percentage of the field a week set as a number', () => {
+		// Every client resolves the percentage before the plain value, so a week
+		// that sends the seconds alone prescribes something the athlete never plays.
+		const base = [
+			exercise('a', {
+				reps: undefined,
+				duration: 60,
+				variable_targets: { duration: { assessment_id: 'x', percent: 75, fallback: 60 } }
+			})
+		];
+		const edited = structuredClone(base);
+		edited[0].duration = 120;
+		edited[0].variable_targets!.duration!.fallback = 120;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'a', overrides: { duration: 120, variable_targets: {} } }
+		]);
+	});
+
+	it('clears the percentage of a rep count a week set as a number', () => {
+		const base = [
+			exercise('a', {
+				reps: 8,
+				variable_targets: { reps: { assessment_id: 'x', percent: 75, fallback: 8 } }
+			})
+		];
+		const edited = structuredClone(base);
+		edited[0].reps = 12;
+		edited[0].variable_targets!.reps!.fallback = 12;
+		expect(diffOverrides(base, edited)).toEqual([
+			{ item_id: 'a', overrides: { reps: 12, variable_targets: {} } }
+		]);
+	});
+
+	it('leaves the percentage of the other field standing', () => {
+		const base = [
+			exercise('a', {
+				reps: 8,
+				duration: 60,
+				variable_targets: {
+					duration: { assessment_id: 'x', percent: 75, fallback: 60 },
+					reps: { assessment_id: 'y', percent: 90, fallback: 8 }
+				}
+			})
+		];
+		const edited = structuredClone(base);
+		edited[0].duration = 120;
+		expect(diffOverrides(base, edited)).toEqual([
+			{
+				item_id: 'a',
+				overrides: {
+					duration: 120,
+					variable_targets: { reps: { assessment_id: 'y', percent: 90, fallback: 8 } }
+				}
+			}
+		]);
+	});
+
+	it('leaves an item the training prescribes as a plain number alone', () => {
+		const base = [exercise('a', { reps: undefined, duration: 60 })];
+		const edited = structuredClone(base);
+		edited[0].duration = 120;
+		expect(diffOverrides(base, edited)).toEqual([{ item_id: 'a', overrides: { duration: 120 } }]);
+	});
+
+	it('leaves the plain number out when the week sets a percentage instead', () => {
+		// The other half of the same contradiction: the number would sit in the
+		// chip next to a percentage that is what actually plays.
+		const base = [
+			exercise('a', {
+				reps: undefined,
+				duration: 60,
+				variable_targets: { duration: { assessment_id: 'x', percent: 75, fallback: 60 } }
+			})
+		];
+		const edited = structuredClone(base);
+		edited[0].duration = 120;
+		edited[0].variable_targets!.duration = { assessment_id: 'x', percent: 90, fallback: 120 };
+		expect(diffOverrides(base, edited)).toEqual([
+			{
+				item_id: 'a',
+				overrides: {
+					variable_targets: { duration: { assessment_id: 'x', percent: 90, fallback: 120 } }
+				}
+			}
+		]);
+	});
+
+	it('reads a week that cleared the percentage back out unchanged', () => {
+		const base = [
+			exercise('a', {
+				reps: undefined,
+				duration: 60,
+				variable_targets: { duration: { assessment_id: 'x', percent: 75, fallback: 60 } }
+			})
+		];
+		const override = { duration: 120, variable_targets: {} };
+		const merged = mergeOverrides(base, [{ item_id: 'a', overrides: override }]);
+		expect(diffOverrides(base, merged)).toEqual([{ item_id: 'a', overrides: override }]);
+	});
+
 	it('reads a hand an override already carries back out, so Apply does not drop it', () => {
 		const base = [repeater('a', { hand: 'both' })];
 		const merged = mergeOverrides(base, [{ item_id: 'a', overrides: { hand: 'right' } }]);
