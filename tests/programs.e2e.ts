@@ -2114,7 +2114,7 @@ test('marks an override the training stopped taking and clears it into a saveabl
 	// other customised block, the circuit, still offers the plain reset.
 	await expect(modal.getByRole('button', { name: 'Reset to the training' })).toHaveCount(1);
 
-	await notice.getByRole('button', { name: 'Clear this override' }).click();
+	await notice.getByRole('button', { name: 'Reset this block to the training' }).click();
 	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
 	await expect(modal.getByTestId('stale-overrides-banner')).toHaveCount(0);
 	// The other block this week customises is untouched by clearing the one the
@@ -2167,6 +2167,13 @@ test('a locked session does not offer to clear the override it cannot change', a
 	await page.goto(PROGRAM_URL);
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
 	await openWeek(page, 1);
+
+	// A week whose only stale override sits on a played session has nothing to
+	// send the coach to, so the banner does not tell them to go and clear it.
+	const weekBanner = page.getByTestId('stale-week-1');
+	await expect(weekBanner).toContainText('already been played');
+	await expect(weekBanner).not.toContainText('Open the marked session');
+
 	await page
 		.getByTestId('cell:1:1')
 		.getByRole('button', {
@@ -2177,8 +2184,135 @@ test('a locked session does not offer to clear the override it cannot change', a
 
 	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
 	// A played session freezes its overrides too, so the block says the refusal
-	// stands rather than offering a gesture the save would refuse. That a coach is
-	// stuck there is Krakoer/crimpy#96.
-	await expect(modal.getByTestId('stale-override')).toContainText('Cannot be cleared here');
-	await expect(modal.getByRole('button', { name: 'Clear this override' })).toHaveCount(0);
+	// stands rather than offering a gesture the save would refuse, and says why
+	// where the coach reads it rather than only on hover. That a coach is stuck
+	// there is Krakoer/crimpy#96.
+	const notice = modal.getByTestId('stale-override');
+	await expect(notice).toContainText('Cannot be cleared here');
+	await expect(notice).toContainText('already been played');
+	await expect(modal.getByRole('button', { name: 'Reset this block to the training' })).toHaveCount(
+		0
+	);
+});
+
+test('points a coach browsing without Edit at the switch rather than at a played session', async ({
+	page
+}) => {
+	await stubTwoWeekProgram(page, [staleAmrapOverride()]);
+
+	await page.goto(PROGRAM_URL);
+	await openWeek(page, 2);
+
+	// Not played, only being read: the control is one click away, and saying it
+	// cannot be cleared here would be a lie the coach can disprove.
+	await expect(page.getByTestId('stale-week-2')).toContainText('Turn Edit on');
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	const notice = modal.getByTestId('stale-override');
+	await expect(notice).toContainText('Turn Edit on to clear it');
+	await expect(notice).not.toContainText('Cannot be cleared here');
+});
+
+const kg = (value: number) => ({ value, unit: 'kg' });
+
+/**
+ * The wording the write path answers a grid override laid out against the old
+ * shape with.
+ */
+const GRID_STALE_REASON = 'loads holds 6 entries but the granularity declares 8 rows';
+
+/**
+ * A hangboard grid the coach has since made longer: four reps a set where the
+ * week's override was written against three. The merge and the normalisation
+ * rewrite the stored arrays into the layout this training declares, so the modal
+ * cannot re-emit the row the server refused.
+ */
+function grownGridTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Repeaters 20mm',
+		training_type: 'hangboard',
+		items: [
+			{
+				id: 'item-grid',
+				type: 'repeater',
+				position: 0,
+				cycles: 2,
+				reps: 4,
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				cycle_rest_seconds: 120,
+				hand: 'both',
+				granularity: 'set',
+				edge_sizes_mm: [20, 20, 18, 18, 20, 20, 18, 18],
+				loads: [kg(10), kg(10), kg(12), kg(12), kg(10), kg(10), kg(12), kg(12)],
+				hand_positions: [['HC', 'HC', 'FC', 'FC', 'HC', 'HC', 'FC', 'FC']]
+			}
+		]
+	});
+}
+
+function staleGridOverride() {
+	return {
+		id: 'override-1',
+		item_id: 'item-grid',
+		overrides: { loads: [kg(14), kg(14), kg(16), kg(14), kg(14), kg(16)] },
+		override_stale: true,
+		stale_reason: GRID_STALE_REASON
+	};
+}
+
+test('marks a grid override the training outgrew and keeps it marked through an apply', async ({
+	page
+}) => {
+	await stubTwoWeekProgram(page, [staleGridOverride()], grownGridTraining());
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	const notice = modal.getByTestId('stale-override');
+	await expect(notice).toContainText(GRID_STALE_REASON);
+	// Resetting is judged as one row, so what else goes with it is said before the
+	// coach presses it.
+	await expect(notice).toContainText('anything else this week asks of it goes too');
+	await expect(
+		notice.getByRole('button', { name: 'Reset this block to the training' })
+	).toBeVisible();
+
+	// Applying without touching a thing leaves the same refused override in the
+	// week, so the marking has to survive it.
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON);
+	await modal.getByRole('button', { name: 'Reset this block to the training' }).click();
+	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
 });

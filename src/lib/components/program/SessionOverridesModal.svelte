@@ -14,6 +14,7 @@
 	import { applyItemReadDefaults } from '$lib/components/training/item-defaults';
 	import {
 		buildOverrideHistory,
+		carryStaleFlags,
 		diffOverrides,
 		itemIsOverridden,
 		mergeOverrides,
@@ -38,6 +39,9 @@
 		catalog: AssessmentCatalog;
 		readOnly: boolean;
 		readOnlyReason: string;
+		// Whether the athlete has already played this session, which is what
+		// decides if clearing is one Edit away or refused outright.
+		locked: boolean;
 		loading: boolean;
 		loadError: string;
 		onClose: () => void;
@@ -53,6 +57,7 @@
 		catalog,
 		readOnly,
 		readOnlyReason,
+		locked,
 		loading,
 		loadError,
 		onClose,
@@ -78,6 +83,12 @@
 
 	let items = $state<TrainingItem[]>([]);
 	let editedTraining = $state<string | null>(null);
+	// What the week asked for the moment the tree was built, which is the only
+	// baseline a refusal can be measured against: the merge and the normalisation
+	// rewrite a grid item's arrays into the layout the training now declares, so
+	// the stored row cannot be re-emitted and comparing against it would leave
+	// every grid override unmarked.
+	let openingRequest = $state<SessionOverride[]>([]);
 
 	$effect(() => {
 		if (!training || editedTraining === training.id) return;
@@ -85,6 +96,7 @@
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
 		prepareEditableTree(merged);
+		openingRequest = diffOverrides(baseItems, merged);
 		items = merged;
 		editedTraining = training.id;
 	});
@@ -95,7 +107,7 @@
 	// The overrides the server refused, still asking what they asked when it did.
 	// Read against the tree on screen rather than against the saved week, so a
 	// block the coach has just cleared stops being marked before they apply.
-	let standing = $derived(standingStaleOverrides(overrides, edited));
+	let standing = $derived(standingStaleOverrides(overrides, openingRequest, edited));
 
 	const mode: OverrideMode = {
 		get readOnly() {
@@ -103,6 +115,9 @@
 		},
 		get readOnlyReason() {
 			return readOnlyReason;
+		},
+		get locked() {
+			return locked;
 		},
 		isOverridden: (itemId: string) => itemIsOverridden(baseItems, items, itemId),
 		staleNotice: (itemId: string) => {
@@ -135,8 +150,13 @@
 
 	let type = $derived(trainingTypeInfo(training?.training_type));
 
+	// A refusal the server answered is carried onto an override that came back
+	// asking exactly what it asked when the modal opened, so a week merely opened
+	// and applied does not read as fixed while the save is still going to be
+	// refused. It is done here rather than in the page because the baseline it is
+	// measured against is the one this modal built.
 	function apply() {
-		onApply(edited);
+		onApply(carryStaleFlags(overrides, openingRequest, edited));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that

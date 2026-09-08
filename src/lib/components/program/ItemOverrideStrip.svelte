@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { STALE_OVERRIDE_RESET_WARNING } from '$lib/program-overrides';
 	import {
 		OVERRIDE_HISTORY_KEY,
 		OVERRIDE_KEY,
@@ -43,16 +44,30 @@
 				"
 			>
 				<div style="padding-top: 1px;"><Icon name="alert" size={13} color="var(--gd)" /></div>
-				<span style="flex: 1; min-width: 0; font-size: 11.5px; color: var(--tx2);"
-					>{staleNotice}</span
-				>
-				{#if mode.readOnly}
-					<!-- A locked session refuses a change to its overrides too, so a
+				<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+					<span style="font-size: 11.5px; color: var(--tx2);">{staleNotice}</span>
+					<!-- The reset is judged as one row, so the coach is told what else
+						goes with it before they press it rather than after. -->
+					<span style="font-size: 11px; color: var(--tx3);">
+						{mode.readOnly ? mode.readOnlyReason : STALE_OVERRIDE_RESET_WARNING}
+					</span>
+				</div>
+				{#if mode.locked}
+					<!-- A played session refuses a change to its overrides too, so a
 						control here would only promise what the save cannot do. -->
 					<span
-						title={mode.readOnlyReason}
+						data-testid="stale-override-blocked"
 						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
 						>Cannot be cleared here</span
+					>
+				{:else if mode.readOnly}
+					<!-- Not played, only being read: the control is one click away rather
+						than out of reach, and saying it cannot be cleared here would be a
+						lie the coach can disprove. -->
+					<span
+						data-testid="stale-override-blocked"
+						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
+						>Turn Edit on to clear it</span
 					>
 				{:else}
 					<!-- Clearing is putting the block back to the training: what the
@@ -65,7 +80,7 @@
 							border: 1px solid var(--gd); background: var(--panel);
 							font-family: var(--font); font-size: 11px; font-weight: 700;
 							color: var(--tx2); cursor: pointer;
-						">Clear this override</button
+						">Reset this block to the training</button
 					>
 				{/if}
 			</div>

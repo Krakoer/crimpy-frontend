@@ -398,8 +398,13 @@ export function orderedValue(value: unknown): unknown {
 		.map(([key, entry]) => [key, orderedValue(entry)]);
 }
 
-function sameRequest(left: ItemOverride, right: ItemOverride): boolean {
+function sameRequest(left: ItemOverride | undefined, right: ItemOverride | undefined): boolean {
+	if (left === undefined || right === undefined) return left === right;
 	return JSON.stringify(orderedValue(left)) === JSON.stringify(orderedValue(right));
+}
+
+function requestByItem(overrides: SessionOverride[]): Map<string, ItemOverride> {
+	return new Map(overrides.map((override) => [override.item_id, override.overrides]));
 }
 
 // An override the training item it targets no longer takes. The server computes
@@ -413,15 +418,24 @@ export function staleOverrides(overrides: SessionOverride[]): SessionOverride[] 
 // The refusals still standing against what the week asks now. An item whose
 // override the coach has since changed or cleared is left out: only the server
 // judges an override, and the one it refused is no longer the one being sent.
+//
+// The question is whether the coach has touched the item, and the stored row is
+// the wrong thing to ask it of: merging and normalising rewrite a grid item's
+// arrays into the layout the training now declares, so a freshly opened week
+// already diffs to something other than the row the server refused, and a
+// comparison against that row would leave every grid override unmarked. What is
+// compared instead is the diff the modal built when it opened, which carries the
+// same normalisation as the diff on screen.
 export function standingStaleOverrides(
 	stored: SessionOverride[],
+	opening: SessionOverride[],
 	current: SessionOverride[]
 ): SessionOverride[] {
-	const currentByItem = new Map(current.map((override) => [override.item_id, override.overrides]));
-	return staleOverrides(stored).filter((override) => {
-		const now = currentByItem.get(override.item_id);
-		return now != null && sameRequest(now, override.overrides);
-	});
+	const openingByItem = requestByItem(opening);
+	const currentByItem = requestByItem(current);
+	return staleOverrides(stored).filter((override) =>
+		sameRequest(openingByItem.get(override.item_id), currentByItem.get(override.item_id))
+	);
 }
 
 // What the week holds after the coach applies the modal. A refusal is carried
@@ -431,10 +445,11 @@ export function standingStaleOverrides(
 // judged the new value, and the save is what will tell them.
 export function carryStaleFlags(
 	stored: SessionOverride[],
+	opening: SessionOverride[],
 	edited: SessionOverride[]
 ): SessionOverride[] {
 	const standing = new Map(
-		standingStaleOverrides(stored, edited).map((override) => [override.item_id, override])
+		standingStaleOverrides(stored, opening, edited).map((override) => [override.item_id, override])
 	);
 	return edited.map((override) => {
 		const stale = standing.get(override.item_id);
@@ -445,6 +460,12 @@ export function carryStaleFlags(
 
 const STALE_OVERRIDE_LEAD =
 	'The training changed and no longer takes what this week asks of this block, so the athlete plays it as the training writes it and the week cannot be saved until this is cleared.';
+
+// Clearing is resetItemToBase: the server stores and judges what a week asks of
+// an item as one row, so the refused part cannot be dropped on its own, and a
+// coach who set a rest here as well loses that with it.
+export const STALE_OVERRIDE_RESET_WARNING =
+	'Resetting puts this block back to the training whole, so anything else this week asks of it goes too.';
 
 // stale_reason is the wording the write path answers a refused save with, not
 // copy written for a coach, so it is quoted as the check's own answer rather
