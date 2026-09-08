@@ -18,18 +18,10 @@ jobs:
   #
   # It compares the key sets and not the merge, which the unit tests own.
   #
-  # A 404 means the backend has not released the contract to main yet, so there is
-  # nothing to compare against and the job passes. That is sound because the list
-  # was written from the itemOverride struct the deployed backend already ships: a
-  # backend older than the file names no key this image is missing.
-  #
-  # A 404 is also what a moved file, a renamed path, a deleted one, a wrong ref
-  # and a typo in the repo return, and those have to stay red. So the pass is
-  # taken only once two probes answer 200: go.mod on the same ref, which proves
-  # the repo and the ref resolve, and the contract path on dev, which proves the
-  # file still lives where the PR check holds the vendored copy to it. One BASE
-  # builds all three URLs, so the ref is the only token they do not share. Any
-  # other status, and a fetch that never got one, is red either way.
+  # 200 compares. Anything else is red, including a 404: the contract has been on
+  # main since it was released there, so a miss now means the ref moved, the file
+  # moved, or crimpy-backend is unreachable, and a gate that cannot see what it
+  # guards does not pass.
   contract:
     name: Deployed override keys
     runs-on: ubuntu-latest
@@ -43,27 +35,11 @@ jobs:
           URL=$BASE/$REF/$CONTRACT
           trap 'rm -f deployed.json' EXIT
           code=$(curl -sSL --retry 3 --retry-all-errors -o deployed.json -w '%{http_code}' "$URL") || code=000
-          if [ "$code" = "404" ]; then
-            ref_code=$(curl -sSL --retry 3 --retry-all-errors -o /dev/null -w '%{http_code}' "$BASE/$REF/go.mod") || ref_code=000
-            path_code=$(curl -sSL --retry 3 --retry-all-errors -o /dev/null -w '%{http_code}' "$BASE/dev/$CONTRACT") || path_code=000
-            if [ "$ref_code" != "200" ] || [ "$path_code" != "200" ]; then
-              echo "$URL is missing and this gate cannot tell why." >&2
-              echo "$BASE/$REF/go.mod answered ${ref_code:-000}, $BASE/dev/$CONTRACT answered ${path_code:-000}," >&2
-              echo "and both have to answer 200 for the miss to mean the backend simply has not" >&2
-              echo "released the contract yet. So the ref moved, the contract moved, the URL is" >&2
-              echo "wrong, or crimpy-backend is unreachable. A gate that cannot see what it guards" >&2
-              echo "does not pass." >&2
-              exit 1
-            fi
-            echo "::warning::crimpy-backend $REF carries no $CONTRACT yet, so this image was not compared against the deployed key set"
-            echo "The deployed backend predates the override key contract, so there is nothing"
-            echo "to compare against and no key it can send this image drops."
-            exit 0
-          fi
           if [ "$code" != "200" ]; then
             echo "Could not read $URL (HTTP ${code:-000})." >&2
-            echo "Either the fetch failed, or the canonical list is gone from crimpy-backend," >&2
-            echo "which is where it lives and where it has to be restored." >&2
+            echo "000 means the fetch never landed, so the contract itself may be fine." >&2
+            echo "A 404 cannot tell a moved ref from a moved or deleted file, so check the ref" >&2
+            echo "in the URL above before restoring anything in crimpy-backend." >&2
             exit 1
           fi
           if ! jq -e '.keys | type == "array"' deployed.json >/dev/null 2>&1; then
