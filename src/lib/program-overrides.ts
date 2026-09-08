@@ -328,7 +328,8 @@ export function overrideSummary(
 	return parts.join(', ');
 }
 
-function findItem(items: TrainingItem[], itemId: string): TrainingItem | undefined {
+// The item the training holds under that id, wherever it sits in the tree.
+export function findItem(items: TrainingItem[], itemId: string): TrainingItem | undefined {
 	for (const item of items) {
 		if (item.id === itemId) return item;
 		const found = item.items ? findItem(item.items, itemId) : undefined;

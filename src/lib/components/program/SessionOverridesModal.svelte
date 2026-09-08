@@ -15,6 +15,7 @@
 	import {
 		buildOverrideHistory,
 		diffOverrides,
+		findItem,
 		itemIsOverridden,
 		mergeOverrides,
 		resetItemToBase,
@@ -92,7 +93,8 @@
 			return readOnly;
 		},
 		isOverridden: (itemId: string) => itemIsOverridden(baseItems, items, itemId),
-		resetItem: (itemId: string) => resetItemToBase(baseItems, items, itemId)
+		resetItem: (itemId: string) => resetItemToBase(baseItems, items, itemId),
+		baseItem: (itemId: string) => findItem(baseItems, itemId)
 	};
 	setContext(OVERRIDE_KEY, mode);
 
