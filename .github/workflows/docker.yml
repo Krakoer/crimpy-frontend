@@ -42,12 +42,14 @@ jobs:
             echo "in the URL above before restoring anything in crimpy-backend." >&2
             exit 1
           fi
-          if ! jq -e '.keys | type == "array" and length > 0 and all(.[]; .key | type == "string" and length > 0)' deployed.json >/dev/null 2>&1; then
+          if ! jq -e --slurpfile deployed deployed.json -n \
+            '$deployed[0].keys | type == "array" and length > 0 and all(.[]; .key | type == "string" and length > 0)' \
+            >/dev/null 2>&1; then
             echo "$URL did not answer the contract: .keys is not a non-empty array of entries" >&2
-            echo "each carrying a non-empty string key, so the deployed key set could not be read." >&2
+            echo "each carrying a non-empty string key, so there is no deployed key set to read." >&2
             echo "An error page served with a 200 looks like this, and so does a contract whose" >&2
-            echo "entries renamed the key field: subtracting a set of nulls leaves nulls, which" >&2
-            echo "join to nothing, so the gate would have passed having compared nothing." >&2
+            echo "entries lost the key field, which the comparison below cannot tell from a" >&2
+            echo "backend that drops every key." >&2
             exit 1
           fi
           missing=$(jq -rn \
