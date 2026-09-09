@@ -1500,6 +1500,20 @@ function circuitTraining() {
 	});
 }
 
+/**
+ * The circuit after a coach retyped it in the training editor: same ids, a new
+ * title and a rest the exercise no longer takes at 60 seconds. Which is the
+ * shape the week refusals are about, a training that moved under a program that
+ * still asks the old thing of it.
+ */
+function retypedCircuitTraining() {
+	const training = circuitTraining();
+	training.title = 'Power endurance block, retyped';
+	const circuit = training.items[0] as { items: { rest_seconds: number }[] };
+	circuit.items[0].rest_seconds = 90;
+	return training;
+}
+
 /** The same training scheduled on the Monday of both weeks. */
 function twoWeeksOfTheSameTraining(secondWeekOverrides: unknown[] = []) {
 	const session = (id: string, overrides: unknown[]) => ({
@@ -2646,8 +2660,12 @@ test('reads the week back when a save is refused and marks the block it is about
 	releaseReread();
 
 	// And then the block carries it, in the coach's words, so the strip above no
-	// longer has to hand over the write path's.
+	// longer has to hand over the write path's. It points at the markings without
+	// claiming they are why: the server names no item when it refuses, so which
+	// marked block was the cause, or whether any was, is not something the portal
+	// can be made to know.
 	await expect(refusal).toContainText('marked on the sessions below');
+	await expect(refusal).toContainText('whether or not it is the reason');
 	await expect(refusal).not.toContainText(STALE_REASON);
 	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
 
@@ -2734,15 +2752,20 @@ test('leaves a failure that is not a refusal saying what the server said', async
 	expect(weekTwoReadCount).toBe(1);
 });
 
-test('keeps an open parameters modal on a training that is current', async ({ page }) => {
+test('writes nothing of its own into a week read back under an open modal', async ({ page }) => {
 	// Ctrl+S saves from under an open modal, so the re-read can land while the
-	// coach is typing in one. Dropping the cached training there left the panel
-	// reading "Loading the training...", with Apply disabled, nothing loading and
-	// Cancel, which throws away what they typed, the only way out. The one the
-	// modal is open on is re-read instead of dropped: they keep their values and
-	// they are looking at the training the refusal is about.
+	// coach is typing in one, and neither thing it could do to the cached training
+	// is safe. Dropping it leaves the panel reading "Loading the training...",
+	// with Apply disabled, nothing loading and Cancel, which throws away what they
+	// typed, the only way out. Replacing it is worse: the modal rebuilds its
+	// edited tree only when the training id changes, so a fresh copy under the
+	// same id moves the base tree and leaves the edited one, the diff reads every
+	// field the training moved as a value this week is asking for, and Apply
+	// writes it into the week. So the entry is left exactly as it is, and dropped
+	// when the modal closes.
 	const reads = weekTwoReads();
 	await stubTwoWeekProgram(page, reads.before.sessions[0].overrides);
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 	let weekTwoReadCount = 0;
 	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
 		if (route.request().method() !== 'GET') return route.fallback();
@@ -2761,8 +2784,10 @@ test('keeps an open parameters modal on a training that is current', async ({ pa
 			body: JSON.stringify({ error: `item item-exercise: ${STALE_REASON}` })
 		});
 	});
-	// The training the week is refused against is the training that moved, so the
-	// second read of it is a different one.
+	// The training the week is refused against is the training that moved, and it
+	// moved a value the modal renders: the exercise now rests 90 seconds where the
+	// tree on screen was built on 60. A second read identical to the first would
+	// let a swapped base tree pass, since the diff it feeds would come out empty.
 	let trainingReadCount = 0;
 	await page.route('**/api/trainings/*', async (route) => {
 		if (route.request().method() !== 'GET') return route.fallback();
@@ -2770,11 +2795,7 @@ test('keeps an open parameters modal on a training that is current', async ({ pa
 		return route.fulfill({
 			status: 200,
 			contentType: 'application/json',
-			body: JSON.stringify(
-				trainingReadCount === 1
-					? circuitTraining()
-					: { ...circuitTraining(), title: 'Power endurance block, retyped' }
-			)
+			body: JSON.stringify(trainingReadCount === 1 ? circuitTraining() : retypedCircuitTraining())
 		});
 	});
 
@@ -2792,18 +2813,66 @@ test('keeps an open parameters modal on a training that is current', async ({ pa
 	await modal.getByRole('spinbutton').first().fill('5');
 	await page.keyboard.press('Control+s');
 
-	// The modal is still the modal: the training it reads is the one the server
-	// now holds, the sets are the ones the coach typed, and Apply still applies
-	// them.
-	await expect(
-		modal.getByRole('heading', { name: 'Power endurance block, retyped' })
-	).toBeVisible();
+	// The read landed and marked the block it is about.
+	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+
+	// The modal is still the modal: nothing is loading, the cycles are the ones
+	// the coach typed, and Apply still applies them. The tree is the one it was
+	// built from, which is the cost written down: the training under it has moved
+	// and the panel does not show that until it is closed and opened again.
 	await expect(modal.getByText('Loading the training...')).toHaveCount(0);
 	await expect(modal.getByRole('spinbutton').first()).toHaveValue('5');
 	await expect(modal.getByRole('button', { name: 'Apply' })).toBeEnabled();
 	await modal.getByRole('button', { name: 'Apply' }).click();
 	await expect(modal).toHaveCount(0);
-	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+
+	// And what Apply wrote into the week is the cycles the coach typed and the
+	// marker the week already asked for, and nothing else. Under a base tree
+	// swapped for the moved training this also carried rest_seconds 60 on the
+	// exercise, a prescription nobody made, from a coach who typed nothing near
+	// it.
+	await page.getByRole('button', { name: 'Save program' }).click();
+	const weekTwoSaves = () => saved.filter((request) => request.url.endsWith('/weeks/2'));
+	await expect.poll(() => weekTwoSaves().length).toBe(2);
+	expect(weekTwoSaves().at(-1)?.body).toEqual(
+		expect.objectContaining({
+			sessions: [
+				expect.objectContaining({
+					overrides: [
+						{ item_id: 'item-circuit', overrides: { cycles: 5 } },
+						{ item_id: 'item-exercise', overrides: { reps_is_max: true } }
+					]
+				})
+			]
+		})
+	);
+	// Which is what leaving the entry alone buys: the training was never read
+	// again under the coach, so the pair the diff is taken across never came
+	// apart.
+	expect(trainingReadCount).toBe(1);
+
+	// Closing is what lets go of the copy the tree was built from, so the reopen
+	// reads the training the server holds now rather than handing back the one the
+	// refusal disproved.
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+	await expect(
+		modal.getByRole('heading', { name: 'Power endurance block, retyped' })
+	).toBeVisible();
+	// The 90 seconds the training moved to, as the pair of fields the editor
+	// writes a rest in.
+	await expect(modal.getByRole('spinbutton', { name: 'Rest minutes', exact: true })).toHaveValue(
+		'1'
+	);
+	await expect(modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true })).toHaveValue(
+		'30'
+	);
+	expect(trainingReadCount).toBe(2);
 });
 
 test('keeps the words the save was refused with when the week cannot be read back', async ({

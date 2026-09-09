@@ -232,6 +232,10 @@
 	// read once per id and kept, since the same one is usually scheduled in
 	// several weeks and the strip under each block reads all of them.
 	let trainingCache = $state<Record<string, Training>>({});
+	// The cached trainings a refused week wanted dropped and could not, because the
+	// parameters modal is open on one of them and the tree it holds is only
+	// consistent against the copy it was built from. Not $state: nothing renders it.
+	const trainingCacheDropOnClose = new Set<string>();
 	let overridesTargetID = $state<{ wn: number; sessionID: string } | null>(null);
 	let overridesLoading = $state(false);
 	let overridesError = $state('');
@@ -339,7 +343,14 @@
 		// fresh read is what explained this refusal.
 		if (draft.refusalMarked) {
 			if (weekNoticeState(draft).staleSessions > 0) {
-				return 'This week could not be saved. What the training no longer takes is marked on the sessions below.';
+				// It stops short of saying the marked blocks are why the save failed,
+				// because the portal cannot know that. isRefusal is every 4xx, so a week
+				// carrying a marking the coach never moved can be refused for something
+				// else entirely, the frozen session guard among them, and the fresh read
+				// would mark the same blocks and say nothing of the real cause. Only the
+				// server naming the item it refused on would settle it, and it names
+				// none. So the sentence says what is marked and leaves the reason open.
+				return 'This week could not be saved. What the trainings no longer take is marked on the sessions below, worth fixing whether or not it is the reason.';
 			}
 			// The flag says this read explained the refusal as override refusals, and
 			// the week now holds none of them, so that account is spent. Falling back
@@ -444,7 +455,7 @@
 			// than left to be rediscovered as an accident of the closure.
 			if (weekDrafts[wn] !== draft) return;
 			draft.refusalMarked = markRefusedWeek(draft, wn, rereadWeek(fresh.sessions)) > 0;
-			await refreshTrainingsOfRefusedWeek(fresh.sessions.map((s) => s.training_id));
+			dropCachedTrainingsOfRefusedWeek(fresh.sessions.map((s) => s.training_id));
 		} catch {
 			// The server could not be asked, so the refusal it answered the save with
 			// is the whole of what can be said, and saveError is still holding it.
@@ -460,26 +471,30 @@
 	// is rendered against and what the parameters modal builds its tree from. So
 	// the copies are dropped and the next open reads them.
 	//
-	// Except the one the modal is open on, which is re-read instead. Ctrl+S saves
-	// from under an open modal, so dropping that one leaves the panel the coach is
-	// typing in reading "Loading the training..." with Apply disabled, nothing
-	// loading and Cancel, which throws away everything they typed, the only way
-	// out. Re-read rather than merely skipped: skipping would leave them working
-	// against the very tree the refusal just disproved, while a re-read leaves the
-	// modal on a training that is current and costs them nothing, since the modal
-	// rebuilds what they typed only when the training id changes and this one
-	// keeps its id. A read that fails leaves the cached copy in place, for the
-	// same reason dropping it is wrong.
-	async function refreshTrainingsOfRefusedWeek(trainingIDs: string[]) {
+	// Except the one the modal is open on, which is left exactly as it is. Ctrl+S
+	// saves from under an open modal, and the modal reads the cache through a pair
+	// that has to agree: baseItems, trees and the scheduled weeks all recompute the
+	// moment the entry changes, while the edited tree is rebuilt only when the
+	// training id changes, which is the guard that keeps what the coach typed.
+	// Writing a fresh training under the same id moves one half of that pair and
+	// not the other, so the diff reads every field the training moved as a value
+	// this week is asking for, and Apply writes prescriptions nobody made into the
+	// week. Dropping the entry is no better: it leaves the panel reading "Loading
+	// the training..." with Apply disabled and Cancel, which throws away what they
+	// typed, the only way out.
+	//
+	// What that costs, plainly: while the modal stays open the coach works against
+	// a training the refusal has just disproved, and applying from there can send
+	// values the server refuses again. That is visible, since the block stays
+	// marked and the next save answers afresh, and it lasts only as long as the
+	// modal does. The drop is deferred rather than skipped: openOverrides reads
+	// the cache before it reads the server, so an entry merely left behind would
+	// outlive the modal and hand the same disproved tree back on every reopen.
+	function dropCachedTrainingsOfRefusedWeek(trainingIDs: string[]) {
 		const openTrainingID = overridesTarget?.session.training_id;
-		const scheduled = new Set(trainingIDs);
-		for (const id of scheduled) if (id !== openTrainingID) delete trainingCache[id];
-		if (openTrainingID === undefined || !scheduled.has(openTrainingID)) return;
-		try {
-			trainingCache[openTrainingID] = await apiClient.getTraining(openTrainingID);
-		} catch {
-			// Nothing to put in its place, and the stale tree the coach is typing
-			// against is worth more to them than an empty modal.
+		for (const id of new Set(trainingIDs)) {
+			if (id === openTrainingID) trainingCacheDropOnClose.add(id);
+			else delete trainingCache[id];
 		}
 	}
 
@@ -612,6 +627,14 @@
 		}
 	}
 
+	// The modal sits under an {#if} on overridesTarget, so this destroys it, and
+	// the drop a refused week deferred is what the next open has to read past.
+	function closeOverrides() {
+		overridesTargetID = null;
+		for (const id of trainingCacheDropOnClose) delete trainingCache[id];
+		trainingCacheDropOnClose.clear();
+	}
+
 	// Written into the week draft rather than saved on its own: the week is the
 	// unit the server takes, so the coach saves these the way they save a move.
 	// The modal hands back the refusals still standing against what it holds, so
@@ -620,7 +643,7 @@
 	function applyOverrides(overrides: SessionOverride[]) {
 		if (!overridesTarget) return;
 		overridesTarget.session.overrides = overrides;
-		overridesTargetID = null;
+		closeOverrides();
 	}
 
 	const TRAINING_FILTERS: { id: string; label: string }[] = [
@@ -1987,7 +2010,7 @@
 		locked={overridesTarget.session.locked === true}
 		loading={overridesLoading}
 		loadError={overridesError}
-		onClose={() => (overridesTargetID = null)}
+		onClose={closeOverrides}
 		onApply={applyOverrides}
 	/>
 {/if}

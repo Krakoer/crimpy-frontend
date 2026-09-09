@@ -436,10 +436,10 @@ export function savedID(session: DraftSession, wn: number): string | undefined {
 // for and never the marking on it, so a week marked this way is as dirty as it
 // was a moment before.
 //
-// It answers how many sessions this read marked, which is what says whether the
-// server's account explained the refusal at all: a week save is refused for
-// plenty of things that are not a stale override, and one of those has to keep
-// reading as the words the server answered with.
+// It answers how many sessions this read marked that could explain the refusal,
+// which is what says whether the server's account explained it at all: a week
+// save is refused for plenty of things that are not a stale override, and one of
+// those has to keep reading as the words the server answered with.
 export function markRefusedWeek(draft: WeekDraft, wn: number, reread: RereadWeek): number {
 	let marked = 0;
 	for (const session of draftSessions(draft)) {
@@ -449,6 +449,14 @@ export function markRefusedWeek(draft: WeekDraft, wn: number, reread: RereadWeek
 		// carried, and that marking is an older read's answer rather than this
 		// one's. Counting it would let the week strip claim the fresh read
 		// explained a refusal the fresh read said nothing about.
+		//
+		// A played session is marked and never counted. The write path skips a
+		// locked session's own rows before it validates them, so its stale row is
+		// never what a save is refused for, and the coach cannot clear it either:
+		// counting it would set the flag on every refusal of every week that holds
+		// one, and the strip would answer every real refusal with the marking
+		// sentence, forever and with no gesture that lifts it.
+		if (session.locked) continue;
 		if (rereadHolds(reread, saved) && staleOverrides(session.overrides).length > 0) marked += 1;
 	}
 	return marked;

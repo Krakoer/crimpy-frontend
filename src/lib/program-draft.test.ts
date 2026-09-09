@@ -586,6 +586,25 @@ describe('markRefusedWeek', () => {
 		expect(draft.days[1][0].overrides[0].override_stale).toBeUndefined();
 	});
 
+	it('marks a played session and never counts it', () => {
+		// The write path skips a locked session's own rows before it validates them,
+		// so its stale row is never what a save is refused for, and the coach has no
+		// gesture that clears it. Counting it would set the flag on every refusal of
+		// every week that holds one, and the strip would answer each of them with
+		// the marking sentence instead of what the server actually said, with
+		// nothing the coach could do to get the words back.
+		const draft = weekWithSavedSession();
+		draft.days[1][0].locked = true;
+		expect(markRefusedWeek(draft, 1, rereadWeek([{ id: 'ws-1', overrides: [refusedRow] }]))).toBe(
+			0
+		);
+		// Marked all the same: the block still says what the server no longer takes,
+		// which is the only account of it a played session ever gets.
+		expect(draft.days[1][0].overrides[0].stale_fields).toEqual([
+			{ field: 'rest_seconds', reason: REASON }
+		]);
+	});
+
 	it('answers nothing marked when the refusal was about something else', () => {
 		// A week save is refused for plenty of things that are not a stale
 		// override, and the count is what tells the page to keep showing the words
