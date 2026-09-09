@@ -1760,6 +1760,52 @@ test.describe('percentage prescriptions', () => {
 
 		await expect(page.getByText('fallback 30s')).toBeVisible();
 	});
+
+	// In a training the toggle only says which shape the field is prescribed in,
+	// so pressing it back on takes the number standing in the boxes as the
+	// fallback. Putting back the pair it was turned off over belongs to a program
+	// week, where the plain value beside a percentage means something of its own.
+	test('takes the boxes as the fallback when the percentage goes back on', async ({ page }) => {
+		const training = timedPercentTraining(120);
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByTestId('variable-toggle').click();
+		await page.getByLabel('Duration minutes').fill('0');
+		await page.getByLabel('Duration seconds').fill('30');
+		await page.getByTestId('variable-toggle').click();
+
+		await expect(page.getByLabel('Duration minutes')).toHaveValue('0');
+		await expect(page.getByLabel('Duration seconds')).toHaveValue('30');
+		await saveTraining(page);
+
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items[0].duration).toBe(30);
+		expect(items[0].variable_targets?.duration).toMatchObject({ percent: 75, fallback: 30 });
+	});
+
+	// An emptied number box binds as null, which the backend answers by refusing
+	// the whole training rather than the field, so the percentage box lands on a
+	// number again as the coach leaves it.
+	test('saves a percentage the backend accepts when its box is emptied', async ({ page }) => {
+		const training = timedPercentTraining(120);
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByLabel('Percent of assessment').fill('');
+		await saveTraining(page);
+
+		const items = (updates[0].body as TrainingRequest).items;
+		expect(items[0].variable_targets?.duration).toMatchObject({ percent: 1 });
+	});
 });
 
 test.describe('reordering root blocks', () => {

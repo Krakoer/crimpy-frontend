@@ -1649,6 +1649,28 @@ function durationPercentTraining() {
 	});
 }
 
+/**
+ * A training that prescribes a plain rep count, with no percentage anywhere near
+ * it. Nothing about a week is meant to reach the box here: it holds the count
+ * itself, the way it does in the training editor.
+ */
+function plainRepCountTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		items: [
+			{
+				id: 'item-exercise',
+				type: 'exercise',
+				position: 0,
+				exercise_id: 'exercise-1',
+				exercise_name: 'Pull up',
+				reps: 8
+			}
+		]
+	});
+}
+
 /** An exercise written as an AMRAP, carrying no rep count to fall back on. */
 function openRepCountTraining() {
 	return testTraining({
@@ -2076,6 +2098,42 @@ test('a week emptying the reps box sends a fallback the backend accepts', async 
 			reps: { assessment_id: REPS_ASSESSMENT, percent: 75, fallback: 1 }
 		}
 	});
+});
+
+test('a week that empties the reps box of a plain count asks nothing of it', async ({ page }) => {
+	// A box cleared on the way to typing is not a prescription, and the floor that
+	// keeps a percentage fallback runnable has no business here: a week that sent
+	// one rep would have the athlete do one instead of the eight the training
+	// asks for, with nothing on screen saying so.
+	await stubTwoWeekProgram(page, [], plainRepCountTraining());
+	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page);
+	await expect(modal.getByLabel('Reps')).toHaveValue('8');
+	await modal.getByLabel('Reps').fill('');
+
+	await expect(modal.getByText('This week runs the training as it is written')).toBeVisible();
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
+	expect(saved).toHaveLength(0);
+});
+
+test('a week that retypes the reps box of a plain count prescribes what it reads', async ({
+	page
+}) => {
+	await stubTwoWeekProgram(page, [], plainRepCountTraining());
+	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page);
+	await modal.getByLabel('Reps').fill('12');
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(savedOverrides(saved, 'item-exercise')).toEqual({ reps: 12 });
 });
 
 test('a week that closes an open rep count lands on a number the athlete can run', async ({

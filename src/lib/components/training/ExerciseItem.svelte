@@ -94,13 +94,15 @@
 	});
 
 	// An open rep count prescribes no number at all, so the box behind it writes
-	// nothing while it stands.
+	// nothing while it stands. Neither does an emptied box: the floor is the
+	// fallback's, which the backend refuses as null, and a plain count floored the
+	// same way would have a week prescribe one rep of an exercise the training
+	// asks eight of, with nothing on screen saying so.
 	$effect(() => {
 		if (isDuration || isAmrap) return;
-		const reps = prescribedReps();
 		const target = item.variable_targets?.reps;
-		if (target) target.fallback = reps;
-		if (!target || !overriding) item.reps = reps;
+		if (target) target.fallback = prescribedReps();
+		if ((!target || !overriding) && repsCount != null) item.reps = repsCount;
 	});
 
 	let restMin = $state(Math.floor((item.rest_seconds ?? 0) / 60));
@@ -249,8 +251,17 @@
 	// this time, and turning it back on is how it takes that back. Both are the
 	// coach saying which of the two the boxes below mean, which is what nothing
 	// else in the panel can tell.
+	//
+	// A training has only one number to mean, so the toggle there says no more
+	// than which shape the field is prescribed in: the boxes are the fallback
+	// either way, and putting back a pair the coach has typed over since would
+	// throw away what they typed.
 	function setVariable(on: boolean) {
 		const field = variableField;
+		if (!overriding) {
+			toggleVariable(field, on);
+			return;
+		}
 		if (!on) {
 			clearedTargets[field] = $state.snapshot(item.variable_targets?.[field]);
 			toggleVariable(field, false);
@@ -270,6 +281,14 @@
 		}
 		toggleVariable(field, true);
 		restorePrescribedValue(field);
+	}
+
+	// An emptied number box binds as null, and a percentage of null fails the
+	// whole save rather than the field, so the box lands on a percentage again
+	// once the coach leaves it.
+	function floorPercent() {
+		const target = item.variable_targets?.[variableField];
+		if (target) target.percent = Math.max(1, target.percent ?? 0);
 	}
 
 	function setDurationMode() {
@@ -448,7 +467,9 @@
 						<input
 							type="number"
 							min="1"
+							aria-label="Percent of assessment"
 							bind:value={variableTarget.percent}
+							onchange={floorPercent}
 							onclick={(e) => e.stopPropagation()}
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
