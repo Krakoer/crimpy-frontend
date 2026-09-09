@@ -993,6 +993,134 @@ describe('a grid override the normalisation collapses', () => {
 	});
 });
 
+// The mirror of the case above: a week whose stored row declares a layout field
+// the training has since adopted. The week wrote its own granularity back when
+// the training was uniform, which the variation selector permits, and it is the
+// layout the training itself now declares, so the diff omits the field as
+// unchanged and the two rows read as disagreeing about a grid they both ask for.
+// Its arrays are the ones the server refuses, so nothing but the substitution
+// stands between the coach's numbers and a guess that saves.
+describe('a grid override the training has caught up with', () => {
+	const kg = (value: number) => ({ value, unit: 'kg' as const });
+	const REFUSED_REASON = 'loads holds 6 entries but the granularity declares 8 rows';
+
+	// Two sets of four reps loaded per set: eight rows, which the week was told
+	// about only after it had written six.
+	function gridTraining(): TrainingItem[] {
+		const items: TrainingItem[] = [
+			{
+				id: 'grid',
+				_id: 'grid',
+				type: 'repeater',
+				cycles: 2,
+				reps: 4,
+				hand: 'both',
+				granularity: 'set',
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				loads: [kg(10), kg(10), kg(10), kg(10), kg(12), kg(12), kg(12), kg(12)],
+				edge_sizes_mm: Array.from({ length: 8 }, () => 20),
+				hand_positions: [Array.from({ length: 8 }, () => 'HC')]
+			}
+		];
+		normalizeHangboardItems(items);
+		applyItemReadDefaults(items, []);
+		return items;
+	}
+
+	// Six loads for a 2x3 grid, under the granularity the week declared itself.
+	// The server refuses it against the training as it now stands, so the block
+	// carries a notice and a reset and the week cannot be saved until it goes.
+	const stored: SessionOverride[] = [
+		{
+			item_id: 'grid',
+			overrides: {
+				granularity: 'set',
+				loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
+			},
+			override_stale: true,
+			stale_reason: REFUSED_REASON
+		}
+	];
+
+	// The write path's row count, restated here rather than imported so this
+	// checks the request against the backend rule and not against the copy of it
+	// the code under test reads.
+	function declaredRows(base: TrainingItem, override: ItemOverride): number {
+		const granularity = override.granularity ?? base.granularity ?? 'uniform';
+		const reps = override.reps ?? base.reps ?? 1;
+		const cycles = override.cycles ?? base.cycles ?? 1;
+		if (granularity === 'set') return cycles * reps;
+		if (granularity === 'rep') return reps;
+		return 1;
+	}
+
+	function openModal() {
+		const baseItems = gridTraining();
+		const merged = mergeOverrides(baseItems, stored);
+		normalizeHangboardItems(merged);
+		applyItemReadDefaults(merged, []);
+		prepareEditableTree(merged);
+		return {
+			baseItems,
+			items: merged,
+			opening: structuredClone(diffOverrides(baseItems, merged))
+		};
+	}
+
+	function sentRequest() {
+		const { baseItems, items, opening } = openModal();
+		return {
+			baseItems,
+			sent: keepStoredGridArrays(baseItems, stored, opening, diffOverrides(baseItems, items))
+		};
+	}
+
+	it('declares the same eight rows as the training, which its six loads do not fill', () => {
+		const base = gridTraining()[0];
+		expect(declaredRows(base, stored[0].overrides)).toBe(8);
+		expect(stored[0].overrides.loads).toHaveLength(6);
+	});
+
+	it('opens on a grid the normalisation filled out to eight rows', () => {
+		// Which is the guess: two rows the coach never typed, taken from a
+		// fallback, in a request the server would take.
+		const opening = openModal().opening;
+		expect(opening[0].overrides.loads).toHaveLength(8);
+	});
+
+	it('goes back as the week stored it, since the request declares that layout', () => {
+		// The granularity is not in the row because the training declares it now
+		// and the diff emits only what differs, so the request and the stored row
+		// declare the same eight rows either way. That is the comparison that
+		// decides this, not the raw fields.
+		const { baseItems, sent } = sentRequest();
+		expect(sent).toHaveLength(1);
+		expect(sent[0].overrides).toEqual({ loads: stored[0].overrides.loads });
+		expect(declaredRows(baseItems[0], sent[0].overrides)).toBe(
+			declaredRows(baseItems[0], stored[0].overrides)
+		);
+	});
+
+	it('prescribes what the week prescribed, load for load', () => {
+		const { sent } = sentRequest();
+		const before = mergeOverrides(gridTraining(), stored)[0];
+		const after = mergeOverrides(gridTraining(), sent)[0];
+		expect(after.loads).toEqual(before.loads);
+	});
+
+	it('stays refused, marked and clearable after the apply', () => {
+		const { baseItems, items, opening } = openModal();
+		const current = diffOverrides(baseItems, items);
+		const sent = keepStoredGridArrays(baseItems, stored, opening, current);
+		expect(carryStaleFlags(stored, sent)[0].override_stale).toBe(true);
+		expect(carryStaleFlags(stored, sent)[0].stale_reason).toBe(REFUSED_REASON);
+		expect(standingStaleOverrides(stored, opening, current, sent).map((o) => o.item_id)).toEqual([
+			'grid'
+		]);
+	});
+});
+
 // A refusal the merge and the normalisation undo between the week read and the
 // tree on screen. The week asks the item for a left hand column, the training
 // now hangs both hands together, and the diff has nothing to emit: the block

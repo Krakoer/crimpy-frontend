@@ -10,6 +10,10 @@ import {
 	type VariableTargets
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
+import {
+	hangboardHandCount,
+	hangboardRowCount
+} from '$lib/components/training/hangboard-granularity';
 import type { OverrideHistoryByItem } from '$lib/components/training/override-context';
 
 // A program schedules the same training in several weeks and lets the coach
@@ -532,31 +536,52 @@ export function staleOverridesDroppedByApply(
 	);
 }
 
-// Whether the item the row targets lays its configuration out as a grid, asked
+// The item the row targets, when it lays its configuration out as a grid, asked
 // of the training the way the diff asks it, so the two cannot come to disagree
 // about what a grid is.
-function isGridItem(base: TrainingItem[], itemId: string): boolean {
+function gridItem(base: TrainingItem[], itemId: string): TrainingItem | undefined {
 	const item = findItem(base, itemId);
-	return item !== undefined && GRID_ITEM_TYPES.includes(item.type);
+	if (item === undefined || !GRID_ITEM_TYPES.includes(item.type)) return undefined;
+	return item;
+}
+
+// The layout a request declares, which is the layout the server lays its arrays
+// out in: a field the request leaves out is the training's, so this is read off
+// both at once. It is what the stored arrays have to be compared against, rather
+// than the raw fields of the two rows: a week can declare a layout field the
+// training has since adopted, and the diff then omits it as unchanged, which
+// makes two rows asking for the very same grid read as disagreeing about it.
+function declaredLayout(base: TrainingItem, override: ItemOverride): string {
+	const rows = hangboardRowCount(
+		override.granularity ?? base.granularity ?? 'uniform',
+		override.cycles ?? base.cycles,
+		override.reps ?? base.reps
+	);
+	const hands = hangboardHandCount(override.hand ?? base.hand ?? 'both');
+	return `${rows}x${hands}`;
 }
 
 // Whether the item's grid is still exactly what the modal opened on, in a
-// request that still declares the layout the stored arrays were written in.
+// request that still declares the layout the stored arrays were written for.
 //
-// The row count enters it twice over. A coach who resized the grid is asking for
+// The layout enters it twice over. A coach who resized the grid is asking for
 // the arrays to be laid out again, and the backend refuses a resize that does
-// not resend them. And a layout field that no longer says what the stored row
-// says is the normalisation having moved it rather than the coach, which is the
-// same rewrite from the other end: the stored arrays were written against the
-// layout the stored row declares, so putting them into a request declaring
-// another one contradicts the request itself, and every array a request carries
-// owes it one entry per row the request declares. The normalised grid goes out
-// whole there instead, which does agree with itself.
-function gridUntouched(stored: ItemOverride, opened: ItemOverride, current: ItemOverride): boolean {
+// not resend them. And a request declaring another layout than the stored row
+// did is the normalisation having moved the arrays rather than the coach, which
+// is the same rewrite from the other end: every array a request carries owes it
+// one entry per row and one column per hand the request declares, so stored
+// arrays written for one layout contradict a request declaring another. The
+// normalised grid goes out whole there instead, which does agree with itself.
+function gridUntouched(
+	base: TrainingItem,
+	stored: ItemOverride,
+	opened: ItemOverride,
+	current: ItemOverride
+): boolean {
 	const untouched = [...GRID_LAYOUT_FIELDS, ...GRID_ARRAY_FIELDS].every((field) =>
 		sameField(opened, current, field)
 	);
-	return untouched && GRID_LAYOUT_FIELDS.every((field) => sameField(stored, current, field));
+	return untouched && declaredLayout(base, stored) === declaredLayout(base, current);
 }
 
 // What the week goes back asking, with the grid of every block the coach did not
@@ -578,9 +603,16 @@ function gridUntouched(stored: ItemOverride, opened: ItemOverride, current: Item
 // refused, marked and clearable rather than quietly rewritten into a week that
 // saves and prescribes something else.
 //
-// The row that goes back then is the row the server has already judged against
-// this same training, so applying can neither turn a week it took into one it
-// refuses nor the other way round.
+// The arrays that go back are the arrays the server has already judged, in a
+// request declaring the layout it judged them in, so applying can never turn a
+// week the server takes into one it refuses, and never rewrites a number the
+// coach typed. The converse does not hold, and not because of anything here: an
+// array the diff no longer emits is not one this can put back. A week asking a
+// left hand column of a block the training now hangs with both hands together
+// is refused for that column, the normalisation wipes it before the diff runs,
+// and the row that goes back carries the rest, so applying alone can turn that
+// refused week into one the server takes while the block still shows its notice
+// and its reset.
 export function keepStoredGridArrays(
 	base: TrainingItem[],
 	stored: SessionOverride[],
@@ -591,11 +623,12 @@ export function keepStoredGridArrays(
 	const openingByItem = requestByItem(opening);
 	return current
 		.map((override) => {
-			if (!isGridItem(base, override.item_id)) return override;
+			const item = gridItem(base, override.item_id);
+			if (item === undefined) return override;
 			const opened = openingByItem.get(override.item_id);
 			if (opened === undefined) return override;
 			const storedRequest = storedByItem.get(override.item_id) ?? {};
-			if (!gridUntouched(storedRequest, opened, override.overrides)) return override;
+			if (!gridUntouched(item, storedRequest, opened, override.overrides)) return override;
 			// Held by reference, as the diff itself holds the arrays of the tree it
 			// read: this row is on its way to the server, and copying a week's own
 			// state to hand it straight back would only invite a snapshot helper
