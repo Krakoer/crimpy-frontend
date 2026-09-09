@@ -25,7 +25,7 @@ const catalog: AssessmentCatalog = {
 function editor(item: TrainingItem, base?: TrainingItem) {
 	// The editor's own seeding, not a copy of it, so a change to the rule reaches
 	// these tests instead of leaving them green against the old one.
-	const boxes: PrescriptionBoxes & { repsCount: number | null } = initialBoxes(item);
+	const boxes: PrescriptionBoxes = initialBoxes(item);
 
 	const overrideMode = base
 		? ({
@@ -240,12 +240,30 @@ describe('an emptied box', () => {
 		expect(week.item.variable_targets).toBeUndefined();
 	});
 
-	// The rule the boxes open on decides what every sequence above starts from,
-	// so it is pinned here rather than assumed. A week that raised only the
-	// fallback is the case where the fallback and the plain field differ, and the
-	// boxes have to read the fallback: it is the number a client without
-	// assessment data runs, and the plain field is still the training's.
-	it('opens the boxes on the fallback, not the plain field', () => {
+	it('never sends a null fallback under a percentage', () => {
+		const week = editor(
+			{ type: 'exercise', id: 'item-1', duration: 0, reps: 8 },
+			base(trainingReps)
+		);
+
+		week.clickPercent(true);
+		week.typeReps(null);
+
+		expect(week.item.variable_targets?.reps?.fallback).toBe(1);
+	});
+});
+
+// The rule the boxes open on decides what every sequence above starts from, so it
+// is pinned rather than assumed, on both fields. A week that raised only the
+// fallback is the case where the fallback and the plain field differ, and the
+// boxes have to read the fallback: it is the number a client without assessment
+// data runs, while the plain field is still the training's.
+//
+// Both fixtures are asymmetric on purpose. Every other fixture in this file opens
+// with the fallback equal to the plain field, which makes the rule's preference
+// between them invisible, so a mutation to it passes unnoticed.
+describe('the rule the boxes open on', () => {
+	it('reads the duration fallback, not the plain duration', () => {
 		const raisedFallback = editor(
 			{
 				type: 'exercise',
@@ -263,15 +281,20 @@ describe('an emptied box', () => {
 		expect(raisedFallback.boxes.durationSec).toBe(30);
 	});
 
-	it('never sends a null fallback under a percentage', () => {
-		const week = editor(
-			{ type: 'exercise', id: 'item-1', duration: 0, reps: 8 },
+	it('reads the reps fallback, not the plain rep count', () => {
+		const raisedFallback = editor(
+			{
+				type: 'exercise',
+				id: 'item-1',
+				duration: 0,
+				reps: 8,
+				variable_targets: {
+					reps: { assessment_id: 'pull-ups', percent: 80, fallback: 12 }
+				}
+			},
 			base(trainingReps)
 		);
 
-		week.clickPercent(true);
-		week.typeReps(null);
-
-		expect(week.item.variable_targets?.reps?.fallback).toBe(1);
+		expect(raisedFallback.boxes.repsCount).toBe(12);
 	});
 });
