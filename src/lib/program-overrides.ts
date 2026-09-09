@@ -455,17 +455,47 @@ export function staleOverrides(overrides: SessionOverride[]): SessionOverride[] 
 	return overrides.filter((override) => override.override_stale === true);
 }
 
+// The arrays a grid item lays its configuration out in, beside the fields its
+// row count is derived from. What one entry of them means follows the layout the
+// item declared when the coach typed it, and nothing stored says what that
+// layout was.
+const GRID_ARRAY_FIELDS = ['loads', 'left_loads', 'hand_positions', 'edge_sizes_mm'] as const;
+
+const GRID_LAYOUT_FIELDS = ['granularity', 'hand', 'reps', 'cycles'] as const;
+
+function sameField(left: ItemOverride, right: ItemOverride, field: OverrideKey): boolean {
+	return JSON.stringify(orderedValue(left[field])) === JSON.stringify(orderedValue(right[field]));
+}
+
+// Whether the row on its way to the server still carries the very arrays the
+// server refused. Only keepStoredGridArrays puts those back, and only on a block
+// whose grid the coach has not touched, so a refusal about them stands whatever
+// else they have since typed beside them: what the next save is refused for is
+// the arrays, not the rest of the row.
+function sendsRefusedGridArrays(refused: ItemOverride, sent: ItemOverride | undefined): boolean {
+	if (sent === undefined) return false;
+	const arrays = GRID_ARRAY_FIELDS.filter((field) => !isEmpty(refused[field]));
+	if (arrays.length === 0) return false;
+	return arrays.every((field) => sameField(refused, sent, field));
+}
+
 // The refusals the block on screen can still be asked to clear. An item whose
 // override the coach has since changed or cleared is left out: only the server
 // judges an override, and the one it refused is no longer the one being sent.
 //
-// The question is whether the coach has touched the item, and the stored row is
-// the wrong thing to ask it of: merging and normalising rewrite a grid item's
-// arrays into the layout the training now declares, so a freshly opened week
-// already diffs to something other than the row the server refused, and a
-// comparison against that row would leave every grid override unmarked. What is
-// compared instead is the diff the modal built when it opened, which carries the
-// same normalisation as the diff on screen.
+// The question is whether the request the server refused is still the one about
+// to be sent, and the stored row is the wrong thing to ask it of: merging and
+// normalising rewrite a grid item's arrays into the layout the training now
+// declares, so a freshly opened week already diffs to something other than the
+// row the server refused, and a comparison against that row would leave every
+// grid override unmarked. What is compared instead is the diff the modal built
+// when it opened, which carries the same normalisation as the diff on screen.
+//
+// That comparison answers for the whole row at once, so any edit on the block
+// clears the marking, and where the refused part goes back regardless that is a
+// week the coach was told is clean and cannot save. So the grid is asked of the
+// request about to be sent, which is the only thing that knows whether the
+// arrays the server refused are the arrays going back.
 //
 // An item the modal opened on with nothing to diff is not one of these: there is
 // no request on screen to keep or rewrite, so nothing here can clear it. Those
@@ -473,11 +503,14 @@ export function staleOverrides(overrides: SessionOverride[]): SessionOverride[] 
 export function standingStaleOverrides(
 	stored: SessionOverride[],
 	opening: SessionOverride[],
-	current: SessionOverride[]
+	current: SessionOverride[],
+	sent: SessionOverride[]
 ): SessionOverride[] {
 	const openingByItem = requestByItem(opening);
 	const currentByItem = requestByItem(current);
+	const sentByItem = requestByItem(sent);
 	return staleOverrides(stored).filter((override) => {
+		if (sendsRefusedGridArrays(override.overrides, sentByItem.get(override.item_id))) return true;
 		const opened = openingByItem.get(override.item_id);
 		return opened !== undefined && sameRequest(opened, currentByItem.get(override.item_id));
 	});
@@ -499,25 +532,31 @@ export function staleOverridesDroppedByApply(
 	);
 }
 
-// The arrays a grid item lays its configuration out in, beside the fields its
-// row count is derived from. What one entry of them means follows the layout the
-// item declared when the coach typed it, and nothing stored says what that
-// layout was.
-const GRID_ARRAY_FIELDS = ['loads', 'left_loads', 'hand_positions', 'edge_sizes_mm'] as const;
-
-const GRID_LAYOUT_FIELDS = ['granularity', 'hand', 'reps', 'cycles'] as const;
-
-function sameField(left: ItemOverride, right: ItemOverride, field: OverrideKey): boolean {
-	return JSON.stringify(orderedValue(left[field])) === JSON.stringify(orderedValue(right[field]));
+// Whether the item the row targets lays its configuration out as a grid, asked
+// of the training the way the diff asks it, so the two cannot come to disagree
+// about what a grid is.
+function isGridItem(base: TrainingItem[], itemId: string): boolean {
+	const item = findItem(base, itemId);
+	return item !== undefined && GRID_ITEM_TYPES.includes(item.type);
 }
 
-// Whether the item's grid is still exactly what the modal opened on. The row
-// count is part of it: a coach who resized the grid is asking for the arrays to
-// be laid out again, and the backend refuses a resize that does not resend them.
-function gridUntouched(opened: ItemOverride, current: ItemOverride): boolean {
-	return [...GRID_LAYOUT_FIELDS, ...GRID_ARRAY_FIELDS].every((field) =>
+// Whether the item's grid is still exactly what the modal opened on, in a
+// request that still declares the layout the stored arrays were written in.
+//
+// The row count enters it twice over. A coach who resized the grid is asking for
+// the arrays to be laid out again, and the backend refuses a resize that does
+// not resend them. And a layout field that no longer says what the stored row
+// says is the normalisation having moved it rather than the coach, which is the
+// same rewrite from the other end: the stored arrays were written against the
+// layout the stored row declares, so putting them into a request declaring
+// another one contradicts the request itself, and every array a request carries
+// owes it one entry per row the request declares. The normalised grid goes out
+// whole there instead, which does agree with itself.
+function gridUntouched(stored: ItemOverride, opened: ItemOverride, current: ItemOverride): boolean {
+	const untouched = [...GRID_LAYOUT_FIELDS, ...GRID_ARRAY_FIELDS].every((field) =>
 		sameField(opened, current, field)
 	);
+	return untouched && GRID_LAYOUT_FIELDS.every((field) => sameField(stored, current, field));
 }
 
 // What the week goes back asking, with the grid of every block the coach did not
@@ -538,7 +577,12 @@ function gridUntouched(opened: ItemOverride, current: ItemOverride): boolean {
 // they did not touch goes back as it was stored, which leaves a refused week
 // refused, marked and clearable rather than quietly rewritten into a week that
 // saves and prescribes something else.
+//
+// The row that goes back then is the row the server has already judged against
+// this same training, so applying can neither turn a week it took into one it
+// refuses nor the other way round.
 export function keepStoredGridArrays(
+	base: TrainingItem[],
 	stored: SessionOverride[],
 	opening: SessionOverride[],
 	current: SessionOverride[]
@@ -547,9 +591,11 @@ export function keepStoredGridArrays(
 	const openingByItem = requestByItem(opening);
 	return current
 		.map((override) => {
+			if (!isGridItem(base, override.item_id)) return override;
 			const opened = openingByItem.get(override.item_id);
-			if (opened === undefined || !gridUntouched(opened, override.overrides)) return override;
-			const storedRequest = storedByItem.get(override.item_id);
+			if (opened === undefined) return override;
+			const storedRequest = storedByItem.get(override.item_id) ?? {};
+			if (!gridUntouched(storedRequest, opened, override.overrides)) return override;
 			// Held by reference, as the diff itself holds the arrays of the tree it
 			// read: this row is on its way to the server, and copying a week's own
 			// state to hand it straight back would only invite a snapshot helper
@@ -557,8 +603,11 @@ export function keepStoredGridArrays(
 			const kept: ItemOverride = { ...override.overrides };
 			for (const field of GRID_ARRAY_FIELDS) {
 				if (kept[field] === undefined) continue;
-				const value = storedRequest?.[field];
-				if (value === undefined) delete kept[field];
+				// An empty array prescribes nothing, which the diff never emits and the
+				// merge reads as a no-op, so a week holding one stored no layout array
+				// at all here.
+				const value = storedRequest[field];
+				if (isEmpty(value)) delete kept[field];
 				else (kept[field] as unknown) = value;
 			}
 			return { ...override, overrides: kept };
@@ -571,21 +620,24 @@ export function keepStoredGridArrays(
 // week merely opened and applied does not read as fixed while the save is still
 // going to be refused.
 //
-// This is not the question the marking inside the modal answers. There it is
-// whether the coach has touched the item since it opened; here it is whether the
-// request the server judged is the request about to be sent, and the stored row
-// is the only thing that can say so. The two now agree on a grid item, because
-// keepStoredGridArrays sends the grid of an untouched block back as it was
-// stored: a block the modal marks is a block the next save is still refused for,
-// and a block the coach rewrote goes out as a request the server has not judged.
+// The whole row asks for what the server refused, or a grid item sends its
+// refused arrays back beside something the coach has since typed. That second
+// case is what keepStoredGridArrays makes of a block whose grid nobody touched,
+// and it is the same question the marking inside the modal now answers, so a
+// block the modal marks is a block the next save is still refused for and a
+// block the coach rewrote goes out as a request the server has not judged.
 export function carryStaleFlags(
 	stored: SessionOverride[],
-	edited: SessionOverride[]
+	sent: SessionOverride[]
 ): SessionOverride[] {
 	const refused = new Map(staleOverrides(stored).map((override) => [override.item_id, override]));
-	return edited.map((override) => {
+	return sent.map((override) => {
 		const stale = refused.get(override.item_id);
-		if (!stale || !sameRequest(stale.overrides, override.overrides)) return override;
+		if (!stale) return override;
+		const asksTheSame =
+			sameRequest(stale.overrides, override.overrides) ||
+			sendsRefusedGridArrays(stale.overrides, override.overrides);
+		if (!asksTheSame) return override;
 		return { ...override, override_stale: true, stale_reason: stale.stale_reason };
 	});
 }

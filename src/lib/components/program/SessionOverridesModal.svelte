@@ -111,10 +111,18 @@
 	// What this week would ask for if the coach applied now.
 	let edited = $derived(diffOverrides(baseItems, items));
 
+	// What applying actually sends. The tree on screen is normalised into the
+	// layout the training now declares, which rewrites an array a week wrote
+	// against another row count, so a grid the coach has not touched goes back as
+	// the week stored it rather than as the normalisation guessed it.
+	let request = $derived(keepStoredGridArrays(baseItems, overrides, openingRequest, edited));
+
 	// The overrides the server refused, still asking what they asked when it did.
 	// Read against the tree on screen rather than against the saved week, so a
-	// block the coach has just cleared stops being marked before they apply.
-	let standing = $derived(standingStaleOverrides(overrides, openingRequest, edited));
+	// block the coach has just cleared stops being marked before they apply, and
+	// against the request above, so a grid whose refused arrays go back regardless
+	// stays marked while the coach edits the rest of the block.
+	let standing = $derived(standingStaleOverrides(overrides, openingRequest, edited, request));
 
 	// The refused rows the merge and the normalisation already undid. Nothing on
 	// screen asks for them, so the block is marked without being offered a reset,
@@ -122,12 +130,6 @@
 	let droppedByApply = $derived(staleOverridesDroppedByApply(overrides, openingRequest));
 
 	let markedBlocks = $derived(standing.length + droppedByApply.length);
-
-	// What applying actually sends. The tree on screen is normalised into the
-	// layout the training now declares, which rewrites an array a week wrote
-	// against another row count, so a grid the coach has not touched goes back as
-	// the week stored it rather than as the normalisation guessed it.
-	let request = $derived(keepStoredGridArrays(overrides, openingRequest, edited));
 
 	const mode: OverrideMode = {
 		get readOnly() {
@@ -179,11 +181,11 @@
 	let type = $derived(trainingTypeInfo(training?.training_type));
 
 	// A refusal the server answered is carried onto an override that goes back
-	// asking exactly what the server refused, so a week merely opened and applied
-	// does not read as fixed while the save is still going to be refused. What
-	// the marking above is measured against is the week the modal opened on; what
-	// this is measured against is the row the server judged, since that is what
-	// decides the next save.
+	// asking what the server refused, so a week merely opened and applied does not
+	// read as fixed while the save is still going to be refused. It is measured
+	// against the request rather than against the tree, which is what the marking
+	// above is measured against too, so the block on screen and the week carried
+	// out of here cannot disagree about which refusals still stand.
 	function apply() {
 		onApply(carryStaleFlags(overrides, request));
 	}

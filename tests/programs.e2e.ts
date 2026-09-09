@@ -1881,16 +1881,28 @@ test('a week that turns AMRAP on and off again puts the percentage back', async 
  * all, and a helper returning {} for both lets a test claiming one pass on the
  * other.
  */
+// Every row one week sends. What it pins that savedOverrides cannot is the rows
+// that are not there: searching by item id hides a row the request should never
+// have carried, and a week now adds fields, deletes fields and drops whole rows
+// on its way out.
+function savedOverrideRows(
+	saved: CapturedRequest[],
+	weekNumber = 1
+): { item_id: string; overrides: Record<string, unknown> }[] | undefined {
+	const week = saved.find((request) => request.url.endsWith(`/weeks/${weekNumber}`));
+	const body = week?.body as {
+		sessions: { overrides: { item_id: string; overrides: Record<string, unknown> }[] }[];
+	};
+	return body?.sessions[0].overrides;
+}
+
 function savedOverrides(
 	saved: CapturedRequest[],
 	itemId: string,
 	weekNumber = 1
 ): Record<string, unknown> | undefined {
-	const week = saved.find((request) => request.url.endsWith(`/weeks/${weekNumber}`));
-	const body = week?.body as {
-		sessions: { overrides: { item_id: string; overrides: Record<string, unknown> }[] }[];
-	};
-	return body?.sessions[0].overrides.find((override) => override.item_id === itemId)?.overrides;
+	return savedOverrideRows(saved, weekNumber)?.find((override) => override.item_id === itemId)
+		?.overrides;
 }
 
 // A week that already asks for something is opened through a button of another
@@ -2634,6 +2646,9 @@ test('marks a grid override the training outgrew and leaves the stored numbers a
 	expect(saved.find((request) => request.url.endsWith('/weeks/2'))?.body).toMatchObject({
 		notes: 'Grid needs a look'
 	});
+	const rows = savedOverrideRows(saved, 2);
+	expect(rows).toHaveLength(1);
+	expect(rows?.[0].item_id).toBe('item-grid');
 	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
 		loads: [kg(14), kg(14), kg(16), kg(14), kg(14), kg(16)]
 	});
@@ -2668,9 +2683,57 @@ test('sends the grid laid out again once the coach edits it', async ({ page }) =
 	await page.getByRole('button', { name: 'Save program' }).click();
 	await expect(page.getByText('Program saved')).toBeVisible();
 
+	expect(savedOverrideRows(saved, 2)).toHaveLength(1);
 	const sent = savedOverrides(saved, 'item-grid', 2);
 	expect(sent?.loads).toHaveLength(8);
 	expect((sent?.loads as unknown[])[0]).toEqual(kg(18));
+	// The week asked this block for its loads and nothing else. Laying the grid
+	// out again is no reason for it to start prescribing the edges and the grips
+	// the training owns: the week would then hold them against every later change
+	// to the training, which is a prescription no coach ever wrote.
+	expect(sent).not.toHaveProperty('edge_sizes_mm');
+	expect(sent).not.toHaveProperty('hand_positions');
+});
+
+test('keeps a marked grid block marked while the coach edits the rest of it', async ({ page }) => {
+	// The refused loads go back whatever else the coach types on the block, so the
+	// notice, the banner and the strip over the week all stay. Dropping them on an
+	// edit that has nothing to do with the grid tells the coach the week is clean
+	// and then has the save refuse it, with nothing left on screen naming the
+	// block to clear.
+	await stubTwoWeekProgram(page, [staleGridOverride()], grownGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	const cover = page.getByTestId('cell:2:1').getByRole('button', {
+		name: 'Customised training parameters, week 2, a change stopped applying',
+		exact: true
+	});
+	await cover.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	const rest = modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true });
+	await rest.fill('9');
+	await rest.blur();
+
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON);
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
+	await expect(cover).toBeVisible();
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	// The rest the coach typed rides along with the loads the week stored, which
+	// is the row the server refused and the reason the marking has to stand.
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		rest_seconds: 9,
+		loads: [kg(14), kg(14), kg(16), kg(14), kg(14), kg(16)]
+	});
 });
 
 /**
