@@ -1,3 +1,5 @@
+import type { TrainingItem } from '$lib/api/client';
+
 // Set around the tree a program week prescribes, and absent everywhere else,
 // which is what keeps the same editors usable in the training editor. A week may
 // change what a training asks for, never what it is made of, so the editors drop
@@ -13,7 +15,10 @@ export const OVERRIDE_KEY = Symbol('training-override');
 // refuses the change outright. The callbacks let the strip under an item say
 // whether this week asks anything of it, whether what it asks stopped applying,
 // and put it back to what the training says, without the list in between owning
-// the training it was read from.
+// the training it was read from. baseItem answers the same question field by
+// field, for an editor that puts one of them back: the tree on screen has the
+// week's override merged in already, so what the training prescribes is not
+// readable from it.
 export type OverrideMode = {
 	readOnly: boolean;
 	readOnlyReason: string;
@@ -24,6 +29,7 @@ export type OverrideMode = {
 	// read knows: an override the coach has since rewritten is judged by the save.
 	staleNotice: (itemId: string) => StaleNotice | null;
 	resetItem: (itemId: string) => void;
+	baseItem: (itemId: string) => TrainingItem | undefined;
 };
 
 // A refusal as the block under it has to render it. clearedByApply says the

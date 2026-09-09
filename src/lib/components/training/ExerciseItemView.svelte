@@ -136,8 +136,13 @@
 					{/if}
 				</span>
 				{#if variableTarget && !isAmrap}
+					<!-- The fixed number a client without the assessment runs is the target's
+					     own fallback. A program week may move it without touching the plain
+					     field beside it, so reading that field names a value nobody plays. -->
 					<span style="font-size: 10px; color: var(--tx3);">
-						fallback {isDuration ? fmtTime(item.duration ?? 0) : `${item.reps ?? 1} reps`}
+						fallback {isDuration
+							? fmtTime(variableTarget.fallback)
+							: `${variableTarget.fallback} reps`}
 					</span>
 				{/if}
 			</div>

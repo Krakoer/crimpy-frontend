@@ -5,6 +5,7 @@ import {
 	type SessionOverride,
 	type TrainingItem,
 	type TrainingItemType,
+	type VariableTarget,
 	type VariableTargets
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
@@ -20,6 +21,21 @@ import type { OverrideHistoryByItem } from '$lib/components/training/override-co
 // grid has is derived from the granularity, the sets and the reps, so anything
 // that moves those invalidates the arrays written against the old shape.
 const GRID_ITEM_TYPES: TrainingItemType[] = ['repeater', 'hangboard_rep'];
+
+// The two fields a training may prescribe either as a plain number or as a
+// percentage of an assessment. Every client resolves the percentage first, so
+// the two cannot both go out for the same field: the one the coach did not set
+// is the one the athlete would play.
+const VARIABLE_FIELDS = ['reps', 'duration'] as const;
+
+type VariableField = (typeof VARIABLE_FIELDS)[number];
+
+// What the target asks of the assessment, which is the part a coach sets. The
+// fallback is left out: the editors mirror the plain number into it, so a week
+// that only retyped the number would otherwise read as a new percentage.
+function samePercentage(a: VariableTarget | undefined, b: VariableTarget | undefined): boolean {
+	return a?.assessment_id === b?.assessment_id && a?.percent === b?.percent;
+}
 
 function isEmpty(value: unknown[] | undefined | null): boolean {
 	return !value || value.length === 0;
@@ -105,7 +121,21 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	// pressing AMRAP is not sent: it would contradict the marker in the chip and
 	// sit dead in the prescription snapshot, which resolves the marker first.
 	const opensRepCount = isExercise && edited.reps_is_max === true;
-	if (!isSingleHang && !opensRepCount && numberChanged(base.reps, edited.reps)) {
+
+	// The percentages this week prescribes, read alongside the plain numbers
+	// below so the pair cannot contradict itself.
+	const targets: VariableTargets = { ...(edited.variable_targets ?? {}) };
+	// A percentage this week asks for that the training does not already ask for
+	// is the coach prescribing the field that way, so the plain number stays home.
+	const prescribesNewPercentage = (field: VariableField) =>
+		targets[field] != null && !samePercentage(targets[field], base.variable_targets?.[field]);
+
+	if (
+		!isSingleHang &&
+		!opensRepCount &&
+		!prescribesNewPercentage('reps') &&
+		numberChanged(base.reps, edited.reps)
+	) {
 		override.reps = edited.reps;
 	}
 	if (isExercise && (edited.reps_is_max ?? false) !== (base.reps_is_max ?? false)) {
@@ -113,7 +143,9 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	}
 	// Only an exercise is prescribed by time, and it is the only editor that
 	// writes a duration, so there is no type to keep this off.
-	if (numberChanged(base.duration, edited.duration)) override.duration = edited.duration;
+	if (!prescribesNewPercentage('duration') && numberChanged(base.duration, edited.duration)) {
+		override.duration = edited.duration;
+	}
 	// What makes the block every minute on the minute is its interval, and the
 	// backend refuses one on anything that is not an emom.
 	if (isEmom && numberChanged(base.interval_seconds, edited.interval_seconds)) {
@@ -149,10 +181,16 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 	if (arrayChanged(base.edge_sizes_mm, edited.edge_sizes_mm)) {
 		override.edge_sizes_mm = edited.edge_sizes_mm;
 	}
-	if (
-		JSON.stringify(base.variable_targets ?? {}) !== JSON.stringify(edited.variable_targets ?? {})
-	) {
-		override.variable_targets = edited.variable_targets ?? {};
+	// A number set over a percentage only reaches the athlete once the percentage
+	// is gone, since every client resolves the percentage first: without this the
+	// week ships a duration the app never plays and a chip that names it anyway.
+	// Only the field the coach set as a number loses its target, so a sibling
+	// percentage on the other field is left standing.
+	for (const field of VARIABLE_FIELDS) {
+		if (override[field] != null) delete targets[field];
+	}
+	if (JSON.stringify(base.variable_targets ?? {}) !== JSON.stringify(targets)) {
+		override.variable_targets = targets;
 	}
 
 	// Resizing the grid invalidates every array laid out against the old shape,
@@ -290,7 +328,8 @@ export function overrideSummary(
 	return parts.join(', ');
 }
 
-function findItem(items: TrainingItem[], itemId: string): TrainingItem | undefined {
+// The item the training holds under that id, wherever it sits in the tree.
+export function findItem(items: TrainingItem[], itemId: string): TrainingItem | undefined {
 	for (const item of items) {
 		if (item.id === itemId) return item;
 		const found = item.items ? findItem(item.items, itemId) : undefined;
