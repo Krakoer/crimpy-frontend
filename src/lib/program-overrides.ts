@@ -82,6 +82,10 @@ function applyItemOverride(item: TrainingItem, override: ItemOverride): void {
 
 // The training as one week of the program prescribes it. The tree is cloned, so
 // the editor it feeds cannot write back into the training it was read from.
+//
+// It builds a tree rather than reading one, and the tree it builds is the one
+// the editor shows: the modal normalises the result, which is what makes it
+// TrainingTrees.onScreen and not the wire tree.
 export function mergeOverrides(
 	items: TrainingItem[],
 	overrides: SessionOverride[]
@@ -235,6 +239,12 @@ function diffItem(base: TrainingItem, edited: TrainingItem): ItemOverride {
 // item whose override came out empty is left out, and the week save then drops
 // the row it had, so clearing a customisation is the same act as never making
 // one.
+//
+// The two trees have to be the same reading of the training, which is what
+// TrainingTrees names: a display diff is taken between two normalised trees and
+// a wire diff between two written back out in the layout each item declares.
+// Mixing them is what Krakoer/crimpy#99 was opened for, and what the rows this
+// emits are then read against is decided by which of the two it was handed.
 export function diffOverrides(base: TrainingItem[], edited: TrainingItem[]): SessionOverride[] {
 	const diffed: SessionOverride[] = [];
 	const walk = (baseList: TrainingItem[], editedList: TrainingItem[]) => {
@@ -350,6 +360,10 @@ export function findItem(items: TrainingItem[], itemId: string): TrainingItem | 
 // Puts one item back to what the training prescribes, leaving the rest of the
 // week's customisation alone. Only the fields a week may change are restored,
 // which is every field the diff could have emitted.
+//
+// Both trees are the editor's, TrainingTrees.onScreen and the tree it shows: it
+// is a gesture on what the coach reads, and putting the wire tree's values into
+// the editor would write a layout nobody chose onto the screen.
 export function resetItemToBase(
 	base: TrainingItem[],
 	edited: TrainingItem[],
@@ -386,6 +400,10 @@ export type ScheduledRow = {
 // coach set this week's load next to the ones they already set. A week that
 // schedules the training twice contributes a chip per row, named by its day, so
 // two rows asking different things are not folded into one claim.
+//
+// The items are TrainingTrees.onScreen: a chip reads values beside the boxes
+// they are being adapted from, so the fallbacks the summary takes off the item
+// have to be the ones the coach is looking at.
 export function buildOverrideHistory(
 	items: TrainingItem[],
 	rows: ScheduledRow[],
@@ -487,14 +505,20 @@ function carriesField(row: ItemOverride, field: OverrideKey): boolean {
 // alone would have two rows asking for the very same thing read as disagreeing
 // about it. It is the reading declaredLayout does of the layout fields together,
 // one field at a time.
+//
+// The item is the one the row was diffed against, which for every row on the
+// wire is TrainingTrees.wire and never the editor's tree: the fields the
+// normalisation is lossy about are exactly the fields a row leaves out, so the
+// editor's tree answers this with the layout it inferred rather than with the
+// layout the row was measured against.
 function effectiveField(
-	base: TrainingItem | undefined,
+	wireItem: TrainingItem | undefined,
 	row: ItemOverride,
 	field: OverrideKey
 ): unknown {
 	const value = row[field];
 	if (value !== undefined) return value;
-	return base?.[OVERRIDE_ITEM_FIELDS[field]] ?? undefined;
+	return wireItem?.[OVERRIDE_ITEM_FIELDS[field]] ?? undefined;
 }
 
 // Whether the row on its way to the server still asks of the field what the
@@ -505,18 +529,18 @@ function effectiveField(
 // so a coach who only retyped that number would otherwise read as having moved
 // the percentage the server refused.
 function asksTheSameField(
-	base: TrainingItem | undefined,
+	wireItem: TrainingItem | undefined,
 	refused: ItemOverride,
 	sent: ItemOverride,
 	field: OverrideKey
 ): boolean {
 	if (field === 'variable_targets') {
-		const targets = effectiveField(base, sent, field) as VariableTargets | undefined;
+		const targets = effectiveField(wireItem, sent, field) as VariableTargets | undefined;
 		return VARIABLE_FIELDS.every((variable) =>
 			samePercentage(refused.variable_targets?.[variable], targets?.[variable])
 		);
 	}
-	return sameValue(refused[field], effectiveField(base, sent, field));
+	return sameValue(refused[field], effectiveField(wireItem, sent, field));
 }
 
 // One reason a stale row is refused, and the fields of that row it is about.
@@ -586,8 +610,13 @@ function refusalsOf(override: SessionOverride): { reason: string; fields: string
 // Krakoer/crimpy#100 was opened for. The wire pair is layout-invariant by
 // construction, so a coach reaching for the variation selector leaves it byte
 // for byte unchanged.
+//
+// And which tree, for the fields the row leaves out: TrainingTrees.wire, the
+// tree the row was diffed against. Handed the editor's tree instead, this reads
+// a granularity the normalisation collapsed as a layout the coach moved and
+// drops a refusal the next save is still answered with.
 function standingRefusals(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	refused: SessionOverride,
 	sent: ItemOverride | undefined
 ): StaleRefusal[] {
@@ -596,7 +625,7 @@ function standingRefusals(
 	// keep or rewrite, so nothing here can clear it, and those are
 	// staleOverridesDroppedByApply.
 	if (sent === undefined) return [];
-	const item = findItem(base, refused.item_id);
+	const item = findItem(trees.wire, refused.item_id);
 	const refusals = refusalsOf(refused);
 	// A row the server marked and attributed nothing to is read as a refusal
 	// about the row as a whole, which is also what a save of it is refused for.
@@ -627,14 +656,29 @@ function standingRefusals(
 // of them is on screen for the coach to act on, and a later read of the same
 // marking skips them again, so carrying them would only invite a reader that
 // counts them.
+//
+// Which row that is asked of is the row being marked, and on an apply it is not
+// the row the refusal was answered for: carryStaleFlags marks the row on its way
+// to the server, and the diff omits a field whose value the training has since
+// adopted. So a refusal can be left naming nothing of the row it is written
+// onto, and it is written as the empty field, which is what a refusal naming no
+// field the row carries means to every reader of it: the row as a whole, the
+// same answer the reader's rule above and SessionOverrideResponse.StaleFields in
+// crimpy-backend/internal/handler/program_week.go give it. The attribution is
+// lost at that point and cannot be kept: stale_fields carries a field and a
+// reason and no value, so nothing written here could say which value of the
+// item's the check refused. Saying so in the row is what keeps the next read of
+// it, and the notice under the block, from pointing a coach at a value this week
+// does not set.
 function markedWith(override: SessionOverride, refusals: StaleRefusal[]): SessionOverride {
 	const entries: StaleOverrideField[] = [];
 	for (const refusal of refusals) {
-		if (refusal.fields.length === 0) {
+		const carried = refusal.fields.filter((field) => carriesField(override.overrides, field));
+		if (carried.length === 0) {
 			if (refusal.reason) entries.push({ field: '', reason: refusal.reason });
 			continue;
 		}
-		for (const field of refusal.fields) entries.push({ field, reason: refusal.reason });
+		for (const field of carried) entries.push({ field, reason: refusal.reason });
 	}
 	const marked: SessionOverride = { ...override, override_stale: true };
 	if (entries.length > 0) marked.stale_fields = entries;
@@ -648,16 +692,18 @@ function markedWith(override: SessionOverride, refusals: StaleRefusal[]): Sessio
 // override, and what it refused is no longer what is being sent.
 //
 // It takes no opening/current pair at all: the week the server judged and the
-// week on its way back to it, which is the pair standingRefusals says why of.
+// week on its way back to it, which is the pair standingRefusals says why of. Of
+// the two trees it reads TrainingTrees.wire, for the reason standingRefusals
+// gives: the rows it compares were both diffed against that one.
 export function standingStaleOverrides(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	stored: SessionOverride[],
 	sent: SessionOverride[]
 ): SessionOverride[] {
 	const sentByItem = requestByItem(sent);
 	const standing: SessionOverride[] = [];
 	for (const override of staleOverrides(stored)) {
-		const refusals = standingRefusals(base, override, sentByItem.get(override.item_id));
+		const refusals = standingRefusals(trees, override, sentByItem.get(override.item_id));
 		if (refusals.length > 0) standing.push(markedWith(override, refusals));
 	}
 	return standing;
@@ -688,9 +734,11 @@ function staleOverridesDroppedByApply(
 
 // The item the row targets, when it lays its configuration out as a grid, asked
 // of the training the way the diff asks it, so the two cannot come to disagree
-// about what a grid is.
-function gridItem(base: TrainingItem[], itemId: string): TrainingItem | undefined {
-	const item = findItem(base, itemId);
+// about what a grid is. The tree is TrainingTrees.wire: what is read off the
+// item here is the layout it is declared in, which is the one thing the editor's
+// tree cannot answer.
+function gridItem(wire: TrainingItem[], itemId: string): TrainingItem | undefined {
+	const item = findItem(wire, itemId);
 	if (item === undefined || !GRID_ITEM_TYPES.includes(item.type)) return undefined;
 	return item;
 }
@@ -834,6 +882,40 @@ function itemsInLayouts(
 	});
 }
 
+// The two readings of one training that every question about a week is asked
+// against.
+//
+// They are both TrainingItem[] and they do not mean the same thing, so they
+// travel as one named value rather than as two parameters of one type, for the
+// reason WeekGridScope gives about the two pairs of diffs. That guard was given
+// to the diffs in Krakoer/crimpy#99 and not to the trees, and the same
+// transposition was then written again in Krakoer/crimpy#100: a refusal was
+// weighed against the editor's tree while the row it compared had been diffed
+// against the write path's. The two disagree on exactly the fields the
+// normalisation is lossy about, which are exactly the fields a row leaves out,
+// so every field read off the wrong one of them is read wrong and none of it
+// type-checks any differently.
+export interface TrainingTrees {
+	// The training normalised for the editor to read, which is the tree the
+	// coach's own tree was merged onto and diffed against. It is the display side
+	// of every pair here, and it cannot say what layout an item is declared in:
+	// the normalisation collapses an item whose values coincide, and nothing left
+	// in it says which of the two it was.
+	onScreen: TrainingItem[];
+	// The same training written back out in the layout each grid item is declared
+	// in, which is how the write path lays it out and what it judges a request
+	// against. Every row on the wire was diffed against this tree, so it is the
+	// only tree a request or a refusal may be read against: a field such a row
+	// leaves out is this tree's value and no other.
+	wire: TrainingItem[];
+}
+
+// Read once per week, off the tree the editor holds and the layouts taken while
+// the training and the week still declared them.
+export function trainingTrees(onScreen: TrainingItem[], layouts: GridLayouts): TrainingTrees {
+	return { onScreen, wire: itemsInLayouts(onScreen, layouts.training) };
+}
+
 // Whether a row says anything at all about the item's grid.
 function declaresGrid(override: ItemOverride): boolean {
 	if (override.granularity != null) return true;
@@ -958,8 +1040,12 @@ export interface WeekGridScope extends OpenedWeek {
 // and the row that goes back carries the rest, so applying alone can turn that
 // refused week into one the server takes while the block still shows its notice
 // and its reset.
+//
+// Of the two trees it reads TrainingTrees.wire, and for the same reason it reads
+// the request rather than the screen for the layout half: what it asks of the
+// item is the layout the stored arrays are judged in.
 export function keepStoredGridArrays(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	stored: SessionOverride[],
 	scope: WeekGridScope
 ): SessionOverride[] {
@@ -969,7 +1055,7 @@ export function keepStoredGridArrays(
 	const screenByItem = requestByItem(scope.onScreen);
 	return scope.request
 		.map((override) => {
-			const item = gridItem(base, override.item_id);
+			const item = gridItem(trees.wire, override.item_id);
 			if (item === undefined) return override;
 			// An item the modal opened on with nothing to ask of the server has no
 			// judged arrays to keep, and one the request carries that the screen says
@@ -1002,18 +1088,16 @@ export function keepStoredGridArrays(
 }
 
 // The diffs of one week, the display one and the wire one, built the one way
-// both the snapshot and every later question read them.
+// both the snapshot and every later question read them. Each is taken against
+// the tree of TrainingTrees that answers for it, which is the whole of what
+// makes the two diffs mean what their names say.
 function weekDiffs(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	items: TrainingItem[],
 	layouts: GridLayouts
-): { wireBase: TrainingItem[]; onScreen: SessionOverride[]; request: SessionOverride[] } {
-	// The training as the write path lays it out, which is what it judges a
-	// request against: the tree the editor reads, with every grid item written
-	// back out in the layout the training declares for it.
-	const wireBase = itemsInLayouts(base, layouts.training);
-	const onScreen = diffOverrides(base, items);
-	return { wireBase, onScreen, request: requestOverrides(wireBase, items, onScreen, layouts) };
+): { onScreen: SessionOverride[]; request: SessionOverride[] } {
+	const onScreen = diffOverrides(trees.onScreen, items);
+	return { onScreen, request: requestOverrides(trees.wire, items, onScreen, layouts) };
 }
 
 // The pair every later question about this week is measured against, taken once
@@ -1026,11 +1110,11 @@ function weekDiffs(
 // prevent. The stored week is not read here: nothing about what the coach was
 // shown depends on it, which is the whole reason the two split cleanly.
 export function openWeek(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	items: TrainingItem[],
 	layouts: GridLayouts
 ): OpenedWeek {
-	const { onScreen, request } = weekDiffs(base, items, layouts);
+	const { onScreen, request } = weekDiffs(trees, items, layouts);
 	return { openedOnScreen: onScreen, openedRequest: request };
 }
 
@@ -1072,15 +1156,15 @@ export interface WeekOverrides {
 // required: a week weighed against itself has by definition been touched
 // nowhere, which is an answer, not a default.
 export function weekOverrides(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	items: TrainingItem[],
 	stored: SessionOverride[],
 	layouts: GridLayouts,
 	opened: OpenedWeek
 ): WeekOverrides {
-	const { wireBase, onScreen, request } = weekDiffs(base, items, layouts);
+	const { onScreen, request } = weekDiffs(trees, items, layouts);
 	const scope: WeekGridScope = { ...opened, onScreen, request };
-	const sent = keepStoredGridArrays(wireBase, stored, scope);
+	const sent = keepStoredGridArrays(trees, stored, scope);
 	return {
 		onScreen,
 		request,
@@ -1088,8 +1172,9 @@ export function weekOverrides(
 		// Read off the row on its way to the server, field by field: a block the
 		// coach has just cleared or rewritten stops being marked before they apply,
 		// and a field the row still asks for keeps its marking through an edit to
-		// any other field of the same block.
-		standing: standingStaleOverrides(base, stored, sent),
+		// any other field of the same block. Against the wire tree, which is the
+		// tree that row was diffed against.
+		standing: standingStaleOverrides(trees, stored, sent),
 		droppedByApply: staleOverridesDroppedByApply(stored, opened)
 	};
 }
@@ -1099,13 +1184,14 @@ export function weekOverrides(
 // merely opened and applied does not read as fixed while the save is still going
 // to be refused.
 //
-// It is the same question standingStaleOverrides asks, of the same pair, so a
-// block the modal marks is a block the next save is still refused for and a
-// block the coach rewrote goes out as a request the server has not judged. The
-// row carried out is the one on its way to the server rather than the stored
-// one, since that is what the week will hold.
+// It is the same question standingStaleOverrides asks, of the same pair and the
+// same tree, so a block the modal marks is a block the next save is still
+// refused for and a block the coach rewrote goes out as a request the server has
+// not judged. The row carried out is the one on its way to the server rather
+// than the stored one, since that is what the week will hold, and it is that row
+// the marking is attributed against: markedWith says why.
 export function carryStaleFlags(
-	base: TrainingItem[],
+	trees: TrainingTrees,
 	stored: SessionOverride[],
 	sent: SessionOverride[]
 ): SessionOverride[] {
@@ -1113,7 +1199,7 @@ export function carryStaleFlags(
 	return sent.map((override) => {
 		const stale = refused.get(override.item_id);
 		if (!stale) return override;
-		const refusals = standingRefusals(base, stale, override.overrides);
+		const refusals = standingRefusals(trees, stale, override.overrides);
 		if (refusals.length === 0) return override;
 		return markedWith(override, refusals);
 	});
@@ -1164,7 +1250,8 @@ const OVERRIDE_FIELD_LABELS = {
 
 // cycles is a set on a repeater and a round on an emom, which the summary
 // already reads off the item, so the item is asked here as well rather than the
-// key alone.
+// key alone. Only the type is read, which both trees of TrainingTrees agree on:
+// the normalisation moves values around inside an item and never its type.
 export function overrideFieldLabel(field: OverrideKey, base?: TrainingItem): string {
 	if (field === 'cycles' && base?.type === 'emom') return 'rounds';
 	if (field === 'cycle_rest_seconds' && base?.type === 'emom') return 'rest between rounds';
@@ -1197,13 +1284,25 @@ function joinFieldLabels(labels: string[]): string {
 // The refusals of a marked row, one line per reason. It is read off stale_fields
 // rather than off a narrower shape so the row a marking travels on is the row
 // the wire carries, and grouping happens where it is rendered.
+//
+// Only the fields the row carries are named, which is the same skip the marking
+// is decided with. A refusal names every field the check read, the item's side
+// of the disagreement included, and the line says "this week's": a week asking
+// for a left hand column on a block the training now hangs with both hands
+// together sets no hand mode, and naming one would send the coach to a value the
+// training is what holds. Rows read straight off the server are the ones this
+// matters for, since markedWith has already narrowed the fields of every row the
+// portal marked itself.
 export function staleRefusalLines(
 	override: SessionOverride,
 	base?: TrainingItem
 ): StaleRefusalLine[] {
 	return refusalsOf(override).map((refusal) => ({
 		fields: joinFieldLabels(
-			refusal.fields.filter(isOverrideKey).map((field) => overrideFieldLabel(field, base))
+			refusal.fields
+				.filter(isOverrideKey)
+				.filter((field) => carriesField(override.overrides, field))
+				.map((field) => overrideFieldLabel(field, base))
 		),
 		reason: refusal.reason.trim()
 	}));

@@ -10,11 +10,13 @@ import {
 } from '$lib/api/client';
 import {
 	diffOverrides,
+	emptyGridLayouts,
 	mergeOverrides,
 	overrideFieldLabel,
 	overrideSummary,
 	resetItemToBase,
-	standingStaleOverrides
+	standingStaleOverrides,
+	trainingTrees
 } from './program-overrides';
 
 // contract/override-keys.json is the backend's itemOverride key set, vendored
@@ -179,7 +181,9 @@ describe('the override key contract', () => {
 				{ item_id: 'a', overrides: { [entry.key]: entry.sample, [other]: 7 } }
 			];
 			expect(
-				standingStaleOverrides([baseItem()], stored, sent).map((override) => override.item_id),
+				standingStaleOverrides(trainingTrees([baseItem()], emptyGridLayouts()), stored, sent).map(
+					(override) => override.item_id
+				),
 				`a refusal about ${entry.key} is dropped when another field of the row moves`
 			).toEqual(['a']);
 		}

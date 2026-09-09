@@ -25,6 +25,7 @@
 		staleRefusalLines,
 		STALE_OVERRIDE_DROPPED_LEAD,
 		STALE_OVERRIDE_LEAD,
+		trainingTrees,
 		weekOverrides,
 		type GridLayouts,
 		type OpenedWeek,
@@ -110,17 +111,27 @@
 		// Cloned, because the diffs hand back the very arrays of the tree they
 		// read: a grid they merely pointed at would follow the coach's edits and
 		// then say they had touched nothing.
-		opened = structuredClone(openWeek(baseItems, merged, openedLayouts));
+		opened = structuredClone(
+			openWeek(trainingTrees(baseItems, openedLayouts), merged, openedLayouts)
+		);
 		layouts = openedLayouts;
 		items = merged;
 		editedTraining = training.id;
 	});
 
+	// The training as the editor reads it and as the write path lays it out, which
+	// is the pair every question below is asked against. The modal held only the
+	// first of the two until Krakoer/crimpy#100 round one, so a refusal about a
+	// row diffed against the second had nothing but the first to be weighed
+	// against, and the modal had no way to build the second for itself.
+	let trees = $derived(trainingTrees(baseItems, layouts));
+
 	// What the coach has touched, what the server is being asked for, what
 	// applying sends and which refusals still stand. Which of those diffs answers
-	// which question is decided in program-overrides rather than here, so the
-	// specs exercise the chain the modal runs on.
-	let week = $derived(weekOverrides(baseItems, items, overrides, layouts, opened));
+	// which question, and which tree each is taken against, is decided in
+	// program-overrides rather than here, so the specs exercise the chain the
+	// modal runs on.
+	let week = $derived(weekOverrides(trees, items, overrides, layouts, opened));
 
 	// What applying actually sends. An array a week wrote against a row count no
 	// layout of the training explains cannot be re-expressed at all, so a grid the
@@ -212,7 +223,7 @@
 	// too, so the block on screen and the week carried out of here cannot disagree
 	// about which refusals still stand.
 	function apply() {
-		onApply(carryStaleFlags(baseItems, overrides, sent));
+		onApply(carryStaleFlags(trees, overrides, sent));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that

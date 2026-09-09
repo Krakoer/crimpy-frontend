@@ -2717,6 +2717,12 @@ test('marks a grid override the training outgrew and leaves the stored numbers a
 	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
 	const notice = modal.getByTestId('stale-override');
 	await expect(notice).toContainText(GRID_STALE_REASON);
+	// The column is what the line names. The layout, the sets and the rep count
+	// the same refusal names are the item's side of the disagreement and are not
+	// in the row, so the coach is not sent to them.
+	const named = notice.getByTestId('stale-override-field');
+	await expect(named).toContainText("this week's loads");
+	await expect(named).not.toContainText('layout');
 	// Resetting is judged as one row, so what else goes with it is said before the
 	// coach presses it.
 	await expect(notice).toContainText('anything else this week asks of it goes too');
@@ -2888,6 +2894,16 @@ test('points at the apply where the refused row leaves nothing to reset', async 
 	const notice = modal.getByTestId('stale-override');
 	await expect(notice).toContainText(UNDONE_STALE_REASON);
 	await expect(notice).toContainText('nothing of it is left to change here');
+	// The column is what the line names, and the mode the same refusal names is
+	// not: it is the item's side of the disagreement, this week sets no hand mode
+	// and the training is what holds it. Naming it here read "this week's left
+	// hand loads and hand mode", which sends the coach looking for a value of
+	// theirs that is not there. Only the standing bucket was ever asserted end to
+	// end, which is how this bucket came to word it differently.
+	const named = notice.getByTestId('stale-override-field');
+	await expect(named).toContainText("this week's left hand loads");
+	await expect(named).not.toContainText('hand mode');
+	await expect(named).toContainText(UNDONE_STALE_REASON);
 	// A reset here could not move the block, so it is not offered: the coach is
 	// pointed at the gesture that does drop the row.
 	await expect(
@@ -3121,6 +3137,80 @@ test('drops the marking with the layout the coach chose on a refused grid', asyn
 	expect(savedOverrideRows(saved, 2)).toEqual([
 		{ item_id: 'item-grid', overrides: { loads: Array.from({ length: 8 }, () => kg(30)) } }
 	]);
+});
+
+/**
+ * The same refused row, naming the layout it was written in. The training
+ * declares that same layout, so the row is what the write path judged its six
+ * loads against, and the diff omits the field as unchanged.
+ */
+function refusedSetGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: {
+				granularity: 'set',
+				loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
+			},
+			override_stale: true,
+			stale_fields: rowCountRefusal(GRID_STALE_REASON, 'loads')
+		}
+	];
+}
+
+test('keeps a refused grid marked where the training reads back as one row', async ({ page }) => {
+	// Krakoer/crimpy#100 round one. The refusal names the layout the row declares
+	// as well as the loads, and the row carries both. Whether the week is still
+	// asking for them is measured against the training as the write path lays it
+	// out, which is the tree the row was diffed against; measured against the tree
+	// the editor reads, whose own loads coincide and which therefore reads back as
+	// a single row, the layout the row declares looked moved and the refusal read
+	// as cleared.
+	//
+	// So the coach was told the week was clean, the save then PUT six loads onto a
+	// block declaring eight rows, and the refusal came back as prose in the save
+	// error with nothing on screen marked: this ticket's own failure, one case
+	// over.
+	await stubTwoWeekProgram(page, refusedSetGridOverride(), flatGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	const cover = page.getByTestId('cell:2:1').getByRole('button', {
+		name: 'Customised training parameters, week 2, a change stopped applying',
+		exact: true
+	});
+	await cover.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	const notice = modal.getByTestId('stale-override');
+	await expect(notice).toContainText(GRID_STALE_REASON);
+	await expect(notice.getByTestId('stale-override-field')).toContainText("this week's loads");
+
+	// An edit to the rest is not the coach answering the refusal, so the block
+	// stays marked and the reset stays on offer.
+	const rest = modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true });
+	await rest.fill('9');
+	await rest.blur();
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	await expect(notice).toContainText(GRID_STALE_REASON);
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
+	await expect(cover).toBeVisible();
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	// The six loads the week stored ride out with the rest the coach typed, which
+	// is the row the server refused and the reason the marking has to stand.
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		rest_seconds: 9,
+		loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
+	});
 });
 
 /**
