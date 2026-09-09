@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { ItemOverride, TrainingItem } from '$lib/api/client';
+import type { ItemOverride, SessionOverride, TrainingItem } from '$lib/api/client';
 import {
 	buildOverrideHistory,
+	carryStaleFlags,
 	diffOverrides,
 	mergeOverrides,
-	overrideSummary
+	overrideSummary,
+	resetItemToBase,
+	staleOverrideDroppedNotice,
+	staleOverrideNotice,
+	staleOverrides,
+	staleOverridesDroppedByApply,
+	standingStaleOverrides
 } from './program-overrides';
+import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
+import { applyItemReadDefaults } from '$lib/components/training/item-defaults';
+import { prepareEditableTree } from '$lib/components/training/create-item';
 import type { AssessmentCatalog } from '$lib/assessments';
 
 const catalog: AssessmentCatalog = {};
@@ -492,5 +502,248 @@ describe('buildOverrideHistory', () => {
 		);
 		expect(history.a.map((entry) => entry.key)).toEqual(['mon', 'thu']);
 		expect(history.a.map((entry) => entry.label)).toEqual(['W2 Mon', 'W2 Thu']);
+	});
+});
+
+describe('stale overrides', () => {
+	const refused = {
+		id: 'row-1',
+		item_id: 'a',
+		overrides: { reps_is_max: true },
+		override_stale: true,
+		stale_reason:
+			'reps_is_max leaves the rep count open and cannot also be a percentage of an assessment'
+	};
+
+	it('names only the overrides the server refused', () => {
+		expect(
+			staleOverrides([refused, { item_id: 'b', overrides: { reps: 5 }, override_stale: false }])
+		).toEqual([refused]);
+	});
+
+	const opening = [{ item_id: 'a', overrides: { reps_is_max: true } }];
+
+	it('keeps the refusal standing while the week asks the same thing', () => {
+		// The modal rebuilds the request from the training item, so the same
+		// override comes back as a different object with its keys in another order.
+		const current = [{ item_id: 'a', overrides: { reps_is_max: true } }];
+		expect(standingStaleOverrides([refused], opening, current)).toEqual([refused]);
+	});
+
+	it('drops the refusal once the block is cleared or rewritten', () => {
+		expect(standingStaleOverrides([refused], opening, [])).toEqual([]);
+		expect(
+			standingStaleOverrides([refused], opening, [{ item_id: 'a', overrides: { reps: 4 } }])
+		).toEqual([]);
+	});
+
+	it('carries the refusal onto a week applied without clearing it', () => {
+		// The request goes back as the server refused it, key for key, so what it
+		// answered still holds.
+		const applied = carryStaleFlags(
+			[refused],
+			[
+				{ item_id: 'a', overrides: { reps_is_max: true } },
+				{ item_id: 'b', overrides: { reps: 5 } }
+			]
+		);
+		expect(applied[0].override_stale).toBe(true);
+		expect(applied[0].stale_reason).toBe(refused.stale_reason);
+		expect(applied[1].override_stale).toBeUndefined();
+	});
+
+	it('lets a rewritten override go back to the server unflagged', () => {
+		// Only the write path judges a value the read never saw, so the save is
+		// what tells the coach whether the rewrite holds.
+		const applied = carryStaleFlags([refused], [{ item_id: 'a', overrides: { reps: 4 } }]);
+		expect(applied[0].override_stale).toBeUndefined();
+	});
+
+	it('quotes the validator rather than passing its words off as coach copy', () => {
+		const notice = staleOverrideNotice(refused.stale_reason);
+		expect(notice).toContain('The training changed');
+		expect(notice).toContain(`The check refuses it as: ${refused.stale_reason}`);
+	});
+
+	it('still says what happened when the refusal came without a reason', () => {
+		expect(staleOverrideNotice()).toContain('The training changed');
+		expect(staleOverrideNotice('  ')).not.toContain('refuses it as');
+	});
+});
+
+// A grid item is the case a comparison against the stored row cannot answer: the
+// merge and the normalisation rewrite loads, grips and edges into the layout the
+// training now declares, so the modal never re-emits the array the server
+// refused. These run the modal's own pipeline rather than a hand written diff,
+// which is what made the hole invisible to the first round of tests.
+describe('a stale override on a grid item', () => {
+	const kg = (value: number) => ({ value, unit: 'kg' as const });
+	const REFUSED_REASON = 'loads holds 18 entries but the granularity declares 24 rows';
+
+	// Three sets of the given reps, one load and one edge per rep, the sets
+	// loaded differently so the layout the training declares is the one its own
+	// values call for.
+	function gridTraining(reps: number): TrainingItem[] {
+		const rows = 3 * reps;
+		const items: TrainingItem[] = [
+			{
+				id: 'grid',
+				_id: 'grid',
+				type: 'repeater',
+				cycles: 3,
+				reps,
+				granularity: 'set',
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				loads: Array.from({ length: rows }, (_, row) => kg(20 + Math.floor(row / reps) * 2)),
+				edge_sizes_mm: Array.from({ length: rows }, () => 20)
+			}
+		];
+		normalizeHangboardItems(items);
+		applyItemReadDefaults(items, []);
+		return items;
+	}
+
+	// The week stores the loads it was written against, six reps a set, while the
+	// training now runs eight.
+	const stored: SessionOverride[] = [
+		{
+			item_id: 'grid',
+			overrides: { loads: Array.from({ length: 18 }, (_, row) => kg(25 + row)) },
+			override_stale: true,
+			stale_reason: REFUSED_REASON
+		}
+	];
+
+	// What the modal holds the moment it opens the week on the current training.
+	function openModal() {
+		const baseItems = gridTraining(8);
+		const merged = mergeOverrides(baseItems, stored);
+		normalizeHangboardItems(merged);
+		applyItemReadDefaults(merged, []);
+		prepareEditableTree(merged);
+		return { baseItems, items: merged, opening: diffOverrides(baseItems, merged) };
+	}
+
+	it('cannot be recognised by comparing the request against the stored row', () => {
+		const { opening } = openModal();
+		expect(opening[0].overrides.loads).not.toEqual(stored[0].overrides.loads);
+	});
+
+	it('is marked, so the block can offer clearing', () => {
+		const { baseItems, items, opening } = openModal();
+		const standing = standingStaleOverrides(stored, opening, diffOverrides(baseItems, items));
+		expect(standing.map((override) => override.item_id)).toEqual(['grid']);
+		expect(standing[0].stale_reason).toBe(REFUSED_REASON);
+	});
+
+	it('goes back to the server asking for the layout the training declares', () => {
+		// What the merge and the normalisation emit is a request the write path
+		// takes: the arrays carry one entry per row the granularity declares.
+		const { baseItems, items } = openModal();
+		const emitted = diffOverrides(baseItems, items);
+		expect(emitted[0].overrides.loads).toHaveLength(24);
+		expect(emitted[0].overrides.loads).not.toEqual(stored[0].overrides.loads);
+	});
+
+	it('loses its marking on an apply, since the refused request is not the one sent', () => {
+		// The marking in the modal answers whether the coach touched the item; what
+		// the flag carried out of it answers is whether the next save is refused,
+		// and this request is not the one the server refused.
+		const { baseItems, items } = openModal();
+		const applied = carryStaleFlags(stored, diffOverrides(baseItems, items));
+		const flagged = applied.find((override) => override.item_id === 'grid');
+		expect(flagged?.override_stale).toBeUndefined();
+	});
+
+	it('keeps a non-grid refusal, which does go back byte for byte', () => {
+		const refused: SessionOverride[] = [
+			{
+				item_id: 'amrap',
+				overrides: { reps_is_max: true },
+				override_stale: true,
+				stale_reason: 'reps_is_max leaves the rep count open'
+			}
+		];
+		const applied = carryStaleFlags(refused, [
+			{ item_id: 'amrap', overrides: { reps_is_max: true } }
+		]);
+		expect(applied[0].override_stale).toBe(true);
+	});
+
+	it('loses its marking once the coach clears the block', () => {
+		const { baseItems, items, opening } = openModal();
+		resetItemToBase(baseItems, items, 'grid');
+		const current = diffOverrides(baseItems, items);
+		expect(standingStaleOverrides(stored, opening, current)).toEqual([]);
+		expect(carryStaleFlags(stored, current)).toEqual(current);
+	});
+});
+
+// A refusal the merge and the normalisation undo between the week read and the
+// tree on screen. The week asks the item for a left hand column, the training
+// now hangs both hands together, and the diff has nothing to emit: the block
+// cannot be reset, since there is nothing on screen left to shrink, and applying
+// is what drops the row the server refuses.
+describe('a stale override the merge already undid', () => {
+	const kg = (value: number) => ({ value, unit: 'kg' as const });
+	const REFUSED_REASON = 'left_loads is set but the "both" mode hangs both hands together';
+
+	const stored: SessionOverride[] = [
+		{
+			item_id: 'grid',
+			overrides: { left_loads: [kg(14), kg(14), kg(16), kg(16)] },
+			override_stale: true,
+			stale_reason: REFUSED_REASON
+		}
+	];
+
+	function openModal() {
+		const baseItems: TrainingItem[] = [
+			{
+				id: 'grid',
+				_id: 'grid',
+				type: 'repeater',
+				cycles: 2,
+				reps: 2,
+				hand: 'both',
+				granularity: 'set',
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				loads: [kg(10), kg(10), kg(12), kg(12)],
+				edge_sizes_mm: [20, 20, 18, 18],
+				hand_positions: [['HC', 'HC', 'FC', 'FC']]
+			}
+		];
+		normalizeHangboardItems(baseItems);
+		applyItemReadDefaults(baseItems, []);
+		const merged = mergeOverrides(baseItems, stored);
+		normalizeHangboardItems(merged);
+		applyItemReadDefaults(merged, []);
+		prepareEditableTree(merged);
+		return { baseItems, items: merged, opening: diffOverrides(baseItems, merged) };
+	}
+
+	it('leaves the modal with nothing to diff on the item', () => {
+		expect(openModal().opening).toEqual([]);
+	});
+
+	it('is not a refusal the block can be asked to clear', () => {
+		const { baseItems, items, opening } = openModal();
+		expect(standingStaleOverrides(stored, opening, diffOverrides(baseItems, items))).toEqual([]);
+	});
+
+	it('is marked all the same, and named as one applying drops', () => {
+		const dropped = staleOverridesDroppedByApply(stored, openModal().opening);
+		expect(dropped.map((override) => override.item_id)).toEqual(['grid']);
+		expect(staleOverrideDroppedNotice(dropped[0].stale_reason)).toContain(REFUSED_REASON);
+		expect(staleOverrideDroppedNotice(dropped[0].stale_reason)).toContain(
+			'nothing of it is left to change here'
+		);
+	});
+
+	it('is dropped by the apply, so the week saves', () => {
+		const { baseItems, items } = openModal();
+		expect(carryStaleFlags(stored, diffOverrides(baseItems, items))).toEqual([]);
 	});
 });
