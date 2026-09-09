@@ -15,16 +15,18 @@
 	import {
 		buildOverrideHistory,
 		carryStaleFlags,
-		diffOverrides,
+		emptyGridLayouts,
+		emptyOpenedWeek,
 		findItem,
-		itemIsOverridden,
-		keepStoredGridArrays,
+		gridLayouts,
 		mergeOverrides,
+		openWeek,
 		resetItemToBase,
-		standingStaleOverrides,
 		staleOverrideDroppedNotice,
 		staleOverrideNotice,
-		staleOverridesDroppedByApply,
+		weekOverrides,
+		type GridLayouts,
+		type OpenedWeek,
 		type ScheduledRow
 	} from '$lib/program-overrides';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
@@ -87,47 +89,57 @@
 
 	let items = $state<TrainingItem[]>([]);
 	let editedTraining = $state<string | null>(null);
-	// What the week asked for the moment the tree was built, which is the only
-	// baseline a refusal can be measured against: the merge and the normalisation
-	// rewrite a grid item's arrays into the layout the training now declares, so
-	// the stored row cannot be re-emitted and comparing against it would leave
-	// every grid override unmarked.
-	let openingRequest = $state<SessionOverride[]>([]);
+	// The layout the training and the week declare each grid item in, read while
+	// both are still to hand: the normalisation below replaces it with the layout
+	// the item's values call for, and nothing in the tree then says what it was.
+	let layouts = $state<GridLayouts>(emptyGridLayouts());
+	// The week as it was the moment the tree was built, which is what everything
+	// below asking whether the coach has moved something is measured against.
+	let opened = $state<OpenedWeek>(emptyOpenedWeek());
 
 	$effect(() => {
 		if (!training || editedTraining === training.id) return;
-		const merged = mergeOverrides(baseItems, $state.snapshot(overrides) as SessionOverride[]);
+		const declared = $state.snapshot(training.items) as TrainingItem[];
+		const storedWeek = $state.snapshot(overrides) as SessionOverride[];
+		const merged = mergeOverrides(baseItems, storedWeek);
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
 		prepareEditableTree(merged);
-		// Cloned, because the diff hands back the very arrays of the tree it read:
-		// a grid it merely pointed at would follow the coach's edits and then say
-		// they had touched nothing.
-		openingRequest = structuredClone(diffOverrides(baseItems, merged));
+		const openedLayouts = gridLayouts(declared, storedWeek, merged);
+		// Cloned, because the diffs hand back the very arrays of the tree they
+		// read: a grid they merely pointed at would follow the coach's edits and
+		// then say they had touched nothing.
+		opened = structuredClone(openWeek(baseItems, merged, openedLayouts));
+		layouts = openedLayouts;
 		items = merged;
 		editedTraining = training.id;
 	});
 
-	// What this week would ask for if the coach applied now.
-	let edited = $derived(diffOverrides(baseItems, items));
+	// What the coach has touched, what the server is being asked for, what
+	// applying sends and which refusals still stand. Which of those diffs answers
+	// which question is decided in program-overrides rather than here, so the
+	// specs exercise the chain the modal runs on.
+	let week = $derived(weekOverrides(baseItems, items, overrides, layouts, opened));
 
-	// What applying actually sends. The tree on screen is normalised into the
-	// layout the training now declares, which rewrites an array a week wrote
-	// against another row count, so a grid the coach has not touched goes back as
-	// the week stored it rather than as the normalisation guessed it.
-	let request = $derived(keepStoredGridArrays(baseItems, overrides, openingRequest, edited));
+	// What applying actually sends. An array a week wrote against a row count no
+	// layout of the training explains cannot be re-expressed at all, so a grid the
+	// coach has not touched goes back as the week stored it.
+	//
+	// It is also what every claim below that this week customises a block is read
+	// off. Customised for this week is a statement about the week rather than
+	// about how the editor happens to render it, and the diff on screen can carry
+	// a block the request says nothing of: a coach who picks the layout a grid
+	// already reads as prescribes nothing new, so counting that block would claim
+	// a customisation the apply then drops.
+	let sent = $derived(week.sent);
 
 	// The overrides the server refused, still asking what they asked when it did.
-	// Read against the tree on screen rather than against the saved week, so a
-	// block the coach has just cleared stops being marked before they apply, and
-	// against the request above, so a grid whose refused arrays go back regardless
-	// stays marked while the coach edits the rest of the block.
-	let standing = $derived(standingStaleOverrides(overrides, openingRequest, edited, request));
+	let standing = $derived(week.standing);
 
 	// The refused rows the merge and the normalisation already undid. Nothing on
 	// screen asks for them, so the block is marked without being offered a reset,
 	// and applying the week is what drops them.
-	let droppedByApply = $derived(staleOverridesDroppedByApply(overrides, openingRequest));
+	let droppedByApply = $derived(week.droppedByApply);
 
 	let markedBlocks = $derived(standing.length + droppedByApply.length);
 
@@ -141,7 +153,7 @@
 		get locked() {
 			return locked;
 		},
-		isOverridden: (itemId: string) => itemIsOverridden(baseItems, items, itemId),
+		isOverridden: (itemId: string) => sent.some((override) => override.item_id === itemId),
 		staleNotice: (itemId: string) => {
 			const stale = standing.find((override) => override.item_id === itemId);
 			if (stale) {
@@ -160,14 +172,16 @@
 
 	// Handed to the strips through the context rather than down the list, behind a
 	// getter so the training arriving after the modal opened fills them in where
-	// they already are. The week being edited reads from the tree on screen rather
-	// than from what is saved, so a number just typed shows up in its own chip
-	// beside the weeks it is being adapted from.
+	// they already are. The week being edited reads from the row it is about to
+	// hold rather than from what is saved, so a number just typed shows up in its
+	// own chip beside the weeks it is being adapted from, and the chip says the
+	// same thing about this week as the other chips say about theirs rather than
+	// claiming a customisation the apply would drop.
 	let history = $derived<OverrideHistoryByItem>(
 		training
 			? buildOverrideHistory(
 					baseItems,
-					scheduledWeeks.map((week) => (week.current ? { ...week, overrides: edited } : week)),
+					scheduledWeeks.map((row) => (row.current ? { ...row, overrides: sent } : row)),
 					catalog
 				)
 			: {}
@@ -187,7 +201,7 @@
 	// above is measured against too, so the block on screen and the week carried
 	// out of here cannot disagree about which refusals still stand.
 	function apply() {
-		onApply(carryStaleFlags(overrides, request));
+		onApply(carryStaleFlags(overrides, sent));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that
@@ -201,7 +215,7 @@
 		items = cleared;
 	}
 
-	let customisedCount = $derived(edited.length);
+	let customisedCount = $derived(sent.length);
 
 	// A week whose only leftover is a refused row the merge undid asks nothing on
 	// screen, so counting it as written would read as a contradiction of the

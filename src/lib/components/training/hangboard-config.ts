@@ -5,6 +5,7 @@ import {
 	hangboardHand,
 	hangboardHandCount,
 	hangboardReps,
+	hangboardRowCount,
 	hangboardSets,
 	isHangboardItem,
 	isTwoHandedMode,
@@ -88,7 +89,22 @@ export function configRow(variation: HangboardVariation, address: number): numbe
 }
 
 export function storedRowCount(item: TrainingItem, variation: HangboardVariation): number {
-	return variation === 'uniform' ? 1 : hangboardSets(item) * hangboardReps(item);
+	return hangboardRowCount(wireGranularity(variation), item.cycles, item.reps);
+}
+
+// The set and the rep one row of a layout stands for, which is where its values
+// are read from and written to. A uniform layout holds one row for the whole
+// item; the other two lay their rows out set by set, and a per-rep layout only
+// ever carries the one set, so the same division answers both. It is the inverse
+// of declaredRow, and the one both the rebuild and the write out of a layout go
+// through, so they cannot come to disagree about which rep a row is.
+function rowAddress(
+	granularity: HangboardGranularity,
+	reps: number,
+	row: number
+): [number, number] {
+	if (granularity === 'uniform') return [0, 0];
+	return [Math.floor(row / reps), row % reps];
 }
 
 export function currentLayout(item: TrainingItem, variation: HangboardVariation): StoredLayout {
@@ -206,8 +222,7 @@ export function rebuildArrays(
 	};
 
 	const rows = storedRowCount(item, variation);
-	const coordinates = (row: number): [number, number] =>
-		variation === 'uniform' ? [0, 0] : [Math.floor(row / reps), row % reps];
+	const coordinates = (row: number) => rowAddress(wireGranularity(variation), reps, row);
 
 	item.edge_sizes_mm = Array.from({ length: rows }, (_, row) => {
 		const [set, rep] = coordinates(row);
@@ -265,6 +280,67 @@ function declaredRow(item: TrainingItem, set: number, rep: number): number {
 export function storedConfig(item: TrainingItem, set: number, rep: number): RepConfig {
 	const twoHanded = isTwoHandedMode(hangboardHand(item));
 	return readConfig(item, declaredRow(item, set, rep), twoHanded, defaultRepConfig());
+}
+
+// The item written out in a layout: the same prescription, addressed the way
+// that layout addresses it. Every value is read by its set and rep rather than
+// by raw index, so this is the inverse of the collapse normalizeHangboardItem
+// performs and not a second guess at it.
+function writeInLayout(item: TrainingItem, granularity: HangboardGranularity): TrainingItem {
+	const hand = hangboardHand(item);
+	const twoHanded = isTwoHandedMode(hand);
+	const reps = hangboardReps(item);
+	const rows = hangboardRowCount(granularity, item.cycles, item.reps);
+	const configs = Array.from({ length: rows }, (_, row) => {
+		const [set, rep] = rowAddress(granularity, reps, row);
+		return storedConfig(item, set, rep);
+	});
+	return {
+		...item,
+		granularity,
+		edge_sizes_mm: configs.map((config) => config.edge),
+		loads: configs.map((config) => ({ ...config.loadRight })),
+		left_loads: twoHanded ? configs.map((config) => ({ ...config.loadLeft })) : undefined,
+		hand_positions: Array.from({ length: hangboardHandCount(hand) }, (_, index) =>
+			configs.map((config) => (twoHanded && index === LEFT ? config.gripLeft : config.gripRight))
+		)
+	};
+}
+
+// Whether a layout holds every value the item prescribes. A layout carrying one
+// row for several reps only fits values those reps agree on, so an item whose
+// values have since come apart is left in the layout it was worked in.
+function holdsEveryValue(written: TrainingItem, item: TrainingItem): boolean {
+	const twoHanded = isTwoHandedMode(hangboardHand(item));
+	const sets = hangboardSets(item);
+	const reps = hangboardReps(item);
+	for (let set = 0; set < sets; set++) {
+		for (let rep = 0; rep < reps; rep++) {
+			const before = storedConfig(item, set, rep);
+			if (!sameConfig(storedConfig(written, set, rep), before, twoHanded)) return false;
+		}
+	}
+	return true;
+}
+
+// The item as a request carries it: the values the editor holds, written out in
+// a given layout rather than in the one the editor reads them in.
+//
+// This is the seam. normalizeHangboardItem rewrites an item into the layout its
+// own values call for, which is what lets the editor address every rep of every
+// set and is what a coach reads on screen, and the inference is lossy: an item
+// declared per set whose loads coincide reads back as uniform and nothing left
+// in the item says which of the two it was. The write path never sees that. It
+// merges an override onto the item as it is stored and judges every array
+// against the layout that item declares. So what goes out is written here, in
+// the layout it is judged in, from the values the editor holds.
+//
+// A layout the values no longer fit is not forced on them: that is the coach
+// having varied something, and the item goes out as they made it.
+export function itemInLayout(item: TrainingItem, granularity: HangboardGranularity): TrainingItem {
+	if (!isHangboardItem(item) || hangboardGranularity(item) === granularity) return item;
+	const written = writeInLayout(item, granularity);
+	return holdsEveryValue(written, item) ? written : item;
 }
 
 export function repsVaryWithinSets(item: TrainingItem): boolean {

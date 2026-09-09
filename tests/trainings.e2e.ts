@@ -846,6 +846,35 @@ test.describe('hangboard grid size', () => {
 		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
 		await expect(stepTiles(page)).toHaveCount(3);
 	});
+
+	// A program week now builds its request in the layout the item is declared in
+	// rather than in the one the editor reads it in. A training has no week to
+	// diff against: the item it holds is the declaration, so the editor's layout
+	// is what it saves, and a set-by-set item whose rows all agree is still saved
+	// as the one row the coach was shown.
+	test('saves an item whose rows all agree as the one row it reads as', async ({ page }) => {
+		const updates = await openHangboardEditor(
+			page,
+			perSetHangboardItem({
+				edge_sizes_mm: [20, 20, 20, 20],
+				loads: [kg(10), kg(10), kg(10), kg(10)],
+				hand_positions: [['HC', 'HC', 'HC', 'HC']]
+			})
+		);
+
+		await expect(stepTiles(page)).toHaveCount(0);
+
+		await loadField(page).fill('12');
+		await loadField(page).blur();
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			granularity: 'uniform',
+			edge_sizes_mm: [20],
+			loads: [kg(12)],
+			hand_positions: [['HC']]
+		});
+	});
 });
 
 test.describe('hangboard hand modes', () => {

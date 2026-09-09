@@ -1,5 +1,6 @@
 import {
 	OVERRIDE_ITEM_FIELDS,
+	type HangboardGranularity,
 	type ItemOverride,
 	type Load,
 	type OverrideKey,
@@ -11,9 +12,11 @@ import {
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
 import {
+	hangboardGranularity,
 	hangboardHandCount,
 	hangboardRowCount
 } from '$lib/components/training/hangboard-granularity';
+import { itemInLayout } from '$lib/components/training/hangboard-config';
 import type { OverrideHistoryByItem } from '$lib/components/training/override-context';
 
 // A program schedules the same training in several weeks and lets the coach
@@ -343,18 +346,6 @@ export function findItem(items: TrainingItem[], itemId: string): TrainingItem | 
 	return undefined;
 }
 
-// Whether this week asks anything of the item that the training does not.
-export function itemIsOverridden(
-	base: TrainingItem[],
-	edited: TrainingItem[],
-	itemId: string
-): boolean {
-	const baseItem = findItem(base, itemId);
-	const editedItem = findItem(edited, itemId);
-	if (!baseItem || !editedItem) return false;
-	return Object.keys(diffItem(baseItem, editedItem)).length > 0;
-}
-
 // Puts one item back to what the training prescribes, leaving the rest of the
 // week's customisation alone. Only the fields a week may change are restored,
 // which is every field the diff could have emitted.
@@ -487,36 +478,43 @@ function sendsRefusedGridArrays(refused: ItemOverride, sent: ItemOverride | unde
 // override the coach has since changed or cleared is left out: only the server
 // judges an override, and the one it refused is no longer the one being sent.
 //
-// The question is whether the request the server refused is still the one about
-// to be sent, and the stored row is the wrong thing to ask it of: merging and
-// normalising rewrite a grid item's arrays into the layout the training now
-// declares, so a freshly opened week already diffs to something other than the
-// row the server refused, and a comparison against that row would leave every
-// grid override unmarked. What is compared instead is the diff the modal built
-// when it opened, which carries the same normalisation as the diff on screen.
+// The two halves ask two different things of two different pairs, the way
+// gridUntouched does.
+//
+// Whether the coach is still asking for what the server refused is a question
+// about the screen, so it is asked of the display pair: the diff the modal
+// opened on against the diff it shows now. The stored row cannot answer it,
+// because merging and normalising rewrite a grid item's arrays into the layout
+// the training now declares, so a freshly opened week already diffs to something
+// other than the row the server refused and every grid override would read as
+// rewritten. The wire pair cannot answer it either, for the opposite reason: the
+// request is written in the layout the item is declared in whatever layout is on
+// screen, which is what makes it layout-invariant, so a coach reaching for the
+// variation selector leaves it byte for byte unchanged and the block would stay
+// marked on a week that now saves clean.
 //
 // That comparison answers for the whole row at once, so any edit on the block
 // clears the marking, and where the refused part goes back regardless that is a
-// week the coach was told is clean and cannot save. So the grid is asked of the
-// request about to be sent, which is the only thing that knows whether the
-// arrays the server refused are the arrays going back.
+// week the coach was told is clean and cannot save. So the grid half is asked of
+// the row on its way to the server, which is the only thing that knows whether
+// the arrays the server refused are the arrays going back.
 //
-// An item the modal opened on with nothing to diff is not one of these: there is
-// no request on screen to keep or rewrite, so nothing here can clear it. Those
-// are staleOverridesDroppedByApply.
+// An item the modal opened on with nothing on screen to diff is not one of
+// these: there is nothing the coach can keep or rewrite, so nothing here can
+// clear it. Those are staleOverridesDroppedByApply, which reads the same
+// opening diff, so the two together account for every refusal exactly once.
 export function standingStaleOverrides(
 	stored: SessionOverride[],
-	opening: SessionOverride[],
-	current: SessionOverride[],
-	sent: SessionOverride[]
+	sent: SessionOverride[],
+	scope: WeekGridScope
 ): SessionOverride[] {
-	const openingByItem = requestByItem(opening);
-	const currentByItem = requestByItem(current);
+	const openedOnScreenByItem = requestByItem(scope.openedOnScreen);
+	const onScreenByItem = requestByItem(scope.onScreen);
 	const sentByItem = requestByItem(sent);
 	return staleOverrides(stored).filter((override) => {
 		if (sendsRefusedGridArrays(override.overrides, sentByItem.get(override.item_id))) return true;
-		const opened = openingByItem.get(override.item_id);
-		return opened !== undefined && sameRequest(opened, currentByItem.get(override.item_id));
+		const opened = openedOnScreenByItem.get(override.item_id);
+		return opened !== undefined && sameRequest(opened, onScreenByItem.get(override.item_id));
 	});
 }
 
@@ -526,13 +524,20 @@ export function standingStaleOverrides(
 // normalisation wipes it straight back, so the tree the modal opened on asks
 // nothing of that item and the diff emits nothing to reset. The row still
 // blocks the save while the week holds it, and applying is what drops it.
-export function staleOverridesDroppedByApply(
+//
+// What the merge and the normalisation undid is a question about the tree the
+// coach reads, so it is asked of the opening display diff. The opening request
+// is a narrower thing: its item set is a strict subset, since a block whose grid
+// reads as the training's own carries no grid field there, and a block with a
+// display diff but no wire diff would be classified as already undone and shown
+// without the reset that can still clear it.
+function staleOverridesDroppedByApply(
 	stored: SessionOverride[],
-	opening: SessionOverride[]
+	opened: OpenedWeek
 ): SessionOverride[] {
-	const openingByItem = requestByItem(opening);
+	const openedOnScreenByItem = requestByItem(opened.openedOnScreen);
 	return staleOverrides(stored).filter(
-		(override) => openingByItem.get(override.item_id) === undefined
+		(override) => openedOnScreenByItem.get(override.item_id) === undefined
 	);
 }
 
@@ -564,24 +569,212 @@ function declaredLayout(base: TrainingItem, override: ItemOverride): string {
 // Whether the item's grid is still exactly what the modal opened on, in a
 // request that still declares the layout the stored arrays were written for.
 //
-// The layout enters it twice over. A coach who resized the grid is asking for
-// the arrays to be laid out again, and the backend refuses a resize that does
-// not resend them. And a request declaring another layout than the stored row
-// did is the normalisation having moved the arrays rather than the coach, which
-// is the same rewrite from the other end: every array a request carries owes it
-// one entry per row and one column per hand the request declares, so stored
-// arrays written for one layout contradict a request declaring another. The
-// normalised grid goes out whole there instead, which does agree with itself.
+// The two halves ask two different things of two different pairs.
+//
+// Whether the coach touched the grid is a question about the screen, so it is
+// asked of the diff they read: the one the modal opened on against the one it
+// shows now. The request cannot answer it. It is written in the layout the item
+// is declared in whatever layout is on screen, which is what it is for, and that
+// makes it blind to the one action this exists to notice: a coach reaching for
+// the variation selector on a grid the normalisation had collapsed leaves the
+// request byte for byte unchanged, and the stored arrays would go back over the
+// layout they just chose.
+//
+// Whether the request still declares the layout the stored arrays were written
+// for is a question about the wire, and it is asked of the request. A coach who
+// resized the grid is asking for the arrays to be laid out again, and the
+// backend refuses a resize that does not resend them; and every array a request
+// carries owes it one entry per row and one column per hand the request
+// declares, so stored arrays written for one layout contradict a request
+// declaring another. The normalised grid goes out whole there instead, which
+// does agree with itself. It is the invariant the substitution owes whatever it
+// is handed, and the only place that is checked before the arrays go back.
 function gridUntouched(
 	base: TrainingItem,
 	stored: ItemOverride,
-	opened: ItemOverride,
-	current: ItemOverride
+	screen: { opened: ItemOverride; now: ItemOverride },
+	request: ItemOverride
 ): boolean {
 	const untouched = [...GRID_LAYOUT_FIELDS, ...GRID_ARRAY_FIELDS].every((field) =>
-		sameField(opened, current, field)
+		sameField(screen.opened, screen.now, field)
 	);
-	return untouched && declaredLayout(base, stored) === declaredLayout(base, current);
+	return untouched && declaredLayout(base, stored) === declaredLayout(base, request);
+}
+
+// The layout knowledge a request needs and the tree on screen cannot hold.
+//
+// normalizeHangboardItem rewrites a grid item into the layout its own values
+// call for, which is what lets the editor address every rep of every set, and
+// the inference is lossy: an item declared per set whose loads coincide reads
+// back as uniform and nothing left in the tree says which of the two it was. So
+// the layouts are read before that happens, and the request is written in one of
+// them rather than in the one the editor inferred.
+export interface GridLayouts {
+	// The granularity the training declares for each grid item, which is the
+	// layout the write path lays that item's arrays out in.
+	training: Record<string, HangboardGranularity>;
+	// The layout the week's row is written in: its own where it declared one, the
+	// training's otherwise, exactly as the write path merges the two.
+	stored: Record<string, HangboardGranularity>;
+	// The layout the editor opened each item in, which is the only thing that
+	// says whether a layout on screen is one the coach chose or one the
+	// normalisation inferred.
+	opened: Record<string, HangboardGranularity>;
+}
+
+function forEachGridItem(
+	items: TrainingItem[],
+	visit: (item: TrainingItem, itemId: string) => void
+): void {
+	for (const item of items) {
+		if (item.id && GRID_ITEM_TYPES.includes(item.type)) visit(item, item.id);
+		if (item.items) forEachGridItem(item.items, visit);
+	}
+}
+
+export function emptyGridLayouts(): GridLayouts {
+	return { training: {}, stored: {}, opened: {} };
+}
+
+// Read once, when the week is opened: the training arrives unnormalised, the
+// week's row says which layout the coach wrote it in, and the merged tree has
+// just been normalised for the editor to read.
+export function gridLayouts(
+	training: TrainingItem[],
+	overrides: SessionOverride[],
+	opened: TrainingItem[]
+): GridLayouts {
+	const byItem = requestByItem(overrides);
+	const layouts = emptyGridLayouts();
+	forEachGridItem(training, (item, itemId) => {
+		layouts.training[itemId] = hangboardGranularity(item);
+		layouts.stored[itemId] = byItem.get(itemId)?.granularity ?? hangboardGranularity(item);
+	});
+	forEachGridItem(opened, (item, itemId) => {
+		layouts.opened[itemId] = hangboardGranularity(item);
+	});
+	return layouts;
+}
+
+// The layout each grid item's request is written in: the one on screen where it
+// has moved since the week was opened, and the one the item is declared in
+// otherwise. A collapse the normalisation performed is a re-expression for the
+// editor to read rather than a prescription, so it stays on screen; a layout the
+// coach picked from the variation selector is theirs and goes out as it is.
+function requestGranularities(
+	items: TrainingItem[],
+	layouts: GridLayouts
+): Record<string, HangboardGranularity> {
+	const granularities: Record<string, HangboardGranularity> = {};
+	forEachGridItem(items, (item, itemId) => {
+		const shown = hangboardGranularity(item);
+		const declared = layouts.stored[itemId];
+		granularities[itemId] = shown === layouts.opened[itemId] && declared ? declared : shown;
+	});
+	return granularities;
+}
+
+// A tree written out in the given layouts, which is both what a request is built
+// from and what it is diffed against.
+function itemsInLayouts(
+	items: TrainingItem[],
+	granularities: Record<string, HangboardGranularity>
+): TrainingItem[] {
+	return items.map((item) => {
+		const nested = item.items
+			? { ...item, items: itemsInLayouts(item.items, granularities) }
+			: item;
+		const granularity = item.id ? granularities[item.id] : undefined;
+		return granularity === undefined ? nested : itemInLayout(nested, granularity);
+	});
+}
+
+// Whether a row says anything at all about the item's grid.
+function declaresGrid(override: ItemOverride): boolean {
+	if (override.granularity != null) return true;
+	return GRID_ARRAY_FIELDS.some((field) => !isEmpty(override[field]));
+}
+
+function withoutGrid(override: ItemOverride): ItemOverride {
+	const rest: ItemOverride = { ...override };
+	delete rest.granularity;
+	for (const field of GRID_ARRAY_FIELDS) delete rest[field];
+	return rest;
+}
+
+// What applying asks of the server, as against what the modal shows.
+//
+// The two differ in one thing: the layout a grid item's arrays are written in.
+// The editor reads a tree normalised into the layout the values call for, while
+// the write path merges the override onto the item as it is stored and judges
+// every array against the layout that item declares. Diffing the one against the
+// other is how the portal came to send a granularity no coach ever chose, and to
+// believe a request acceptable that the server refuses. So the request is built
+// from the same values the coach edited, written back out in the layout the item
+// is declared in, against a training written out the same way.
+//
+// Which blocks the request carries, and which of them it says anything about the
+// grid of, stay the screen's answer. A block the coach put back to the training
+// asks nothing of it, and one whose grid reads as the training's own carries no
+// grid field, whatever layout it would have been written in: a value the coach
+// sees as untouched cannot leave here as a prescription.
+function requestOverrides(
+	wireBase: TrainingItem[],
+	items: TrainingItem[],
+	shown: SessionOverride[],
+	layouts: GridLayouts
+): SessionOverride[] {
+	const shownByItem = requestByItem(shown);
+	const wireItems = itemsInLayouts(items, requestGranularities(items, layouts));
+	const request: SessionOverride[] = [];
+	for (const override of diffOverrides(wireBase, wireItems)) {
+		const onScreen = shownByItem.get(override.item_id);
+		if (onScreen === undefined) continue;
+		const overrides = declaresGrid(onScreen) ? override.overrides : withoutGrid(override.overrides);
+		if (Object.keys(overrides).length > 0) request.push({ ...override, overrides });
+	}
+	return request;
+}
+
+// The week as the modal opened on it, which is what every question about what
+// has moved since is measured against.
+export interface OpenedWeek {
+	// The diff the coach read the moment the tree was built, both trees
+	// normalised: the only thing that says whether a grid on screen has moved
+	// since, and whether the layout it is in is one they chose.
+	openedOnScreen: SessionOverride[];
+	// What the week asked of the server then, which is the only baseline a
+	// refusal can be measured against: the merge and the normalisation rewrite a
+	// grid item's arrays into the layout the training now declares, so the stored
+	// row cannot be re-emitted and comparing against it would leave every grid
+	// override unmarked.
+	openedRequest: SessionOverride[];
+}
+
+export function emptyOpenedWeek(): OpenedWeek {
+	return { openedOnScreen: [], openedRequest: [] };
+}
+
+// The four diffs the substitution weighs. They are all diffs of the same week
+// and they do not mean the same thing: two are what the coach reads, two are
+// what the server is asked for, and each pair answers a question the other pair
+// cannot. So they travel as one named value rather than as four parameters of
+// one type, the way weekSyncScope does in
+// crimpy-backend/internal/handler/program_week.go: a transposition would compile
+// and then quietly answer "did the coach touch this grid" off the wire, which is
+// the failure Krakoer/crimpy#99 was opened for, running the other way.
+export interface WeekGridScope extends OpenedWeek {
+	// The diff the coach reads now, against openedOnScreen: the display pair, and
+	// the only pair that can answer whether they have touched something. Both
+	// sides carry the normalisation, so a layout the coach picked by hand moves it
+	// and a layout the normalisation inferred does not.
+	onScreen: SessionOverride[];
+	// What the week asks of the server now, against openedRequest: the wire pair,
+	// and the only pair that can answer what the server was and is being asked
+	// for. Both sides are written in the layout each item is declared in, which
+	// makes the pair layout-invariant by construction: it cannot see a layout the
+	// coach chose, and nothing may ask it to.
+	request: SessionOverride[];
 }
 
 // What the week goes back asking, with the grid of every block the coach did not
@@ -603,6 +796,13 @@ function gridUntouched(
 // refused, marked and clearable rather than quietly rewritten into a week that
 // saves and prescribes something else.
 //
+// Which pair answers what here follows gridUntouched, which this hands both to:
+// whether the coach touched the grid is asked of the display pair, whether the
+// row going out still declares the layout the stored arrays were written for is
+// asked of the request. The wire pair is read for one thing only, and it is not
+// a comparison: an item the opening request said nothing of has no judged arrays
+// to keep.
+//
 // The arrays that go back are the arrays the server has already judged, in a
 // request declaring the layout it judged them in, so applying can never turn a
 // week the server takes into one it refuses, and never rewrites a number the
@@ -616,19 +816,27 @@ function gridUntouched(
 export function keepStoredGridArrays(
 	base: TrainingItem[],
 	stored: SessionOverride[],
-	opening: SessionOverride[],
-	current: SessionOverride[]
+	scope: WeekGridScope
 ): SessionOverride[] {
 	const storedByItem = requestByItem(stored);
-	const openingByItem = requestByItem(opening);
-	return current
+	const openedRequestByItem = requestByItem(scope.openedRequest);
+	const openedScreenByItem = requestByItem(scope.openedOnScreen);
+	const screenByItem = requestByItem(scope.onScreen);
+	return scope.request
 		.map((override) => {
 			const item = gridItem(base, override.item_id);
 			if (item === undefined) return override;
-			const opened = openingByItem.get(override.item_id);
-			if (opened === undefined) return override;
+			// An item the modal opened on with nothing to ask of the server has no
+			// judged arrays to keep, and one the request carries that the screen says
+			// nothing about is not a grid anyone can be reading: both go out as the
+			// diff built them.
+			if (openedRequestByItem.get(override.item_id) === undefined) return override;
+			const openedOnScreen = openedScreenByItem.get(override.item_id);
+			const onScreen = screenByItem.get(override.item_id);
+			if (openedOnScreen === undefined || onScreen === undefined) return override;
 			const storedRequest = storedByItem.get(override.item_id) ?? {};
-			if (!gridUntouched(item, storedRequest, opened, override.overrides)) return override;
+			const screen = { opened: openedOnScreen, now: onScreen };
+			if (!gridUntouched(item, storedRequest, screen, override.overrides)) return override;
 			// Held by reference, as the diff itself holds the arrays of the tree it
 			// read: this row is on its way to the server, and copying a week's own
 			// state to hand it straight back would only invite a snapshot helper
@@ -646,6 +854,99 @@ export function keepStoredGridArrays(
 			return { ...override, overrides: kept };
 		})
 		.filter((override) => Object.keys(override.overrides).length > 0);
+}
+
+// The diffs of one week, the display one and the wire one, built the one way
+// both the snapshot and every later question read them.
+function weekDiffs(
+	base: TrainingItem[],
+	items: TrainingItem[],
+	layouts: GridLayouts
+): { wireBase: TrainingItem[]; onScreen: SessionOverride[]; request: SessionOverride[] } {
+	// The training as the write path lays it out, which is what it judges a
+	// request against: the tree the editor reads, with every grid item written
+	// back out in the layout the training declares for it.
+	const wireBase = itemsInLayouts(base, layouts.training);
+	const onScreen = diffOverrides(base, items);
+	return { wireBase, onScreen, request: requestOverrides(wireBase, items, onScreen, layouts) };
+}
+
+// The pair every later question about this week is measured against, taken once
+// when the modal builds the tree.
+//
+// It is its own function because a week being opened and a week being weighed
+// are two different questions, and weekOverrides answering both meant a call
+// site that forgot to pass the snapshot silently got "this is the week being
+// opened" rather than a type error, which is the hazard WeekGridScope exists to
+// prevent. The stored week is not read here: nothing about what the coach was
+// shown depends on it, which is the whole reason the two split cleanly.
+export function openWeek(
+	base: TrainingItem[],
+	items: TrainingItem[],
+	layouts: GridLayouts
+): OpenedWeek {
+	const { onScreen, request } = weekDiffs(base, items, layouts);
+	return { openedOnScreen: onScreen, openedRequest: request };
+}
+
+// Everything the modal derives from the week on screen, wired here rather than
+// in the component.
+//
+// Which tree is diffed against which, and which of those diffs answers what the
+// coach has touched against which answers what the server is being asked for, is
+// the whole of it. The two are not interchangeable and the modal reading one off
+// the other is a bug of exactly the kind a unit spec is meant to catch, which it
+// cannot while the specs wire the chain up a second time for themselves. So the
+// wiring lives here and both go through it.
+export interface WeekOverrides {
+	// The diff the coach reads on this week, both trees normalised, so a layout
+	// the normalisation inferred on each side is not read as this week's doing.
+	// It is the display side of every pair here, and what it answers is whether
+	// the coach has touched something, not what this week customises: the layout
+	// they picked can prescribe exactly what the training already does, and then
+	// this carries a row the request says nothing of.
+	onScreen: SessionOverride[];
+	// The same week as the server reads it: the coach's values written out in the
+	// layout each item is declared in. The editor's own layout is a re-expression
+	// of those values rather than a prescription, so it stays on screen.
+	request: SessionOverride[];
+	// What applying actually sends, which is the request with the grid of every
+	// block the coach did not touch left as the week stored it. It is what the
+	// week will hold, so it is also what any claim that this week customises a
+	// block has to be read off.
+	sent: SessionOverride[];
+	// The refusals the block on screen can still be asked to clear.
+	standing: SessionOverride[];
+	// The refusals the merge and the normalisation already undid, which nothing on
+	// screen asks for and applying is what drops.
+	droppedByApply: SessionOverride[];
+}
+
+// `opened` is the pair openWeek took when the modal built the tree, and it is
+// required: a week weighed against itself has by definition been touched
+// nowhere, which is an answer, not a default.
+export function weekOverrides(
+	base: TrainingItem[],
+	items: TrainingItem[],
+	stored: SessionOverride[],
+	layouts: GridLayouts,
+	opened: OpenedWeek
+): WeekOverrides {
+	const { wireBase, onScreen, request } = weekDiffs(base, items, layouts);
+	const scope: WeekGridScope = { ...opened, onScreen, request };
+	const sent = keepStoredGridArrays(wireBase, stored, scope);
+	return {
+		onScreen,
+		request,
+		sent,
+		// Read against the tree on screen rather than against the saved week, so a
+		// block the coach has just cleared stops being marked before they apply,
+		// and against the row on its way out as well, so a grid whose refused
+		// arrays go back regardless stays marked while the coach edits the rest of
+		// the block.
+		standing: standingStaleOverrides(stored, sent, scope),
+		droppedByApply: staleOverridesDroppedByApply(stored, opened)
+	};
 }
 
 // What the week holds after the coach applies the modal. A refusal is carried
