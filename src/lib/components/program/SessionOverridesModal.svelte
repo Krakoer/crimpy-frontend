@@ -22,8 +22,10 @@
 		mergeOverrides,
 		openWeek,
 		resetItemToBase,
-		staleOverrideDroppedNotice,
-		staleOverrideNotice,
+		staleRefusalLines,
+		STALE_OVERRIDE_DROPPED_LEAD,
+		STALE_OVERRIDE_LEAD,
+		trainingTrees,
 		weekOverrides,
 		type GridLayouts,
 		type OpenedWeek,
@@ -109,17 +111,27 @@
 		// Cloned, because the diffs hand back the very arrays of the tree they
 		// read: a grid they merely pointed at would follow the coach's edits and
 		// then say they had touched nothing.
-		opened = structuredClone(openWeek(baseItems, merged, openedLayouts));
+		opened = structuredClone(
+			openWeek(trainingTrees(baseItems, openedLayouts), merged, openedLayouts)
+		);
 		layouts = openedLayouts;
 		items = merged;
 		editedTraining = training.id;
 	});
 
+	// The training as the editor reads it and as the write path lays it out, which
+	// is the pair every question below is asked against. The modal held only the
+	// first of the two until Krakoer/crimpy#100 round one, so a refusal about a
+	// row diffed against the second had nothing but the first to be weighed
+	// against, and the modal had no way to build the second for itself.
+	let trees = $derived(trainingTrees(baseItems, layouts));
+
 	// What the coach has touched, what the server is being asked for, what
 	// applying sends and which refusals still stand. Which of those diffs answers
-	// which question is decided in program-overrides rather than here, so the
-	// specs exercise the chain the modal runs on.
-	let week = $derived(weekOverrides(baseItems, items, overrides, layouts, opened));
+	// which question, and which tree each is taken against, is decided in
+	// program-overrides rather than here, so the specs exercise the chain the
+	// modal runs on.
+	let week = $derived(weekOverrides(trees, items, overrides, layouts, opened));
 
 	// What applying actually sends. An array a week wrote against a row count no
 	// layout of the training explains cannot be re-expressed at all, so a grid the
@@ -154,14 +166,24 @@
 			return locked;
 		},
 		isOverridden: (itemId: string) => sent.some((override) => override.item_id === itemId),
+		// The lines name the fields the server attributed the refusal to, read
+		// against the training item so a set is a set and a round is a round.
 		staleNotice: (itemId: string) => {
 			const stale = standing.find((override) => override.item_id === itemId);
 			if (stale) {
-				return { text: staleOverrideNotice(stale.stale_reason), clearedByApply: false };
+				return {
+					lead: STALE_OVERRIDE_LEAD,
+					refusals: staleRefusalLines(stale, findItem(baseItems, itemId)),
+					clearedByApply: false
+				};
 			}
 			const dropped = droppedByApply.find((override) => override.item_id === itemId);
 			if (dropped) {
-				return { text: staleOverrideDroppedNotice(dropped.stale_reason), clearedByApply: true };
+				return {
+					lead: STALE_OVERRIDE_DROPPED_LEAD,
+					refusals: staleRefusalLines(dropped, findItem(baseItems, itemId)),
+					clearedByApply: true
+				};
 			}
 			return null;
 		},
@@ -194,14 +216,14 @@
 
 	let type = $derived(trainingTypeInfo(training?.training_type));
 
-	// A refusal the server answered is carried onto an override that goes back
-	// asking what the server refused, so a week merely opened and applied does not
-	// read as fixed while the save is still going to be refused. It is measured
-	// against the request rather than against the tree, which is what the marking
-	// above is measured against too, so the block on screen and the week carried
-	// out of here cannot disagree about which refusals still stand.
+	// A refusal the server answered is carried onto a row that still asks for the
+	// field the server refused, so a week merely opened and applied does not read
+	// as fixed while the save is still going to be refused. It is measured against
+	// the row on its way out, which is what the marking above is measured against
+	// too, so the block on screen and the week carried out of here cannot disagree
+	// about which refusals still stand.
 	function apply() {
-		onApply(carryStaleFlags(overrides, sent));
+		onApply(carryStaleFlags(trees, overrides, sent));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that

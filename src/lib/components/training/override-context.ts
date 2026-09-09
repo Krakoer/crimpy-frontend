@@ -1,4 +1,5 @@
 import type { TrainingItem } from '$lib/api/client';
+import type { StaleRefusalLine } from '$lib/program-overrides';
 
 // Set around the tree a program week prescribes, and absent everywhere else,
 // which is what keeps the same editors usable in the training editor. A week may
@@ -40,8 +41,15 @@ export type OverrideMode = {
 // merge and the normalisation already undid the request, so there is nothing
 // left on screen for a reset to shrink and applying the week is what drops the
 // row the server refuses. A control offered there could not move.
+//
+// refusals is one line per reason, each naming the values of this week the check
+// refuses. The server attributes a refusal to the fields it read, so the block
+// marks the field rather than only itself: a coach reads which of the values
+// they set is the problem, and an edit to any other field of the block leaves
+// the marking alone.
 export type StaleNotice = {
-	text: string;
+	lead: string;
+	refusals: StaleRefusalLine[];
 	clearedByApply: boolean;
 };
 

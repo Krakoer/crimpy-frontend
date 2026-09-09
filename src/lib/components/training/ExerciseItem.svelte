@@ -497,6 +497,7 @@
 					<input
 						type="number"
 						min="0"
+						aria-label="Rest minutes"
 						bind:value={restMin}
 						onclick={(e) => e.stopPropagation()}
 						style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
@@ -506,6 +507,7 @@
 						type="number"
 						min="0"
 						max="59"
+						aria-label="Rest seconds"
 						bind:value={restSec}
 						onclick={(e) => e.stopPropagation()}
 						style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"

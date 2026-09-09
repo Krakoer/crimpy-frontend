@@ -1,21 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import type { ItemOverride, SessionOverride, TrainingItem } from '$lib/api/client';
+import type {
+	ItemOverride,
+	OverrideKey,
+	SessionOverride,
+	StaleOverrideField,
+	TrainingItem
+} from '$lib/api/client';
 import {
 	buildOverrideHistory,
 	carryStaleFlags,
 	diffOverrides,
+	emptyGridLayouts,
 	gridLayouts,
 	keepStoredGridArrays,
 	mergeOverrides,
 	overrideSummary,
 	resetItemToBase,
-	staleOverrideDroppedNotice,
-	staleOverrideNotice,
+	staleRefusalLines,
 	staleOverrides,
 	openWeek,
 	standingStaleOverrides,
+	trainingTrees,
 	weekOverrides,
-	type WeekGridScope,
+	STALE_OVERRIDE_DROPPED_LEAD,
+	STALE_OVERRIDE_LEAD,
 	type WeekOverrides
 } from './program-overrides';
 import {
@@ -520,14 +528,34 @@ describe('buildOverrideHistory', () => {
 });
 
 describe('stale overrides', () => {
-	const refused = {
+	// The wording and the attribution the week read answers a rep count left open
+	// over a percentage with, as
+	// crimpy-backend/internal/handler/training_items.go pins them: one reason
+	// naming both fields the check read.
+	const AMRAP_REASON =
+		'reps_is_max leaves the rep count open and cannot also be a percentage of an assessment';
+
+	const base = [exercise('a'), exercise('b')];
+	// Neither item lays anything out as a grid, so the two trees of the pair are
+	// the same tree here: nothing about these rows is layout dependent, and the
+	// pair is still what says which of the two a refusal is read against.
+	const trees = trainingTrees(base, emptyGridLayouts());
+
+	const refused: SessionOverride = {
 		id: 'row-1',
 		item_id: 'a',
 		overrides: { reps_is_max: true },
 		override_stale: true,
-		stale_reason:
-			'reps_is_max leaves the rep count open and cannot also be a percentage of an assessment'
+		stale_fields: [
+			{ field: 'reps_is_max', reason: AMRAP_REASON },
+			{ field: 'variable_targets', reason: AMRAP_REASON }
+		]
 	};
+
+	// What the row carries of the refusal: the marker. The percentage the check
+	// also read is the item's, and a reader counting it as unchanged would hold
+	// the marking up through every edit, since it is absent again after each one.
+	const CARRIED = [{ field: 'reps_is_max', reason: AMRAP_REASON }];
 
 	it('names only the overrides the server refused', () => {
 		expect(
@@ -535,37 +563,149 @@ describe('stale overrides', () => {
 		).toEqual([refused]);
 	});
 
-	const opening = [{ item_id: 'a', overrides: { reps_is_max: true } }];
-
-	// Nothing of an exercise is rewritten on its way out, so all four diffs of
-	// the week are the same diff here. The pairs matter on a grid item, which the
-	// suites below run the modal's own chain for.
-	function weekAsking(current: SessionOverride[]): WeekGridScope {
-		return {
-			openedOnScreen: opening,
-			openedRequest: opening,
-			onScreen: current,
-			request: current
-		};
-	}
-
 	it('keeps the refusal standing while the week asks the same thing', () => {
 		// The modal rebuilds the request from the training item, so the same
 		// override comes back as a different object with its keys in another order.
-		const current = [{ item_id: 'a', overrides: { reps_is_max: true } }];
-		expect(standingStaleOverrides([refused], current, weekAsking(current))).toEqual([refused]);
+		const sent = [{ item_id: 'a', overrides: { reps_is_max: true } }];
+		expect(standingStaleOverrides(trees, [refused], sent)).toEqual([
+			{ ...refused, stale_fields: CARRIED }
+		]);
+	});
+
+	it('keeps it standing through an edit to another field of the same block', () => {
+		// Krakoer/crimpy#100. The marker is still in the row, so the same refusal
+		// still applies and the next save is still refused for it: dropping the
+		// marking here told the coach the week was clean and then had the save
+		// answer with the refusal in prose, with nothing on screen naming the block.
+		const sent = [{ item_id: 'a', overrides: { reps_is_max: true, rest_seconds: 90 } }];
+		expect(standingStaleOverrides(trees, [refused], sent).map((o) => o.item_id)).toEqual(['a']);
+		expect(carryStaleFlags(trees, [refused], sent)[0]).toEqual({
+			...sent[0],
+			override_stale: true,
+			stale_fields: CARRIED
+		});
+	});
+
+	it('drops the refusal once the refused field itself moves', () => {
+		const rewritten = [{ item_id: 'a', overrides: { reps_is_max: false } }];
+		expect(standingStaleOverrides(trees, [refused], rewritten)).toEqual([]);
 	});
 
 	it('drops the refusal once the block is cleared or rewritten', () => {
-		expect(standingStaleOverrides([refused], [], weekAsking([]))).toEqual([]);
+		expect(standingStaleOverrides(trees, [refused], [])).toEqual([]);
 		const rewritten = [{ item_id: 'a', overrides: { reps: 4 } }];
-		expect(standingStaleOverrides([refused], rewritten, weekAsking(rewritten))).toEqual([]);
+		expect(standingStaleOverrides(trees, [refused], rewritten)).toEqual([]);
+	});
+
+	it('reads a row it names nothing of as a refusal about the row as a whole', () => {
+		// The invariant is that a refusal names at least one field the row carries,
+		// so this is the backend having attributed incompletely. The whole row is
+		// the answer an empty field stands for, and it is the answer here too:
+		// counting the absent names as unchanged would mark the block forever.
+		const unattributed: SessionOverride = {
+			...refused,
+			stale_fields: [{ field: 'variable_targets', reason: AMRAP_REASON }]
+		};
+		const same = [{ item_id: 'a', overrides: { reps_is_max: true } }];
+		expect(standingStaleOverrides(trees, [unattributed], same).map((o) => o.item_id)).toEqual([
+			'a'
+		]);
+		const edited = [{ item_id: 'a', overrides: { reps_is_max: true, rest_seconds: 90 } }];
+		expect(standingStaleOverrides(trees, [unattributed], edited)).toEqual([]);
+	});
+
+	it('reads a marking that carries no attribution the same way', () => {
+		// override_stale on its own says the training no longer takes the row and
+		// says nothing about which part of it, so the row as a whole is all there
+		// is to compare. It is the one fallback the contract documents.
+		const bare: SessionOverride = { id: 'row-1', item_id: 'a', overrides: { reps_is_max: true } };
+		const stored = [{ ...bare, override_stale: true }];
+		const same = [{ item_id: 'a', overrides: { reps_is_max: true } }];
+		expect(standingStaleOverrides(trees, stored, same)).toEqual([
+			{ ...bare, override_stale: true }
+		]);
+		expect(standingStaleOverrides(trees, stored, [{ ...bare, overrides: { reps: 4 } }])).toEqual(
+			[]
+		);
+	});
+
+	it('keeps only the refusals that still stand on a row refused twice', () => {
+		// Two reasons about two fields. Clearing one of them leaves the other, and
+		// the coach is told about the one that is left rather than about both.
+		const OPEN_COUNT = 'only an exercise takes reps_is_max';
+		const NO_INTERVAL = 'only an emom takes an interval_seconds';
+		const twice: SessionOverride = {
+			item_id: 'a',
+			overrides: { reps_is_max: true, interval_seconds: 90 },
+			override_stale: true,
+			stale_fields: [
+				{ field: 'reps_is_max', reason: OPEN_COUNT },
+				{ field: 'interval_seconds', reason: NO_INTERVAL }
+			]
+		};
+		const sent = [{ item_id: 'a', overrides: { interval_seconds: 90 } }];
+		expect(standingStaleOverrides(trees, [twice], sent)[0].stale_fields).toEqual([
+			{ field: 'interval_seconds', reason: NO_INTERVAL }
+		]);
+		expect(carryStaleFlags(trees, [twice], sent)[0].stale_fields).toEqual([
+			{ field: 'interval_seconds', reason: NO_INTERVAL }
+		]);
+	});
+
+	it('reads a field the training has since adopted as the value it will hold', () => {
+		// The diff omits a value the training now prescribes itself, so the row
+		// going out says nothing about the field while the item still ends up with
+		// what the server refused. Reading the rows alone would have the marking
+		// drop on a save that is still refused.
+		const adoptedTrees = trainingTrees([exercise('a', { reps_is_max: true })], emptyGridLayouts());
+		const stored: SessionOverride[] = [
+			{
+				item_id: 'a',
+				overrides: { reps_is_max: true, rest_seconds: 30 },
+				override_stale: true,
+				stale_fields: [{ field: 'reps_is_max', reason: AMRAP_REASON }]
+			}
+		];
+		const sent = [{ item_id: 'a', overrides: { rest_seconds: 30 } }];
+		expect(standingStaleOverrides(adoptedTrees, stored, sent).map((o) => o.item_id)).toEqual(['a']);
+	});
+
+	it('marks the applied row for the row as a whole where the diff dropped the field', () => {
+		// The other end of the case above. The refusal is about the marker, the
+		// diff omits it because the training adopted it, and the row the marking is
+		// carried onto therefore says nothing about it: naming it there would put a
+		// field on the row that the row does not set, which the next read of the
+		// marking skips and the notice under the block would print as a value of
+		// this week's. So the attribution goes and the reason stays, which is what
+		// a refusal naming no field the row carries means everywhere else.
+		//
+		// It is lost rather than kept because stale_fields carries no value: the
+		// row on its way out has nothing left that could say the marker was refused
+		// as true. The row is read as a whole from here, so the marking does drop
+		// on the next edit of the block, and only the save can answer that week.
+		const adoptedTrees = trainingTrees([exercise('a', { reps_is_max: true })], emptyGridLayouts());
+		const stored: SessionOverride[] = [
+			{
+				item_id: 'a',
+				overrides: { reps_is_max: true, rest_seconds: 30 },
+				override_stale: true,
+				stale_fields: [{ field: 'reps_is_max', reason: AMRAP_REASON }]
+			}
+		];
+		const sent = [{ item_id: 'a', overrides: { rest_seconds: 30 } }];
+		const applied = carryStaleFlags(adoptedTrees, stored, sent);
+		expect(applied[0].override_stale).toBe(true);
+		expect(applied[0].stale_fields).toEqual([{ field: '', reason: AMRAP_REASON }]);
+		// And the block quotes the check without pointing at a value this week does
+		// not set, which is the same rule read off the same row.
+		expect(staleRefusalLines(applied[0])).toEqual([{ fields: '', reason: AMRAP_REASON }]);
 	});
 
 	it('carries the refusal onto a week applied without clearing it', () => {
-		// The request goes back as the server refused it, key for key, so what it
-		// answered still holds.
+		// The request goes back asking what the server refused, so what it answered
+		// still holds.
 		const applied = carryStaleFlags(
+			trees,
 			[refused],
 			[
 				{ item_id: 'a', overrides: { reps_is_max: true } },
@@ -573,26 +713,99 @@ describe('stale overrides', () => {
 			]
 		);
 		expect(applied[0].override_stale).toBe(true);
-		expect(applied[0].stale_reason).toBe(refused.stale_reason);
+		expect(applied[0].stale_fields).toEqual(CARRIED);
 		expect(applied[1].override_stale).toBeUndefined();
 	});
 
 	it('lets a rewritten override go back to the server unflagged', () => {
 		// Only the write path judges a value the read never saw, so the save is
 		// what tells the coach whether the rewrite holds.
-		const applied = carryStaleFlags([refused], [{ item_id: 'a', overrides: { reps: 4 } }]);
+		const applied = carryStaleFlags(trees, [refused], [{ item_id: 'a', overrides: { reps: 4 } }]);
 		expect(applied[0].override_stale).toBeUndefined();
 	});
+});
 
-	it('quotes the validator rather than passing its words off as coach copy', () => {
-		const notice = staleOverrideNotice(refused.stale_reason);
-		expect(notice).toContain('The training changed');
-		expect(notice).toContain(`The check refuses it as: ${refused.stale_reason}`);
+describe('what a marked block tells the coach', () => {
+	const GRID_REASON = 'loads holds 6 entries but the granularity declares 8 rows';
+
+	it('names the values the check refuses, and quotes the check', () => {
+		const marked: SessionOverride = {
+			item_id: 'grid',
+			overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
+			override_stale: true,
+			stale_fields: [{ field: 'loads', reason: GRID_REASON }]
+		};
+		expect(staleRefusalLines(marked)).toEqual([{ fields: 'loads', reason: GRID_REASON }]);
+		expect(STALE_OVERRIDE_LEAD).toContain('The training changed');
+		expect(STALE_OVERRIDE_DROPPED_LEAD).toContain('nothing of it is left to change here');
 	});
 
-	it('still says what happened when the refusal came without a reason', () => {
-		expect(staleOverrideNotice()).toContain('The training changed');
-		expect(staleOverrideNotice('  ')).not.toContain('refuses it as');
+	it('gathers the fields one reason spreads over into one line', () => {
+		// A grid refusal ships up to five entries carrying the same words. One line
+		// per entry would repeat the same sentence five times. The row is a resize,
+		// which is the row that carries all four of the fields such a refusal names:
+		// the backend refuses a resize that does not resend its arrays, so the
+		// layout fields and the arrays travel together. Two cycles of four reps
+		// declare eight rows against the six loads below, which is the row
+		// validateRowArray answers with these very words and this attribution.
+		const marked: SessionOverride = {
+			item_id: 'grid',
+			overrides: {
+				granularity: 'set',
+				cycles: 2,
+				reps: 4,
+				loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
+			},
+			override_stale: true,
+			stale_fields: [
+				{ field: 'loads', reason: GRID_REASON },
+				{ field: 'granularity', reason: GRID_REASON },
+				{ field: 'cycles', reason: GRID_REASON },
+				{ field: 'reps', reason: GRID_REASON }
+			]
+		};
+		expect(staleRefusalLines(marked)).toEqual([
+			{ fields: 'loads, layout, sets and rep count', reason: GRID_REASON }
+		]);
+	});
+
+	it('names a round a round on the block that runs rounds', () => {
+		const marked: SessionOverride = {
+			item_id: 'emom',
+			overrides: { cycles: 4 },
+			override_stale: true,
+			stale_fields: [{ field: 'cycles', reason: GRID_REASON }]
+		};
+		const item: TrainingItem = { id: 'emom', _id: 'emom', type: 'emom', cycles: 4 };
+		expect(staleRefusalLines(marked, item)[0].fields).toBe('rounds');
+	});
+
+	it('points at no field where the refusal is about the row as a whole', () => {
+		// Which is what an empty field stands for, so the block quotes the check
+		// and claims nothing about which value is at fault.
+		const marked: SessionOverride = {
+			item_id: 'a',
+			overrides: { reps: 4 },
+			override_stale: true,
+			stale_fields: [{ field: '', reason: GRID_REASON }]
+		};
+		expect(staleRefusalLines(marked)).toEqual([{ fields: '', reason: GRID_REASON }]);
+	});
+
+	it('says nothing about a field it has no words for', () => {
+		// A name this portal does not read is a key it cannot be carrying either,
+		// so it is skipped here the way the marking skips it.
+		const marked: SessionOverride = {
+			item_id: 'a',
+			overrides: { reps: 4 },
+			override_stale: true,
+			stale_fields: [{ field: 'invented_key', reason: GRID_REASON }]
+		};
+		expect(staleRefusalLines(marked)).toEqual([{ fields: '', reason: GRID_REASON }]);
+	});
+
+	it('still says what happened when the marking came without a reason', () => {
+		expect(staleRefusalLines({ item_id: 'a', overrides: {}, override_stale: true })).toEqual([]);
 	});
 });
 
@@ -612,13 +825,24 @@ function declaredRows(base: TrainingItem, override: ItemOverride): number {
 	return 1;
 }
 
+// How the write path attributes a refusal about an array that disagrees with the
+// row count: to the array, and to the three fields the count is read from, since
+// either side of the disagreement is a field the coach can move. It mirrors
+// validateRowArray and rowLayoutFields in
+// crimpy-backend/internal/handler/training_items.go, restated here rather than
+// imported so the fixtures are held to the backend rule and not to the reader
+// under test.
+function rowCountRefusal(reason: string, array: OverrideKey): StaleOverrideField[] {
+	return [array, 'granularity', 'cycles', 'reps'].map((field) => ({ field, reason }));
+}
+
 // The modal's own chain, run the way the modal runs it: the training normalised
 // for the editor to read, the week merged and normalised on top of it, the
 // layouts read while the training and the week still declare them, and
 // everything else taken from weekOverrides. Which of those diffs answers what
-// the coach has touched and which answers what the server is asked for is
-// imported rather than restated, so a spec cannot pass against a wiring the
-// modal does not have.
+// the coach has touched and which answers what the server is asked for, and
+// which tree each of them is taken against, is imported rather than restated, so
+// a spec cannot pass against a wiring the modal does not have.
 function openModalOn(training: TrainingItem[], stored: SessionOverride[]) {
 	const declared = structuredClone(training);
 	const base = structuredClone(training);
@@ -629,16 +853,20 @@ function openModalOn(training: TrainingItem[], stored: SessionOverride[]) {
 	applyItemReadDefaults(items, []);
 	prepareEditableTree(items);
 	const layouts = gridLayouts(declared, stored, items);
+	// The tree the editor reads and the tree the write path lays out, built the
+	// one way the modal builds them, so a spec cannot hand a reader the other one
+	// of the two.
+	const trees = trainingTrees(base, layouts);
 	// Cloned as the modal clones it: the diffs hand back the arrays of the tree
 	// they read, and the pair the week was opened on has to hold still.
-	const asOpened = structuredClone(openWeek(base, items, layouts));
-	return { declared, base, items, layouts, stored, asOpened };
+	const asOpened = structuredClone(openWeek(trees, items, layouts));
+	return { declared, base, trees, items, layouts, stored, asOpened };
 }
 
 // What the modal shows and what applying it would send, read off the tree as it
 // currently stands.
 function sentNow(opened: ReturnType<typeof openModalOn>): WeekOverrides {
-	return weekOverrides(opened.base, opened.items, opened.stored, opened.layouts, opened.asOpened);
+	return weekOverrides(opened.trees, opened.items, opened.stored, opened.layouts, opened.asOpened);
 }
 
 // A grid item is the case a comparison against the stored row cannot answer: the
@@ -677,7 +905,7 @@ describe('a stale override on a grid item', () => {
 			item_id: 'grid',
 			overrides: { loads: Array.from({ length: 18 }, (_, row) => kg(25 + row)) },
 			override_stale: true,
-			stale_reason: REFUSED_REASON
+			stale_fields: rowCountRefusal(REFUSED_REASON, 'loads')
 		}
 	];
 
@@ -694,7 +922,10 @@ describe('a stale override on a grid item', () => {
 	it('is marked, so the block can offer clearing', () => {
 		const { standing } = sentNow(openModal());
 		expect(standing.map((override) => override.item_id)).toEqual(['grid']);
-		expect(standing[0].stale_reason).toBe(REFUSED_REASON);
+		// Marked for the load column alone: the granularity, the sets and the reps
+		// the same refusal names are the item's side of the disagreement and are
+		// not in the row, so there is nothing of them for the coach to move.
+		expect(standing[0].stale_fields).toEqual([{ field: 'loads', reason: REFUSED_REASON }]);
 	});
 
 	it('stays marked while the coach edits something else on the block', () => {
@@ -709,7 +940,7 @@ describe('a stale override on a grid item', () => {
 		expect(sent[0].overrides.loads).toEqual(stored[0].overrides.loads);
 
 		expect(standing.map((override) => override.item_id)).toEqual(['grid']);
-		expect(carryStaleFlags(stored, sent)[0].override_stale).toBe(true);
+		expect(carryStaleFlags(opened.trees, stored, sent)[0].override_stale).toBe(true);
 	});
 
 	it('is rewritten into the layout the training declares for the editor to read', () => {
@@ -737,10 +968,13 @@ describe('a stale override on a grid item', () => {
 		// The marking in the modal answers whether the coach touched the item; what
 		// the flag carried out of it answers is whether the next save is refused.
 		// The two agree now that an untouched grid goes back as it was stored.
-		const applied = carryStaleFlags(stored, sentNow(openModal()).sent);
+		const opened = openModal();
+		const applied = carryStaleFlags(opened.trees, stored, sentNow(opened).sent);
 		const flagged = applied.find((override) => override.item_id === 'grid');
 		expect(flagged?.override_stale).toBe(true);
-		expect(flagged?.stale_reason).toBe(REFUSED_REASON);
+		// The row carries the fields of it the refusal is about, which is what the
+		// week is marked for when it is read back.
+		expect(flagged?.stale_fields).toEqual([{ field: 'loads', reason: REFUSED_REASON }]);
 	});
 
 	it('goes back laid out again once the coach edits a load', () => {
@@ -784,7 +1018,7 @@ describe('a stale override on a grid item', () => {
 		const opened = openModal();
 		const { onScreen, request } = sentNow(opened);
 		const amrap: SessionOverride = { item_id: 'amrap', overrides: { reps_is_max: true } };
-		const sent = keepStoredGridArrays(opened.base, stored, {
+		const sent = keepStoredGridArrays(opened.trees, stored, {
 			openedOnScreen: opened.asOpened.openedOnScreen,
 			openedRequest: opened.asOpened.openedRequest,
 			onScreen: [...onScreen, amrap],
@@ -795,18 +1029,20 @@ describe('a stale override on a grid item', () => {
 		});
 	});
 
-	it('keeps a non-grid refusal, which does go back byte for byte', () => {
+	it('keeps a non-grid refusal, which does go back field for field', () => {
 		const refused: SessionOverride[] = [
 			{
 				item_id: 'amrap',
 				overrides: { reps_is_max: true },
 				override_stale: true,
-				stale_reason: 'reps_is_max leaves the rep count open'
+				stale_fields: [{ field: 'reps_is_max', reason: 'reps_is_max leaves the rep count open' }]
 			}
 		];
-		const applied = carryStaleFlags(refused, [
-			{ item_id: 'amrap', overrides: { reps_is_max: true } }
-		]);
+		const applied = carryStaleFlags(
+			trainingTrees([{ id: 'amrap', _id: 'amrap', type: 'exercise', reps: 8 }], emptyGridLayouts()),
+			refused,
+			[{ item_id: 'amrap', overrides: { reps_is_max: true } }]
+		);
 		expect(applied[0].override_stale).toBe(true);
 	});
 
@@ -815,7 +1051,7 @@ describe('a stale override on a grid item', () => {
 		resetItemToBase(opened.base, opened.items, 'grid');
 		const { sent, standing } = sentNow(opened);
 		expect(standing).toEqual([]);
-		expect(carryStaleFlags(stored, sent)).toEqual(sent);
+		expect(carryStaleFlags(opened.trees, stored, sent)).toEqual(sent);
 	});
 });
 
@@ -867,8 +1103,10 @@ describe('a grid override the normalisation reaches past', () => {
 		// Nothing but rewritten arrays is nothing the week asked for, so the row
 		// goes rather than being sent empty. Handed to the substitution directly,
 		// since a week that stored nothing is one the chain has nothing to keep of.
+		// The training as it is written is already the wire reading of itself, which
+		// is the tree the substitution asks for the layout it judges arrays in.
 		const opening: SessionOverride[] = [{ item_id: 'grid', overrides: { loads: [kg(30)] } }];
-		const sent = keepStoredGridArrays(gridTraining(), [], {
+		const sent = keepStoredGridArrays(trainingTrees(gridTraining(), emptyGridLayouts()), [], {
 			openedOnScreen: opening,
 			openedRequest: opening,
 			onScreen: opening,
@@ -903,7 +1141,12 @@ describe('a stale override the merge already undid', () => {
 			item_id: 'grid',
 			overrides: { left_loads: [kg(14), kg(14), kg(16), kg(16)] },
 			override_stale: true,
-			stale_reason: REFUSED_REASON
+			// The mode is the other side of the disagreement, and the item's: only
+			// the column is in the row.
+			stale_fields: [
+				{ field: 'left_loads', reason: REFUSED_REASON },
+				{ field: 'hand', reason: REFUSED_REASON }
+			]
 		}
 	];
 
@@ -941,14 +1184,25 @@ describe('a stale override the merge already undid', () => {
 	it('is marked all the same, and named as one applying drops', () => {
 		const dropped = sentNow(openModal()).droppedByApply;
 		expect(dropped.map((override) => override.item_id)).toEqual(['grid']);
-		expect(staleOverrideDroppedNotice(dropped[0].stale_reason)).toContain(REFUSED_REASON);
-		expect(staleOverrideDroppedNotice(dropped[0].stale_reason)).toContain(
-			'nothing of it is left to change here'
-		);
+		// The column is what it names, and the words are the check's own, which say
+		// loads where the attribution says left_loads. The label is the authority on
+		// which value is at fault; that pairing is asserted by a backend test.
+		//
+		// The mode the same refusal names is the item's side of the disagreement and
+		// is not in the row, so the line leaves it out: the week sets no hand mode,
+		// the training is what holds it, and "this week's hand mode" would send the
+		// coach to a value they cannot move here. It is the skip the marking is
+		// decided with, which the standing bucket gets from markedWith and this one
+		// only gets here.
+		expect(staleRefusalLines(dropped[0])).toEqual([
+			{ fields: 'left hand loads', reason: REFUSED_REASON }
+		]);
+		expect(STALE_OVERRIDE_DROPPED_LEAD).toContain('nothing of it is left to change here');
 	});
 
 	it('is dropped by the apply, so the week saves', () => {
-		expect(carryStaleFlags(stored, sentNow(openModal()).sent)).toEqual([]);
+		const opened = openModal();
+		expect(carryStaleFlags(opened.trees, stored, sentNow(opened).sent)).toEqual([]);
 	});
 });
 
@@ -1053,7 +1307,7 @@ describe('the layout a week sends', () => {
 			const { sent } = sentNow(opened);
 			const request = sent[0].overrides;
 			expect(request.loads).toHaveLength(declaredRows(opened.declared[0], request));
-			expect(carryStaleFlags(stored, sent)[0].override_stale).toBeUndefined();
+			expect(carryStaleFlags(opened.trees, stored, sent)[0].override_stale).toBeUndefined();
 		});
 
 		it('prescribes what the week prescribed, rep for rep', () => {
@@ -1092,7 +1346,7 @@ describe('the layout a week sends', () => {
 				item_id: 'grid',
 				overrides: { granularity: 'set', loads: storedLoads },
 				override_stale: true,
-				stale_reason: REFUSED_REASON
+				stale_fields: rowCountRefusal(REFUSED_REASON, 'loads')
 			}
 		];
 
@@ -1127,8 +1381,15 @@ describe('the layout a week sends', () => {
 			expect(sent[0].overrides.loads).not.toHaveLength(
 				declaredRows(opened.declared[0], sent[0].overrides)
 			);
-			expect(carryStaleFlags(stored, sent)[0].override_stale).toBe(true);
-			expect(carryStaleFlags(stored, sent)[0].stale_reason).toBe(REFUSED_REASON);
+			expect(carryStaleFlags(opened.trees, stored, sent)[0].override_stale).toBe(true);
+			// The stored row declares the layout the training has since adopted, so
+			// the diff omits it as unchanged: the marking survives only because the
+			// field is read as the value the item will hold rather than off the rows.
+			expect(sent[0].overrides.granularity).toBeUndefined();
+			expect(standing[0].stale_fields).toEqual([
+				{ field: 'loads', reason: REFUSED_REASON },
+				{ field: 'granularity', reason: REFUSED_REASON }
+			]);
 			expect(standing.map((o) => o.item_id)).toEqual(['grid']);
 		});
 
@@ -1137,6 +1398,98 @@ describe('the layout a week sends', () => {
 			resetItemToBase(opened.base, opened.items, 'grid');
 			const { sent, standing } = sentNow(opened);
 			expect(sent).toEqual([]);
+			expect(standing).toEqual([]);
+		});
+	});
+
+	// Krakoer/crimpy#100 round one: the case above on a training whose own loads
+	// coincide, so the editor's tree declares a layout the training never did
+	// while the stored row declares the one it does. The refusal names that layout
+	// field and the row carries it, which is what makes the two trees answer
+	// differently: read against the editor's tree the layout the row declares
+	// looks moved, the refusal reads as cleared, and the week claims to be clean
+	// while the save still PUTs six loads onto an item declaring eight rows.
+	//
+	// No fixture had both halves before, which is why every spec passed over it: a
+	// declared layout the normalisation collapses, and a refusal naming a layout
+	// field the row carries.
+	describe('a week refused for a layout field of a training the editor collapsed', () => {
+		const REFUSED_REASON = 'loads holds 6 entries but the granularity declares 8 rows';
+		const flat = Array.from({ length: 8 }, () => kg(20));
+		const storedLoads = [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)];
+
+		// Six loads written when the block ran three reps a set, in a row that
+		// names the layout the training declares now.
+		const stored: SessionOverride[] = [
+			{
+				item_id: 'grid',
+				overrides: { granularity: 'set', loads: storedLoads },
+				override_stale: true,
+				stale_fields: rowCountRefusal(REFUSED_REASON, 'loads')
+			}
+		];
+
+		function openModal() {
+			return openModalOn(gridTraining(flat), stored);
+		}
+
+		it('declares the eight rows the training does, on a tree the editor reads as one', () => {
+			const opened = openModal();
+			expect(declaredRows(opened.declared[0], stored[0].overrides)).toBe(8);
+			expect(stored[0].overrides.loads).toHaveLength(6);
+			// The editor's tree of the same training, which says uniform where the
+			// training and the row both say per set.
+			expect(opened.base[0].granularity).toBe('uniform');
+			expect(opened.trees.wire[0].granularity).toBe('set');
+		});
+
+		it('sends its six loads back intact, naming no layout of its own', () => {
+			// The layout the row declares is the one the training declares, so the
+			// wire diff omits it as unchanged: the field the refusal names is in the
+			// stored row and not in the row going out.
+			const { sent } = sentNow(openModal());
+			expect(sent).toHaveLength(1);
+			expect(sent[0].overrides).toEqual({ loads: storedLoads });
+			expect(sent[0].overrides.granularity).toBeUndefined();
+		});
+
+		it('stays marked, for the load column and the layout the row declares', () => {
+			const opened = openModal();
+			const { sent, standing, droppedByApply } = sentNow(opened);
+			expect(standing.map((override) => override.item_id)).toEqual(['grid']);
+			expect(standing[0].stale_fields).toEqual([
+				{ field: 'loads', reason: REFUSED_REASON },
+				{ field: 'granularity', reason: REFUSED_REASON }
+			]);
+			// Nothing here is a row the merge undid, so the coach is offered the reset
+			// rather than pointed at the apply.
+			expect(droppedByApply).toEqual([]);
+			// And the row carried out is marked for the field of it that is on the
+			// wire: the layout the stored row declared is not in it.
+			expect(carryStaleFlags(opened.trees, stored, sent)[0].stale_fields).toEqual([
+				{ field: 'loads', reason: REFUSED_REASON }
+			]);
+		});
+
+		it('stays marked while the coach edits something else on the block', () => {
+			const opened = openModal();
+			opened.items[0].rest_seconds = 90;
+			const { sent, standing } = sentNow(opened);
+			expect(sent[0].overrides.rest_seconds).toBe(90);
+			expect(sent[0].overrides.loads).toEqual(storedLoads);
+			expect(standing.map((override) => override.item_id)).toEqual(['grid']);
+			expect(carryStaleFlags(opened.trees, stored, sent)[0].override_stale).toBe(true);
+		});
+
+		it('loses its marking once the coach rewrites the grid', () => {
+			// A grid the coach worked in goes out laid out against the row count the
+			// training declares, which is not the row the server refused.
+			const opened = openModal();
+			opened.items[0].loads![0] = kg(99);
+			const { sent, standing } = sentNow(opened);
+			expect(sent[0].overrides.loads).toHaveLength(
+				declaredRows(opened.declared[0], sent[0].overrides)
+			);
 			expect(standing).toEqual([]);
 		});
 	});
@@ -1280,7 +1633,7 @@ describe('the layout a week sends', () => {
 				item_id: 'grid',
 				overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
 				override_stale: true,
-				stale_reason: REFUSED_REASON
+				stale_fields: rowCountRefusal(REFUSED_REASON, 'loads')
 			}
 		];
 
@@ -1308,7 +1661,7 @@ describe('the layout a week sends', () => {
 			expect(sent[0].overrides.loads).toHaveLength(
 				declaredRows(opened.declared[0], sent[0].overrides)
 			);
-			expect(carryStaleFlags(stored, sent)[0].override_stale).toBeUndefined();
+			expect(carryStaleFlags(opened.trees, stored, sent)[0].override_stale).toBeUndefined();
 		});
 
 		it('loses its marking with it, since nothing refused is being asked for', () => {

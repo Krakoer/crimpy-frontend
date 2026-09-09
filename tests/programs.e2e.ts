@@ -2395,13 +2395,23 @@ test('opens a week that schedules the same training twice', async ({ page }) => 
 const STALE_REASON =
 	'reps_is_max leaves the rep count open and cannot also be a percentage of an assessment';
 
+/**
+ * The week read attributes that refusal to both fields the check read, as
+ * validateRepsIsMax in crimpy-backend/internal/handler/training_items.go names
+ * them. Only the marker is in the row: the percentage is the item's side of the
+ * disagreement, so it is the marker the block marks and the marker a coach can
+ * move to clear it.
+ */
 function staleAmrapOverride() {
 	return {
 		id: 'override-1',
 		item_id: 'item-exercise',
 		overrides: { reps_is_max: true },
 		override_stale: true,
-		stale_reason: STALE_REASON
+		stale_fields: [
+			{ field: 'reps_is_max', reason: STALE_REASON },
+			{ field: 'variable_targets', reason: STALE_REASON }
+		]
 	};
 }
 
@@ -2476,6 +2486,88 @@ test('keeps the marking on a week reopened and applied without clearing it', asy
 	// key for key, so the refusal it answered still stands and the week says the
 	// save will be refused rather than reading as fixed.
 	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+});
+
+test('keeps a marked block marked while the coach edits another field of it', async ({ page }) => {
+	// Krakoer/crimpy#100. The server refuses one field of a row it stores whole,
+	// so the marking is read per field: the marker the training no longer takes is
+	// still in the row, so the block stays marked through an edit that has nothing
+	// to do with it. Dropping the marking there told the coach the week was clean
+	// and then had the save answer with the refusal in prose, with nothing on
+	// screen naming the block to clear.
+	await stubTwoWeekProgram(page, [staleAmrapOverride()]);
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	const cover = page.getByTestId('cell:2:1').getByRole('button', {
+		name: 'Customised training parameters, week 2, a change stopped applying',
+		exact: true
+	});
+	await cover.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	// The block names the value the check refuses rather than only itself, and the
+	// check's wording is handed over as the check's own words: the two can name
+	// different things, and the label is the authority on which value is at fault.
+	const named = modal.getByTestId('stale-override-field');
+	await expect(named).toContainText("this week's AMRAP marker");
+	await expect(named).toContainText(STALE_REASON);
+	// The percentage the same refusal names is the item's side of the
+	// disagreement and is not in the row, so the coach is not sent to it.
+	await expect(named).not.toContainText('percentage of an assessment.');
+
+	await modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).fill('30');
+	await modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).blur();
+
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	await expect(named).toContainText("this week's AMRAP marker");
+	await expect(
+		modal.getByRole('button', { name: 'Reset this block to the training' })
+	).toBeVisible();
+
+	// And the marking rides out of the modal with the row, so the week still says
+	// the save will be refused rather than reading as fixed.
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
+	await expect(cover).toBeVisible();
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+	// The rest the coach set rides along with the marker the week stored, which is
+	// the field the server refused and the reason the marking has to stand. The
+	// editor mirrors the rest into a minute and a second box, so the minute the
+	// training prescribes and the thirty seconds typed here make ninety.
+	expect(savedOverrides(saved, 'item-exercise', 2)).toEqual({
+		reps_is_max: true,
+		rest_seconds: 90
+	});
+});
+
+test('drops the marking once the refused field itself moves', async ({ page }) => {
+	// The other half of the rule: the marker is the field the check refused, so
+	// clearing it is the coach asking for something the server has not judged.
+	// Only the save can answer that, and nothing on screen may claim otherwise.
+	await stubTwoWeekProgram(page, [staleAmrapOverride()]);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-override')).toBeVisible();
+	await modal.getByTestId('amrap-toggle').click();
+
+	await expect(modal.getByTestId('stale-overrides-banner')).toHaveCount(0);
+	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
 });
 
 test('a locked session does not offer to clear the override it cannot change', async ({ page }) => {
@@ -2553,6 +2645,17 @@ const kg = (value: number) => ({ value, unit: 'kg' });
 const GRID_STALE_REASON = 'loads holds 6 entries but the granularity declares 8 rows';
 
 /**
+ * How the week read attributes a refusal about an array that disagrees with the
+ * row count: to the array, and to the three fields the count is read from, since
+ * either side of the disagreement is a field the coach can move. It mirrors
+ * validateRowArray and rowLayoutFields in
+ * crimpy-backend/internal/handler/training_items.go.
+ */
+function rowCountRefusal(reason: string, array: string) {
+	return [array, 'granularity', 'cycles', 'reps'].map((field) => ({ field, reason }));
+}
+
+/**
  * A hangboard grid the coach has since made longer: four reps a set where the
  * week's override was written against three. The merge and the normalisation
  * rewrite the stored arrays into the layout this training declares, so the modal
@@ -2589,7 +2692,7 @@ function staleGridOverride() {
 		item_id: 'item-grid',
 		overrides: { loads: [kg(14), kg(14), kg(16), kg(14), kg(14), kg(16)] },
 		override_stale: true,
-		stale_reason: GRID_STALE_REASON
+		stale_fields: rowCountRefusal(GRID_STALE_REASON, 'loads')
 	};
 }
 
@@ -2614,6 +2717,12 @@ test('marks a grid override the training outgrew and leaves the stored numbers a
 	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
 	const notice = modal.getByTestId('stale-override');
 	await expect(notice).toContainText(GRID_STALE_REASON);
+	// The column is what the line names. The layout, the sets and the rep count
+	// the same refusal names are the item's side of the disagreement and are not
+	// in the row, so the coach is not sent to them.
+	const named = notice.getByTestId('stale-override-field');
+	await expect(named).toContainText("this week's loads");
+	await expect(named).not.toContainText('layout');
 	// Resetting is judged as one row, so what else goes with it is said before the
 	// coach presses it.
 	await expect(notice).toContainText('anything else this week asks of it goes too');
@@ -2756,7 +2865,10 @@ function undoneStaleOverride() {
 			left_loads: [kg(14), kg(14), kg(16), kg(16), kg(14), kg(14), kg(16), kg(16)]
 		},
 		override_stale: true,
-		stale_reason: UNDONE_STALE_REASON
+		stale_fields: [
+			{ field: 'left_loads', reason: UNDONE_STALE_REASON },
+			{ field: 'hand', reason: UNDONE_STALE_REASON }
+		]
 	};
 }
 
@@ -2782,6 +2894,16 @@ test('points at the apply where the refused row leaves nothing to reset', async 
 	const notice = modal.getByTestId('stale-override');
 	await expect(notice).toContainText(UNDONE_STALE_REASON);
 	await expect(notice).toContainText('nothing of it is left to change here');
+	// The column is what the line names, and the mode the same refusal names is
+	// not: it is the item's side of the disagreement, this week sets no hand mode
+	// and the training is what holds it. Naming it here read "this week's left
+	// hand loads and hand mode", which sends the coach looking for a value of
+	// theirs that is not there. Only the standing bucket was ever asserted end to
+	// end, which is how this bucket came to word it differently.
+	const named = notice.getByTestId('stale-override-field');
+	await expect(named).toContainText("this week's left hand loads");
+	await expect(named).not.toContainText('hand mode');
+	await expect(named).toContainText(UNDONE_STALE_REASON);
 	// A reset here could not move the block, so it is not offered: the coach is
 	// pointed at the gesture that does drop the row.
 	await expect(
@@ -2964,7 +3086,7 @@ function refusedGridOverride() {
 			item_id: 'item-grid',
 			overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
 			override_stale: true,
-			stale_reason: GRID_STALE_REASON
+			stale_fields: rowCountRefusal(GRID_STALE_REASON, 'loads')
 		}
 	];
 }
@@ -3015,6 +3137,80 @@ test('drops the marking with the layout the coach chose on a refused grid', asyn
 	expect(savedOverrideRows(saved, 2)).toEqual([
 		{ item_id: 'item-grid', overrides: { loads: Array.from({ length: 8 }, () => kg(30)) } }
 	]);
+});
+
+/**
+ * The same refused row, naming the layout it was written in. The training
+ * declares that same layout, so the row is what the write path judged its six
+ * loads against, and the diff omits the field as unchanged.
+ */
+function refusedSetGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: {
+				granularity: 'set',
+				loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
+			},
+			override_stale: true,
+			stale_fields: rowCountRefusal(GRID_STALE_REASON, 'loads')
+		}
+	];
+}
+
+test('keeps a refused grid marked where the training reads back as one row', async ({ page }) => {
+	// Krakoer/crimpy#100 round one. The refusal names the layout the row declares
+	// as well as the loads, and the row carries both. Whether the week is still
+	// asking for them is measured against the training as the write path lays it
+	// out, which is the tree the row was diffed against; measured against the tree
+	// the editor reads, whose own loads coincide and which therefore reads back as
+	// a single row, the layout the row declares looked moved and the refusal read
+	// as cleared.
+	//
+	// So the coach was told the week was clean, the save then PUT six loads onto a
+	// block declaring eight rows, and the refusal came back as prose in the save
+	// error with nothing on screen marked: this ticket's own failure, one case
+	// over.
+	await stubTwoWeekProgram(page, refusedSetGridOverride(), flatGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	const cover = page.getByTestId('cell:2:1').getByRole('button', {
+		name: 'Customised training parameters, week 2, a change stopped applying',
+		exact: true
+	});
+	await cover.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	const notice = modal.getByTestId('stale-override');
+	await expect(notice).toContainText(GRID_STALE_REASON);
+	await expect(notice.getByTestId('stale-override-field')).toContainText("this week's loads");
+
+	// An edit to the rest is not the coach answering the refusal, so the block
+	// stays marked and the reset stays on offer.
+	const rest = modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true });
+	await rest.fill('9');
+	await rest.blur();
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	await expect(notice).toContainText(GRID_STALE_REASON);
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
+	await expect(cover).toBeVisible();
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	// The six loads the week stored ride out with the rest the coach typed, which
+	// is the row the server refused and the reason the marking has to stand.
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		rest_seconds: 9,
+		loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
+	});
 });
 
 /**
