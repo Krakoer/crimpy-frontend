@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Exercise, TrainingItem, VariableTarget, VariableTargets } from '$lib/api/client';
+	import type { Exercise, TrainingItem } from '$lib/api/client';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
@@ -11,9 +11,9 @@
 		assessmentLabel,
 		assessmentsForField,
 		formatLoad,
-		type AssessmentCatalog,
-		type VariableField
+		type AssessmentCatalog
 	} from '$lib/assessments';
+	import { createPrescription } from './exercise-prescription';
 
 	interface Props {
 		item: TrainingItem;
@@ -30,10 +30,6 @@
 	// override carries, are not rendered there.
 	const overrideMode = getContext<OverrideMode | undefined>(OVERRIDE_KEY);
 	const overriding = overrideMode !== undefined;
-
-	// The two fields an exercise can prescribe either way, which are also the two
-	// it prescribes one at a time.
-	type DurationOrReps = Extract<VariableField, 'duration' | 'reps'>;
 
 	const MAX_COMMENT_LENGTH = 200;
 
@@ -62,47 +58,55 @@
 	let durationSec = $state(initialSeconds % 60);
 	let repsCount = $state<number | null>(item.variable_targets?.reps?.fallback ?? item.reps ?? 0);
 
-	// A duration of nothing is a block with no time to run for, and the editors
-	// hold the floor at one second so a coach clearing both boxes on the way to
-	// typing a new value cannot save one. Without it a week saves duration 0,
-	// which reads back as a rep exercise rather than the timed one it is. An
-	// emptied number box binds as null, which the backend refuses as a fallback
-	// and which fails the whole save, so the rep count takes the same floor.
-	function prescribedSeconds(): number {
-		return Math.max(1, durationMin * 60 + durationSec);
-	}
-
-	function prescribedReps(): number {
-		return Math.max(1, repsCount ?? 0);
-	}
-
-	// While a percentage stands the boxes hold its fallback. In a training the
-	// plain field is that same number written twice, so it moves with it: the
-	// read-only views and every client that cannot resolve the percentage read one
-	// of the two, and a training holding two different numbers plays neither.
-	//
-	// A week is the one place they may differ, because there a plain number beside
-	// the percentage says the week prescribes a flat value instead, and every
-	// client resolves the percentage first, so the flat value is the one that
-	// would be dropped.
-	$effect(() => {
-		if (!isDuration) return;
-		const seconds = prescribedSeconds();
-		const target = item.variable_targets?.duration;
-		if (target) target.fallback = seconds;
-		if (!target || !overriding) item.duration = seconds;
+	// Which of the two the boxes mean, and what each toggle takes away and puts
+	// back, is the machinery three review rounds found defects in, so it lives in
+	// a module of its own where a test can run a sequence of clicks without
+	// mounting anything. The boxes stay here because the inputs bind to them, and
+	// are handed over through accessors.
+	const prescription = createPrescription({
+		get item() {
+			return item;
+		},
+		get catalog() {
+			return catalog;
+		},
+		get overrideMode() {
+			return overrideMode;
+		},
+		boxes: {
+			get isDuration() {
+				return isDuration;
+			},
+			set isDuration(value) {
+				isDuration = value;
+			},
+			get durationMin() {
+				return durationMin;
+			},
+			set durationMin(value) {
+				durationMin = value;
+			},
+			get durationSec() {
+				return durationSec;
+			},
+			set durationSec(value) {
+				durationSec = value;
+			},
+			get repsCount() {
+				return repsCount;
+			},
+			set repsCount(value) {
+				repsCount = value;
+			}
+		}
 	});
 
-	// An open rep count prescribes no number at all, so the box behind it writes
-	// nothing while it stands. Neither does an emptied box: the floor is the
-	// fallback's, which the backend refuses as null, and a plain count floored the
-	// same way would have a week prescribe one rep of an exercise the training
-	// asks eight of, with nothing on screen saying so.
 	$effect(() => {
-		if (isDuration || isAmrap) return;
-		const target = item.variable_targets?.reps;
-		if (target) target.fallback = prescribedReps();
-		if ((!target || !overriding) && repsCount != null) item.reps = repsCount;
+		prescription.syncDuration();
+	});
+
+	$effect(() => {
+		prescription.syncReps();
 	});
 
 	let restMin = $state(Math.floor((item.rest_seconds ?? 0) / 60));
@@ -149,163 +153,12 @@
 
 	// An open rep count is the AMRAP: it prescribes no number, so it rules out
 	// both the fixed one and the percentage that would compute one.
-	let isAmrap = $derived(item.reps_is_max === true);
-
-	// The plain value a percentage was put back over the top of, beside the
-	// fallback that took its place in the boxes. It only goes back when the boxes
-	// still read that fallback: a coach who typed over it since meant the number
-	// they typed.
-	type DisplacedValue = { plain: number; shown: number };
-
-	// What each button took away, so releasing one puts back what that one
-	// displaced and nothing else. None of it is readable off the tree on screen in
-	// a week: the override was merged into it before the editor saw it.
-	//
-	// The % button says whether this week prescribes a plain value, so it owns
-	// both directions: off keeps the percentage, on keeps the plain value it
-	// covers up. The AMRAP button keeps its own percentage rather than sharing
-	// either, because releasing it would otherwise reach for the % button's or the
-	// training's and resurrect one the coach turned off on purpose.
-	let clearedTargets: VariableTargets = {};
-	let displacedValues: Partial<Record<DurationOrReps, DisplacedValue>> = {};
-	let amrapClearedTarget: VariableTarget | undefined;
-
-	function trainingItem(): TrainingItem | undefined {
-		return item.id ? overrideMode?.baseItem(item.id) : undefined;
-	}
-
-	function prescribedValue(field: DurationOrReps): number {
-		return field === 'duration' ? prescribedSeconds() : prescribedReps();
-	}
-
-	// The boxes read as the fallback while a percentage stands, so a percentage
-	// put back brings its own number with it: that is what makes the toggle undo
-	// itself rather than leave the plain value the coach typed reading as one.
-	function showValue(field: DurationOrReps, value: number) {
-		if (field === 'duration') {
-			durationMin = Math.floor(value / 60);
-			durationSec = value % 60;
-		} else {
-			repsCount = value;
-		}
-	}
-
-	// The plain field is not a week's to send while a percentage stands: the
-	// clients resolve the percentage first, and a number beside it says the week
-	// prescribes a flat value, which is what would clear the percentage again.
-	// Putting the training's number back leaves the percentage travelling alone.
-	function restorePrescribedValue(field: DurationOrReps) {
-		const base = trainingItem();
-		if (!base) return;
-		if (field === 'duration') item.duration = base.duration;
-		else item.reps = base.reps;
-	}
-
-	// Copied rather than held: the fallback follows the boxes from here, and the
-	// training this week is read against is not the week's to write into.
-	function applyTarget(field: DurationOrReps, target: VariableTarget) {
-		item.variable_targets = { ...item.variable_targets, [field]: { ...target } };
-		showValue(field, target.fallback);
-		restorePrescribedValue(field);
-	}
-
-	function setAmrap(on: boolean) {
-		item.reps_is_max = on;
-		if (on) {
-			amrapClearedTarget = $state.snapshot(item.variable_targets?.reps);
-			toggleVariable('reps', false);
-			return;
-		}
-		if (amrapClearedTarget) {
-			applyTarget('reps', amrapClearedTarget);
-			amrapClearedTarget = undefined;
-			return;
-		}
-		// Closing an open rep count has to land on a number the athlete can run,
-		// and an item that was written as an AMRAP may carry none at all.
-		if (!repsCount) repsCount = 1;
-	}
+	let isAmrap = $derived(prescription.isAmrap());
 
 	// Reps and duration are exclusive, so only the active one can be variable.
-	let variableField = $derived<DurationOrReps>(isDuration ? 'duration' : 'reps');
+	let variableField = $derived(prescription.variableField());
 	let variableTarget = $derived(item.variable_targets?.[variableField]);
 	let canBeVariable = $derived(assessmentsForField(variableField, catalog).length > 0);
-
-	// The reps and duration inputs edit the fallback once the field is variable,
-	// so the plain value a client without assessment data reads stays right.
-	function toggleVariable(field: DurationOrReps, on: boolean) {
-		const targets = { ...(item.variable_targets ?? {}) };
-		if (on) {
-			targets[field] = {
-				assessment_id: assessmentsForField(field, catalog)[0],
-				percent: 75,
-				fallback: prescribedValue(field)
-			};
-		} else {
-			delete targets[field];
-		}
-		item.variable_targets = Object.keys(targets).length > 0 ? targets : undefined;
-	}
-
-	// Turning the percentage off is how a week says it prescribes a plain number
-	// this time, and turning it back on is how it takes that back. Both are the
-	// coach saying which of the two the boxes below mean, which is what nothing
-	// else in the panel can tell.
-	//
-	// A training has only one number to mean, so the toggle there says no more
-	// than which shape the field is prescribed in: the boxes are the fallback
-	// either way, and putting back a pair the coach has typed over since would
-	// throw away what they typed.
-	function setVariable(on: boolean) {
-		const field = variableField;
-		if (!overriding) {
-			toggleVariable(field, on);
-			return;
-		}
-		if (!on) {
-			clearedTargets[field] = $state.snapshot(item.variable_targets?.[field]);
-			toggleVariable(field, false);
-			const displaced = displacedValues[field];
-			if (displaced && prescribedValue(field) === displaced.shown) {
-				showValue(field, displaced.plain);
-			}
-			delete displacedValues[field];
-			return;
-		}
-		const remembered = clearedTargets[field] ?? trainingItem()?.variable_targets?.[field];
-		if (remembered) {
-			displacedValues[field] = { plain: prescribedValue(field), shown: remembered.fallback };
-			delete clearedTargets[field];
-			applyTarget(field, remembered);
-			return;
-		}
-		toggleVariable(field, true);
-		restorePrescribedValue(field);
-	}
-
-	// An emptied number box binds as null, and a percentage of null fails the
-	// whole save rather than the field, so the box lands on a percentage again
-	// once the coach leaves it.
-	function floorPercent() {
-		const target = item.variable_targets?.[variableField];
-		if (target) target.percent = Math.max(1, target.percent ?? 0);
-	}
-
-	function setDurationMode() {
-		durationMin = 0;
-		durationSec = 0;
-		item.reps = 0;
-		toggleVariable('reps', false);
-		item.reps_is_max = false;
-		isDuration = true;
-	}
-
-	function setRepsMode() {
-		item.duration = 0;
-		if (!repsCount) repsCount = 1;
-		toggleVariable('duration', false);
-		isDuration = false;
-	}
 
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(
 		COLLAPSE_KEY
@@ -441,7 +294,7 @@
 						style="display: flex; gap: 2px; background: var(--panel2); border-radius: 5px; padding: 2px;"
 					>
 						<button
-							onclick={() => setRepsMode()}
+							onclick={() => prescription.setRepsMode()}
 							style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {!isDuration
 								? '#fff'
 								: 'transparent'}; color: {!isDuration
@@ -451,7 +304,7 @@
 								: 'none'};">Reps</button
 						>
 						<button
-							onclick={() => setDurationMode()}
+							onclick={() => prescription.setDurationMode()}
 							style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {isDuration
 								? '#fff'
 								: 'transparent'}; color: {isDuration
@@ -469,7 +322,7 @@
 							min="1"
 							aria-label="Percent of assessment"
 							bind:value={variableTarget.percent}
-							onchange={floorPercent}
+							onchange={() => prescription.floorPercent()}
 							onclick={(e) => e.stopPropagation()}
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
@@ -534,7 +387,7 @@
 							data-testid="amrap-toggle"
 							onclick={(e) => {
 								e.stopPropagation();
-								setAmrap(!isAmrap);
+								prescription.setAmrap(!isAmrap);
 							}}
 							title={isAmrap
 								? 'Prescribe a rep count'
@@ -552,7 +405,7 @@
 							data-testid="variable-toggle"
 							onclick={(e) => {
 								e.stopPropagation();
-								setVariable(!variableTarget);
+								prescription.setVariable(!variableTarget);
 							}}
 							title={variableTarget
 								? 'Prescribe a plain value instead of the percentage'
