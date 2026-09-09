@@ -3023,18 +3023,35 @@ function steppedGridOverride() {
 	];
 }
 
+/**
+ * A week prescribing one hang for the whole block, in a row that says so. The
+ * editor reads it back as the single row it is, which since Krakoer/crimpy#101
+ * is the only way a grid reads as one row: a week whose loads varied is merged
+ * onto the training written out in the layout its row declares, and is read as
+ * varying.
+ */
+function flatWeekGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: { granularity: 'uniform', loads: [kg(20)] }
+		}
+	];
+}
+
 test('sends the layout the coach chose on a grid that read as one row', async ({ page }) => {
-	// Krakoer/crimpy#99 round one. The week's eight loads merge onto a training
-	// the editor reads back as a single row, so the coach is shown the first of
-	// them and nothing else. Choosing to vary by set is them prescribing that one
-	// hang on every rep, and it has to be what goes out.
+	// Krakoer/crimpy#99 round one. The week's eight loads all say the same thing,
+	// so the editor reads the week back as a single row. Choosing to vary by set
+	// is the coach prescribing that one hang on every rep, and it has to be what
+	// goes out.
 	//
 	// The request is written in the layout the item is declared in whichever
 	// layout is on screen, so it does not move when they make that choice: only
 	// what they read can say they made it. Measured against the request, the grid
-	// read as untouched and the week's eight stepped loads went back over the
-	// eight identical ones the coach was looking at.
-	await stubTwoWeekProgram(page, steppedGridOverride(), flatGridTraining());
+	// read as untouched and the week's stored row went back over the layout the
+	// coach had just picked.
+	await stubTwoWeekProgram(page, flatWeekGridOverride(), flatGridTraining());
 	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
 	const modal = await openWeekParameters(page, 2);
@@ -3074,19 +3091,25 @@ test('sends a load typed into the collapsed row in the layout the training decla
 });
 
 /**
- * The week's own loads, written when the block ran three reps a set, against the
- * eight rows it declares now. The write path refuses the row, and no layout the
- * training declares explains six rows, so nothing can re-express them: the
- * collapse leaves the coach reading the first of them alone.
+ * The wording the write path answers a row holding more loads than the block has
+ * rows left with.
+ */
+const GRID_STALE_REASON_LONG = 'loads holds 12 entries but the granularity declares 8 rows';
+
+/**
+ * The week's own loads, written when the block ran three sets, against the eight
+ * rows it declares now. The write path refuses the row for the four the training
+ * dropped, and the rows the block still has all read the one load, so the editor
+ * reads the week back as a single row.
  */
 function refusedGridOverride() {
 	return [
 		{
 			id: 'override-1',
 			item_id: 'item-grid',
-			overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
+			overrides: { loads: Array.from({ length: 12 }, () => kg(30)) },
 			override_stale: true,
-			stale_fields: rowCountRefusal(GRID_STALE_REASON, 'loads')
+			stale_fields: rowCountRefusal(GRID_STALE_REASON_LONG, 'loads')
 		}
 	];
 }
@@ -3118,7 +3141,7 @@ test('drops the marking with the layout the coach chose on a refused grid', asyn
 
 	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
 	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
-	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON);
+	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON_LONG);
 	await expect(modal.getByLabel('Load', { exact: true })).toHaveValue('30');
 
 	await modal.getByRole('radio', { name: 'Set', exact: true }).click();
@@ -3246,8 +3269,10 @@ test('claims no customisation where the layout the coach chose is the training',
 	page
 }) => {
 	// The other half of round two: the layout on screen moved, and what the week
-	// asks of the server did not, because four hangs of 20kg is what the training
-	// prescribes whichever layout says so. Applying drops the row, so a footer
+	// asks of the server did not, because four hangs of 20 kg is what the training
+	// prescribes whichever layout says so. Every one of the week's four loads has
+	// to be that hang: a row asking for anything else is a prescription of this
+	// week's, which is Krakoer/crimpy#101 and not this. Applying drops the row, so a footer
 	// counting the block would claim a customisation the apply then contradicts.
 	// Customised for this week is a statement about the week, so it reads off
 	// what goes to the server.
@@ -3257,7 +3282,7 @@ test('claims no customisation where the layout the coach chose is the training',
 			{
 				id: 'override-1',
 				item_id: 'item-grid',
-				overrides: { loads: [kg(20), kg(21), kg(22), kg(23)] }
+				overrides: { loads: Array.from({ length: 4 }, () => kg(20)) }
 			}
 		],
 		shortFlatGridTraining()
@@ -3279,4 +3304,68 @@ test('claims no customisation where the layout the coach chose is the training',
 	await expect(page.getByText('Program saved')).toBeVisible();
 
 	expect(savedOverrideRows(saved, 2)).toEqual([]);
+});
+
+test('shows a week whose grid varies over a training whose own grid does not', async ({ page }) => {
+	// Krakoer/crimpy#101. The week's row is written against the rows of the layout
+	// it declares, and it used to be merged onto the tree the editor reads, which
+	// the training's own coinciding loads had already collapsed to a single row.
+	// Eight values landed on one row and the coach was shown the first of them, on
+	// a week they wrote themselves.
+	await stubTwoWeekProgram(page, steppedGridOverride(), flatGridTraining());
+
+	const modal = await openWeekParameters(page, 2);
+
+	// Every hang the week prescribes, read off the session map the way the coach
+	// reads it. The first is the one the collapse used to keep.
+	await expect(modal.getByTitle('Rep 1: 20mm, HC 20 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 2: 20mm, HC 21 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 4: 20mm, HC 23 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 1: 20mm, HC 24 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 4: 20mm, HC 27 kg')).toBeVisible();
+});
+
+test('keeps the grid of a week whose first load is the one the training prescribes', async ({
+	page
+}) => {
+	// The same bug where nothing showed at all. The week's first load is the
+	// training's, so the collapsed row read exactly as the training and the diff
+	// came out empty: no badge, a footer saying this week runs the training as it
+	// is written, and an apply that sent no row for the block. The three loads the
+	// week held went with it, and keepStoredGridArrays could not put them back
+	// because nothing had been emitted for it to substitute into.
+	await stubTwoWeekProgram(
+		page,
+		[
+			{
+				id: 'override-1',
+				item_id: 'item-grid',
+				overrides: { loads: [kg(20), kg(21), kg(22), kg(23)] }
+			}
+		],
+		shortFlatGridTraining()
+	);
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByText('This week runs the training as it is written')).toHaveCount(0);
+	await expect(modal.getByTitle('Rep 2: 20mm, HC 21 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 1: 20mm, HC 22 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 2: 20mm, HC 23 kg')).toBeVisible();
+	await expect(modal.getByRole('button', { name: 'Reset to the training' })).toBeVisible();
+
+	// An edit to the rest is what makes the week dirty, and it is the gesture that
+	// used to delete the grid: the row that went out carried the rest alone.
+	const rest = modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true });
+	await rest.fill('9');
+	await rest.blur();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		rest_seconds: 9,
+		loads: [kg(20), kg(21), kg(22), kg(23)]
+	});
 });
