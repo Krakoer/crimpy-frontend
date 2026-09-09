@@ -4,6 +4,7 @@ import {
 	buildOverrideHistory,
 	carryStaleFlags,
 	diffOverrides,
+	keepStoredGridArrays,
 	mergeOverrides,
 	overrideSummary,
 	resetItemToBase,
@@ -13,7 +14,12 @@ import {
 	staleOverridesDroppedByApply,
 	standingStaleOverrides
 } from './program-overrides';
-import { normalizeHangboardItems } from '$lib/components/training/hangboard-config';
+import {
+	commonConfig,
+	currentLayout,
+	normalizeHangboardItems,
+	rebuildArrays
+} from '$lib/components/training/hangboard-config';
 import { applyItemReadDefaults } from '$lib/components/training/item-defaults';
 import { prepareEditableTree } from '$lib/components/training/create-item';
 import type { AssessmentCatalog } from '$lib/assessments';
@@ -622,7 +628,13 @@ describe('a stale override on a grid item', () => {
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, []);
 		prepareEditableTree(merged);
-		return { baseItems, items: merged, opening: diffOverrides(baseItems, merged) };
+		// Cloned as the modal clones it: the diff hands back the arrays of the tree
+		// it read, and the request the modal opened on has to hold still.
+		return {
+			baseItems,
+			items: merged,
+			opening: structuredClone(diffOverrides(baseItems, merged))
+		};
 	}
 
 	it('cannot be recognised by comparing the request against the stored row', () => {
@@ -637,23 +649,84 @@ describe('a stale override on a grid item', () => {
 		expect(standing[0].stale_reason).toBe(REFUSED_REASON);
 	});
 
-	it('goes back to the server asking for the layout the training declares', () => {
-		// What the merge and the normalisation emit is a request the write path
-		// takes: the arrays carry one entry per row the granularity declares.
+	it('is rewritten into the layout the training declares for the editor to read', () => {
+		// The editor addresses every rep of every set, so the tree it is handed
+		// carries one entry per row the granularity declares. The eighteen loads
+		// the coach typed against six reps a set are spread over twenty four rows
+		// and the rows the training added are filled from a fallback, which is a
+		// guess: nothing stored says which layout those numbers were typed against.
 		const { baseItems, items } = openModal();
 		const emitted = diffOverrides(baseItems, items);
 		expect(emitted[0].overrides.loads).toHaveLength(24);
 		expect(emitted[0].overrides.loads).not.toEqual(stored[0].overrides.loads);
 	});
 
-	it('loses its marking on an apply, since the refused request is not the one sent', () => {
+	it('goes back to the server as the week stored it while the coach leaves it alone', () => {
+		// The guess above stays on screen. Applying a week nobody touched writes
+		// nothing: the coach's eighteen loads are still the week's, so they can be
+		// read, kept or cleared rather than being replaced by a rewrite of
+		// themselves.
+		const { baseItems, items, opening } = openModal();
+		const sent = keepStoredGridArrays(stored, opening, diffOverrides(baseItems, items));
+		expect(sent).toHaveLength(1);
+		expect(sent[0].overrides).toEqual(stored[0].overrides);
+	});
+
+	it('keeps its marking on an apply, since the request the server refused goes back', () => {
 		// The marking in the modal answers whether the coach touched the item; what
-		// the flag carried out of it answers is whether the next save is refused,
-		// and this request is not the one the server refused.
-		const { baseItems, items } = openModal();
-		const applied = carryStaleFlags(stored, diffOverrides(baseItems, items));
+		// the flag carried out of it answers is whether the next save is refused.
+		// The two agree now that an untouched grid goes back as it was stored.
+		const { baseItems, items, opening } = openModal();
+		const sent = keepStoredGridArrays(stored, opening, diffOverrides(baseItems, items));
+		const applied = carryStaleFlags(stored, sent);
 		const flagged = applied.find((override) => override.item_id === 'grid');
-		expect(flagged?.override_stale).toBeUndefined();
+		expect(flagged?.override_stale).toBe(true);
+		expect(flagged?.stale_reason).toBe(REFUSED_REASON);
+	});
+
+	it('goes back laid out again once the coach edits a load', () => {
+		// A grid the coach worked in is theirs, and every array of it has to agree
+		// with the row count the training declares, so it goes out whole.
+		const { baseItems, items, opening } = openModal();
+		items[0].loads![0] = kg(99);
+		const sent = keepStoredGridArrays(stored, opening, diffOverrides(baseItems, items));
+		expect(sent[0].overrides.loads).toHaveLength(24);
+		expect(sent[0].overrides.loads![0]).toEqual(kg(99));
+	});
+
+	it('goes back laid out again once the coach resizes the grid', () => {
+		// Resizing is the coach asking for the arrays to be laid out against the
+		// new row count, and the backend refuses a resize that does not resend
+		// them, so the stored arrays are not what goes back there.
+		const { baseItems, items, opening } = openModal();
+		const item = items[0];
+		const seed = commonConfig(item);
+		const before = currentLayout(item, 'set');
+		item.reps = 4;
+		rebuildArrays(item, 'set', before, seed);
+		const sent = keepStoredGridArrays(stored, opening, diffOverrides(baseItems, items));
+		expect(sent[0].overrides.reps).toBe(4);
+		expect(sent[0].overrides.loads).toHaveLength(12);
+	});
+
+	it('loses its marking once the coach rewrites the grid', () => {
+		// What goes back then is the coach's own work laid out against the row
+		// count the training declares, which is not the row the server refused.
+		const { baseItems, items, opening } = openModal();
+		items[0].loads![0] = kg(99);
+		expect(standingStaleOverrides(stored, opening, diffOverrides(baseItems, items))).toEqual([]);
+	});
+
+	it('leaves an override on another item alone', () => {
+		const { baseItems, items, opening } = openModal();
+		const current = [
+			...diffOverrides(baseItems, items),
+			{ item_id: 'amrap', overrides: { reps_is_max: true } }
+		];
+		const sent = keepStoredGridArrays(stored, opening, current);
+		expect(sent.find((override) => override.item_id === 'amrap')?.overrides).toEqual({
+			reps_is_max: true
+		});
 	});
 
 	it('keeps a non-grid refusal, which does go back byte for byte', () => {
@@ -677,6 +750,79 @@ describe('a stale override on a grid item', () => {
 		const current = diffOverrides(baseItems, items);
 		expect(standingStaleOverrides(stored, opening, current)).toEqual([]);
 		expect(carryStaleFlags(stored, current)).toEqual(current);
+	});
+});
+
+// The normalisation rewrites every array of the item, not only the one the week
+// stored, so a week that asked the block for one thing comes back asking for
+// three. Those extra arrays are the training's own values reshaped, which is a
+// prescription no coach ever wrote, and the week must not start carrying them.
+describe('a grid override the normalisation reaches past', () => {
+	const kg = (value: number) => ({ value, unit: 'kg' as const });
+
+	// Two sets of two reps, the edges and the grips varying from set to set, so
+	// collapsing the item to a single row cannot keep them.
+	function gridTraining(): TrainingItem[] {
+		const items: TrainingItem[] = [
+			{
+				id: 'grid',
+				_id: 'grid',
+				type: 'repeater',
+				cycles: 2,
+				reps: 2,
+				hand: 'both',
+				granularity: 'set',
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				loads: [kg(20), kg(20), kg(22), kg(22)],
+				edge_sizes_mm: [20, 20, 14, 14],
+				hand_positions: [['HC', 'HC', 'FC', 'FC']]
+			}
+		];
+		normalizeHangboardItems(items);
+		applyItemReadDefaults(items, []);
+		return items;
+	}
+
+	// The week asks the block for one load everywhere, which is the shape the
+	// item declared when the coach wrote it.
+	const stored: SessionOverride[] = [
+		{ item_id: 'grid', overrides: { granularity: 'uniform', loads: [kg(30)] } }
+	];
+
+	function openModal() {
+		const baseItems = gridTraining();
+		const merged = mergeOverrides(baseItems, stored);
+		normalizeHangboardItems(merged);
+		applyItemReadDefaults(merged, []);
+		prepareEditableTree(merged);
+		// Cloned as the modal clones it: the diff hands back the arrays of the tree
+		// it read, and the request the modal opened on has to hold still.
+		return {
+			baseItems,
+			items: merged,
+			opening: structuredClone(diffOverrides(baseItems, merged))
+		};
+	}
+
+	it('reaches the edges and the grips the week never asked about', () => {
+		const emitted = openModal().opening;
+		expect(emitted[0].overrides.edge_sizes_mm).toEqual([20]);
+		expect(emitted[0].overrides.hand_positions).toEqual([['HC']]);
+	});
+
+	it('sends back only what the week asked for', () => {
+		const { baseItems, items, opening } = openModal();
+		const sent = keepStoredGridArrays(stored, opening, diffOverrides(baseItems, items));
+		expect(sent).toHaveLength(1);
+		expect(sent[0].overrides).toEqual(stored[0].overrides);
+	});
+
+	it('drops the row entirely when the arrays were the whole of it', () => {
+		// Nothing but rewritten arrays is nothing the week asked for, so the row
+		// goes rather than being sent empty.
+		const opening: SessionOverride[] = [{ item_id: 'grid', overrides: { loads: [kg(30)] } }];
+		expect(keepStoredGridArrays([], opening, opening)).toEqual([]);
 	});
 });
 
@@ -721,7 +867,13 @@ describe('a stale override the merge already undid', () => {
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, []);
 		prepareEditableTree(merged);
-		return { baseItems, items: merged, opening: diffOverrides(baseItems, merged) };
+		// Cloned as the modal clones it: the diff hands back the arrays of the tree
+		// it read, and the request the modal opened on has to hold still.
+		return {
+			baseItems,
+			items: merged,
+			opening: structuredClone(diffOverrides(baseItems, merged))
+		};
 	}
 
 	it('leaves the modal with nothing to diff on the item', () => {

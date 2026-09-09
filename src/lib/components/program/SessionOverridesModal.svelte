@@ -18,6 +18,7 @@
 		diffOverrides,
 		findItem,
 		itemIsOverridden,
+		keepStoredGridArrays,
 		mergeOverrides,
 		resetItemToBase,
 		standingStaleOverrides,
@@ -99,7 +100,10 @@
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
 		prepareEditableTree(merged);
-		openingRequest = diffOverrides(baseItems, merged);
+		// Cloned, because the diff hands back the very arrays of the tree it read:
+		// a grid it merely pointed at would follow the coach's edits and then say
+		// they had touched nothing.
+		openingRequest = structuredClone(diffOverrides(baseItems, merged));
 		items = merged;
 		editedTraining = training.id;
 	});
@@ -118,6 +122,12 @@
 	let droppedByApply = $derived(staleOverridesDroppedByApply(overrides, openingRequest));
 
 	let markedBlocks = $derived(standing.length + droppedByApply.length);
+
+	// What applying actually sends. The tree on screen is normalised into the
+	// layout the training now declares, which rewrites an array a week wrote
+	// against another row count, so a grid the coach has not touched goes back as
+	// the week stored it rather than as the normalisation guessed it.
+	let request = $derived(keepStoredGridArrays(overrides, openingRequest, edited));
 
 	const mode: OverrideMode = {
 		get readOnly() {
@@ -175,7 +185,7 @@
 	// this is measured against is the row the server judged, since that is what
 	// decides the next save.
 	function apply() {
-		onApply(carryStaleFlags(overrides, edited));
+		onApply(carryStaleFlags(overrides, request));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that

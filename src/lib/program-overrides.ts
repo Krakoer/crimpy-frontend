@@ -2,6 +2,7 @@ import {
 	OVERRIDE_ITEM_FIELDS,
 	type ItemOverride,
 	type Load,
+	type OverrideKey,
 	type SessionOverride,
 	type TrainingItem,
 	type TrainingItemType,
@@ -498,6 +499,73 @@ export function staleOverridesDroppedByApply(
 	);
 }
 
+// The arrays a grid item lays its configuration out in, beside the fields its
+// row count is derived from. What one entry of them means follows the layout the
+// item declared when the coach typed it, and nothing stored says what that
+// layout was.
+const GRID_ARRAY_FIELDS = ['loads', 'left_loads', 'hand_positions', 'edge_sizes_mm'] as const;
+
+const GRID_LAYOUT_FIELDS = ['granularity', 'hand', 'reps', 'cycles'] as const;
+
+function sameField(left: ItemOverride, right: ItemOverride, field: OverrideKey): boolean {
+	return JSON.stringify(orderedValue(left[field])) === JSON.stringify(orderedValue(right[field]));
+}
+
+// Whether the item's grid is still exactly what the modal opened on. The row
+// count is part of it: a coach who resized the grid is asking for the arrays to
+// be laid out again, and the backend refuses a resize that does not resend them.
+function gridUntouched(opened: ItemOverride, current: ItemOverride): boolean {
+	return [...GRID_LAYOUT_FIELDS, ...GRID_ARRAY_FIELDS].every((field) =>
+		sameField(opened, current, field)
+	);
+}
+
+// What the week goes back asking, with the grid of every block the coach did not
+// touch left as the week stored it.
+//
+// The editor addresses every rep of every set, so the tree it is handed is
+// normalised into the layout the training now declares, and an array a week
+// wrote against another row count is rewritten to fit: values move between the
+// sets, and the rows the training added are filled from a fallback. That is the
+// only tree the editor can work in, but it is a guess, because nothing stored
+// says which layout the coach typed those numbers against. Emitting it would
+// persist the guess the first time anyone so much as opened the week, over a
+// prescription the coach never revisited and cannot get back.
+//
+// So the rewrite stays on screen and out of the request. A block whose grid the
+// coach did touch goes out whole and normalised, which is what makes what they
+// see be what they get and keeps the arrays agreeing with the row count. A block
+// they did not touch goes back as it was stored, which leaves a refused week
+// refused, marked and clearable rather than quietly rewritten into a week that
+// saves and prescribes something else.
+export function keepStoredGridArrays(
+	stored: SessionOverride[],
+	opening: SessionOverride[],
+	current: SessionOverride[]
+): SessionOverride[] {
+	const storedByItem = requestByItem(stored);
+	const openingByItem = requestByItem(opening);
+	return current
+		.map((override) => {
+			const opened = openingByItem.get(override.item_id);
+			if (opened === undefined || !gridUntouched(opened, override.overrides)) return override;
+			const storedRequest = storedByItem.get(override.item_id);
+			// Held by reference, as the diff itself holds the arrays of the tree it
+			// read: this row is on its way to the server, and copying a week's own
+			// state to hand it straight back would only invite a snapshot helper
+			// that this module, which no component owns, cannot reach for.
+			const kept: ItemOverride = { ...override.overrides };
+			for (const field of GRID_ARRAY_FIELDS) {
+				if (kept[field] === undefined) continue;
+				const value = storedRequest?.[field];
+				if (value === undefined) delete kept[field];
+				else (kept[field] as unknown) = value;
+			}
+			return { ...override, overrides: kept };
+		})
+		.filter((override) => Object.keys(override.overrides).length > 0);
+}
+
 // What the week holds after the coach applies the modal. A refusal is carried
 // onto an override that goes back asking exactly what the server refused, so a
 // week merely opened and applied does not read as fixed while the save is still
@@ -506,9 +574,10 @@ export function staleOverridesDroppedByApply(
 // This is not the question the marking inside the modal answers. There it is
 // whether the coach has touched the item since it opened; here it is whether the
 // request the server judged is the request about to be sent, and the stored row
-// is the only thing that can say so. A grid override the merge rewrote into the
-// layout the training now declares is a different request, one the write path
-// takes, so carrying the refusal onto it would mark a week that saves.
+// is the only thing that can say so. The two now agree on a grid item, because
+// keepStoredGridArrays sends the grid of an untouched block back as it was
+// stored: a block the modal marks is a block the next save is still refused for,
+// and a block the coach rewrote goes out as a request the server has not judged.
 export function carryStaleFlags(
 	stored: SessionOverride[],
 	edited: SessionOverride[]
