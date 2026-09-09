@@ -4,14 +4,17 @@ import {
 	OVERRIDE_ITEM_FIELDS,
 	type ItemOverride,
 	type OverrideKey,
+	type SessionOverride,
 	type TrainingItem,
 	type TrainingItemType
 } from '$lib/api/client';
 import {
 	diffOverrides,
 	mergeOverrides,
+	overrideFieldLabel,
 	overrideSummary,
-	resetItemToBase
+	resetItemToBase,
+	standingStaleOverrides
 } from './program-overrides';
 
 // contract/override-keys.json is the backend's itemOverride key set, vendored
@@ -143,6 +146,42 @@ describe('the override key contract', () => {
 			if (silentSummaryKeys.includes(entry.key)) continue;
 			const summary = overrideSummary(baseItem(), { [entry.key]: entry.sample }, {});
 			expect(summary.trim(), `${entry.key} shows as nothing on the week`).not.toBe('');
+		}
+	});
+
+	it('names every key a refusal can be attributed to', () => {
+		// The week read attributes a refusal to the override key it is about, so a
+		// key the backend adds and this portal has no words for would leave a coach
+		// marked against a field the block cannot name.
+		for (const entry of contract.keys) {
+			expect(
+				overrideFieldLabel(entry.key).trim(),
+				`${entry.key} has no words a marked block can use`
+			).not.toBe('');
+		}
+	});
+
+	it('keeps a refusal on any key standing through an edit to another field', () => {
+		// Krakoer/crimpy#100 over the whole key set: the server refuses one field of
+		// a row it stores whole, so the marking is read per field and an edit
+		// elsewhere on the block leaves it alone.
+		for (const entry of contract.keys) {
+			const other: OverrideKey = entry.key === 'rest_seconds' ? 'duration' : 'rest_seconds';
+			const stored: SessionOverride[] = [
+				{
+					item_id: 'a',
+					overrides: { [entry.key]: entry.sample },
+					override_stale: true,
+					stale_fields: [{ field: entry.key, reason: 'the training no longer takes it' }]
+				}
+			];
+			const sent: SessionOverride[] = [
+				{ item_id: 'a', overrides: { [entry.key]: entry.sample, [other]: 7 } }
+			];
+			expect(
+				standingStaleOverrides([baseItem()], stored, sent).map((override) => override.item_id),
+				`a refusal about ${entry.key} is dropped when another field of the row moves`
+			).toEqual(['a']);
 		}
 	});
 

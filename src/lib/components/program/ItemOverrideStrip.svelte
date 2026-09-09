@@ -45,7 +45,24 @@
 			>
 				<div style="padding-top: 1px;"><Icon name="alert" size={13} color="var(--gd)" /></div>
 				<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
-					<span style="font-size: 11.5px; color: var(--tx2);">{staleNotice.text}</span>
+					<span style="font-size: 11.5px; color: var(--tx2);">{staleNotice.lead}</span>
+					<!-- One line per reason, naming the values of this week the check
+						refuses. The label is what says which value is at fault; the
+						wording after it is the check's own answer, handed over as such
+						because it can name another field than the one it is attributed
+						to. -->
+					{#each staleNotice.refusals as refusal, index (index)}
+						<span data-testid="stale-override-field" style="font-size: 11.5px; color: var(--tx2);">
+							{#if refusal.fields}
+								What it refuses here: <strong style="font-weight: 700; color: var(--tx);"
+									>this week's {refusal.fields}</strong
+								>.
+							{/if}
+							{#if refusal.reason}
+								In the check's own words: {refusal.reason}
+							{/if}
+						</span>
+					{/each}
 					<!-- The reset is judged as one row, so the coach is told what else
 						goes with it before they press it rather than after. -->
 					<span style="font-size: 11px; color: var(--tx3);">

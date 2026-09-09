@@ -542,10 +542,32 @@ export interface SessionOverride {
 	// Only the GET answers it. The upsert echo answers false by construction,
 	// since a save carrying a stale override is refused before it gets that far.
 	override_stale?: boolean;
-	// The refusal the write path answers for this same override, in the
-	// validator's own words rather than words written for a coach, which is why
-	// every screen quotes it instead of presenting it as its own explanation.
-	stale_reason?: string;
+	// Which fields the refusal is about, one entry per field per reason, in the
+	// order the validators ask. Absent unless override_stale.
+	stale_fields?: StaleOverrideField[];
+}
+
+// One reason a stale override is refused, attributed to one of the fields that
+// reason is about. It mirrors StaleOverrideField in
+// crimpy-backend/internal/handler/program_week.go, whose comment on
+// SessionOverrideResponse.StaleFields is the authority on how it is read.
+//
+// The whole row is stored and the server refuses part of it, so a reader given
+// only the reason cannot tell an edit of the refused field from an edit of
+// another field of the same row. What each entry says is: this reason is about
+// this field, and a coach moving that field is a coach the server has not
+// judged yet.
+export interface StaleOverrideField {
+	// The override key the reason is about, spelled as
+	// contract/override-keys.json spells it. Empty stands for the override as a
+	// whole, which is what a refusal nothing could be attributed to answers with.
+	field: string;
+	// The refusal in the validator's own words rather than words written for a
+	// coach, which is why every screen quotes it instead of presenting it as its
+	// own explanation. The first entry's reason is the one a save of this same
+	// override is refused with, since the write paths answer with the first
+	// refusal alone.
+	reason: string;
 }
 
 export interface WeekSession {

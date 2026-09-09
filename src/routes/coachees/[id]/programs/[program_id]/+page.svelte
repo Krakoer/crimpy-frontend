@@ -139,7 +139,7 @@
 		return session.originWn === wn ? session.id : undefined;
 	}
 
-	// override_stale and stale_reason are answered by the week read and computed
+	// override_stale and stale_fields are answered by the week read and computed
 	// against the training as it now stands, so they are the server's to say and
 	// never the portal's to send back.
 	function sentOverrides(overrides: SessionOverride[]): SessionOverride[] {

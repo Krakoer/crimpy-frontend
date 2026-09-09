@@ -22,8 +22,9 @@
 		mergeOverrides,
 		openWeek,
 		resetItemToBase,
-		staleOverrideDroppedNotice,
-		staleOverrideNotice,
+		staleRefusalLines,
+		STALE_OVERRIDE_DROPPED_LEAD,
+		STALE_OVERRIDE_LEAD,
 		weekOverrides,
 		type GridLayouts,
 		type OpenedWeek,
@@ -154,14 +155,24 @@
 			return locked;
 		},
 		isOverridden: (itemId: string) => sent.some((override) => override.item_id === itemId),
+		// The lines name the fields the server attributed the refusal to, read
+		// against the training item so a set is a set and a round is a round.
 		staleNotice: (itemId: string) => {
 			const stale = standing.find((override) => override.item_id === itemId);
 			if (stale) {
-				return { text: staleOverrideNotice(stale.stale_reason), clearedByApply: false };
+				return {
+					lead: STALE_OVERRIDE_LEAD,
+					refusals: staleRefusalLines(stale, findItem(baseItems, itemId)),
+					clearedByApply: false
+				};
 			}
 			const dropped = droppedByApply.find((override) => override.item_id === itemId);
 			if (dropped) {
-				return { text: staleOverrideDroppedNotice(dropped.stale_reason), clearedByApply: true };
+				return {
+					lead: STALE_OVERRIDE_DROPPED_LEAD,
+					refusals: staleRefusalLines(dropped, findItem(baseItems, itemId)),
+					clearedByApply: true
+				};
 			}
 			return null;
 		},
@@ -194,14 +205,14 @@
 
 	let type = $derived(trainingTypeInfo(training?.training_type));
 
-	// A refusal the server answered is carried onto an override that goes back
-	// asking what the server refused, so a week merely opened and applied does not
-	// read as fixed while the save is still going to be refused. It is measured
-	// against the request rather than against the tree, which is what the marking
-	// above is measured against too, so the block on screen and the week carried
-	// out of here cannot disagree about which refusals still stand.
+	// A refusal the server answered is carried onto a row that still asks for the
+	// field the server refused, so a week merely opened and applied does not read
+	// as fixed while the save is still going to be refused. It is measured against
+	// the row on its way out, which is what the marking above is measured against
+	// too, so the block on screen and the week carried out of here cannot disagree
+	// about which refusals still stand.
 	function apply() {
-		onApply(carryStaleFlags(overrides, sent));
+		onApply(carryStaleFlags(baseItems, overrides, sent));
 	}
 
 	// Fresh keys, for the same reason resetItemToBase mints one: an editor that
