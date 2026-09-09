@@ -2805,11 +2805,11 @@ test('points at the apply where the refused row leaves nothing to reset', async 
 
 /**
  * A training whose hangboard block declares its layout per set: eight rows, two
- * sets of four reps, loaded differently from set to set. It is the layout the
- * write path lays the block's arrays out in, and the layout a week's arrays are
- * judged against.
+ * sets of four reps, loaded differently from set to set unless the loads are
+ * given. It is the layout the write path lays the block's arrays out in, and the
+ * layout a week's arrays are judged against.
  */
-function perSetGridTraining() {
+function perSetGridTraining(loads?: { value: number; unit: string }[]) {
 	const kg = (value: number) => ({ value, unit: 'kg' });
 	return testTraining({
 		id: 'training-1',
@@ -2828,7 +2828,7 @@ function perSetGridTraining() {
 				hand: 'both',
 				granularity: 'set',
 				edge_sizes_mm: Array.from({ length: 8 }, () => 20),
-				loads: [kg(10), kg(10), kg(10), kg(10), kg(12), kg(12), kg(12), kg(12)],
+				loads: loads ?? [kg(10), kg(10), kg(10), kg(10), kg(12), kg(12), kg(12), kg(12)],
 				hand_positions: [Array.from({ length: 8 }, () => 'HC')]
 			}
 		]
@@ -2878,6 +2878,56 @@ test('leaves nothing to save when a week whose loads coincide is merely applied'
 
 	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
 	expect(saved).toHaveLength(0);
+});
+
+/**
+ * The same block with its own eight loads coinciding, so the editor reads the
+ * training itself back as varying by nothing and the coach opens on one row.
+ */
+function flatGridTraining() {
+	return perSetGridTraining(Array.from({ length: 8 }, () => ({ value: 10, unit: 'kg' })));
+}
+
+/** The week's own loads, one for each of the eight rows, no two of them alike. */
+function steppedGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: {
+				loads: Array.from({ length: 8 }, (_, row) => ({ value: 20 + row, unit: 'kg' }))
+			}
+		}
+	];
+}
+
+test('sends the layout the coach chose on a grid that read as one row', async ({ page }) => {
+	// Krakoer/crimpy#99 round one. The week's eight loads merge onto a training
+	// the editor reads back as a single row, so the coach is shown the first of
+	// them and nothing else. Choosing to vary by set is them prescribing that one
+	// hang on every rep, and it has to be what goes out.
+	//
+	// The request is written in the layout the item is declared in whichever
+	// layout is on screen, so it does not move when they make that choice: only
+	// what they read can say they made it. Measured against the request, the grid
+	// read as untouched and the week's eight stepped loads went back over the
+	// eight identical ones the coach was looking at.
+	await stubTwoWeekProgram(page, steppedGridOverride(), flatGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByLabel('Load', { exact: true })).toHaveValue('20');
+
+	await modal.getByRole('radio', { name: 'Set', exact: true }).click();
+	await expect(modal.getByRole('radio', { name: 'Set', exact: true })).toBeChecked();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		loads: Array.from({ length: 8 }, () => ({ value: 20, unit: 'kg' }))
+	});
 });
 
 test('sends a load typed into the collapsed row in the layout the training declares', async ({

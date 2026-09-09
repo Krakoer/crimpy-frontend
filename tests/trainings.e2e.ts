@@ -837,6 +837,16 @@ test.describe('hangboard grid size', () => {
 	});
 
 	// Growing never loses anything, so it must not stop to ask.
+	test('grows the grid without asking', async ({ page }) => {
+		await openHangboardEditor(page, perSetHangboardItem());
+
+		await page.getByRole('spinbutton', { name: 'Sets' }).fill('3');
+		await page.getByRole('spinbutton', { name: 'Sets' }).blur();
+
+		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
+		await expect(stepTiles(page)).toHaveCount(3);
+	});
+
 	// A program week now builds its request in the layout the item is declared in
 	// rather than in the one the editor reads it in. A training has no week to
 	// diff against: the item it holds is the declaration, so the editor's layout
@@ -864,16 +874,6 @@ test.describe('hangboard grid size', () => {
 			loads: [kg(12)],
 			hand_positions: [['HC']]
 		});
-	});
-
-	test('grows the grid without asking', async ({ page }) => {
-		await openHangboardEditor(page, perSetHangboardItem());
-
-		await page.getByRole('spinbutton', { name: 'Sets' }).fill('3');
-		await page.getByRole('spinbutton', { name: 'Sets' }).blur();
-
-		await expect(page.getByRole('alertdialog', { name: 'Confirm the change' })).toBeHidden();
-		await expect(stepTiles(page)).toHaveCount(3);
 	});
 });
 

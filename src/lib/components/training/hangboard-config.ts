@@ -5,6 +5,7 @@ import {
 	hangboardHand,
 	hangboardHandCount,
 	hangboardReps,
+	hangboardRowCount,
 	hangboardSets,
 	isHangboardItem,
 	isTwoHandedMode,
@@ -88,7 +89,22 @@ export function configRow(variation: HangboardVariation, address: number): numbe
 }
 
 export function storedRowCount(item: TrainingItem, variation: HangboardVariation): number {
-	return variation === 'uniform' ? 1 : hangboardSets(item) * hangboardReps(item);
+	return hangboardRowCount(wireGranularity(variation), item.cycles, item.reps);
+}
+
+// The set and the rep one row of a layout stands for, which is where its values
+// are read from and written to. A uniform layout holds one row for the whole
+// item; the other two lay their rows out set by set, and a per-rep layout only
+// ever carries the one set, so the same division answers both. It is the inverse
+// of declaredRow, and the one both the rebuild and the write out of a layout go
+// through, so they cannot come to disagree about which rep a row is.
+function rowAddress(
+	granularity: HangboardGranularity,
+	reps: number,
+	row: number
+): [number, number] {
+	if (granularity === 'uniform') return [0, 0];
+	return [Math.floor(row / reps), row % reps];
 }
 
 export function currentLayout(item: TrainingItem, variation: HangboardVariation): StoredLayout {
@@ -206,8 +222,7 @@ export function rebuildArrays(
 	};
 
 	const rows = storedRowCount(item, variation);
-	const coordinates = (row: number): [number, number] =>
-		variation === 'uniform' ? [0, 0] : [Math.floor(row / reps), row % reps];
+	const coordinates = (row: number) => rowAddress(wireGranularity(variation), reps, row);
 
 	item.edge_sizes_mm = Array.from({ length: rows }, (_, row) => {
 		const [set, rep] = coordinates(row);
@@ -267,29 +282,6 @@ export function storedConfig(item: TrainingItem, set: number, rep: number): RepC
 	return readConfig(item, declaredRow(item, set, rep), twoHanded, defaultRepConfig());
 }
 
-// Rows an item declaring this granularity lays its arrays out in: one for a
-// uniform item, one per rep, or one per rep of every set. It is the layout
-// declaredRow reads a value back out of, written from the other end.
-function declaredRows(item: TrainingItem, granularity: HangboardGranularity): number {
-	if (granularity === 'set') return hangboardSets(item) * hangboardReps(item);
-	if (granularity === 'rep') return hangboardReps(item);
-	return 1;
-}
-
-// The set and the rep one row of a declared layout stands for, which is where
-// its values are read from.
-function declaredAddress(
-	item: TrainingItem,
-	granularity: HangboardGranularity,
-	row: number
-): [number, number] {
-	if (granularity === 'set') {
-		const reps = hangboardReps(item);
-		return [Math.floor(row / reps), row % reps];
-	}
-	return granularity === 'rep' ? [0, row] : [0, 0];
-}
-
 // The item written out in a layout: the same prescription, addressed the way
 // that layout addresses it. Every value is read by its set and rep rather than
 // by raw index, so this is the inverse of the collapse normalizeHangboardItem
@@ -297,8 +289,10 @@ function declaredAddress(
 function writeInLayout(item: TrainingItem, granularity: HangboardGranularity): TrainingItem {
 	const hand = hangboardHand(item);
 	const twoHanded = isTwoHandedMode(hand);
-	const configs = Array.from({ length: declaredRows(item, granularity) }, (_, row) => {
-		const [set, rep] = declaredAddress(item, granularity, row);
+	const reps = hangboardReps(item);
+	const rows = hangboardRowCount(granularity, item.cycles, item.reps);
+	const configs = Array.from({ length: rows }, (_, row) => {
+		const [set, rep] = rowAddress(granularity, reps, row);
 		return storedConfig(item, set, rep);
 	});
 	return {
