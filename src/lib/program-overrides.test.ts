@@ -10,9 +10,10 @@ import {
 	buildOverrideHistory,
 	carryStaleFlags,
 	diffOverrides,
+	declaredGridLayouts,
 	emptyGridLayouts,
-	gridLayouts,
 	keepStoredGridArrays,
+	mergeBaseTree,
 	mergeOverrides,
 	overrideSummary,
 	resetItemToBase,
@@ -22,6 +23,7 @@ import {
 	standingStaleOverrides,
 	trainingTrees,
 	weekOverrides,
+	withOpenedLayouts,
 	STALE_OVERRIDE_DROPPED_LEAD,
 	STALE_OVERRIDE_LEAD,
 	type WeekOverrides
@@ -848,11 +850,16 @@ function openModalOn(training: TrainingItem[], stored: SessionOverride[]) {
 	const base = structuredClone(training);
 	normalizeHangboardItems(base);
 	applyItemReadDefaults(base, []);
-	const items = mergeOverrides(base, stored);
+	const declaredLayouts = declaredGridLayouts(declared, stored);
+	// The week's row is merged onto the training written out in the layout that
+	// row is written in, not onto the layout the training's own values collapsed
+	// to: that is what Krakoer/crimpy#101 was opened for, and the modal does it
+	// here.
+	const items = mergeOverrides(mergeBaseTree(base, declaredLayouts), stored);
 	normalizeHangboardItems(items);
 	applyItemReadDefaults(items, []);
 	prepareEditableTree(items);
-	const layouts = gridLayouts(declared, stored, items);
+	const layouts = withOpenedLayouts(declaredLayouts, items);
 	// The tree the editor reads and the tree the write path lays out, built the
 	// one way the modal builds them, so a spec cannot hand a reader the other one
 	// of the two.
@@ -1555,21 +1562,22 @@ describe('the layout a week sends', () => {
 	});
 
 	// Krakoer/crimpy#99 round one: the same choice made on a grid the
-	// normalisation had already collapsed, where the week stores a load the coach
-	// cannot see. Writing the request in the layout the item is declared in is
-	// what makes it layout-invariant, so it does not move when the coach picks a
-	// layout by hand, and whether they touched the grid cannot be read off it.
+	// normalisation had already collapsed, where the week's eight loads all say
+	// the same thing and the one row the coach reads is that load. Writing the
+	// request in the layout the item is declared in is what makes it
+	// layout-invariant, so it does not move when the coach picks a layout by hand,
+	// and whether they touched the grid cannot be read off it.
 	describe('a layout the coach chose on a grid that read as one row', () => {
 		const flat = Array.from({ length: 8 }, () => kg(10));
 
-		// A row the server takes: one load per row the training declares, no two of
-		// them alike. Merged onto the training the editor reads, which its own
-		// values collapsed to a single row, only the first survives on screen.
+		// A row the server takes: one load per row the training declares, and the
+		// same load in every one of them. The collapse the editor performs is the
+		// week's own here, which is the only collapse there is since
+		// Krakoer/crimpy#101: the row is merged onto the training written out in the
+		// layout the row declares, so a week whose loads varied would be read as
+		// varying and there would be no single row to pick a layout on.
 		const stored: SessionOverride[] = [
-			{
-				item_id: 'grid',
-				overrides: { loads: Array.from({ length: 8 }, (_, row) => kg(20 + row)) }
-			}
+			{ item_id: 'grid', overrides: { loads: Array.from({ length: 8 }, () => kg(20)) } }
 		];
 
 		it('is shown as the one load the collapse kept', () => {
@@ -1594,10 +1602,12 @@ describe('the layout a week sends', () => {
 			expect(onScreen[0].overrides.loads).toHaveLength(8);
 		});
 
-		it('goes out as the coach set it, not as the week stored it', () => {
-			// Eight rows of the one load they were reading. The seven loads the
-			// collapse hid are the week's own, and they are gone because the coach
-			// asked for the grid to be laid out again, which is theirs to ask.
+		it('goes out as the coach set it, in the layout they picked', () => {
+			// Eight rows of the one load they were reading, laid out again because
+			// they asked for it, which is theirs to ask. It is what the week stored
+			// as well, and that is the point: the collapse they picked a layout on
+			// was of the week's own values, so laying the grid out again cannot lose
+			// one.
 			const opened = openModalOn(gridTraining(flat), stored);
 			pickLayout(opened.items[0], 'set');
 			const { sent } = sentNow(opened);
@@ -1621,17 +1631,17 @@ describe('the layout a week sends', () => {
 	// pair either: that pair is layout-invariant by construction, so it says the
 	// coach did nothing and the block stays marked on a week that now saves.
 	describe('a layout the coach chose on a grid the server refused', () => {
-		const REFUSED_REASON = 'loads holds 6 entries but the granularity declares 8 rows';
+		const REFUSED_REASON = 'loads holds 12 entries but the granularity declares 8 rows';
 		const flat = Array.from({ length: 8 }, () => kg(10));
 
-		// Six loads written when the block ran three reps a set, against the eight
-		// rows it declares now. No layout the training declares explains six rows,
-		// so nothing can re-express them and the collapse leaves the coach reading
-		// the first of them alone.
+		// Twelve loads written when the block ran three sets, against the eight rows
+		// it declares now, all of them the same load. The rows the item still has
+		// all read that one load, so the editor reads the week back as one row, and
+		// the four the training dropped are what the server refuses it for.
 		const stored: SessionOverride[] = [
 			{
 				item_id: 'grid',
-				overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
+				overrides: { loads: Array.from({ length: 12 }, () => kg(30)) },
 				override_stale: true,
 				stale_fields: rowCountRefusal(REFUSED_REASON, 'loads')
 			}
@@ -1701,11 +1711,13 @@ describe('the layout a week sends', () => {
 			];
 		}
 
-		// One load per row the training declares, and the same load the training
-		// prescribes on all but the first: the collapse keeps that first one, so
-		// the coach opens on a row reading exactly what the training says.
+		// One load per row the training declares, every one of them the load the
+		// training prescribes, so the coach opens on a row reading exactly what the
+		// training says. It has to be all four of them: a row asking for anything
+		// else is a prescription of this week's, which Krakoer/crimpy#101 is about
+		// and which this is not.
 		const stored: SessionOverride[] = [
-			{ item_id: 'grid', overrides: { loads: [kg(20), kg(21), kg(22), kg(23)] } }
+			{ item_id: 'grid', overrides: { loads: Array.from({ length: 4 }, () => kg(20)) } }
 		];
 
 		function pickedSet() {
@@ -1737,6 +1749,169 @@ describe('the layout a week sends', () => {
 			expect(sent).toHaveLength(0);
 			expect(standing).toEqual([]);
 			expect(droppedByApply).toEqual([]);
+		});
+	});
+
+	// Krakoer/crimpy#101: a week's grid varying over a training whose own grid does
+	// not. The row is written against the rows of the layout it declares, and it
+	// used to be merged onto the tree the editor reads, which the training's own
+	// coinciding values had already collapsed to a single row. Eight values landed
+	// on one row and seven of them were gone: not hidden, gone, since the diff the
+	// request is built from reads the merged tree and nothing else.
+	//
+	// The two cases are told apart by nothing the coach can see, which is why both
+	// are here. Where the week's first load differs from the training's, a row is
+	// shown and it is truncated. Where it coincides, the diff comes out empty: no
+	// badge, a footer saying the week runs the training as it is written, and an
+	// apply that sends no row at all and drops what the week held.
+	describe('a week whose grid varies over a training whose own grid does not', () => {
+		const flat = Array.from({ length: 8 }, () => kg(10));
+
+		// Eight loads, no two alike, one per row the training declares: a row the
+		// server takes and never marks, so there is nothing on screen to warn the
+		// coach that what they are reading is not what the week holds.
+		function varyingWeek(first: number): SessionOverride[] {
+			return [
+				{
+					item_id: 'grid',
+					overrides: {
+						loads: [kg(first), kg(21), kg(22), kg(23), kg(24), kg(25), kg(26), kg(27)]
+					}
+				}
+			];
+		}
+
+		// Every rep of every set, as the athlete would play it: the week's row
+		// merged onto the training as it is written, which is the prescription the
+		// coach typed and the one thing the modal may not move.
+		function prescription(overrides: SessionOverride[]) {
+			const item = mergeOverrides(gridTraining(flat), overrides)[0];
+			const played = [];
+			for (let set = 0; set < 2; set++) {
+				for (let rep = 0; rep < 4; rep++) played.push(storedConfig(item, set, rep));
+			}
+			return played;
+		}
+
+		describe('storing a first load the training does not prescribe', () => {
+			const stored = varyingWeek(20);
+
+			it('is shown as the eight loads the week wrote, not as the first of them', () => {
+				const { asOpened } = openModalOn(gridTraining(flat), stored);
+				expect(asOpened.openedOnScreen[0].overrides.loads).toEqual(stored[0].overrides.loads);
+			});
+
+			it('goes back asking exactly what the week stored', () => {
+				const { sent } = sentNow(openModalOn(gridTraining(flat), stored));
+				expect(sent).toHaveLength(1);
+				expect(sent[0].overrides).toEqual(stored[0].overrides);
+			});
+
+			it('prescribes what the week prescribed, rep for rep', () => {
+				const { sent } = sentNow(openModalOn(gridTraining(flat), stored));
+				expect(prescription(sent)).toEqual(prescription(stored));
+			});
+		});
+
+		describe('storing a first load the training does prescribe', () => {
+			const stored = varyingWeek(10);
+
+			it('is shown as the eight loads the week wrote, rather than as nothing at all', () => {
+				const { asOpened } = openModalOn(gridTraining(flat), stored);
+				expect(asOpened.openedOnScreen).toHaveLength(1);
+				expect(asOpened.openedOnScreen[0].overrides.loads).toEqual(stored[0].overrides.loads);
+			});
+
+			it('is a customisation of this week, which is what the coach is told', () => {
+				// The badge on the block and the count in the footer read off the row
+				// the week will hold. An empty one here is the modal saying this week
+				// runs the training as it is written, over a week that asks for seven
+				// loads it does not.
+				const { sent } = sentNow(openModalOn(gridTraining(flat), stored));
+				expect(sent.map((override) => override.item_id)).toEqual(['grid']);
+			});
+
+			it('goes back asking exactly what the week stored, rather than nothing', () => {
+				// The row the apply sends. It used to be dropped whole, and
+				// keepStoredGridArrays could not put the loads back: nothing was
+				// emitted for it to substitute into.
+				const { sent } = sentNow(openModalOn(gridTraining(flat), stored));
+				expect(sent[0].overrides).toEqual(stored[0].overrides);
+				expect(sent[0].overrides.loads).toHaveLength(
+					declaredRows(gridTraining(flat)[0], sent[0].overrides)
+				);
+			});
+
+			it('prescribes what the week prescribed, rep for rep', () => {
+				const { sent } = sentNow(openModalOn(gridTraining(flat), stored));
+				expect(prescription(sent)).toEqual(prescription(stored));
+			});
+		});
+
+		// The other half of Krakoer/crimpy#99, which this leaves alone: the collapse
+		// of an item whose own values coincide is what the coach reads, and a week
+		// whose eight loads agree is still the one row they call for.
+		it('is still one row where the loads of the week itself coincide', () => {
+			const stored: SessionOverride[] = [
+				{ item_id: 'grid', overrides: { loads: Array.from({ length: 8 }, () => kg(25)) } }
+			];
+			const { asOpened } = openModalOn(gridTraining(flat), stored);
+			expect(asOpened.openedOnScreen[0].overrides.loads).toEqual([kg(25)]);
+		});
+	});
+
+	// The same loss in the layout this portal itself never writes: wireGranularity
+	// emits uniform or set and nothing else, so a training declared per rep
+	// reaches the modal from the app or the backend, and nothing else in this
+	// suite reads one. It is a row count neither of the other two layouts arrives
+	// at, which is the whole of what the merge has to get right.
+	describe('a week whose grid varies over a training declared per rep', () => {
+		// One row per rep, four of them for the four reps of each set, the same load
+		// in every one, so the editor reads the training itself back as a single row
+		// the way it does the per set fixtures above.
+		function perRepTraining(): TrainingItem[] {
+			return [
+				{
+					id: 'grid',
+					_id: 'grid',
+					type: 'repeater',
+					cycles: 2,
+					reps: 4,
+					hand: 'both',
+					granularity: 'rep',
+					worktime_seconds: 7,
+					rest_seconds: 3,
+					loads: Array.from({ length: 4 }, () => kg(10)),
+					edge_sizes_mm: Array.from({ length: 4 }, () => 20),
+					hand_positions: [Array.from({ length: 4 }, () => 'HC')]
+				}
+			];
+		}
+
+		// Four loads, one per row the training declares, the first of them the load
+		// the training prescribes: the case the coach is told nothing about, since
+		// the diff of the collapsed tree came out empty and the block carried no
+		// badge to open at all.
+		const weekLoads = [kg(10), kg(21), kg(22), kg(23)];
+		const stored: SessionOverride[] = [{ item_id: 'grid', overrides: { loads: weekLoads } }];
+
+		it('is shown as the loads the week wrote, rather than as nothing at all', () => {
+			// Per rep is not a layout the editor reads a tree back in: the four rows
+			// the week wrote are the same four hangs in either set, so the tree comes
+			// out per set and says them twice. It is the same prescription, and it is
+			// the whole of what the coach used to be shown nothing of.
+			const { asOpened } = openModalOn(perRepTraining(), stored);
+			expect(asOpened.openedOnScreen).toHaveLength(1);
+			expect(asOpened.openedOnScreen[0].overrides.loads).toEqual([...weekLoads, ...weekLoads]);
+		});
+
+		it('goes back asking exactly what the week stored, rather than nothing', () => {
+			const { sent } = sentNow(openModalOn(perRepTraining(), stored));
+			expect(sent).toHaveLength(1);
+			expect(sent[0].overrides).toEqual(stored[0].overrides);
+			expect(sent[0].overrides.loads).toHaveLength(
+				declaredRows(perRepTraining()[0], sent[0].overrides)
+			);
 		});
 	});
 });
