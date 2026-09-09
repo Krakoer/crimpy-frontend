@@ -23,6 +23,10 @@ export type OverrideMode = {
 	readOnly: boolean;
 	readOnlyReason: string;
 	locked: boolean;
+	// Answered off the row the week is about to hold rather than off the diff on
+	// screen: the editor can render a block in a layout that prescribes nothing
+	// the training does not already ask for, and a reset offered there would undo
+	// a customisation the week never had.
 	isOverridden: (itemId: string) => boolean;
 	// What the coach is told when the training no longer takes the override this
 	// week has stored on the item, and null when it still applies. Only the week

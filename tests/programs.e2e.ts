@@ -2950,3 +2950,137 @@ test('sends a load typed into the collapsed row in the layout the training decla
 		loads: Array.from({ length: 8 }, () => ({ value: 20, unit: 'kg' }))
 	});
 });
+
+/**
+ * The week's own loads, written when the block ran three reps a set, against the
+ * eight rows it declares now. The write path refuses the row, and no layout the
+ * training declares explains six rows, so nothing can re-express them: the
+ * collapse leaves the coach reading the first of them alone.
+ */
+function refusedGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
+			override_stale: true,
+			stale_reason: GRID_STALE_REASON
+		}
+	];
+}
+
+test('drops the marking with the layout the coach chose on a refused grid', async ({ page }) => {
+	// Krakoer/crimpy#99 round two. Choosing to vary by set on a grid that read as
+	// one row is the coach prescribing that one hang on every rep, which is a
+	// request the server takes and not the row it refused, so the marking goes
+	// with the choice.
+	//
+	// Whether they are still asking for what was refused is a question about what
+	// they read, and the request cannot answer it: it is written in the layout the
+	// item is declared in whatever layout is on screen, so this choice leaves it
+	// byte for byte unchanged. Measured against it, the banner stood on a week
+	// that saved clean and pointed the coach at a block they had just rewritten.
+	await stubTwoWeekProgram(page, refusedGridOverride(), flatGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-overrides-banner')).toContainText('One block below');
+	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON);
+	await expect(modal.getByLabel('Load', { exact: true })).toHaveValue('30');
+
+	await modal.getByRole('radio', { name: 'Set', exact: true }).click();
+	await expect(modal.getByRole('radio', { name: 'Set', exact: true })).toBeChecked();
+
+	await expect(modal.getByTestId('stale-overrides-banner')).toHaveCount(0);
+	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	// And the week saves, which is what the banner claimed it could not do: eight
+	// hangs of the one load the coach was reading, in the layout the block
+	// declares.
+	expect(savedOverrideRows(saved, 2)).toEqual([
+		{ item_id: 'item-grid', overrides: { loads: Array.from({ length: 8 }, () => kg(30)) } }
+	]);
+});
+
+/**
+ * The same block over two sets of two reps, one load everywhere, so the editor
+ * reads the training itself back as a single row.
+ */
+function shortFlatGridTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		training_type: 'hangboard',
+		items: [
+			{
+				id: 'item-grid',
+				type: 'repeater',
+				position: 0,
+				cycles: 2,
+				reps: 2,
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				cycle_rest_seconds: 120,
+				hand: 'both',
+				granularity: 'set',
+				edge_sizes_mm: Array.from({ length: 4 }, () => 20),
+				loads: Array.from({ length: 4 }, () => kg(20)),
+				hand_positions: [Array.from({ length: 4 }, () => 'HC')]
+			}
+		]
+	});
+}
+
+test('claims no customisation where the layout the coach chose is the training', async ({
+	page
+}) => {
+	// The other half of round two: the layout on screen moved, and what the week
+	// asks of the server did not, because four hangs of 20kg is what the training
+	// prescribes whichever layout says so. Applying drops the row, so a footer
+	// counting the block would claim a customisation the apply then contradicts.
+	// Customised for this week is a statement about the week, so it reads off
+	// what goes to the server.
+	await stubTwoWeekProgram(
+		page,
+		[
+			{
+				id: 'override-1',
+				item_id: 'item-grid',
+				overrides: { loads: [kg(20), kg(21), kg(22), kg(23)] }
+			}
+		],
+		shortFlatGridTraining()
+	);
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByText('This week runs the training as it is written')).toBeVisible();
+
+	await modal.getByRole('radio', { name: 'Set', exact: true }).click();
+	await expect(modal.getByRole('radio', { name: 'Set', exact: true })).toBeChecked();
+
+	await expect(modal.getByText('This week runs the training as it is written')).toBeVisible();
+	await expect(modal.getByRole('button', { name: 'Reset to the training' })).toHaveCount(0);
+	await expect(modal.getByRole('button', { name: 'Clear customisation' })).toHaveCount(0);
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(savedOverrideRows(saved, 2)).toEqual([]);
+});

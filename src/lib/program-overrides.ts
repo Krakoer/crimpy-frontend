@@ -346,18 +346,6 @@ export function findItem(items: TrainingItem[], itemId: string): TrainingItem | 
 	return undefined;
 }
 
-// Whether this week asks anything of the item that the training does not.
-export function itemIsOverridden(
-	base: TrainingItem[],
-	edited: TrainingItem[],
-	itemId: string
-): boolean {
-	const baseItem = findItem(base, itemId);
-	const editedItem = findItem(edited, itemId);
-	if (!baseItem || !editedItem) return false;
-	return Object.keys(diffItem(baseItem, editedItem)).length > 0;
-}
-
 // Puts one item back to what the training prescribes, leaving the rest of the
 // week's customisation alone. Only the fields a week may change are restored,
 // which is every field the diff could have emitted.
@@ -490,36 +478,43 @@ function sendsRefusedGridArrays(refused: ItemOverride, sent: ItemOverride | unde
 // override the coach has since changed or cleared is left out: only the server
 // judges an override, and the one it refused is no longer the one being sent.
 //
-// The question is whether the request the server refused is still the one about
-// to be sent, and the stored row is the wrong thing to ask it of: merging and
-// normalising rewrite a grid item's arrays into the layout the training now
-// declares, so a freshly opened week already diffs to something other than the
-// row the server refused, and a comparison against that row would leave every
-// grid override unmarked. What is compared instead is the diff the modal built
-// when it opened, which carries the same normalisation as the diff on screen.
+// The two halves ask two different things of two different pairs, the way
+// gridUntouched does.
+//
+// Whether the coach is still asking for what the server refused is a question
+// about the screen, so it is asked of the display pair: the diff the modal
+// opened on against the diff it shows now. The stored row cannot answer it,
+// because merging and normalising rewrite a grid item's arrays into the layout
+// the training now declares, so a freshly opened week already diffs to something
+// other than the row the server refused and every grid override would read as
+// rewritten. The wire pair cannot answer it either, for the opposite reason: the
+// request is written in the layout the item is declared in whatever layout is on
+// screen, which is what makes it layout-invariant, so a coach reaching for the
+// variation selector leaves it byte for byte unchanged and the block would stay
+// marked on a week that now saves clean.
 //
 // That comparison answers for the whole row at once, so any edit on the block
 // clears the marking, and where the refused part goes back regardless that is a
-// week the coach was told is clean and cannot save. So the grid is asked of the
-// request about to be sent, which is the only thing that knows whether the
-// arrays the server refused are the arrays going back.
+// week the coach was told is clean and cannot save. So the grid half is asked of
+// the row on its way to the server, which is the only thing that knows whether
+// the arrays the server refused are the arrays going back.
 //
-// An item the modal opened on with nothing to diff is not one of these: there is
-// no request on screen to keep or rewrite, so nothing here can clear it. Those
-// are staleOverridesDroppedByApply.
+// An item the modal opened on with nothing on screen to diff is not one of
+// these: there is nothing the coach can keep or rewrite, so nothing here can
+// clear it. Those are staleOverridesDroppedByApply, which reads the same
+// opening diff, so the two together account for every refusal exactly once.
 export function standingStaleOverrides(
 	stored: SessionOverride[],
-	opening: SessionOverride[],
-	current: SessionOverride[],
-	sent: SessionOverride[]
+	sent: SessionOverride[],
+	scope: WeekGridScope
 ): SessionOverride[] {
-	const openingByItem = requestByItem(opening);
-	const currentByItem = requestByItem(current);
+	const openedOnScreenByItem = requestByItem(scope.openedOnScreen);
+	const onScreenByItem = requestByItem(scope.onScreen);
 	const sentByItem = requestByItem(sent);
 	return staleOverrides(stored).filter((override) => {
 		if (sendsRefusedGridArrays(override.overrides, sentByItem.get(override.item_id))) return true;
-		const opened = openingByItem.get(override.item_id);
-		return opened !== undefined && sameRequest(opened, currentByItem.get(override.item_id));
+		const opened = openedOnScreenByItem.get(override.item_id);
+		return opened !== undefined && sameRequest(opened, onScreenByItem.get(override.item_id));
 	});
 }
 
@@ -529,13 +524,20 @@ export function standingStaleOverrides(
 // normalisation wipes it straight back, so the tree the modal opened on asks
 // nothing of that item and the diff emits nothing to reset. The row still
 // blocks the save while the week holds it, and applying is what drops it.
-export function staleOverridesDroppedByApply(
+//
+// What the merge and the normalisation undid is a question about the tree the
+// coach reads, so it is asked of the opening display diff. The opening request
+// is a narrower thing: its item set is a strict subset, since a block whose grid
+// reads as the training's own carries no grid field there, and a block with a
+// display diff but no wire diff would be classified as already undone and shown
+// without the reset that can still clear it.
+function staleOverridesDroppedByApply(
 	stored: SessionOverride[],
-	opening: SessionOverride[]
+	opened: OpenedWeek
 ): SessionOverride[] {
-	const openingByItem = requestByItem(opening);
+	const openedOnScreenByItem = requestByItem(opened.openedOnScreen);
 	return staleOverrides(stored).filter(
-		(override) => openingByItem.get(override.item_id) === undefined
+		(override) => openedOnScreenByItem.get(override.item_id) === undefined
 	);
 }
 
@@ -674,7 +676,7 @@ function requestGranularities(
 
 // A tree written out in the given layouts, which is both what a request is built
 // from and what it is diffed against.
-export function itemsInLayouts(
+function itemsInLayouts(
 	items: TrainingItem[],
 	granularities: Record<string, HangboardGranularity>
 ): TrainingItem[] {
@@ -716,7 +718,7 @@ function withoutGrid(override: ItemOverride): ItemOverride {
 // asks nothing of it, and one whose grid reads as the training's own carries no
 // grid field, whatever layout it would have been written in: a value the coach
 // sees as untouched cannot leave here as a prescription.
-export function requestOverrides(
+function requestOverrides(
 	wireBase: TrainingItem[],
 	items: TrainingItem[],
 	shown: SessionOverride[],
@@ -762,7 +764,16 @@ export function emptyOpenedWeek(): OpenedWeek {
 // and then quietly answer "did the coach touch this grid" off the wire, which is
 // the failure Krakoer/crimpy#99 was opened for, running the other way.
 export interface WeekGridScope extends OpenedWeek {
+	// The diff the coach reads now, against openedOnScreen: the display pair, and
+	// the only pair that can answer whether they have touched something. Both
+	// sides carry the normalisation, so a layout the coach picked by hand moves it
+	// and a layout the normalisation inferred does not.
 	onScreen: SessionOverride[];
+	// What the week asks of the server now, against openedRequest: the wire pair,
+	// and the only pair that can answer what the server was and is being asked
+	// for. Both sides are written in the layout each item is declared in, which
+	// makes the pair layout-invariant by construction: it cannot see a layout the
+	// coach chose, and nothing may ask it to.
 	request: SessionOverride[];
 }
 
@@ -784,6 +795,13 @@ export interface WeekGridScope extends OpenedWeek {
 // they did not touch goes back as it was stored, which leaves a refused week
 // refused, marked and clearable rather than quietly rewritten into a week that
 // saves and prescribes something else.
+//
+// Which pair answers what here follows gridUntouched, which this hands both to:
+// whether the coach touched the grid is asked of the display pair, whether the
+// row going out still declares the layout the stored arrays were written for is
+// asked of the request. The wire pair is read for one thing only, and it is not
+// a comparison: an item the opening request said nothing of has no judged arrays
+// to keep.
 //
 // The arrays that go back are the arrays the server has already judged, in a
 // request declaring the layout it judged them in, so applying can never turn a
@@ -838,6 +856,39 @@ export function keepStoredGridArrays(
 		.filter((override) => Object.keys(override.overrides).length > 0);
 }
 
+// The diffs of one week, the display one and the wire one, built the one way
+// both the snapshot and every later question read them.
+function weekDiffs(
+	base: TrainingItem[],
+	items: TrainingItem[],
+	layouts: GridLayouts
+): { wireBase: TrainingItem[]; onScreen: SessionOverride[]; request: SessionOverride[] } {
+	// The training as the write path lays it out, which is what it judges a
+	// request against: the tree the editor reads, with every grid item written
+	// back out in the layout the training declares for it.
+	const wireBase = itemsInLayouts(base, layouts.training);
+	const onScreen = diffOverrides(base, items);
+	return { wireBase, onScreen, request: requestOverrides(wireBase, items, onScreen, layouts) };
+}
+
+// The pair every later question about this week is measured against, taken once
+// when the modal builds the tree.
+//
+// It is its own function because a week being opened and a week being weighed
+// are two different questions, and weekOverrides answering both meant a call
+// site that forgot to pass the snapshot silently got "this is the week being
+// opened" rather than a type error, which is the hazard WeekGridScope exists to
+// prevent. The stored week is not read here: nothing about what the coach was
+// shown depends on it, which is the whole reason the two split cleanly.
+export function openWeek(
+	base: TrainingItem[],
+	items: TrainingItem[],
+	layouts: GridLayouts
+): OpenedWeek {
+	const { onScreen, request } = weekDiffs(base, items, layouts);
+	return { openedOnScreen: onScreen, openedRequest: request };
+}
+
 // Everything the modal derives from the week on screen, wired here rather than
 // in the component.
 //
@@ -848,45 +899,41 @@ export function keepStoredGridArrays(
 // cannot while the specs wire the chain up a second time for themselves. So the
 // wiring lives here and both go through it.
 export interface WeekOverrides {
-	// What the coach reads as customised on this week, both trees normalised, so
-	// a layout the normalisation inferred on each side is not read as this week's
-	// doing.
+	// The diff the coach reads on this week, both trees normalised, so a layout
+	// the normalisation inferred on each side is not read as this week's doing.
+	// It is the display side of every pair here, and what it answers is whether
+	// the coach has touched something, not what this week customises: the layout
+	// they picked can prescribe exactly what the training already does, and then
+	// this carries a row the request says nothing of.
 	onScreen: SessionOverride[];
 	// The same week as the server reads it: the coach's values written out in the
 	// layout each item is declared in. The editor's own layout is a re-expression
 	// of those values rather than a prescription, so it stays on screen.
 	request: SessionOverride[];
-	// What applying actually sends.
+	// What applying actually sends, which is the request with the grid of every
+	// block the coach did not touch left as the week stored it. It is what the
+	// week will hold, so it is also what any claim that this week customises a
+	// block has to be read off.
 	sent: SessionOverride[];
 	// The refusals the block on screen can still be asked to clear.
 	standing: SessionOverride[];
 	// The refusals the merge and the normalisation already undid, which nothing on
 	// screen asks for and applying is what drops.
 	droppedByApply: SessionOverride[];
-	// The pair a later call measures its answers against, so what the modal
-	// snapshots when the week opens is not a second decision about which of these
-	// means what.
-	asOpened: OpenedWeek;
 }
 
-// `opened` is the pair the modal snapshotted when it built the tree. Left out,
-// this is the week being opened: nothing has been edited yet, so the pair it
-// will be measured against later is the pair it has now.
+// `opened` is the pair openWeek took when the modal built the tree, and it is
+// required: a week weighed against itself has by definition been touched
+// nowhere, which is an answer, not a default.
 export function weekOverrides(
 	base: TrainingItem[],
 	items: TrainingItem[],
 	stored: SessionOverride[],
 	layouts: GridLayouts,
-	opened?: OpenedWeek
+	opened: OpenedWeek
 ): WeekOverrides {
-	// The training as the write path lays it out, which is what it judges a
-	// request against: the tree the editor reads, with every grid item written
-	// back out in the layout the training declares for it.
-	const wireBase = itemsInLayouts(base, layouts.training);
-	const onScreen = diffOverrides(base, items);
-	const request = requestOverrides(wireBase, items, onScreen, layouts);
-	const asOpened: OpenedWeek = { openedOnScreen: onScreen, openedRequest: request };
-	const scope: WeekGridScope = { ...(opened ?? asOpened), onScreen, request };
+	const { wireBase, onScreen, request } = weekDiffs(base, items, layouts);
+	const scope: WeekGridScope = { ...opened, onScreen, request };
 	const sent = keepStoredGridArrays(wireBase, stored, scope);
 	return {
 		onScreen,
@@ -894,11 +941,11 @@ export function weekOverrides(
 		sent,
 		// Read against the tree on screen rather than against the saved week, so a
 		// block the coach has just cleared stops being marked before they apply,
-		// and against the request as well, so a grid whose refused arrays go back
-		// regardless stays marked while the coach edits the rest of the block.
-		standing: standingStaleOverrides(stored, scope.openedRequest, request, sent),
-		droppedByApply: staleOverridesDroppedByApply(stored, scope.openedRequest),
-		asOpened
+		// and against the row on its way out as well, so a grid whose refused
+		// arrays go back regardless stays marked while the coach edits the rest of
+		// the block.
+		standing: standingStaleOverrides(stored, sent, scope),
+		droppedByApply: staleOverridesDroppedByApply(stored, opened)
 	};
 }
 
