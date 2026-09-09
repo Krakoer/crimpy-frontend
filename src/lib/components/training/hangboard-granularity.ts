@@ -37,6 +37,22 @@ export function hangboardHandCount(hand: HangboardHand): number {
 	return isTwoHandedMode(hand) ? 2 : 1;
 }
 
+// Number of configuration rows an item carries: one for a uniform item, one per
+// rep, or one per set and rep. This restates hangboardRowCount in
+// crimpy-backend/internal/handler/training_items.go, which is the rule that
+// decides whether the write path takes a row's arrays, so the two can drift and
+// only the server's answer counts. It sits here beside the hand count, the other
+// mirror of the same file, so both are found and rechecked together.
+export function hangboardRowCount(
+	granularity: HangboardGranularity,
+	cycles: number | null | undefined,
+	reps: number | null | undefined
+): number {
+	if (granularity === 'set') return saneCount(cycles) * saneCount(reps);
+	if (granularity === 'rep') return saneCount(reps);
+	return 1;
+}
+
 export const HANGBOARD_HANDS: { value: HangboardHand; label: string; hint: string }[] = [
 	{ value: 'both', label: 'Both', hint: 'Both hands on the board at once' },
 	{ value: 'alternate', label: 'Alternate', hint: 'Right then left within each rep' },
