@@ -13,6 +13,7 @@ import {
 	declaredGridLayouts,
 	emptyGridLayouts,
 	keepStoredGridArrays,
+	mergeBaseTree,
 	mergeOverrides,
 	overrideSummary,
 	resetItemToBase,
@@ -854,7 +855,7 @@ function openModalOn(training: TrainingItem[], stored: SessionOverride[]) {
 	// row is written in, not onto the layout the training's own values collapsed
 	// to: that is what Krakoer/crimpy#101 was opened for, and the modal does it
 	// here.
-	const items = mergeOverrides(trainingTrees(base, declaredLayouts).mergeBase, stored);
+	const items = mergeOverrides(mergeBaseTree(base, declaredLayouts), stored);
 	normalizeHangboardItems(items);
 	applyItemReadDefaults(items, []);
 	prepareEditableTree(items);
@@ -1561,10 +1562,11 @@ describe('the layout a week sends', () => {
 	});
 
 	// Krakoer/crimpy#99 round one: the same choice made on a grid the
-	// normalisation had already collapsed, where the week stores a load the coach
-	// cannot see. Writing the request in the layout the item is declared in is
-	// what makes it layout-invariant, so it does not move when the coach picks a
-	// layout by hand, and whether they touched the grid cannot be read off it.
+	// normalisation had already collapsed, where the week's eight loads all say
+	// the same thing and the one row the coach reads is that load. Writing the
+	// request in the layout the item is declared in is what makes it
+	// layout-invariant, so it does not move when the coach picks a layout by hand,
+	// and whether they touched the grid cannot be read off it.
 	describe('a layout the coach chose on a grid that read as one row', () => {
 		const flat = Array.from({ length: 8 }, () => kg(10));
 
@@ -1855,6 +1857,61 @@ describe('the layout a week sends', () => {
 			];
 			const { asOpened } = openModalOn(gridTraining(flat), stored);
 			expect(asOpened.openedOnScreen[0].overrides.loads).toEqual([kg(25)]);
+		});
+	});
+
+	// The same loss in the layout this portal itself never writes: wireGranularity
+	// emits uniform or set and nothing else, so a training declared per rep
+	// reaches the modal from the app or the backend, and nothing else in this
+	// suite reads one. It is a row count neither of the other two layouts arrives
+	// at, which is the whole of what the merge has to get right.
+	describe('a week whose grid varies over a training declared per rep', () => {
+		// One row per rep, four of them for the four reps of each set, the same load
+		// in every one, so the editor reads the training itself back as a single row
+		// the way it does the per set fixtures above.
+		function perRepTraining(): TrainingItem[] {
+			return [
+				{
+					id: 'grid',
+					_id: 'grid',
+					type: 'repeater',
+					cycles: 2,
+					reps: 4,
+					hand: 'both',
+					granularity: 'rep',
+					worktime_seconds: 7,
+					rest_seconds: 3,
+					loads: Array.from({ length: 4 }, () => kg(10)),
+					edge_sizes_mm: Array.from({ length: 4 }, () => 20),
+					hand_positions: [Array.from({ length: 4 }, () => 'HC')]
+				}
+			];
+		}
+
+		// Four loads, one per row the training declares, the first of them the load
+		// the training prescribes: the case the coach is told nothing about, since
+		// the diff of the collapsed tree came out empty and the block carried no
+		// badge to open at all.
+		const weekLoads = [kg(10), kg(21), kg(22), kg(23)];
+		const stored: SessionOverride[] = [{ item_id: 'grid', overrides: { loads: weekLoads } }];
+
+		it('is shown as the loads the week wrote, rather than as nothing at all', () => {
+			// Per rep is not a layout the editor reads a tree back in: the four rows
+			// the week wrote are the same four hangs in either set, so the tree comes
+			// out per set and says them twice. It is the same prescription, and it is
+			// the whole of what the coach used to be shown nothing of.
+			const { asOpened } = openModalOn(perRepTraining(), stored);
+			expect(asOpened.openedOnScreen).toHaveLength(1);
+			expect(asOpened.openedOnScreen[0].overrides.loads).toEqual([...weekLoads, ...weekLoads]);
+		});
+
+		it('goes back asking exactly what the week stored, rather than nothing', () => {
+			const { sent } = sentNow(openModalOn(perRepTraining(), stored));
+			expect(sent).toHaveLength(1);
+			expect(sent[0].overrides).toEqual(stored[0].overrides);
+			expect(sent[0].overrides.loads).toHaveLength(
+				declaredRows(perRepTraining()[0], sent[0].overrides)
+			);
 		});
 	});
 });

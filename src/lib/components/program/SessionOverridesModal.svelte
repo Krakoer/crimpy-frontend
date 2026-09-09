@@ -19,6 +19,7 @@
 		emptyGridLayouts,
 		emptyOpenedWeek,
 		findItem,
+		mergeBaseTree,
 		mergeOverrides,
 		openWeek,
 		resetItemToBase,
@@ -110,7 +111,7 @@
 		// tree holding one row can hold, and the seven the merge dropped never
 		// reached the diff the request is built from either.
 		const declaredLayouts = declaredGridLayouts(declared, storedWeek);
-		const merged = mergeOverrides(trainingTrees(baseItems, declaredLayouts).mergeBase, storedWeek);
+		const merged = mergeOverrides(mergeBaseTree(baseItems, declaredLayouts), storedWeek);
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
 		prepareEditableTree(merged);
@@ -126,9 +127,11 @@
 		editedTraining = training.id;
 	});
 
-	// The training as the editor reads it, as the write path lays it out and as
-	// the week's own row is written, which is the set every question below is
-	// asked against. The modal held only the first of them until
+	// The training as the editor reads it and as the write path lays it out, which
+	// is the pair every question below is asked against. The tree the week's own
+	// row was merged onto is not one of them: it is read once above and nothing
+	// here lands a row, so carrying it along would rebuild it on every keystroke
+	// for nobody. The modal held only the first of the pair until
 	// Krakoer/crimpy#100 round one, so a refusal about a row diffed against the
 	// second had nothing but the first to be weighed against, and the modal had no
 	// way to build the second for itself.
@@ -238,9 +241,9 @@
 	// mirrors a field into its own boxes reads the item when it is created, and a
 	// reused one would write the cleared value straight back.
 	//
-	// The tree merged onto is the editor's own rather than TrainingTrees.mergeBase:
-	// no row lands here, so there is no layout to land one in, and what the coach
-	// is left reading is the training exactly as the editor reads it.
+	// The tree merged onto is the editor's own rather than mergeBaseTree: no row
+	// lands here, so there is no layout to land one in, and what the coach is left
+	// reading is the training exactly as the editor reads it.
 	function clearAll() {
 		const cleared = mergeOverrides(baseItems, []);
 		normalizeHangboardItems(cleared);

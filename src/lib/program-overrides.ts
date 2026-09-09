@@ -87,10 +87,10 @@ function applyItemOverride(item: TrainingItem, override: ItemOverride): void {
 // the editor shows: the modal normalises the result, which is what makes it
 // TrainingTrees.onScreen and not the wire tree.
 //
-// The tree it is handed is TrainingTrees.mergeBase, which is the one thing here
-// that is not the editor's reading: a row's arrays are written against the rows
-// of the layout that row declares, so they only land where they were meant on a
-// tree written out the same way. What the merge returns is normalised straight
+// The tree it is handed is mergeBaseTree, which is the one thing here that is
+// not the editor's reading: a row's arrays are written against the rows of the
+// layout that row declares, so they only land where they were meant on a tree
+// written out the same way. What the merge returns is normalised straight
 // after, and an item whose merged values coincide collapses again, which is the
 // display collapse Krakoer/crimpy#99 kept and this does not touch.
 export function mergeOverrides(
@@ -809,13 +809,26 @@ function gridUntouched(
 // back as uniform and nothing left in the tree says which of the two it was. So
 // the layouts are read before that happens, and the request is written in one of
 // them rather than in the one the editor inferred.
-export interface GridLayouts {
+//
+// The two that are declared travel as a type of their own, because they are the
+// two readable before the editor's tree exists and the third is the one that
+// tells a layout the coach chose from one the normalisation inferred. Handed the
+// pair where all three are wanted, requestGranularities finds no opened layout
+// to compare a screen against and writes every request in the layout the
+// normalisation arrived at, which is the Krakoer/crimpy#99 failure the third
+// exists to prevent. A pair carrying an empty third is the same shape as the
+// trio and says which it is in prose alone, so it is a separate type instead,
+// and only withOpenedLayouts can produce the trio.
+export interface DeclaredGridLayouts {
 	// The granularity the training declares for each grid item, which is the
 	// layout the write path lays that item's arrays out in.
 	training: Record<string, HangboardGranularity>;
 	// The layout the week's row is written in: its own where it declared one, the
 	// training's otherwise, exactly as the write path merges the two.
 	stored: Record<string, HangboardGranularity>;
+}
+
+export interface GridLayouts extends DeclaredGridLayouts {
 	// The layout the editor opened each item in, which is the only thing that
 	// says whether a layout on screen is one the coach chose or one the
 	// normalisation inferred.
@@ -832,6 +845,8 @@ function forEachGridItem(
 	}
 }
 
+// The trio holding nothing, which is what a modal with no week open has: not a
+// pair standing in for a trio, but three layouts read off no training at all.
 export function emptyGridLayouts(): GridLayouts {
 	return { training: {}, stored: {}, opened: {} };
 }
@@ -842,14 +857,15 @@ export function emptyGridLayouts(): GridLayouts {
 // They are read before the editor's tree exists, and they have to be: the tree
 // is built by merging the week's row onto the training, and the base that row
 // lands on has to be expanded to the layout the row is written in first, which
-// is TrainingTrees.mergeBase. The third layout cannot be read yet, because it is
-// the one the merged tree came out in.
+// is mergeBaseTree. The third layout cannot be read yet, because it is the one
+// the merged tree came out in, and the type says so: nothing that needs all
+// three takes what this hands back.
 export function declaredGridLayouts(
 	training: TrainingItem[],
 	overrides: SessionOverride[]
-): GridLayouts {
+): DeclaredGridLayouts {
 	const byItem = requestByItem(overrides);
-	const layouts = emptyGridLayouts();
+	const layouts: DeclaredGridLayouts = { training: {}, stored: {} };
 	forEachGridItem(training, (item, itemId) => {
 		layouts.training[itemId] = hangboardGranularity(item);
 		layouts.stored[itemId] = byItem.get(itemId)?.granularity ?? hangboardGranularity(item);
@@ -860,7 +876,10 @@ export function declaredGridLayouts(
 // The same layouts once the editor's tree exists, which is the moment the third
 // one can be read: the merged tree has just been normalised, so what each grid
 // item declares now is the layout the editor opened it in.
-export function withOpenedLayouts(layouts: GridLayouts, opened: TrainingItem[]): GridLayouts {
+export function withOpenedLayouts(
+	layouts: DeclaredGridLayouts,
+	opened: TrainingItem[]
+): GridLayouts {
 	const withOpened: GridLayouts = { ...layouts, opened: {} };
 	forEachGridItem(opened, (item, itemId) => {
 		withOpened.opened[itemId] = hangboardGranularity(item);
@@ -901,11 +920,11 @@ function itemsInLayouts(
 	});
 }
 
-// The three readings of one training that every question about a week is asked
+// The two readings of one training that every question about a week is asked
 // against.
 //
-// They are all TrainingItem[] and they do not mean the same thing, so they
-// travel as one named value rather than as three parameters of one type, for the
+// They are both TrainingItem[] and they do not mean the same thing, so they
+// travel as one named value rather than as two parameters of one type, for the
 // reason WeekGridScope gives about the two pairs of diffs. That guard was given
 // to the diffs in Krakoer/crimpy#99 and not to the trees, and the same
 // transposition was then written again in Krakoer/crimpy#100: a refusal was
@@ -927,33 +946,43 @@ export interface TrainingTrees {
 	// only tree a request or a refusal may be read against: a field such a row
 	// leaves out is this tree's value and no other.
 	wire: TrainingItem[];
-	// The same training written back out in the layout each grid item's week row
-	// is written in, which is the only tree a stored row may be merged onto.
-	//
-	// A row's arrays are written against the rows of the layout it declares, so
-	// they only mean what they say on a tree laid out the same way. Merging one
-	// onto onScreen is what Krakoer/crimpy#101 was opened for: an item whose own
-	// values coincide is collapsed to the one row those values call for, and a
-	// week storing eight varying loads then lands eight values on a tree holding
-	// one row, so the normalisation keeps the first of them and the rest are not
-	// merely hidden, they are gone from the diff the request is built from.
-	//
-	// It differs from wire in which layout it writes: wire asks what the training
-	// declares, this asks what the week's row declares, and they part exactly
-	// where a week wrote its grid in a layout of its own. Where the week declared
-	// none it is the training's, so the two agree, which is the common case and
-	// not a licence to read either for the other.
-	mergeBase: TrainingItem[];
 }
 
 // Read once per week, off the tree the editor holds and the layouts taken while
 // the training and the week still declared them.
-export function trainingTrees(onScreen: TrainingItem[], layouts: GridLayouts): TrainingTrees {
-	return {
-		onScreen,
-		wire: itemsInLayouts(onScreen, layouts.training),
-		mergeBase: itemsInLayouts(onScreen, layouts.stored)
-	};
+export function trainingTrees(
+	onScreen: TrainingItem[],
+	layouts: DeclaredGridLayouts
+): TrainingTrees {
+	return { onScreen, wire: itemsInLayouts(onScreen, layouts.training) };
+}
+
+// The same training written back out in the layout each grid item's week row is
+// written in, which is the only tree a stored row may be merged onto.
+//
+// A row's arrays are written against the rows of the layout it declares, so they
+// only mean what they say on a tree laid out the same way. Merging one onto the
+// editor's tree is what Krakoer/crimpy#101 was opened for: an item whose own
+// values coincide is collapsed to the one row those values call for, and a week
+// storing eight varying loads then lands eight values on a tree holding one row,
+// so the normalisation keeps the first of them and the rest are not merely
+// hidden, they are gone from the diff the request is built from.
+//
+// It differs from TrainingTrees.wire in which layout it writes: wire asks what
+// the training declares, this asks what the week's row declares, and they part
+// exactly where a week wrote its grid in a layout of its own. Where the week
+// declared none it is the training's, so the two agree, which is the common case
+// and not a licence to read either for the other.
+//
+// It is a tree of its own rather than a third field of TrainingTrees because it
+// is read once, before the editor's tree exists, and every question asked after
+// that is asked of the pair: carrying it alongside them built a third copy of
+// the training on every keystroke that nothing read.
+export function mergeBaseTree(
+	training: TrainingItem[],
+	layouts: DeclaredGridLayouts
+): TrainingItem[] {
+	return itemsInLayouts(training, layouts.stored);
 }
 
 // Whether a row says anything at all about the item's grid.

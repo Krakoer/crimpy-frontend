@@ -3040,17 +3040,28 @@ function flatWeekGridOverride() {
 	];
 }
 
-test('sends the layout the coach chose on a grid that read as one row', async ({ page }) => {
-	// Krakoer/crimpy#99 round one. The week's eight loads all say the same thing,
-	// so the editor reads the week back as a single row. Choosing to vary by set
-	// is the coach prescribing that one hang on every rep, and it has to be what
-	// goes out.
+test('sends the layout the coach chose over a week prescribing one hang', async ({ page }) => {
+	// A week prescribing one hang for the whole block, in a row that says so, and
+	// a coach choosing to vary by set: that is them prescribing the hang they are
+	// reading on every rep, and eight of them go out over a week that held one.
 	//
-	// The request is written in the layout the item is declared in whichever
-	// layout is on screen, so it does not move when they make that choice: only
-	// what they read can say they made it. Measured against the request, the grid
-	// read as untouched and the week's stored row went back over the layout the
-	// coach had just picked.
+	// What this pins is the half of the seam that says a layout the coach picked
+	// is theirs. The request is written in the layout the item is declared in
+	// except where the layout on screen has moved since the week was opened;
+	// written in the stored layout here it would ask for the one load the week
+	// already holds, and there would be nothing to save.
+	//
+	// It does not pin the other half, Krakoer/crimpy#99, that whether the coach
+	// touched the grid cannot be read off the wire pair. That pair moves across
+	// this pick, since the row declares a layout of its own and the coach picked
+	// another. A pick the pair is invariant across cannot be told apart from here
+	// at all: the row that goes out is then the row the week already holds
+	// whichever half of the substitution decides it, so the week is not dirty and
+	// there is no request to read. The refused sibling below is the invariant pick
+	// end to end, and the only shape that tells the two halves apart: a stored row
+	// the merge cannot reproduce is a row the server refuses. The unit describe on
+	// a grid that read as one row asserts the invariance itself, which nothing
+	// from here can see.
 	await stubTwoWeekProgram(page, flatWeekGridOverride(), flatGridTraining());
 	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
