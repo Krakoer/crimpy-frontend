@@ -1308,6 +1308,32 @@ export function rereadWeek(sessions: { id: string; overrides: SessionOverride[] 
 	return { rereadBySession };
 }
 
+// Which row the server holds a session's overrides under, or nothing where it
+// holds none of them: a session the save sends as a new row.
+//
+// It travels named rather than as a bare string because a DraftSession carries
+// two ids of the same type, which is the pair program-draft.ts opens by warning
+// about: _id is the local drag and drop key and id is the server row. Handed the
+// wrong one, a lookup here finds nothing and the session comes back unmarked
+// with no error anywhere, so the name is what says which of the two is wanted.
+export interface SavedSessionRow {
+	savedRowID: string | undefined;
+}
+
+// The rows the fresh read holds for this session, and nothing at all where it
+// holds no entry for the session: the server saying it refuses none of a
+// session's rows and the server never having been asked about the session are
+// different answers, and only the first of them judges anything.
+function rereadRows(reread: RereadWeek, session: SavedSessionRow): SessionOverride[] | undefined {
+	return session.savedRowID === undefined ? undefined : reread.rereadBySession[session.savedRowID];
+}
+
+// Whether the fresh read holds this session at all, which is what makes what it
+// says about the session an answer rather than a silence.
+export function rereadHolds(reread: RereadWeek, session: SavedSessionRow): boolean {
+	return rereadRows(reread, session) !== undefined;
+}
+
 // The same row without any marking. A marking that predates the save is exactly
 // the account the refusal disproved, so the fresh read replaces all of it rather
 // than being merged into it: a row the server no longer refuses must lose the
@@ -1328,30 +1354,61 @@ function unmarked(override: SessionOverride): SessionOverride {
 // work they had just been told was not saved would cost them more than the raw
 // refusal did.
 //
-// The fields are matched by name rather than by value, which is the one thing
-// here that standingRefusals does not do, and the difference is the whole point
-// of the read. standingRefusals asks whether the coach still asks for what the
-// server refused, because a marking read when the week was opened has to be let
-// go the moment they move the value it names: nothing has judged the new one.
-// After a refused save something has. The server was handed this very week and
-// answered no, so the question of whether the coach has moved since is settled,
-// and what is left is to say which values the refusal is about. That is what
-// stale_fields names, and it names them by field.
+// Two questions are asked of each row, and which is which is worth saying.
+//
+// Whether the fresh account is about this row at all is answered by sameRequest,
+// against the row the server stores, and it is the gate on everything below.
+// stale_fields describes the rows the server holds, while the refusal is about
+// the rows the save sent, and the two are one week only where the coach has
+// changed nothing since it was read. Where the held row and the stored row ask
+// the same thing, the server was handed this very row and answered no, so its
+// account applies to it exactly. Where they differ, nothing has judged the value
+// on screen: the row is left as it is, the marking it already carries included,
+// standingRefusals goes on being the rule that weighs it, and the write path's
+// own words carry the refusal in the strip above.
+//
+// That is a deliberate loss and not an oversight. A coach who retyped a refused
+// field to another value the server also refuses reads the developer's sentence
+// rather than a marking, and no coach can get there through this editor: diffItem
+// will not emit rest_seconds for an emom, and every other field that can be
+// retyped to another still refused value is a grid field, where moving it makes
+// gridUntouched false and sends the whole normalised grid, which clears the
+// refusal outright. What the ticket was opened for, a training that moved under
+// a page loaded before it, is by construction a row the coach has not moved, so
+// it stays covered exactly. Marking a value no server has judged, to reach a
+// case no coach can reach, is the worse of the two.
+//
+// Which of the row's values the refusal is about is answered by field name, and
+// that is the one thing here standingRefusals does not do: it asks whether the
+// coach still asks for what the server refused, because a marking read when the
+// week was opened has to be let go the moment they move the value it names.
+// Here the gate above has already settled that, so all that is left is to say
+// which values the refusal names, and stale_fields names them by field.
 //
 // It is the narrow reading of that answer. The refusal is attributed to the
-// stored row, not to the coach's, so the only bridge between the two is the
-// field name: a refusal naming nothing the coach's row carries is dropped rather
-// than written onto the row as a whole, since nothing on screen would be pointed
-// at. A refusal the server attributed to no field at all is the one exception,
-// and it is the row as a whole because that is what the server said it was.
+// stored row, so a refusal naming nothing the row carries is dropped rather than
+// written onto the row as a whole, since nothing on screen would be pointed at.
+// A refusal the server attributed to no field at all is the one exception, and
+// it is the row as a whole because that is what the server said it was.
 export function markedFromReread(
 	held: SessionOverride[],
 	reread: RereadWeek,
-	sessionID: string | undefined
+	session: SavedSessionRow
 ): SessionOverride[] {
-	const rows = (sessionID ? reread.rereadBySession[sessionID] : undefined) ?? [];
+	// A session the read holds nothing for is one it was not asked about, and the
+	// week keeps every marking it already carries. Wiping them here is how a week
+	// comes back from a refused save with less marked on it than before: savedID
+	// answers undefined for a session dragged in from another week, for one
+	// Duplicate week copied, and for every unlocked session of a week the "does
+	// not belong to this week" recovery cleared the ids of.
+	const rows = rereadRows(reread, session);
+	if (rows === undefined) return held;
+	const storedByItem = requestByItem(rows);
 	const refused = new Map(staleOverrides(rows).map((override) => [override.item_id, override]));
 	return held.map((override) => {
+		// The row on screen no longer asks what the row the server judged asks, so
+		// the fresh account is not about the value the coach is looking at.
+		if (!sameRequest(override.overrides, storedByItem.get(override.item_id))) return override;
 		const fresh = refused.get(override.item_id);
 		if (fresh === undefined) return unmarked(override);
 		const refusals = refusalsOf(fresh);

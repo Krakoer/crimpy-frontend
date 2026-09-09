@@ -2,6 +2,7 @@ import type { SessionOverride } from '$lib/api/client';
 import {
 	markedFromReread,
 	orderedValue,
+	rereadHolds,
 	staleOverrides,
 	type RereadWeek,
 	type ScheduledRow
@@ -435,15 +436,20 @@ export function savedID(session: DraftSession, wn: number): string | undefined {
 // for and never the marking on it, so a week marked this way is as dirty as it
 // was a moment before.
 //
-// It answers how many sessions came back marked, which is what says whether the
+// It answers how many sessions this read marked, which is what says whether the
 // server's account explained the refusal at all: a week save is refused for
 // plenty of things that are not a stale override, and one of those has to keep
 // reading as the words the server answered with.
 export function markRefusedWeek(draft: WeekDraft, wn: number, reread: RereadWeek): number {
 	let marked = 0;
 	for (const session of draftSessions(draft)) {
-		session.overrides = markedFromReread(session.overrides, reread, savedID(session, wn));
-		if (staleOverrides(session.overrides).length > 0) marked += 1;
+		const saved = { savedRowID: savedID(session, wn) };
+		session.overrides = markedFromReread(session.overrides, reread, saved);
+		// A session the read holds nothing for keeps whatever marking it already
+		// carried, and that marking is an older read's answer rather than this
+		// one's. Counting it would let the week strip claim the fresh read
+		// explained a refusal the fresh read said nothing about.
+		if (rereadHolds(reread, saved) && staleOverrides(session.overrides).length > 0) marked += 1;
 	}
 	return marked;
 }

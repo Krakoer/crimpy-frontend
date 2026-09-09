@@ -2626,11 +2626,13 @@ test('reads the week back when a save is refused and marks the block it is about
 		.click();
 
 	// The week the coach edits reads as fine, because it was fine when it was
-	// read. The rest they set here is the work the re-read may not undo.
+	// read. The sets they put on the circuit are the work the re-read may not
+	// undo, and they are on another block than the one the server refuses: the
+	// AMRAP marker is left exactly as it was read, which is what makes the fresh
+	// account of it an account of the row the save sent.
 	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
 	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
-	await modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).fill('30');
-	await modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).blur();
+	await modal.getByRole('spinbutton').first().fill('5');
 	await modal.getByRole('button', { name: 'Apply' }).click();
 	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
 
@@ -2659,11 +2661,149 @@ test('reads the week back when a save is refused and marks the block it is about
 	const named = modal.getByTestId('stale-override-field');
 	await expect(named).toContainText("this week's AMRAP marker");
 	await expect(named).toContainText(STALE_REASON);
-	// The rest the coach typed before the save is still theirs: the re-read is
+	// The sets the coach typed before the save are still theirs: the re-read is
 	// allowed to write the marking and nothing else.
-	await expect(modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true })).toHaveValue(
-		'30'
-	);
+	await expect(modal.getByRole('spinbutton').first()).toHaveValue('5');
+
+	// And once they clear the block the strip goes with it. It is read off the
+	// week rather than off the flag the read set, so it cannot outlive the
+	// markings it points at: the badge and the week notice are live, and a strip
+	// still saying "marked below" over a week with nothing marked sends the coach
+	// looking for a block that is no longer there.
+	await modal
+		.getByTestId('stale-override')
+		.getByRole('button', { name: 'Reset this block to the training' })
+		.click();
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
+	// Silent rather than back to the words the save was refused with. This read
+	// explained the refusal as override refusals and the week now holds none of
+	// them, so that account is spent: quoting it would name the block they have
+	// just fixed and claim the week is still refused for it.
+	await expect(refusal).toHaveCount(0);
+
+	// Silence for a spent account and not a gag on the week: the save they have
+	// not made yet is answered afresh, and its answer is on screen.
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByTestId('week-refusal-2')).toContainText(STALE_REASON);
+});
+
+test('leaves a failure that is not a refusal saying what the server said', async ({ page }) => {
+	// A 500, a gateway error or a dropped connection is not the server judging the
+	// week. Reading the week back on one would mark blocks over a failure that is
+	// not about them, and the sentence pointing at those markings would bury the
+	// only account of the failure there is.
+	await stubTwoWeekProgram(page, [staleAmrapOverride()]);
+	let weekTwoReadCount = 0;
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'GET') return route.fallback();
+		weekTwoReadCount += 1;
+		return route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(twoWeeksOfTheSameTraining([staleAmrapOverride()]).details[1])
+		});
+	});
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'PUT') return route.fallback();
+		return route.fulfill({
+			status: 500,
+			contentType: 'application/json',
+			body: JSON.stringify({ error: 'the database is having a moment' })
+		});
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	// The week already carries a marking from the read it was loaded with, so
+	// nothing but the gate on the failure keeps the strip off "marked below".
+	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+	await page.getByPlaceholder('Week notes...').last().fill('Deload the second half');
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	// The server's own sentence, and the whole of it. Nothing here is silenced:
+	// the strip goes quiet only where a read explained the refusal and the coach
+	// then cleared what it named, and no read was made at all.
+	const refusal = page.getByTestId('week-refusal-2');
+	await expect(refusal).toContainText('the database is having a moment');
+	await expect(refusal).not.toContainText('marked on the sessions below');
+	// And the week was never read back: what it holds is still what the coach
+	// typed, and the marking on it is still the one it was loaded with.
+	await expect(page.getByTestId('stale-week-2')).toBeVisible();
+	expect(weekTwoReadCount).toBe(1);
+});
+
+test('keeps an open parameters modal on a training that is current', async ({ page }) => {
+	// Ctrl+S saves from under an open modal, so the re-read can land while the
+	// coach is typing in one. Dropping the cached training there left the panel
+	// reading "Loading the training...", with Apply disabled, nothing loading and
+	// Cancel, which throws away what they typed, the only way out. The one the
+	// modal is open on is re-read instead of dropped: they keep their values and
+	// they are looking at the training the refusal is about.
+	const reads = weekTwoReads();
+	await stubTwoWeekProgram(page, reads.before.sessions[0].overrides);
+	let weekTwoReadCount = 0;
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'GET') return route.fallback();
+		weekTwoReadCount += 1;
+		return route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(weekTwoReadCount === 1 ? reads.before : reads.after)
+		});
+	});
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'PUT') return route.fallback();
+		return route.fulfill({
+			status: 400,
+			contentType: 'application/json',
+			body: JSON.stringify({ error: `item item-exercise: ${STALE_REASON}` })
+		});
+	});
+	// The training the week is refused against is the training that moved, so the
+	// second read of it is a different one.
+	let trainingReadCount = 0;
+	await page.route('**/api/trainings/*', async (route) => {
+		if (route.request().method() !== 'GET') return route.fallback();
+		trainingReadCount += 1;
+		return route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(
+				trainingReadCount === 1
+					? circuitTraining()
+					: { ...circuitTraining(), title: 'Power endurance block, retyped' }
+			)
+		});
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	// Something for Ctrl+S to save, typed before the modal is opened.
+	await page.getByPlaceholder('Week notes...').last().fill('Deload the second half');
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', { name: /training parameters, week 2$/i })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await modal.getByRole('spinbutton').first().fill('5');
+	await page.keyboard.press('Control+s');
+
+	// The modal is still the modal: the training it reads is the one the server
+	// now holds, the sets are the ones the coach typed, and Apply still applies
+	// them.
+	await expect(
+		modal.getByRole('heading', { name: 'Power endurance block, retyped' })
+	).toBeVisible();
+	await expect(modal.getByText('Loading the training...')).toHaveCount(0);
+	await expect(modal.getByRole('spinbutton').first()).toHaveValue('5');
+	await expect(modal.getByRole('button', { name: 'Apply' })).toBeEnabled();
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(modal).toHaveCount(0);
+	await expect(page.getByTestId('stale-week-2')).toBeVisible();
 });
 
 test('keeps the words the save was refused with when the week cannot be read back', async ({

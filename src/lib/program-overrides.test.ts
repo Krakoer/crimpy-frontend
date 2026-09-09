@@ -18,6 +18,7 @@ import {
 	overrideSummary,
 	resetItemToBase,
 	markedFromReread,
+	rereadHolds,
 	rereadWeek,
 	staleRefusalLines,
 	staleOverrides,
@@ -731,11 +732,10 @@ describe('stale overrides', () => {
 
 describe('the week read back after a refused save', () => {
 	// Krakoer/crimpy#102. The portal only ever knew about refusals the server had
-	// already told it about, and it cannot judge a value the server has not seen:
-	// a coach editing a refused field to another still refused value dropped the
-	// marking, correctly, and then read the write path's prose with nothing marked.
-	// So the week is read again, and the server's fresh account is what marks the
-	// blocks.
+	// already told it about, so a training retyped after the program was read left
+	// a save answering with the write path's prose and nothing marked on the block
+	// that caused it. The week is read again, and the server's fresh account is
+	// what marks the blocks.
 	const REASON = 'rest_seconds is not taken by an emom, whose interval already holds the rest';
 
 	// The row the server holds and refuses, freshly judged against the training as
@@ -750,27 +750,57 @@ describe('the week read back after a refused save', () => {
 
 	const week = (rows: SessionOverride[]) => rereadWeek([{ id: 'ws-1', overrides: rows }]);
 
-	it('marks a field the coach edited to another value the server has not taken', () => {
-		// The value moved, so standingRefusals lets the marking go: nothing has
-		// judged 120. The save has, and it said no, which is what the read is asked
-		// after. The fields are matched by name here for that reason alone.
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
-		expect(markedFromReread(held, week([refusedRow]), 'ws-1')).toEqual([
+	const ws1 = { savedRowID: 'ws-1' };
+
+	it('marks the row the coach has not moved since the week was read', () => {
+		// Which is the case the ticket was opened for: the week was read clean, the
+		// training moved under the loaded page, and the coach touched nothing. The
+		// row the save sent and the row the server judged are one row, so the
+		// server's account of it is about the value on screen exactly.
+		const held = [{ item_id: 'a', overrides: { rest_seconds: 90 } }];
+		expect(markedFromReread(held, week([refusedRow]), ws1)).toEqual([
 			{
 				item_id: 'a',
-				overrides: { rest_seconds: 120 },
+				overrides: { rest_seconds: 90 },
 				override_stale: true,
 				stale_fields: [{ field: 'rest_seconds', reason: REASON }]
 			}
 		]);
 	});
 
-	it('leaves every value the coach holds exactly as they typed it', () => {
-		// They have just been told the save failed. Putting the server's numbers
-		// back over their work would cost them more than the raw refusal did.
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120, cycles: 4 } }];
-		const marked = markedFromReread(held, week([refusedRow]), 'ws-1');
-		expect(marked[0].overrides).toEqual({ rest_seconds: 120, cycles: 4 });
+	it('leaves a row the coach has moved to the rule that already judges it', () => {
+		// stale_fields describes the row the server stores and the refusal is about
+		// the row the save sent, and here they are two different rows: nothing has
+		// judged 120. So the row is left as it stands, its own marking included, for
+		// standingRefusals to weigh, and the strip above carries the refusal in the
+		// write path's own words.
+		const moved: SessionOverride[] = [
+			{
+				item_id: 'a',
+				overrides: { rest_seconds: 120 },
+				override_stale: true,
+				stale_fields: [{ field: 'rest_seconds', reason: 'an older read' }]
+			}
+		];
+		expect(markedFromReread(moved, week([refusedRow]), ws1)).toEqual(moved);
+		const plain = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
+		expect(markedFromReread(plain, week([refusedRow]), ws1)).toEqual(plain);
+	});
+
+	it('hands back the row the coach holds and not the row the server sent', () => {
+		// The two ask the same thing, which is what lets the refusal be written onto
+		// this one, and they are not the same object: the server's carries a row id
+		// and writes its fields in its own order. What the coach reads afterwards
+		// has to be what they typed.
+		const held = [{ item_id: 'a', overrides: { cycles: 4, rest_seconds: 90 } }];
+		const stored: SessionOverride = {
+			...refusedRow,
+			overrides: { rest_seconds: 90, cycles: 4 }
+		};
+		const marked = markedFromReread(held, week([stored]), ws1);
+		expect(marked[0].overrides).toEqual({ cycles: 4, rest_seconds: 90 });
+		expect(marked[0].id).toBeUndefined();
+		expect(marked[0].override_stale).toBe(true);
 	});
 
 	it('names only the fields the row on screen carries', () => {
@@ -785,19 +815,24 @@ describe('the week read back after a refused save', () => {
 				{ field: 'interval_seconds', reason: REASON }
 			]
 		};
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
-		expect(markedFromReread(held, week([spread]), 'ws-1')[0].stale_fields).toEqual([
+		const held = [{ item_id: 'a', overrides: { rest_seconds: 90 } }];
+		expect(markedFromReread(held, week([spread]), ws1)[0].stale_fields).toEqual([
 			{ field: 'rest_seconds', reason: REASON }
 		]);
 	});
 
 	it('drops a refusal naming nothing the row carries', () => {
-		// The refusal is attributed to the row the server holds, not to the coach's,
-		// so the field name is the only bridge between the two. With none of them
-		// carried there is nothing on screen to point at, and marking the row as a
-		// whole would quote a refusal about a value this week no longer sets.
+		// The refusal is attributed to the stored row, so the field name is the only
+		// bridge to what is on screen. With none of them carried there is nothing to
+		// point at, and marking the row as a whole would quote a refusal about a
+		// value this week does not set.
+		const carriesNeither: SessionOverride = {
+			...refusedRow,
+			overrides: { cycles: 4 },
+			stale_fields: [{ field: 'rest_seconds', reason: REASON }]
+		};
 		const held = [{ item_id: 'a', overrides: { cycles: 4 } }];
-		expect(markedFromReread(held, week([refusedRow]), 'ws-1')).toEqual([
+		expect(markedFromReread(held, week([carriesNeither]), ws1)).toEqual([
 			{ item_id: 'a', overrides: { cycles: 4 } }
 		]);
 	});
@@ -811,16 +846,17 @@ describe('the week read back after a refused save', () => {
 			overrides: { rest_seconds: 90 },
 			override_stale: true
 		};
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
-		const marked = markedFromReread(held, week([unattributed]), 'ws-1');
+		const held = [{ item_id: 'a', overrides: { rest_seconds: 90 } }];
+		const marked = markedFromReread(held, week([unattributed]), ws1);
 		expect(marked[0].override_stale).toBe(true);
 		expect(marked[0].stale_fields).toBeUndefined();
 	});
 
 	it('replaces the marking a read before the save left behind', () => {
 		// The refusal is the proof that the portal's account of what the server
-		// takes was out of date, so the fresh read replaces all of it rather than
-		// being merged into it. A row the server no longer refuses loses its mark.
+		// takes was out of date, so where the fresh read does judge a row it
+		// replaces all of it rather than being merged into it. A row the server
+		// still holds unchanged and no longer refuses loses its mark.
 		const held = [
 			{
 				item_id: 'b',
@@ -829,19 +865,38 @@ describe('the week read back after a refused save', () => {
 				stale_fields: [{ field: 'reps', reason: 'an older read' }]
 			}
 		];
-		expect(markedFromReread(held, week([refusedRow]), 'ws-1')).toEqual([
-			{ item_id: 'b', overrides: { reps: 4 } }
-		]);
+		const stored = week([refusedRow, { id: 'row-2', item_id: 'b', overrides: { reps: 4 } }]);
+		expect(markedFromReread(held, stored, ws1)).toEqual([{ item_id: 'b', overrides: { reps: 4 } }]);
 	});
 
-	it('says nothing about a session the server holds no row for', () => {
-		// A session the save sends as a new row, which is every session the coach
-		// has just added and every one dragged in from another week. The server has
-		// nothing stored under it, so the read cannot judge it and the write path's
-		// own words are what is left.
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
-		expect(markedFromReread(held, week([refusedRow]), undefined)).toEqual(held);
-		expect(markedFromReread(held, week([refusedRow]), 'ws-9')).toEqual(held);
+	it('keeps every marking on a session the server holds no row for', () => {
+		// A session the save sends as a new row: one the coach has just added, one
+		// dragged in from another week, one Duplicate week copied, and every
+		// unlocked session of a week the "does not belong to this week" recovery
+		// cleared the ids of. The server holds nothing under it, so the read was
+		// never asked about it, and that is not the same answer as the read
+		// refusing nothing of it. Reading it as the second is how a week comes back
+		// from a refused save with less marked on it than it had before.
+		const held: SessionOverride[] = [
+			{
+				item_id: 'a',
+				overrides: { rest_seconds: 90 },
+				override_stale: true,
+				stale_fields: [{ field: 'rest_seconds', reason: 'the read the week was loaded with' }]
+			}
+		];
+		expect(markedFromReread(held, week([refusedRow]), { savedRowID: undefined })).toEqual(held);
+		expect(markedFromReread(held, week([refusedRow]), { savedRowID: 'ws-9' })).toEqual(held);
+	});
+
+	it('answers whether the read holds the session at all', () => {
+		// Which is what tells the caller apart a session the read judged and found
+		// clean from one it was never asked about, and the two cannot be told apart
+		// from the marked rows alone.
+		const reread = rereadWeek([{ id: 'ws-1', overrides: [] }]);
+		expect(rereadHolds(reread, ws1)).toBe(true);
+		expect(rereadHolds(reread, { savedRowID: 'ws-9' })).toBe(false);
+		expect(rereadHolds(reread, { savedRowID: undefined })).toBe(false);
 	});
 
 	it('keys the rows by the session the server holds them under', () => {
@@ -849,11 +904,13 @@ describe('the week read back after a refused save', () => {
 		// where it sits, so one session being refused says nothing about the other.
 		const reread = rereadWeek([
 			{ id: 'ws-1', overrides: [refusedRow] },
-			{ id: 'ws-2', overrides: [] }
+			{ id: 'ws-2', overrides: [{ id: 'row-2', item_id: 'a', overrides: { rest_seconds: 90 } }] }
 		]);
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
-		expect(markedFromReread(held, reread, 'ws-1')[0].override_stale).toBe(true);
-		expect(markedFromReread(held, reread, 'ws-2')[0].override_stale).toBeUndefined();
+		const held = [{ item_id: 'a', overrides: { rest_seconds: 90 } }];
+		expect(markedFromReread(held, reread, ws1)[0].override_stale).toBe(true);
+		expect(
+			markedFromReread(held, reread, { savedRowID: 'ws-2' })[0].override_stale
+		).toBeUndefined();
 	});
 
 	it('hands the marking to the same reader the modal already runs on', () => {
@@ -864,10 +921,10 @@ describe('the week read back after a refused save', () => {
 		// off a value the server has now judged.
 		const base = [exercise('a')];
 		const trees = trainingTrees(base, emptyGridLayouts());
-		const held = [{ item_id: 'a', overrides: { rest_seconds: 120 } }];
-		const marked = markedFromReread(held, week([refusedRow]), 'ws-1');
+		const held = [{ item_id: 'a', overrides: { rest_seconds: 90 } }];
+		const marked = markedFromReread(held, week([refusedRow]), ws1);
 		expect(staleRefusalLines(marked[0], base[0])).toEqual([{ fields: 'rest', reason: REASON }]);
-		const elsewhere = [{ item_id: 'a', overrides: { rest_seconds: 120, cycles: 4 } }];
+		const elsewhere = [{ item_id: 'a', overrides: { rest_seconds: 90, cycles: 4 } }];
 		expect(standingStaleOverrides(trees, marked, elsewhere).map((o) => o.item_id)).toEqual(['a']);
 		const moved = [{ item_id: 'a', overrides: { rest_seconds: 150 } }];
 		expect(standingStaleOverrides(trees, marked, moved)).toEqual([]);
