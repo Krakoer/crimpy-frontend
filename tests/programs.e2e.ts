@@ -2802,3 +2802,101 @@ test('points at the apply where the refused row leaves nothing to reset', async 
 	const week = saved.find((request) => request.url.endsWith('/weeks/2'));
 	expect(week?.body).toMatchObject({ sessions: [{ overrides: [] }] });
 });
+
+/**
+ * A training whose hangboard block declares its layout per set: eight rows, two
+ * sets of four reps, loaded differently from set to set. It is the layout the
+ * write path lays the block's arrays out in, and the layout a week's arrays are
+ * judged against.
+ */
+function perSetGridTraining() {
+	const kg = (value: number) => ({ value, unit: 'kg' });
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		training_type: 'hangboard',
+		items: [
+			{
+				id: 'item-grid',
+				type: 'repeater',
+				position: 0,
+				cycles: 2,
+				reps: 4,
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				cycle_rest_seconds: 120,
+				hand: 'both',
+				granularity: 'set',
+				edge_sizes_mm: Array.from({ length: 8 }, () => 20),
+				loads: [kg(10), kg(10), kg(10), kg(10), kg(12), kg(12), kg(12), kg(12)],
+				hand_positions: [Array.from({ length: 8 }, () => 'HC')]
+			}
+		]
+	});
+}
+
+/** The week's own load, one entry for each of the eight rows the training declares. */
+function flatGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: { loads: Array.from({ length: 8 }, () => ({ value: 14, unit: 'kg' })) }
+		}
+	];
+}
+
+test('shows a week whose loads coincide as the one row it reads as', async ({ page }) => {
+	// The editor addresses every rep of every set, so the tree it reads is
+	// rewritten into the layout the values call for. Eight identical loads read
+	// back as varying by nothing, and the coach sees one row rather than eight.
+	// That collapse is the feature, and this pins that it is still what they see.
+	await stubTwoWeekProgram(page, flatGridOverride(), perSetGridTraining());
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByText('1 block customised for this week')).toBeVisible();
+	await expect(modal.getByText('VARIES BY SET')).toHaveCount(0);
+	await expect(modal.getByLabel('Load', { exact: true })).toHaveValue('14');
+});
+
+test('leaves nothing to save when a week whose loads coincide is merely applied', async ({
+	page
+}) => {
+	// The collapse above is a re-expression of the week's own eight loads and not
+	// a layout any coach chose, so the request declares the layout the training
+	// does and carries the eight loads the week stored. Applying then asks for
+	// exactly what the week already holds, and there is nothing to save.
+	//
+	// Before the request was built in the stored layout this sent a granularity
+	// of 'uniform' beside one load, which the week did not hold, so opening and
+	// applying a week nobody touched rewrote it.
+	await stubTwoWeekProgram(page, flatGridOverride(), perSetGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await modal.getByRole('button', { name: 'Apply' }).click();
+
+	await expect(page.getByRole('button', { name: 'Save program' })).toHaveCount(0);
+	expect(saved).toHaveLength(0);
+});
+
+test('sends a load typed into the collapsed row in the layout the training declares', async ({
+	page
+}) => {
+	// One row on screen, eight rows on the wire: the coach prescribes the same
+	// hang on every rep, and the request says so in the layout the write path
+	// lays the block's arrays out in, naming no granularity of its own.
+	await stubTwoWeekProgram(page, flatGridOverride(), perSetGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await modal.getByLabel('Load', { exact: true }).fill('20');
+	await modal.getByLabel('Load', { exact: true }).blur();
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		loads: Array.from({ length: 8 }, () => ({ value: 20, unit: 'kg' }))
+	});
+});

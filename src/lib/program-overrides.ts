@@ -1,5 +1,6 @@
 import {
 	OVERRIDE_ITEM_FIELDS,
+	type HangboardGranularity,
 	type ItemOverride,
 	type Load,
 	type OverrideKey,
@@ -11,9 +12,11 @@ import {
 } from '$lib/api/client';
 import { assessmentLabel, formatLoad, type AssessmentCatalog } from '$lib/assessments';
 import {
+	hangboardGranularity,
 	hangboardHandCount,
 	hangboardRowCount
 } from '$lib/components/training/hangboard-granularity';
+import { itemInLayout } from '$lib/components/training/hangboard-config';
 import type { OverrideHistoryByItem } from '$lib/components/training/override-context';
 
 // A program schedules the same training in several weeks and lets the coach
@@ -572,6 +575,12 @@ function declaredLayout(base: TrainingItem, override: ItemOverride): string {
 // one entry per row and one column per hand the request declares, so stored
 // arrays written for one layout contradict a request declaring another. The
 // normalised grid goes out whole there instead, which does agree with itself.
+//
+// requestOverrides writes the request in the layout the item is declared in, so
+// the second half no longer answers a layout the normalisation invented. It stays
+// because it is the invariant the substitution owes whatever it is handed: every
+// array a request carries owes it one entry per row it declares, and this is the
+// only place that is checked before the arrays go back.
 function gridUntouched(
 	base: TrainingItem,
 	stored: ItemOverride,
@@ -582,6 +591,141 @@ function gridUntouched(
 		sameField(opened, current, field)
 	);
 	return untouched && declaredLayout(base, stored) === declaredLayout(base, current);
+}
+
+// The layout knowledge a request needs and the tree on screen cannot hold.
+//
+// normalizeHangboardItem rewrites a grid item into the layout its own values
+// call for, which is what lets the editor address every rep of every set, and
+// the inference is lossy: an item declared per set whose loads coincide reads
+// back as uniform and nothing left in the tree says which of the two it was. So
+// the layouts are read before that happens, and the request is written in one of
+// them rather than in the one the editor inferred.
+export interface GridLayouts {
+	// The granularity the training declares for each grid item, which is the
+	// layout the write path lays that item's arrays out in.
+	training: Record<string, HangboardGranularity>;
+	// The layout the week's row is written in: its own where it declared one, the
+	// training's otherwise, exactly as the write path merges the two.
+	stored: Record<string, HangboardGranularity>;
+	// The layout the editor opened each item in, which is the only thing that
+	// says whether a layout on screen is one the coach chose or one the
+	// normalisation inferred.
+	opened: Record<string, HangboardGranularity>;
+}
+
+function forEachGridItem(
+	items: TrainingItem[],
+	visit: (item: TrainingItem, itemId: string) => void
+): void {
+	for (const item of items) {
+		if (item.id && GRID_ITEM_TYPES.includes(item.type)) visit(item, item.id);
+		if (item.items) forEachGridItem(item.items, visit);
+	}
+}
+
+export function emptyGridLayouts(): GridLayouts {
+	return { training: {}, stored: {}, opened: {} };
+}
+
+// Read once, when the week is opened: the training arrives unnormalised, the
+// week's row says which layout the coach wrote it in, and the merged tree has
+// just been normalised for the editor to read.
+export function gridLayouts(
+	training: TrainingItem[],
+	overrides: SessionOverride[],
+	opened: TrainingItem[]
+): GridLayouts {
+	const byItem = requestByItem(overrides);
+	const layouts = emptyGridLayouts();
+	forEachGridItem(training, (item, itemId) => {
+		layouts.training[itemId] = hangboardGranularity(item);
+		layouts.stored[itemId] = byItem.get(itemId)?.granularity ?? hangboardGranularity(item);
+	});
+	forEachGridItem(opened, (item, itemId) => {
+		layouts.opened[itemId] = hangboardGranularity(item);
+	});
+	return layouts;
+}
+
+// The layout each grid item's request is written in: the one on screen where it
+// has moved since the week was opened, and the one the item is declared in
+// otherwise. A collapse the normalisation performed is a re-expression for the
+// editor to read rather than a prescription, so it stays on screen; a layout the
+// coach picked from the variation selector is theirs and goes out as it is.
+function requestGranularities(
+	items: TrainingItem[],
+	layouts: GridLayouts
+): Record<string, HangboardGranularity> {
+	const granularities: Record<string, HangboardGranularity> = {};
+	forEachGridItem(items, (item, itemId) => {
+		const shown = hangboardGranularity(item);
+		const declared = layouts.stored[itemId];
+		granularities[itemId] = shown === layouts.opened[itemId] && declared ? declared : shown;
+	});
+	return granularities;
+}
+
+// A tree written out in the given layouts, which is both what a request is built
+// from and what it is diffed against.
+export function itemsInLayouts(
+	items: TrainingItem[],
+	granularities: Record<string, HangboardGranularity>
+): TrainingItem[] {
+	return items.map((item) => {
+		const nested = item.items
+			? { ...item, items: itemsInLayouts(item.items, granularities) }
+			: item;
+		const granularity = item.id ? granularities[item.id] : undefined;
+		return granularity === undefined ? nested : itemInLayout(nested, granularity);
+	});
+}
+
+// Whether a row says anything at all about the item's grid.
+function declaresGrid(override: ItemOverride): boolean {
+	if (override.granularity != null) return true;
+	return GRID_ARRAY_FIELDS.some((field) => !isEmpty(override[field]));
+}
+
+function withoutGrid(override: ItemOverride): ItemOverride {
+	const rest: ItemOverride = { ...override };
+	delete rest.granularity;
+	for (const field of GRID_ARRAY_FIELDS) delete rest[field];
+	return rest;
+}
+
+// What applying asks of the server, as against what the modal shows.
+//
+// The two differ in one thing: the layout a grid item's arrays are written in.
+// The editor reads a tree normalised into the layout the values call for, while
+// the write path merges the override onto the item as it is stored and judges
+// every array against the layout that item declares. Diffing the one against the
+// other is how the portal came to send a granularity no coach ever chose, and to
+// believe a request acceptable that the server refuses. So the request is built
+// from the same values the coach edited, written back out in the layout the item
+// is declared in, against a training written out the same way.
+//
+// Which blocks the request carries, and which of them it says anything about the
+// grid of, stay the screen's answer. A block the coach put back to the training
+// asks nothing of it, and one whose grid reads as the training's own carries no
+// grid field, whatever layout it would have been written in: a value the coach
+// sees as untouched cannot leave here as a prescription.
+export function requestOverrides(
+	wireBase: TrainingItem[],
+	items: TrainingItem[],
+	shown: SessionOverride[],
+	layouts: GridLayouts
+): SessionOverride[] {
+	const shownByItem = requestByItem(shown);
+	const wireItems = itemsInLayouts(items, requestGranularities(items, layouts));
+	const request: SessionOverride[] = [];
+	for (const override of diffOverrides(wireBase, wireItems)) {
+		const onScreen = shownByItem.get(override.item_id);
+		if (onScreen === undefined) continue;
+		const overrides = declaresGrid(onScreen) ? override.overrides : withoutGrid(override.overrides);
+		if (Object.keys(overrides).length > 0) request.push({ ...override, overrides });
+	}
+	return request;
 }
 
 // What the week goes back asking, with the grid of every block the coach did not

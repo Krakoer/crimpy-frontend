@@ -16,15 +16,20 @@
 		buildOverrideHistory,
 		carryStaleFlags,
 		diffOverrides,
+		emptyGridLayouts,
 		findItem,
+		gridLayouts,
 		itemIsOverridden,
+		itemsInLayouts,
 		keepStoredGridArrays,
 		mergeOverrides,
+		requestOverrides,
 		resetItemToBase,
 		standingStaleOverrides,
 		staleOverrideDroppedNotice,
 		staleOverrideNotice,
 		staleOverridesDroppedByApply,
+		type GridLayouts,
 		type ScheduledRow
 	} from '$lib/program-overrides';
 	import { assessmentsForField, type AssessmentCatalog } from '$lib/assessments';
@@ -87,42 +92,70 @@
 
 	let items = $state<TrainingItem[]>([]);
 	let editedTraining = $state<string | null>(null);
-	// What the week asked for the moment the tree was built, which is the only
-	// baseline a refusal can be measured against: the merge and the normalisation
-	// rewrite a grid item's arrays into the layout the training now declares, so
-	// the stored row cannot be re-emitted and comparing against it would leave
-	// every grid override unmarked.
+	// The layout the training and the week declare each grid item in, read while
+	// both are still to hand: the normalisation below replaces it with the layout
+	// the item's values call for, and nothing in the tree then says what it was.
+	let layouts = $state<GridLayouts>(emptyGridLayouts());
+	// What the week asked of the server the moment the tree was built, which is
+	// the only baseline a refusal can be measured against: the merge and the
+	// normalisation rewrite a grid item's arrays into the layout the training now
+	// declares, so the stored row cannot be re-emitted and comparing against it
+	// would leave every grid override unmarked.
 	let openingRequest = $state<SessionOverride[]>([]);
 
 	$effect(() => {
 		if (!training || editedTraining === training.id) return;
-		const merged = mergeOverrides(baseItems, $state.snapshot(overrides) as SessionOverride[]);
+		const declared = $state.snapshot(training.items) as TrainingItem[];
+		const week = $state.snapshot(overrides) as SessionOverride[];
+		const merged = mergeOverrides(baseItems, week);
 		normalizeHangboardItems(merged);
 		applyItemReadDefaults(merged, loadAssessments);
 		prepareEditableTree(merged);
+		const opened = gridLayouts(declared, week, merged);
 		// Cloned, because the diff hands back the very arrays of the tree it read:
 		// a grid it merely pointed at would follow the coach's edits and then say
 		// they had touched nothing.
-		openingRequest = structuredClone(diffOverrides(baseItems, merged));
+		openingRequest = structuredClone(
+			requestOverrides(
+				itemsInLayouts(baseItems, opened.training),
+				merged,
+				diffOverrides(baseItems, merged),
+				opened
+			)
+		);
+		layouts = opened;
 		items = merged;
 		editedTraining = training.id;
 	});
 
-	// What this week would ask for if the coach applied now.
+	// The training as the write path lays it out, which is what it judges a
+	// request against: the tree the editor reads, with every grid item written
+	// back out in the layout the training declares for it.
+	let wireBase = $derived(itemsInLayouts(baseItems, layouts.training));
+
+	// What the coach reads as customised on this week, both trees normalised, so
+	// a layout the normalisation inferred on each side is not read as this week's
+	// doing.
 	let edited = $derived(diffOverrides(baseItems, items));
 
-	// What applying actually sends. The tree on screen is normalised into the
-	// layout the training now declares, which rewrites an array a week wrote
-	// against another row count, so a grid the coach has not touched goes back as
-	// the week stored it rather than as the normalisation guessed it.
-	let request = $derived(keepStoredGridArrays(baseItems, overrides, openingRequest, edited));
+	// The same week as the server reads it: the coach's values written out in the
+	// layout each item is declared in. The editor's own layout is a re-expression
+	// of those values rather than a prescription, so it stays on screen.
+	let currentRequest = $derived(requestOverrides(wireBase, items, edited, layouts));
+
+	// What applying actually sends. An array a week wrote against a row count no
+	// layout of the training explains cannot be re-expressed at all, so a grid the
+	// coach has not touched goes back as the week stored it.
+	let request = $derived(keepStoredGridArrays(wireBase, overrides, openingRequest, currentRequest));
 
 	// The overrides the server refused, still asking what they asked when it did.
 	// Read against the tree on screen rather than against the saved week, so a
 	// block the coach has just cleared stops being marked before they apply, and
 	// against the request above, so a grid whose refused arrays go back regardless
 	// stays marked while the coach edits the rest of the block.
-	let standing = $derived(standingStaleOverrides(overrides, openingRequest, edited, request));
+	let standing = $derived(
+		standingStaleOverrides(overrides, openingRequest, currentRequest, request)
+	);
 
 	// The refused rows the merge and the normalisation already undid. Nothing on
 	// screen asks for them, so the block is marked without being offered a reset,
