@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { TrainingItem } from '$lib/api/client';
 import type { AssessmentCatalog } from '$lib/assessments';
 import type { OverrideMode } from './override-context';
-import { createPrescription, type PrescriptionBoxes } from './exercise-prescription';
+import { createPrescription, initialBoxes, type PrescriptionBoxes } from './exercise-prescription';
 
 const catalog: AssessmentCatalog = {
 	'max-hang': {
@@ -23,13 +23,9 @@ const catalog: AssessmentCatalog = {
 // run a sequence of clicks the way the panel does: click, then let the boxes
 // write what they write.
 function editor(item: TrainingItem, base?: TrainingItem) {
-	const initialSeconds = item.variable_targets?.duration?.fallback ?? item.duration ?? 0;
-	const boxes: PrescriptionBoxes & { repsCount: number | null } = {
-		isDuration: (item.duration ?? 0) !== 0 && (item.reps ?? 0) === 0,
-		durationMin: Math.floor(initialSeconds / 60),
-		durationSec: initialSeconds % 60,
-		repsCount: item.variable_targets?.reps?.fallback ?? item.reps ?? 0
-	};
+	// The editor's own seeding, not a copy of it, so a change to the rule reaches
+	// these tests instead of leaving them green against the old one.
+	const boxes: PrescriptionBoxes & { repsCount: number | null } = initialBoxes(item);
 
 	const overrideMode = base
 		? ({
@@ -231,15 +227,40 @@ describe('the AMRAP toggle in a program week', () => {
 
 describe('an emptied box', () => {
 	it('asks nothing of a week that prescribes no plain count', () => {
+		// 12 rather than the training's 8, so the assertion says which of the two
+		// the emptied box left standing.
 		const week = editor(
-			{ type: 'exercise', id: 'item-1', duration: 0, reps: 8 },
+			{ type: 'exercise', id: 'item-1', duration: 0, reps: 12 },
 			base(trainingReps)
 		);
 
 		week.typeReps(null);
 
-		expect(week.item.reps).toBe(8);
+		expect(week.item.reps).toBe(12);
 		expect(week.item.variable_targets).toBeUndefined();
+	});
+
+	// The rule the boxes open on decides what every sequence above starts from,
+	// so it is pinned here rather than assumed. A week that raised only the
+	// fallback is the case where the fallback and the plain field differ, and the
+	// boxes have to read the fallback: it is the number a client without
+	// assessment data runs, and the plain field is still the training's.
+	it('opens the boxes on the fallback, not the plain field', () => {
+		const raisedFallback = editor(
+			{
+				type: 'exercise',
+				id: 'item-1',
+				duration: 120,
+				reps: 0,
+				variable_targets: {
+					duration: { assessment_id: 'max-hang', percent: 75, fallback: 30 }
+				}
+			},
+			base(trainingDuration)
+		);
+
+		expect(raisedFallback.boxes.durationMin).toBe(0);
+		expect(raisedFallback.boxes.durationSec).toBe(30);
 	});
 
 	it('never sends a null fallback under a percentage', () => {

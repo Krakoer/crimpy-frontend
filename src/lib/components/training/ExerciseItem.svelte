@@ -13,7 +13,7 @@
 		formatLoad,
 		type AssessmentCatalog
 	} from '$lib/assessments';
-	import { createPrescription } from './exercise-prescription';
+	import { createPrescription, initialBoxes } from './exercise-prescription';
 
 	interface Props {
 		item: TrainingItem;
@@ -47,16 +47,13 @@
 			'Unknown exercise'
 	);
 
-	let isDuration = $state((item.duration ?? 0) !== 0 && (item.reps ?? 0) === 0);
-
-	// The boxes hold the plain number the athlete runs, which is the fallback
-	// while a percentage stands: that is the only fixed value a client reads
-	// then, and a week that already moved it leaves the training's own number on
-	// the item untouched.
-	const initialSeconds = item.variable_targets?.duration?.fallback ?? item.duration ?? 0;
-	let durationMin = $state(Math.floor(initialSeconds / 60));
-	let durationSec = $state(initialSeconds % 60);
-	let repsCount = $state<number | null>(item.variable_targets?.reps?.fallback ?? item.reps ?? 0);
+	// Seeded by initialBoxes, which the unit tests read too, so the rule the
+	// boxes open on cannot drift from the toggles that are tested against it.
+	const opening = initialBoxes(item);
+	let isDuration = $state(opening.isDuration);
+	let durationMin = $state(opening.durationMin);
+	let durationSec = $state(opening.durationSec);
+	let repsCount = $state<number | null>(opening.repsCount);
 
 	// Which of the two the boxes mean, and what each toggle takes away and puts
 	// back, is the machinery three review rounds found defects in, so it lives in

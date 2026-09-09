@@ -38,12 +38,39 @@ export interface PrescriptionDeps {
 // they typed.
 type DisplacedValue = { plain: number; shown: number };
 
-// A flat record of three numbers and an id, so a copy of it shares nothing with
-// the item it was read off. The item is a reactive proxy in the editor, and a
+// assessment_id, percent and fallback, all primitives, so a spread of a
+// VariableTarget shares nothing with the item it was read off and this stands in
+// for $state.snapshot. The item is a reactive proxy in the editor, and a
 // remembered target that stayed joined to it would follow the boxes it is meant
-// to hold still against.
+// to hold still against. Add a field that is not a primitive and this has to
+// become a deep copy, or the memo starts sharing structure with the item again
+// and nothing here will fail.
 function copyTarget(target: VariableTarget): VariableTarget {
 	return { ...target };
+}
+
+// What the boxes read when the editor opens on an item. Here rather than in the
+// component because the tests depend on it: a box seeded from the wrong value
+// makes a toggle sequence prove nothing, so the rule and the toggles have to
+// move together.
+//
+// The boxes hold the plain number the athlete runs, which is the fallback while
+// a percentage stands: that is the only fixed value a client reads then, and a
+// week that already moved it leaves the training's own number on the item
+// untouched.
+export function initialBoxes(item: TrainingItem): {
+	isDuration: boolean;
+	durationMin: number;
+	durationSec: number;
+	repsCount: number | null;
+} {
+	const seconds = item.variable_targets?.duration?.fallback ?? item.duration ?? 0;
+	return {
+		isDuration: (item.duration ?? 0) !== 0 && (item.reps ?? 0) === 0,
+		durationMin: Math.floor(seconds / 60),
+		durationSec: seconds % 60,
+		repsCount: item.variable_targets?.reps?.fallback ?? item.reps ?? 0
+	};
 }
 
 export function createPrescription(deps: PrescriptionDeps) {
@@ -273,5 +300,3 @@ export function createPrescription(deps: PrescriptionDeps) {
 		setRepsMode
 	};
 }
-
-export type Prescription = ReturnType<typeof createPrescription>;
