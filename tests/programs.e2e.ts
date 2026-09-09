@@ -3054,14 +3054,12 @@ test('sends the layout the coach chose over a week prescribing one hang', async 
 	// It does not pin the other half, Krakoer/crimpy#99, that whether the coach
 	// touched the grid cannot be read off the wire pair. That pair moves across
 	// this pick, since the row declares a layout of its own and the coach picked
-	// another. A pick the pair is invariant across cannot be told apart from here
-	// at all: the row that goes out is then the row the week already holds
-	// whichever half of the substitution decides it, so the week is not dirty and
-	// there is no request to read. The refused sibling below is the invariant pick
-	// end to end, and the only shape that tells the two halves apart: a stored row
-	// the merge cannot reproduce is a row the server refuses. The unit describe on
-	// a grid that read as one row asserts the invariance itself, which nothing
-	// from here can see.
+	// another, so either half of the substitution reaches the same answer here.
+	// The pick the pair is invariant across is the shape that tells the two
+	// halves apart, and it has two sibling tests: the refused grid below, and the
+	// sparse one right after this, which is the same harm on a week the server
+	// takes. What makes that one rare rather than impossible is spelled out
+	// there.
 	await stubTwoWeekProgram(page, flatWeekGridOverride(), flatGridTraining());
 	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 
@@ -3077,6 +3075,104 @@ test('sends the layout the coach chose over a week prescribing one hang', async 
 
 	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
 		loads: Array.from({ length: 8 }, () => ({ value: 20, unit: 'kg' }))
+	});
+});
+
+/**
+ * The same block carrying no edge sizes and no grips at all, and one load for
+ * the whole item. Every configuration array is optional and validateRowArray
+ * skips the ones an item leaves out, so the write path stores this and serves it
+ * back: created through the API against the local backend, not assumed. The
+ * portal never writes such an item, which is the standing the `rep` granularity
+ * has too, and the app and the backend both can.
+ */
+function sparseGridTraining() {
+	return testTraining({
+		id: 'training-1',
+		title: 'Power endurance block',
+		training_type: 'hangboard',
+		items: [
+			{
+				id: 'item-grid',
+				type: 'repeater',
+				position: 0,
+				cycles: 2,
+				reps: 4,
+				worktime_seconds: 7,
+				rest_seconds: 3,
+				cycle_rest_seconds: 120,
+				hand: 'both',
+				granularity: 'uniform',
+				loads: [kg(10)]
+			}
+		]
+	});
+}
+
+/**
+ * The week's own hang on every row of the layout its row declares, all eight of
+ * them alike. The server takes the row and never marks it: eight loads against
+ * the eight rows the row itself declares.
+ */
+function sparseSetGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: { granularity: 'set', loads: Array.from({ length: 8 }, () => kg(20)) }
+		}
+	];
+}
+
+test('sends the layout the coach chose on a grid that read as one row', async ({ page }) => {
+	// Krakoer/crimpy#99 round one, on a week the server never refused.
+	//
+	// The week declares a layout of its own and asks the same hang of all eight
+	// of its rows, so the merge lands eight loads that agree and the normalisation
+	// reads them back as the one row the coach opens on. Choosing to vary by set
+	// is them asking for that hang on every rep, and the block goes out laid out
+	// again.
+	//
+	// The request cannot see that choice. It is written in the layout the item is
+	// declared in except where the layout on screen has moved, and here the layout
+	// the coach picked is the one the week already declared, so both sides of the
+	// wire pair are byte for byte the same row and only the display pair moves.
+	// Read off the request the way the substitution read it before
+	// Krakoer/crimpy#99, the grid counts as untouched, the stored arrays go back
+	// over the layout just picked, what goes out is the row the week already
+	// holds, and the pick is discarded with nothing on screen saying so.
+	//
+	// It takes a training carrying no edge sizes and no grips, and that is not an
+	// arbitrary fixture. A row declaring a layout the training does not, while
+	// omitting an array the training carries, leaves that array at the training's
+	// row count, and validateItemConfiguration refuses the merged item for it:
+	// eight edge sizes against the one row a uniform row declares. That is the
+	// barrier, and it is why nearly every invariant pick is a week the server
+	// refused. It does not stand where the training carries no such array.
+	await stubTwoWeekProgram(page, sparseSetGridOverride(), sparseGridTraining());
+	const saved = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	const modal = await openWeekParameters(page, 2);
+	await expect(modal.getByLabel('Load', { exact: true })).toHaveValue('20');
+
+	await modal.getByRole('radio', { name: 'Set', exact: true }).click();
+	await expect(modal.getByRole('radio', { name: 'Set', exact: true })).toBeChecked();
+
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	// The pick is a change to save. Read off the request it is not one, and this
+	// is where the week went quiet: no save to make and the layout gone.
+	await expect(page.getByRole('button', { name: 'Save program' })).toBeVisible();
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+
+	// The grid laid out again, which is what they asked for: the hang they were
+	// reading on each of the eight rows, with the edge and the grip the training
+	// left the block to default to.
+	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
+		granularity: 'set',
+		loads: Array.from({ length: 8 }, () => kg(20)),
+		edge_sizes_mm: Array.from({ length: 8 }, () => 20),
+		hand_positions: [Array.from({ length: 8 }, () => 'HC')]
 	});
 });
 
@@ -3245,6 +3341,79 @@ test('keeps a refused grid marked where the training reads back as one row', asy
 		rest_seconds: 9,
 		loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
 	});
+});
+
+/**
+ * The same six loads in a row naming no layout of its own, so the layout they
+ * are read in is the one the row inherits from the training. It is the shape the
+ * merge moved: a row declaring its own layout was already read out over the rows
+ * that layout declares, whatever the training's values collapsed to.
+ */
+function refusedShortGridOverride() {
+	return [
+		{
+			id: 'override-1',
+			item_id: 'item-grid',
+			overrides: { loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)] },
+			override_stale: true,
+			stale_fields: rowCountRefusal(GRID_STALE_REASON, 'loads')
+		}
+	];
+}
+
+test('reads a refused short row out over the rows the block has now', async ({ page }) => {
+	// What a coach reads of a row the server refused for holding fewer loads than
+	// the block has rows. Krakoer/crimpy#101 moved it, and no other spec looks at
+	// it: the sibling above holds the only other short row left and asserts
+	// nothing about the screen.
+	//
+	// The row names no layout, so the merge writes the training out in the one the
+	// row inherits from it, eight rows, and the six loads land on the six they
+	// were written for. The two rows beyond them are filled from the first hang,
+	// which is what the rebuild does with any row the arrays say nothing about.
+	// Before, the six landed on the one row the training's own coinciding loads
+	// had collapsed to and the coach read the first of them alone.
+	//
+	// So two of the eight hangs below are hangs nobody wrote, and that is the
+	// change. It is the more faithful of the two readings: the wire is untouched,
+	// the block carries the server's refusal and the reset that clears it, and six
+	// of the eight are what the week does hold, where one of six was not. Pinned
+	// here so the next person to move it sees it was chosen.
+	await stubTwoWeekProgram(page, refusedShortGridOverride(), flatGridTraining());
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+
+	// The first set, which is four of the six loads the week wrote.
+	await expect(modal.getByTitle('Rep 1: 20mm, HC 30 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 2: 20mm, HC 31 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 3: 20mm, HC 32 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 4: 20mm, HC 40 kg')).toBeVisible();
+
+	// The second set: the last two the week wrote, then the two rows it wrote
+	// nothing for, reading the first hang of the row.
+	await expect(modal.getByTitle('Rep 1: 20mm, HC 41 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 2: 20mm, HC 42 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 3: 20mm, HC 30 kg')).toBeVisible();
+	await expect(modal.getByTitle('Rep 4: 20mm, HC 30 kg')).toBeVisible();
+
+	// And the block says the server would not take the row, with the reset that
+	// clears it, which is what stops the two padding hangs reading as a
+	// prescription.
+	await expect(modal.getByTestId('stale-override')).toContainText(GRID_STALE_REASON);
+	await expect(
+		modal.getByRole('button', { name: 'Reset this block to the training' })
+	).toBeVisible();
 });
 
 /**
