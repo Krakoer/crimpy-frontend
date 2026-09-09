@@ -45,6 +45,8 @@
 		duplicatedDraftSession,
 		emptyDraft,
 		isWeekDirty,
+		markRefusedWeek,
+		savedID,
 		savedWeek,
 		scheduledRows,
 		sessionPlacement,
@@ -55,7 +57,7 @@
 		type WeekDraft,
 		type WeekDrafts
 	} from '$lib/program-draft';
-	import { staleOverrides } from '$lib/program-overrides';
+	import { rereadWeek, staleOverrides } from '$lib/program-overrides';
 	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
 	import { toDateOnly } from '$lib/date';
 	import { withCoachReply } from '$lib/sessions';
@@ -127,16 +129,11 @@
 			...savedWeek({ notes: detail.notes ?? '', days, freqSessions, everydaySessions }),
 			saving: false,
 			saveError: '',
+			rereading: false,
+			refusalMarked: false,
 			deleteConfirm: false,
 			deleting: false
 		};
-	}
-
-	// A session only carries its id back when it is being saved into the week that
-	// row belongs to. Anywhere else it is a new row, and sending the id would ask
-	// the server to move a row between weeks, which it refuses.
-	function savedID(session: DraftSession, wn: number): string | undefined {
-		return session.originWn === wn ? session.id : undefined;
 	}
 
 	// override_stale and stale_fields are answered by the week read and computed
@@ -319,6 +316,26 @@
 		};
 	}
 
+	// What a coach reads under a week whose save was refused, in the three states
+	// the re-read leaves it in.
+	//
+	// The write path's own words are the last of the three rather than the first.
+	// Where the server's account of the week explains the refusal, the blocks
+	// carry it in the coach's words and on the value it is about, and that same
+	// account quotes the check's wording under the block it belongs to, so nothing
+	// is lost by not repeating it here. Where it does not, a week save is refused
+	// for plenty of things that are not a stale override and the developer's
+	// sentence is better than silence.
+	function saveRefusalLine(draft: WeekDraft): string {
+		if (draft.rereading) {
+			return 'This week could not be saved. Asking the server which of its blocks the training no longer takes...';
+		}
+		if (draft.refusalMarked) {
+			return 'This week could not be saved. What the training no longer takes is marked on the sessions below.';
+		}
+		return draft.saveError;
+	}
+
 	const LOCKED_SESSION_REASON =
 		'This session has already been played, so its training and its overrides cannot be changed and it cannot be removed from the week.';
 
@@ -371,11 +388,47 @@
 		}
 	}
 
+	// The week the server holds, read again because it has just refused a save of
+	// the one on screen.
+	//
+	// Only the server judges an override, and until now the portal only knew about
+	// the refusals it had been told about when the week was read. A save the
+	// server refuses is the server judging the week again, so this asks it what it
+	// makes of the week it still holds and marks the blocks with the answer, which
+	// turns the write path's prose into the same per field marking the coach
+	// already reads everywhere else in the panel.
+	//
+	// Nothing of the coach's is replaced: markRefusedWeek writes the marking onto
+	// the rows they hold and touches no value, no session and no note. What the
+	// re-read costs is a round trip, and what it can fail to do is explain the
+	// refusal at all, which is why the write path's own words are kept and shown
+	// where it does not.
+	async function rereadRefusedWeek(wn: number) {
+		const draft = weekDrafts[wn];
+		if (!draft) return;
+		draft.rereading = true;
+		try {
+			const fresh = await apiClient.getWeek(userId, programId, wn);
+			draft.refusalMarked = markRefusedWeek(draft, wn, rereadWeek(fresh.sessions)) > 0;
+			// A week refused for what its trainings no longer take is a week whose
+			// trainings moved under the portal, and the cached copy is what every
+			// marking is rendered against and what the parameters modal builds its
+			// tree from. Dropped rather than re-read here: the next open reads it.
+			for (const session of fresh.sessions) delete trainingCache[session.training_id];
+		} catch {
+			// The server could not be asked, so the refusal it answered the save with
+			// is the whole of what can be said, and saveError is still holding it.
+		} finally {
+			draft.rereading = false;
+		}
+	}
+
 	async function saveWeek(wn: number) {
 		const draft = weekDrafts[wn];
 		if (!draft) return;
 		draft.saving = true;
 		draft.saveError = '';
+		draft.refusalMarked = false;
 		try {
 			const detail = await apiClient.upsertWeek(userId, programId, wn, {
 				notes: draft.notes.trim() || undefined,
@@ -408,6 +461,7 @@
 				);
 			} else {
 				weekDrafts[wn].saveError = message;
+				await rereadRefusedWeek(wn);
 			}
 			throw e;
 		}
@@ -1234,11 +1288,12 @@
 											{/if}
 										</div>
 
-										{#if draft.saveError}
+										{#if saveRefusalLine(draft)}
 											<div
-												style="padding: 6px 12px; background: #fef2f2; color: #b91c1c; font-size: 12px; border-bottom: 1px solid #fca5a5;"
+												data-testid="week-refusal-{wn}"
+												style="padding: 6px 12px; background: var(--rd-lt); color: var(--rd); font-size: 12px; border-bottom: 1px solid var(--rd);"
 											>
-												{draft.saveError}
+												{saveRefusalLine(draft)}
 											</div>
 										{/if}
 

@@ -2570,6 +2570,157 @@ test('drops the marking once the refused field itself moves', async ({ page }) =
 	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
 });
 
+/**
+ * The week as it reads before and after the training under it moved. The row is
+ * the same either way: what changes is the server's judgement of it, which only
+ * a read of the week can answer and which the portal has no way to reach for
+ * short of asking again.
+ */
+function weekTwoReads() {
+	const asked = { id: 'override-1', item_id: 'item-exercise', overrides: { reps_is_max: true } };
+	const before = twoWeeksOfTheSameTraining([asked]).details[1];
+	const after = twoWeeksOfTheSameTraining([staleAmrapOverride()]).details[1];
+	return { before, after };
+}
+
+test('reads the week back when a save is refused and marks the block it is about', async ({
+	page
+}) => {
+	// Krakoer/crimpy#102. The portal only ever knew about refusals the server had
+	// already told it about, so a training retyped after the program was read left
+	// the save answering with the write path's prose and nothing marked on the
+	// block that caused it. The week is read again, and the server's fresh
+	// account is what marks it.
+	const reads = weekTwoReads();
+	await stubTwoWeekProgram(page, reads.before.sessions[0].overrides);
+
+	// The re-read is held open so the coach can be read mid flight, then let go.
+	let releaseReread = () => {};
+	const rereadHeld = new Promise<void>((resolve) => (releaseReread = resolve));
+	let weekTwoReadCount = 0;
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'GET') return route.fallback();
+		weekTwoReadCount += 1;
+		if (weekTwoReadCount > 1) await rereadHeld;
+		return route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(weekTwoReadCount === 1 ? reads.before : reads.after)
+		});
+	});
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'PUT') return route.fallback();
+		return route.fulfill({
+			status: 400,
+			contentType: 'application/json',
+			body: JSON.stringify({ error: `item item-exercise: ${STALE_REASON}` })
+		});
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', { name: /training parameters, week 2$/i })
+		.click();
+
+	// The week the coach edits reads as fine, because it was fine when it was
+	// read. The rest they set here is the work the re-read may not undo.
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	await expect(modal.getByTestId('stale-override')).toHaveCount(0);
+	await modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).fill('30');
+	await modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true }).blur();
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	// While the read is in flight the coach is told the save failed and that the
+	// server is being asked what it refuses, rather than reading the developer's
+	// sentence for the moment it takes and watching it be replaced.
+	const refusal = page.getByTestId('week-refusal-2');
+	await expect(refusal).toContainText('Asking the server');
+	releaseReread();
+
+	// And then the block carries it, in the coach's words, so the strip above no
+	// longer has to hand over the write path's.
+	await expect(refusal).toContainText('marked on the sessions below');
+	await expect(refusal).not.toContainText(STALE_REASON);
+	await expect(page.getByTestId('stale-week-2')).toContainText('One session of this week');
+
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', {
+			name: 'Customised training parameters, week 2, a change stopped applying',
+			exact: true
+		})
+		.click();
+	const named = modal.getByTestId('stale-override-field');
+	await expect(named).toContainText("this week's AMRAP marker");
+	await expect(named).toContainText(STALE_REASON);
+	// The rest the coach typed before the save is still theirs: the re-read is
+	// allowed to write the marking and nothing else.
+	await expect(modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true })).toHaveValue(
+		'30'
+	);
+});
+
+test('keeps the words the save was refused with when the week cannot be read back', async ({
+	page
+}) => {
+	// A read that fails leaves the portal with exactly what it had before, which
+	// is the write path's own sentence. It is written for a developer, and it is
+	// still better than telling the coach nothing.
+	const reads = weekTwoReads();
+	await stubTwoWeekProgram(page, reads.before.sessions[0].overrides);
+
+	let weekTwoReadCount = 0;
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'GET') return route.fallback();
+		weekTwoReadCount += 1;
+		return route.fulfill({
+			status: weekTwoReadCount === 1 ? 200 : 500,
+			contentType: 'application/json',
+			body: JSON.stringify(weekTwoReadCount === 1 ? reads.before : { error: 'boom' })
+		});
+	});
+	await page.route('**/api/coach/clients/*/programs/*/weeks/2', async (route) => {
+		if (route.request().method() !== 'PUT') return route.fallback();
+		return route.fulfill({
+			status: 400,
+			contentType: 'application/json',
+			body: JSON.stringify({ error: `item item-exercise: ${STALE_REASON}` })
+		});
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 2);
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', { name: /training parameters, week 2$/i })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 2 training parameters' });
+	const rest = modal.getByRole('spinbutton', { name: 'Rest seconds', exact: true });
+	await rest.fill('30');
+	await rest.blur();
+	await modal.getByRole('button', { name: 'Apply' }).click();
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	await expect(page.getByTestId('week-refusal-2')).toContainText(STALE_REASON);
+	await expect(page.getByTestId('stale-week-2')).toHaveCount(0);
+
+	// And what the coach typed is still theirs to save again, which is the whole
+	// of what a failed read is allowed to cost them.
+	await page
+		.getByTestId('cell:2:1')
+		.getByRole('button', { name: /training parameters, week 2$/i })
+		.click();
+	await expect(rest).toHaveValue('30');
+});
+
 test('a locked session does not offer to clear the override it cannot change', async ({ page }) => {
 	const weeks = twoWeeksOfTheSameTraining();
 	weeks.details[0].sessions[0].is_locked = true;
