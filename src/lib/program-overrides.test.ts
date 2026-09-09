@@ -745,13 +745,15 @@ describe('what a marked block tells the coach', () => {
 		// per entry would repeat the same sentence five times. The row is a resize,
 		// which is the row that carries all four of the fields such a refusal names:
 		// the backend refuses a resize that does not resend its arrays, so the
-		// layout fields and the arrays travel together.
+		// layout fields and the arrays travel together. Two cycles of four reps
+		// declare eight rows against the six loads below, which is the row
+		// validateRowArray answers with these very words and this attribution.
 		const marked: SessionOverride = {
 			item_id: 'grid',
 			overrides: {
 				granularity: 'set',
 				cycles: 2,
-				reps: 3,
+				reps: 4,
 				loads: [kg(30), kg(31), kg(32), kg(40), kg(41), kg(42)]
 			},
 			override_stale: true,

@@ -970,11 +970,13 @@ export interface OpenedWeek {
 	// normalised: the only thing that says whether a grid on screen has moved
 	// since, and whether the layout it is in is one they chose.
 	openedOnScreen: SessionOverride[];
-	// What the week asked of the server then, which is the only baseline a
-	// refusal can be measured against: the merge and the normalisation rewrite a
-	// grid item's arrays into the layout the training now declares, so the stored
-	// row cannot be re-emitted and comparing against it would leave every grid
-	// override unmarked.
+	// What the week asked of the server the moment it was opened. A refusal is no
+	// longer measured against this: standingRefusals compares the fields the
+	// server named against the stored row itself, which it can do because
+	// keepStoredGridArrays puts the stored arrays back on the outgoing row. What
+	// is left is one question, and it asks about existence rather than about what
+	// has moved: an item the modal opened on with nothing to ask of the server has
+	// no arrays the server ever judged, so there is nothing to keep for it.
 	openedRequest: SessionOverride[];
 }
 
