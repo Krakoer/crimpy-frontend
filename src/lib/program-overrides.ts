@@ -1276,6 +1276,104 @@ export function carryStaleFlags(
 	});
 }
 
+// The week the server holds, read again because it has just refused a save of
+// the week on screen.
+//
+// It is a sixth reading of one week's overrides, and it is none of the five the
+// module already names. It is not the stored week the modal opened on: that one
+// was read before the coach edited anything, and the refusal is the proof that
+// the portal's account of what the server takes was out of date. It is not the
+// opening request, not the diff on screen and not what was sent, all three of
+// which are the coach's own values and none of which any server has judged.
+// What makes it worth a read of its own is its markings: they are the only
+// judgement in the portal that postdates the refusal.
+//
+// It travels wrapped rather than as one more SessionOverride[] parameter, for
+// the reason TrainingTrees and WeekGridScope give: every value here is the same
+// type, nothing at a call site says which reading is wanted, and the compiler is
+// the only thing that can keep them apart. Transposing it with the rows it marks
+// is a compile error rather than a comment.
+export interface RereadWeek {
+	// The rows the server holds, by the session id it holds them under. Keyed by
+	// session because a week schedules the same training more than once and each
+	// row is judged where it sits: one session of a week can be refused while
+	// another asking the same thing of another training is taken.
+	rereadBySession: Record<string, SessionOverride[]>;
+}
+
+// The freshly read week, off the sessions the read came back with.
+export function rereadWeek(sessions: { id: string; overrides: SessionOverride[] }[]): RereadWeek {
+	const rereadBySession: Record<string, SessionOverride[]> = {};
+	for (const session of sessions) rereadBySession[session.id] = session.overrides ?? [];
+	return { rereadBySession };
+}
+
+// The same row without any marking. A marking that predates the save is exactly
+// the account the refusal disproved, so the fresh read replaces all of it rather
+// than being merged into it: a row the server no longer refuses must lose the
+// marking an older read left on it.
+function unmarked(override: SessionOverride): SessionOverride {
+	if (override.override_stale === undefined && override.stale_fields === undefined) return override;
+	const plain: SessionOverride = { ...override };
+	delete plain.override_stale;
+	delete plain.stale_fields;
+	return plain;
+}
+
+// One session's rows as the coach holds them, marked from the week the server
+// just refused.
+//
+// Only the marking is taken from the fresh read. Every value stays the coach's:
+// the save failed, and a re-read that put the server's numbers back over the
+// work they had just been told was not saved would cost them more than the raw
+// refusal did.
+//
+// The fields are matched by name rather than by value, which is the one thing
+// here that standingRefusals does not do, and the difference is the whole point
+// of the read. standingRefusals asks whether the coach still asks for what the
+// server refused, because a marking read when the week was opened has to be let
+// go the moment they move the value it names: nothing has judged the new one.
+// After a refused save something has. The server was handed this very week and
+// answered no, so the question of whether the coach has moved since is settled,
+// and what is left is to say which values the refusal is about. That is what
+// stale_fields names, and it names them by field.
+//
+// It is the narrow reading of that answer. The refusal is attributed to the
+// stored row, not to the coach's, so the only bridge between the two is the
+// field name: a refusal naming nothing the coach's row carries is dropped rather
+// than written onto the row as a whole, since nothing on screen would be pointed
+// at. A refusal the server attributed to no field at all is the one exception,
+// and it is the row as a whole because that is what the server said it was.
+export function markedFromReread(
+	held: SessionOverride[],
+	reread: RereadWeek,
+	sessionID: string | undefined
+): SessionOverride[] {
+	const rows = (sessionID ? reread.rereadBySession[sessionID] : undefined) ?? [];
+	const refused = new Map(staleOverrides(rows).map((override) => [override.item_id, override]));
+	return held.map((override) => {
+		const fresh = refused.get(override.item_id);
+		if (fresh === undefined) return unmarked(override);
+		const refusals = refusalsOf(fresh);
+		// A name this portal does not read is a key it cannot be carrying, which is
+		// the same skip standingRefusals gives it. Whether the refusal is about the
+		// row as a whole is read off the names the server sent rather than off the
+		// ones left after that skip: a refusal naming only keys this portal cannot
+		// read is one it cannot place, not one about the whole row.
+		const carried = refusals
+			.filter(
+				(refusal) =>
+					refusal.fields.length === 0 ||
+					refusal.fields
+						.filter(isOverrideKey)
+						.some((field) => carriesField(override.overrides, field))
+			)
+			.map((refusal) => ({ reason: refusal.reason, fields: refusal.fields.filter(isOverrideKey) }));
+		if (refusals.length > 0 && carried.length === 0) return unmarked(override);
+		return markedWith(override, carried);
+	});
+}
+
 export const STALE_OVERRIDE_LEAD =
 	'The training changed and no longer takes what this week asks of this block, so the athlete plays it as the training writes it and the week cannot be saved until this is cleared.';
 

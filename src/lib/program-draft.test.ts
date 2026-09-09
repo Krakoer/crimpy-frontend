@@ -8,6 +8,7 @@ import {
 	isWeekDirty,
 	locateSession,
 	lockedSessionWeek,
+	markRefusedWeek,
 	moveSession,
 	parseCell,
 	restoreWeekSessions,
@@ -18,6 +19,7 @@ import {
 	type WeekDraft,
 	type WeekDrafts
 } from './program-draft';
+import { rereadWeek } from './program-overrides';
 
 function session(id: string, overrides: Partial<DraftSession> = {}): DraftSession {
 	return { _id: id, training_id: 'training-1', overrides: [], ...overrides };
@@ -482,5 +484,83 @@ describe('draft sessions', () => {
 		expect(copy.originWn).toBeUndefined();
 		expect(copy.locked).toBe(false);
 		expect(copy.training_id).toBe(original.training_id);
+	});
+});
+
+describe('markRefusedWeek', () => {
+	const REASON = 'rest_seconds is not taken by an emom, whose interval already holds the rest';
+
+	// The row the server holds for ws-1 and refuses, as the week read hands it
+	// back after refusing a save of the week on screen.
+	const refusedRow = {
+		id: 'row-1',
+		item_id: 'a',
+		overrides: { rest_seconds: 90 },
+		override_stale: true,
+		stale_fields: [{ field: 'rest_seconds', reason: REASON }]
+	};
+
+	// A week holding one saved session on the Monday, asking a rest of its own of
+	// the block the server refuses. The coach retyped the rest before saving, so
+	// the row on screen is not the row the server judged.
+	function weekWithEditedSession(): WeekDraft {
+		const draft = emptyDraft();
+		draft.days[1] = [
+			session('local-1', {
+				id: 'ws-1',
+				originWn: 1,
+				overrides: [{ item_id: 'a', overrides: { rest_seconds: 120 } }]
+			})
+		];
+		return loaded(draft);
+	}
+
+	it('marks the session the server refuses and says how many', () => {
+		const draft = weekWithEditedSession();
+		expect(markRefusedWeek(draft, 1, rereadWeek([{ id: 'ws-1', overrides: [refusedRow] }]))).toBe(
+			1
+		);
+		expect(draft.days[1][0].overrides[0].stale_fields).toEqual([
+			{ field: 'rest_seconds', reason: REASON }
+		]);
+	});
+
+	it('leaves the notes, the sessions and every value the coach holds alone', () => {
+		const draft = weekWithEditedSession();
+		draft.notes = 'deload';
+		markRefusedWeek(draft, 1, rereadWeek([{ id: 'ws-1', overrides: [refusedRow] }]));
+		expect(draft.notes).toBe('deload');
+		expect(ids(draftSessions(draft))).toEqual(['local-1']);
+		expect(draft.days[1][0].overrides[0].overrides).toEqual({ rest_seconds: 120 });
+	});
+
+	it('leaves the week as unsaved as it was', () => {
+		// The marking is the server's judgement of the week, not a change to it,
+		// and weekFingerprint reads what each row asks for and never the mark on
+		// it. A re-read that moved a week between saved and unsaved would either
+		// lose the coach the save button or claim work nobody did.
+		const draft = weekWithEditedSession();
+		expect(isWeekDirty(draft)).toBe(false);
+		markRefusedWeek(draft, 1, rereadWeek([{ id: 'ws-1', overrides: [refusedRow] }]));
+		expect(isWeekDirty(draft)).toBe(false);
+	});
+
+	it('says nothing about a session the save sends as a new row', () => {
+		// A session dragged in from another week is saved without its id, so the
+		// server holds nothing under it in this week and the read cannot judge it.
+		const draft = weekWithEditedSession();
+		draft.days[1][0].originWn = 2;
+		expect(markRefusedWeek(draft, 1, rereadWeek([{ id: 'ws-1', overrides: [refusedRow] }]))).toBe(
+			0
+		);
+		expect(draft.days[1][0].overrides[0].override_stale).toBeUndefined();
+	});
+
+	it('answers nothing marked when the refusal was about something else', () => {
+		// A week save is refused for plenty of things that are not a stale
+		// override, and the count is what tells the page to keep showing the words
+		// the server answered the save with.
+		const draft = weekWithEditedSession();
+		expect(markRefusedWeek(draft, 1, rereadWeek([{ id: 'ws-1', overrides: [] }]))).toBe(0);
 	});
 });
