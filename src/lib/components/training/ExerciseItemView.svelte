@@ -33,6 +33,15 @@
 		(catalogExercise ? catalogExercise.video_link : item.exercise_video_link)?.trim() || null
 	);
 
+	// Only an http(s) address becomes a link. On a session's frozen prescription
+	// this component is fed the link the prescribing coach typed, and the coach
+	// reading that session is not always that coach, so a "javascript:" url
+	// would run in theirs. Nothing validates the field on write. A value that
+	// fails this is still shown, as text, so a coach can see what is stored.
+	let exerciseVideoHref = $derived(
+		exerciseVideoLink && /^https?:\/\//i.test(exerciseVideoLink) ? exerciseVideoLink : null
+	);
+
 	let isDuration = $derived((item.duration ?? 0) > 0);
 
 	function fmtTime(seconds: number): string {
@@ -206,9 +215,9 @@
 						>{exerciseDescription}</span
 					>
 				{/if}
-				{#if exerciseVideoLink}
+				{#if exerciseVideoHref}
 					<a
-						href={exerciseVideoLink}
+						href={exerciseVideoHref}
 						target="_blank"
 						rel="noopener noreferrer"
 						aria-label={`Watch demo for ${exerciseName}`}
@@ -217,6 +226,10 @@
 						<Icon name="play" size={12} color="var(--pr)" />
 						Watch demo
 					</a>
+				{:else if exerciseVideoLink}
+					<span style="font-size: 12px; color: var(--tx3); overflow-wrap: anywhere;"
+						>Video: {exerciseVideoLink}</span
+					>
 				{/if}
 			</div>
 		{/if}

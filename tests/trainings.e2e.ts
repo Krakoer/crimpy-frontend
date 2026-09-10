@@ -2121,3 +2121,29 @@ test('offers no demo link when the exercise carries none', async ({ page }) => {
 	await expect(page.getByText('Max hangs')).toBeVisible();
 	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveCount(0);
 });
+
+// A session's frozen prescription carries the link the prescribing coach typed,
+// and the coach reading that session is not always that coach. Nothing
+// validates the field on write, so a non-http scheme must never become an href.
+test('never links a video the coach did not write as an http address', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-elsewhere',
+		exercise_name: 'Pull up',
+		exercise_video_link: "javascript:alert('xss')",
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveCount(0);
+	// Still surfaced, as text, so a coach can see what is stored on the item.
+	await expect(page.getByText("javascript:alert('xss')")).toBeVisible();
+});
