@@ -380,6 +380,12 @@ export interface TrainingItem {
 	// Joined by the backend on every item it returns, so a tree read from a
 	// prescription snapshot names its exercises without a second request.
 	exercise_name?: string | null;
+	// Joined the same way, and for a stronger reason: the athlete is refused
+	// every coach exercise route, so this is the only place the demo video and
+	// the movement notes reach them. The portal shows them so a coach sees what
+	// the athlete will get.
+	exercise_description?: string | null;
+	exercise_video_link?: string | null;
 	reps?: number;
 	// Whether the rep count is left open, which is an AMRAP: the coach sets no
 	// number and the athlete records how many they managed. Exercises only.

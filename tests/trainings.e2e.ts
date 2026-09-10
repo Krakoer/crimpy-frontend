@@ -2033,3 +2033,85 @@ test.describe('reordering root blocks', () => {
 		expect(items.map((item) => item.type)).toEqual(['group', 'hangboard_rep']);
 	});
 });
+
+// A coach fills a demo video on a library exercise and it used to go nowhere.
+// The portal shows it on the training so they read what the athlete will get
+// rather than guessing it from the library screen.
+test('shows the exercise demo video and notes on the training preview', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-1',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	// The preview resolves each referenced exercise by id, not off the palette
+	// list, so that is the call the library has to answer here.
+	await stub(page, 'GET', '/api/coach/exercises/*', {
+		body: testExercise({
+			description: 'Dead hang start, chin over the bar.',
+			video_link: 'https://example.com/pull-up'
+		})
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByText('Dead hang start, chin over the bar.')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Watch demo' })).toHaveAttribute(
+		'href',
+		'https://example.com/pull-up'
+	);
+});
+
+// The same fields arrive joined onto the item, which is how a training read
+// outside the coach's own library still names them. That is the shape the
+// athlete gets, so the portal has to read it too.
+test('falls back to the video joined onto the item', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-elsewhere',
+		exercise_name: 'Pull up',
+		exercise_description: 'Dead hang start.',
+		exercise_video_link: 'https://example.com/joined',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByText('Dead hang start.')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Watch demo' })).toHaveAttribute(
+		'href',
+		'https://example.com/joined'
+	);
+});
+
+test('offers no demo link when the exercise carries none', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-1',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByRole('link', { name: 'Watch demo' })).toHaveCount(0);
+});
