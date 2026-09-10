@@ -2062,7 +2062,7 @@ test('shows the exercise demo video and notes on the training preview', async ({
 	await page.goto('/trainings/training-1');
 
 	await expect(page.getByText('Dead hang start, chin over the bar.')).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Watch demo' })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
 		'href',
 		'https://example.com/pull-up'
 	);
@@ -2091,7 +2091,7 @@ test('falls back to the video joined onto the item', async ({ page }) => {
 	await page.goto('/trainings/training-1');
 
 	await expect(page.getByText('Dead hang start.')).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Watch demo' })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
 		'href',
 		'https://example.com/joined'
 	);
@@ -2109,9 +2109,15 @@ test('offers no demo link when the exercise carries none', async ({ page }) => {
 	await stub(page, 'GET', '/api/trainings/*', {
 		body: testTraining({ training_type: 'workout', items: [pullUps] })
 	});
+	// The library has to answer, and answer with an exercise that has no video:
+	// letting the lookup 404 instead would assert on a tile built from nothing.
+	await stub(page, 'GET', '/api/coach/exercises/*', {
+		body: testExercise({ name: 'Max hangs', description: null, video_link: null })
+	});
 	await stubEditorPalette(page);
 
 	await page.goto('/trainings/training-1');
 
-	await expect(page.getByRole('link', { name: 'Watch demo' })).toHaveCount(0);
+	await expect(page.getByText('Max hangs')).toBeVisible();
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveCount(0);
 });

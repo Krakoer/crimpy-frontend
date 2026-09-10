@@ -18,18 +18,14 @@
 
 	let collapsed = $state(false);
 
-	// The name joined onto the item is the one the training was saved with, and
-	// is all a reader outside the coach's own library has to go on.
-	let exerciseName = $derived(
-		exercises.find((e) => e.id === item.exercise_id)?.name ??
-			item.exercise_name ??
-			'Unknown exercise'
-	);
-
-	// What the athlete will be shown for this movement. The library entry wins
-	// whole when it is loaded, so a coach who clears a video sees it gone here
-	// too; the joined fields answer for a training read outside that library.
+	// The library entry the item points at, when it is loaded. It answers for the
+	// whole exercise rather than field by field, so a coach who clears a video
+	// sees it gone here too; the fields joined onto the item answer for a
+	// training read outside that library, which is all a reader outside the
+	// coach's own has to go on.
 	let catalogExercise = $derived(exercises.find((e) => e.id === item.exercise_id));
+
+	let exerciseName = $derived(catalogExercise?.name ?? item.exercise_name ?? 'Unknown exercise');
 	let exerciseDescription = $derived(
 		(catalogExercise ? catalogExercise.description : item.exercise_description)?.trim() || null
 	);
@@ -215,6 +211,7 @@
 						href={exerciseVideoLink}
 						target="_blank"
 						rel="noopener noreferrer"
+						aria-label={`Watch demo for ${exerciseName}`}
 						style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--pr); text-decoration: none;"
 					>
 						<Icon name="play" size={12} color="var(--pr)" />
