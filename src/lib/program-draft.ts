@@ -1,5 +1,12 @@
 import type { SessionOverride } from '$lib/api/client';
-import { orderedValue, type ScheduledRow } from '$lib/program-overrides';
+import {
+	markedFromReread,
+	orderedValue,
+	rereadHolds,
+	staleOverrides,
+	type RereadWeek,
+	type ScheduledRow
+} from '$lib/program-overrides';
 import { arrayMove } from '$lib/sortable';
 
 // _id is a local key for drag and drop only. id is the server row the session
@@ -39,7 +46,22 @@ export type WeekDraft = {
 	everydaySessions: EverydaySession[];
 	savedSnapshot: string;
 	saving: boolean;
+	// The refusal a save was answered with, in the write path's own words. It is
+	// the last resort rather than the first thing a coach reads: a refused save
+	// re-reads the week, and where the server's account of it explains the
+	// refusal the blocks carry it in the coach's words instead. What is left here
+	// is everything a week save can be refused for that is not a stale override,
+	// and that has to keep reading as something rather than as silence.
 	saveError: string;
+	// The re-read the refusal set off is in flight. The coach is told the save
+	// failed straight away and told that the server is being asked what it
+	// refuses, rather than reading the developer's words for the moment it takes
+	// and then watching them be replaced.
+	rereading: boolean;
+	// The re-read came back and the server's account named at least one block, so
+	// the marking on the sessions is what says what went wrong and saveError is
+	// not shown.
+	refusalMarked: boolean;
 	deleteConfirm: boolean;
 	deleting: boolean;
 };
@@ -129,6 +151,8 @@ export function emptyDraft(): WeekDraft {
 		}),
 		saving: false,
 		saveError: '',
+		rereading: false,
+		refusalMarked: false,
 		deleteConfirm: false,
 		deleting: false
 	};
@@ -382,4 +406,58 @@ export function scheduledRows(
 		}
 	}
 	return rows;
+}
+
+// A session only carries its id back when it is being saved into the week that
+// row belongs to. Anywhere else it is a new row, and sending the id would ask
+// the server to move a row between weeks, which it refuses.
+//
+// It is also what pairs a session on screen with the row the server holds for
+// it, and the two have to be the same rule: a session the save sends as a new
+// row is a session the server has nothing stored under, so a re-read of the week
+// can say nothing about it.
+export function savedID(session: DraftSession, wn: number): string | undefined {
+	return session.originWn === wn ? session.id : undefined;
+}
+
+// The week the coach holds, marked with what the server says it refuses, after
+// a save of it was refused.
+//
+// What the re-read is allowed to replace is the marking and nothing else. The
+// notes, which sessions the week holds, where they sit, their order, their ids
+// and every value the coach typed are left exactly as they are: they have just
+// been told the save failed, and losing the work on top of that is worse than
+// the raw refusal. A row the fresh read holds that the week on screen does not
+// is not put back either, for the same reason and one more: the coach cleared
+// it, so the save is no longer asking for it.
+//
+// Nothing here moves the week between saved and unsaved, and that is by
+// construction rather than by care: weekFingerprint reads what each row asks
+// for and never the marking on it, so a week marked this way is as dirty as it
+// was a moment before.
+//
+// It answers how many sessions this read marked that could explain the refusal,
+// which is what says whether the server's account explained it at all: a week
+// save is refused for plenty of things that are not a stale override, and one of
+// those has to keep reading as the words the server answered with.
+export function markRefusedWeek(draft: WeekDraft, wn: number, reread: RereadWeek): number {
+	let marked = 0;
+	for (const session of draftSessions(draft)) {
+		const saved = { savedRowID: savedID(session, wn) };
+		session.overrides = markedFromReread(session.overrides, reread, saved);
+		// A session the read holds nothing for keeps whatever marking it already
+		// carried, and that marking is an older read's answer rather than this
+		// one's. Counting it would let the week strip claim the fresh read
+		// explained a refusal the fresh read said nothing about.
+		//
+		// A played session is marked and never counted. The write path skips a
+		// locked session's own rows before it validates them, so its stale row is
+		// never what a save is refused for, and the coach cannot clear it either:
+		// counting it would set the flag on every refusal of every week that holds
+		// one, and the strip would answer every real refusal with the marking
+		// sentence, forever and with no gesture that lifts it.
+		if (session.locked) continue;
+		if (rereadHolds(reread, saved) && staleOverrides(session.overrides).length > 0) marked += 1;
+	}
+	return marked;
 }
