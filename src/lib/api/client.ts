@@ -385,6 +385,9 @@ export interface TrainingItem {
 	// the movement notes reach them. The portal shows them so a coach sees what
 	// the athlete will get.
 	exercise_description?: string | null;
+	// The coach's execution notes on the movement. Distinct from `comment`
+	// below, which is what they said about this one step.
+	exercise_comment?: string | null;
 	exercise_video_link?: string | null;
 	reps?: number;
 	// Whether the rep count is left open, which is an AMRAP: the coach sets no

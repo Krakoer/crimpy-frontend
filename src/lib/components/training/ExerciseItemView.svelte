@@ -7,6 +7,7 @@
 	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
 	import AchievedBadge from './AchievedBadge.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { videoLinkHref } from '$lib/video-link';
 
 	interface Props {
 		item: TrainingItem;
@@ -29,18 +30,17 @@
 	let exerciseDescription = $derived(
 		(catalogExercise ? catalogExercise.description : item.exercise_description)?.trim() || null
 	);
+	let exerciseComment = $derived(
+		(catalogExercise ? catalogExercise.comment : item.exercise_comment)?.trim() || null
+	);
 	let exerciseVideoLink = $derived(
 		(catalogExercise ? catalogExercise.video_link : item.exercise_video_link)?.trim() || null
 	);
 
-	// Only an http(s) address becomes a link. On a session's frozen prescription
-	// this component is fed the link the prescribing coach typed, and the coach
-	// reading that session is not always that coach, so a "javascript:" url
-	// would run in theirs. Nothing validates the field on write. A value that
-	// fails this is still shown, as text, so a coach can see what is stored.
-	let exerciseVideoHref = $derived(
-		exerciseVideoLink && /^https?:\/\//i.test(exerciseVideoLink) ? exerciseVideoLink : null
-	);
+	// What the value is safe to link to, read the same way the app reads it, so
+	// the coach sees the link the athlete gets. A value that is not an address
+	// is still shown, as text, so a coach can see what is stored and fix it.
+	let exerciseVideoHref = $derived(videoLinkHref(exerciseVideoLink));
 
 	let isDuration = $derived((item.duration ?? 0) > 0);
 
@@ -205,7 +205,7 @@
 
 		<!-- What the athlete gets for this movement. Shown here so a coach reads
 		     it off the training rather than guessing what their library sends. -->
-		{#if exerciseDescription || exerciseVideoLink}
+		{#if exerciseDescription || exerciseComment || exerciseVideoLink}
 			<div
 				style="padding: 0 18px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start;"
 			>
@@ -213,6 +213,12 @@
 					<span
 						style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;"
 						>{exerciseDescription}</span
+					>
+				{/if}
+				{#if exerciseComment}
+					<span
+						style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;"
+						>{exerciseComment}</span
 					>
 				{/if}
 				{#if exerciseVideoHref}

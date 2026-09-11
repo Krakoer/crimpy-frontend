@@ -2054,6 +2054,7 @@ test('shows the exercise demo video and notes on the training preview', async ({
 	await stub(page, 'GET', '/api/coach/exercises/*', {
 		body: testExercise({
 			description: 'Dead hang start, chin over the bar.',
+			comment: 'Keep the shoulders engaged at the bottom.',
 			video_link: 'https://example.com/pull-up'
 		})
 	});
@@ -2062,6 +2063,9 @@ test('shows the exercise demo video and notes on the training preview', async ({
 	await page.goto('/trainings/training-1');
 
 	await expect(page.getByText('Dead hang start, chin over the bar.')).toBeVisible();
+	// The execution notes, which is a different field from the note a coach
+	// attaches to one step of a training.
+	await expect(page.getByText('Keep the shoulders engaged at the bottom.')).toBeVisible();
 	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
 		'href',
 		'https://example.com/pull-up'
@@ -2146,4 +2150,30 @@ test('never links a video the coach did not write as an http address', async ({ 
 	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveCount(0);
 	// Still surfaced, as text, so a coach can see what is stored on the item.
 	await expect(page.getByText("javascript:alert('xss')")).toBeVisible();
+});
+
+// The app upgrades a scheme-less address to https, so the portal does too: a
+// coach has to see the link the athlete will actually get.
+test('links a scheme-less address the way the app reads it', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-elsewhere',
+		exercise_name: 'Pull up',
+		exercise_video_link: 'www.youtube.com/watch?v=abc',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
+		'href',
+		'https://www.youtube.com/watch?v=abc'
+	);
 });
