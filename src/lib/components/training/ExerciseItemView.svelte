@@ -7,6 +7,7 @@
 	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
 	import AchievedBadge from './AchievedBadge.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { videoLinkHref } from '$lib/video-link';
 
 	interface Props {
 		item: TrainingItem;
@@ -18,13 +19,28 @@
 
 	let collapsed = $state(false);
 
-	// The name joined onto the item is the one the training was saved with, and
-	// is all a reader outside the coach's own library has to go on.
-	let exerciseName = $derived(
-		exercises.find((e) => e.id === item.exercise_id)?.name ??
-			item.exercise_name ??
-			'Unknown exercise'
+	// The library entry the item points at, when it is loaded. It answers for the
+	// whole exercise rather than field by field, so a coach who clears a video
+	// sees it gone here too; the fields joined onto the item answer for a
+	// training read outside that library, which is all a reader outside the
+	// coach's own has to go on.
+	let catalogExercise = $derived(exercises.find((e) => e.id === item.exercise_id));
+
+	let exerciseName = $derived(catalogExercise?.name ?? item.exercise_name ?? 'Unknown exercise');
+	let exerciseDescription = $derived(
+		(catalogExercise ? catalogExercise.description : item.exercise_description)?.trim() || null
 	);
+	let exerciseComment = $derived(
+		(catalogExercise ? catalogExercise.comment : item.exercise_comment)?.trim() || null
+	);
+	let exerciseVideoLink = $derived(
+		(catalogExercise ? catalogExercise.video_link : item.exercise_video_link)?.trim() || null
+	);
+
+	// What the value is safe to link to, read the same way the app reads it, so
+	// the coach sees the link the athlete gets. A value that is not an address
+	// is still shown, as text, so a coach can see what is stored and fix it.
+	let exerciseVideoHref = $derived(videoLinkHref(exerciseVideoLink));
 
 	let isDuration = $derived((item.duration ?? 0) > 0);
 
@@ -184,6 +200,43 @@
 						>{item.comment}</span
 					>
 				</div>
+			</div>
+		{/if}
+
+		<!-- What the athlete gets for this movement. Shown here so a coach reads
+		     it off the training rather than guessing what their library sends. -->
+		{#if exerciseDescription || exerciseComment || exerciseVideoLink}
+			<div
+				style="padding: 0 18px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start;"
+			>
+				{#if exerciseDescription}
+					<span
+						style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;"
+						>{exerciseDescription}</span
+					>
+				{/if}
+				{#if exerciseComment}
+					<span
+						style="font-size: 12px; line-height: 1.5; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;"
+						>{exerciseComment}</span
+					>
+				{/if}
+				{#if exerciseVideoHref}
+					<a
+						href={exerciseVideoHref}
+						target="_blank"
+						rel="noopener noreferrer"
+						aria-label={`Watch demo for ${exerciseName}`}
+						style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--pr); text-decoration: none;"
+					>
+						<Icon name="play" size={12} color="var(--pr)" />
+						Watch demo
+					</a>
+				{:else if exerciseVideoLink}
+					<span style="font-size: 12px; color: var(--tx3); overflow-wrap: anywhere;"
+						>Video: {exerciseVideoLink}</span
+					>
+				{/if}
 			</div>
 		{/if}
 	{/if}

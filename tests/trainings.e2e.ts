@@ -2033,3 +2033,147 @@ test.describe('reordering root blocks', () => {
 		expect(items.map((item) => item.type)).toEqual(['group', 'hangboard_rep']);
 	});
 });
+
+// A coach fills a demo video on a library exercise and it used to go nowhere.
+// The portal shows it on the training so they read what the athlete will get
+// rather than guessing it from the library screen.
+test('shows the exercise demo video and notes on the training preview', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-1',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	// The preview resolves each referenced exercise by id, not off the palette
+	// list, so that is the call the library has to answer here.
+	await stub(page, 'GET', '/api/coach/exercises/*', {
+		body: testExercise({
+			description: 'Dead hang start, chin over the bar.',
+			comment: 'Keep the shoulders engaged at the bottom.',
+			video_link: 'https://example.com/pull-up'
+		})
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByText('Dead hang start, chin over the bar.')).toBeVisible();
+	// The execution notes, which is a different field from the note a coach
+	// attaches to one step of a training.
+	await expect(page.getByText('Keep the shoulders engaged at the bottom.')).toBeVisible();
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
+		'href',
+		'https://example.com/pull-up'
+	);
+});
+
+// The same fields arrive joined onto the item, which is how a training read
+// outside the coach's own library still names them. That is the shape the
+// athlete gets, so the portal has to read it too.
+test('falls back to the video joined onto the item', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-elsewhere',
+		exercise_name: 'Pull up',
+		exercise_description: 'Dead hang start.',
+		exercise_video_link: 'https://example.com/joined',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByText('Dead hang start.')).toBeVisible();
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
+		'href',
+		'https://example.com/joined'
+	);
+});
+
+test('offers no demo link when the exercise carries none', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-1',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	// The library has to answer, and answer with an exercise that has no video:
+	// letting the lookup 404 instead would assert on a tile built from nothing.
+	await stub(page, 'GET', '/api/coach/exercises/*', {
+		body: testExercise({ name: 'Max hangs', description: null, video_link: null })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByText('Max hangs')).toBeVisible();
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveCount(0);
+});
+
+// A session's frozen prescription carries the link the prescribing coach typed,
+// and the coach reading that session is not always that coach. Nothing
+// validates the field on write, so a non-http scheme must never become an href.
+test('never links a video the coach did not write as an http address', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-elsewhere',
+		exercise_name: 'Pull up',
+		exercise_video_link: "javascript:alert('xss')",
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveCount(0);
+	// Still surfaced, as text, so a coach can see what is stored on the item.
+	await expect(page.getByText("javascript:alert('xss')")).toBeVisible();
+});
+
+// The app upgrades a scheme-less address to https, so the portal does too: a
+// coach has to see the link the athlete will actually get.
+test('links a scheme-less address the way the app reads it', async ({ page }) => {
+	const pullUps = {
+		id: 'item-2',
+		type: 'exercise',
+		position: 0,
+		exercise_id: 'exercise-elsewhere',
+		exercise_name: 'Pull up',
+		exercise_video_link: 'www.youtube.com/watch?v=abc',
+		reps: 8,
+		rest_seconds: 60
+	};
+	await stub(page, 'GET', '/api/trainings/*', {
+		body: testTraining({ training_type: 'workout', items: [pullUps] })
+	});
+	await stubEditorPalette(page);
+
+	await page.goto('/trainings/training-1');
+
+	await expect(page.getByRole('link', { name: /Watch demo/ })).toHaveAttribute(
+		'href',
+		'https://www.youtube.com/watch?v=abc'
+	);
+});
