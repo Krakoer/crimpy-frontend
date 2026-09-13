@@ -443,11 +443,11 @@
 								>
 									{exercise.name}
 								</div>
-								{#if exercise.description}
+								{#if exercise.description?.trim()}
 									<div
 										style="font-size: 12.5px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch;"
 									>
-										{exercise.description}
+										{exercise.description.trim()}
 									</div>
 								{/if}
 								{#if exercise.tags?.length}
