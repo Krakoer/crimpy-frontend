@@ -30,11 +30,22 @@
 	let panel = $state<PanelMode>(null);
 	let viewExercise = $state<Exercise | null>(null);
 
+	// The detail fields with whitespace read as absence, the way
+	// ExerciseItemView reads them. A value of only spaces is truthy, so guarding
+	// on the raw string labelled an empty block and, through the negation below,
+	// also took away the line saying there is nothing to show.
+	let viewDescription = $derived(viewExercise?.description?.trim() || null);
+	let viewComment = $derived(viewExercise?.comment?.trim() || null);
+	let viewVideoLink = $derived(viewExercise?.video_link?.trim() || null);
+	let viewHasDetails = $derived(
+		viewDescription !== null || viewComment !== null || viewVideoLink !== null
+	);
+
 	// What the stored video value is safe to link to, read through the same helper
 	// as ExerciseItemView and the app, so the three surfaces agree. Rows written
 	// before the scheme was validated on write still live in the library, and a
 	// value that is not an address is shown as text rather than as a link.
-	let viewExerciseVideoHref = $derived(videoLinkHref(viewExercise?.video_link));
+	let viewExerciseVideoHref = $derived(videoLinkHref(viewVideoLink));
 
 	let form = $state<ExerciseRequest>({ name: '', description: '', comment: '', video_link: '' });
 	let selectedTags = $state<Tag[]>([]);
@@ -579,7 +590,7 @@
 			</div>
 
 			<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;">
-				{#if viewExercise.description}
+				{#if viewDescription}
 					<div>
 						<div
 							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
@@ -587,11 +598,11 @@
 							Description
 						</div>
 						<p style="font-size: 13.5px; color: var(--tx); line-height: 1.5;">
-							{viewExercise.description}
+							{viewDescription}
 						</p>
 					</div>
 				{/if}
-				{#if viewExercise.comment}
+				{#if viewComment}
 					<div>
 						<div
 							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
@@ -599,11 +610,11 @@
 							Execution notes
 						</div>
 						<p style="font-size: 13.5px; color: var(--tx); line-height: 1.5;">
-							{viewExercise.comment}
+							{viewComment}
 						</p>
 					</div>
 				{/if}
-				{#if viewExercise.video_link}
+				{#if viewVideoLink}
 					<div>
 						<div
 							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
@@ -617,16 +628,16 @@
 								rel="noopener noreferrer"
 								style="font-size: 13px; color: var(--pr); text-decoration: underline; overflow-wrap: anywhere;"
 							>
-								{viewExercise.video_link}
+								{viewVideoLink}
 							</a>
 						{:else}
 							<p style="font-size: 13px; color: var(--tx3); overflow-wrap: anywhere;">
-								{viewExercise.video_link}
+								{viewVideoLink}
 							</p>
 						{/if}
 					</div>
 				{/if}
-				{#if !viewExercise.description && !viewExercise.comment && !viewExercise.video_link}
+				{#if !viewHasDetails}
 					<p style="font-size: 13.5px; color: var(--tx3);">No details added.</p>
 				{/if}
 			</div>
