@@ -280,6 +280,32 @@ test('opens the detail dialog and closes it with Escape', async ({ page }) => {
 	await expect(dialog).toBeHidden();
 });
 
+test('shows a video link that is not an address as plain text', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/exercises', {
+		body: exercisePage([testExercise({ video_link: 'httpslzenf' })])
+	});
+
+	await page.goto('/exercises');
+	await page.getByRole('button', { name: /^Max hangs/ }).click();
+
+	const dialog = page.getByRole('dialog');
+	await expect(dialog.getByText('httpslzenf')).toBeVisible();
+	await expect(dialog.getByRole('link', { name: 'httpslzenf' })).toBeHidden();
+});
+
+test('links a video link written without a scheme as https', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/exercises', {
+		body: exercisePage([testExercise({ video_link: 'youtu.be/dQw4w9WgXcQ' })])
+	});
+
+	await page.goto('/exercises');
+	await page.getByRole('button', { name: /^Max hangs/ }).click();
+
+	await expect(
+		page.getByRole('dialog').getByRole('link', { name: 'youtu.be/dQw4w9WgXcQ' })
+	).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ');
+});
+
 test('loads the next page of exercises on demand', async ({ page }) => {
 	const first = testExercise({ id: 'exercise-1', name: 'Max hangs' });
 	const second = testExercise({ id: 'exercise-2', name: 'Front lever raises' });

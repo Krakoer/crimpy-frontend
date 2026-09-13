@@ -10,6 +10,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { videoLinkHref } from '$lib/video-link';
 
 	const PAGE_SIZE = 20;
 
@@ -28,6 +29,12 @@
 	type PanelMode = null | 'new' | Exercise;
 	let panel = $state<PanelMode>(null);
 	let viewExercise = $state<Exercise | null>(null);
+
+	// What the stored video value is safe to link to, read through the same helper
+	// as ExerciseItemView and the app, so the three surfaces agree. Rows written
+	// before the scheme was validated on write still live in the library, and a
+	// value that is not an address is shown as text rather than as a link.
+	let viewExerciseVideoHref = $derived(videoLinkHref(viewExercise?.video_link));
 
 	let form = $state<ExerciseRequest>({ name: '', description: '', comment: '', video_link: '' });
 	let selectedTags = $state<Tag[]>([]);
@@ -603,14 +610,20 @@
 						>
 							Video
 						</div>
-						<a
-							href={viewExercise.video_link}
-							target="_blank"
-							rel="noopener noreferrer"
-							style="font-size: 13px; color: var(--pr); text-decoration: underline;"
-						>
-							{viewExercise.video_link}
-						</a>
+						{#if viewExerciseVideoHref}
+							<a
+								href={viewExerciseVideoHref}
+								target="_blank"
+								rel="noopener noreferrer"
+								style="font-size: 13px; color: var(--pr); text-decoration: underline; overflow-wrap: anywhere;"
+							>
+								{viewExercise.video_link}
+							</a>
+						{:else}
+							<p style="font-size: 13px; color: var(--tx3); overflow-wrap: anywhere;">
+								{viewExercise.video_link}
+							</p>
+						{/if}
 					</div>
 				{/if}
 				{#if !viewExercise.description && !viewExercise.comment && !viewExercise.video_link}
