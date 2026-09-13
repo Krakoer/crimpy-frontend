@@ -280,6 +280,21 @@ test('opens the detail dialog and closes it with Escape', async ({ page }) => {
 	await expect(dialog).toBeHidden();
 });
 
+test('treats detail fields of only whitespace as nothing to show', async ({ page }) => {
+	await stub(page, 'GET', '/api/coach/exercises', {
+		body: exercisePage([testExercise({ description: '   ', comment: '\n', video_link: '  ' })])
+	});
+
+	await page.goto('/exercises');
+	await page.getByRole('button', { name: /^Max hangs/ }).click();
+
+	const dialog = page.getByRole('dialog');
+	await expect(dialog.getByText('No details added.')).toBeVisible();
+	await expect(dialog.getByText('Description')).toBeHidden();
+	await expect(dialog.getByText('Execution notes')).toBeHidden();
+	await expect(dialog.getByText('Video')).toBeHidden();
+});
+
 test('shows a video link that is not an address as plain text', async ({ page }) => {
 	await stub(page, 'GET', '/api/coach/exercises', {
 		body: exercisePage([testExercise({ video_link: 'httpslzenf' })])

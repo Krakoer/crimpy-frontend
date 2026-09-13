@@ -219,11 +219,11 @@
 						onmouseleave={(e) => (e.currentTarget.style.background = '')}
 					>
 						<div style="font-size: 13.5px; font-weight: 600; color: var(--tx);">{ex.name}</div>
-						{#if ex.description}
+						{#if ex.description?.trim()}
 							<div
 								style="font-size: 12px; color: var(--tx3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 							>
-								{ex.description}
+								{ex.description.trim()}
 							</div>
 						{/if}
 						{#if ex.tags?.length}

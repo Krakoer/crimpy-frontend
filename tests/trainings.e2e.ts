@@ -1324,6 +1324,52 @@ test.describe('stretching trainings exclude hangboard blocks', () => {
 	});
 });
 
+/**
+ * A whitespace-only description used to render an empty line under the name.
+ * Playwright normalises whitespace in text assertions, so a text assertion
+ * passes with the bug in place; what tells the two apart is whether the line
+ * exists at all. Counting the row's own divs says that directly, and says it
+ * without depending on the 2px margin that happens to make it visible today.
+ */
+test('the exercise picker treats a whitespace-only description as absent', async ({ page }) => {
+	const training = testTraining({
+		items: [{ id: 'item-1', type: 'group', position: 0, group_title: 'Warm up', items: [] }]
+	});
+	await stub(page, 'GET', '/api/trainings/*', { body: training });
+	await stub(page, 'GET', '/api/coach/exercises', {
+		body: exercisePage([
+			testExercise({ description: '   ' }),
+			testExercise({ id: 'exercise-2', name: 'Scapular pulls', description: null }),
+			testExercise({
+				id: 'exercise-3',
+				name: 'Front lever raises',
+				description: 'Five sets of three'
+			})
+		])
+	});
+	await stub(page, 'GET', '/api/coach/tags', { body: [testTag()] });
+
+	await page.goto('/trainings/training-1');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: 'Add item' }).first().click();
+	await page
+		.getByTestId('block-palette')
+		.getByRole('button', { name: 'Exercise', exact: true })
+		.click();
+
+	// One div is the name on its own. The fixtures carry no tags, so the second
+	// div a row can hold is the description line and nothing else.
+	const picker = page.getByRole('dialog');
+	await expect(picker.getByRole('button', { name: /Max hangs/ }).locator('div')).toHaveCount(1);
+	await expect(picker.getByRole('button', { name: /Scapular pulls/ }).locator('div')).toHaveCount(
+		1
+	);
+	await expect(
+		picker.getByRole('button', { name: /Front lever raises/ }).locator('div')
+	).toHaveCount(2);
+	await expect(picker.getByText('Five sets of three')).toBeVisible();
+});
+
 test.describe('grouping root blocks', () => {
 	/** The palette of the right rail, which always adds at the root. */
 	function rootPalette(page: Page) {
