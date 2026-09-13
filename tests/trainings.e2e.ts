@@ -1324,6 +1324,53 @@ test.describe('stretching trainings exclude hangboard blocks', () => {
 	});
 });
 
+/**
+ * A whitespace-only description used to render an empty line under the name,
+ * and because that line carries a margin it was 2px of dead space rather than
+ * nothing. Playwright normalises whitespace in text assertions, so the only
+ * thing that tells the two apart is the height of the row: it has to match a
+ * row whose description is genuinely absent.
+ */
+test('the exercise picker treats a whitespace-only description as absent', async ({ page }) => {
+	const training = testTraining({
+		items: [{ id: 'item-1', type: 'group', position: 0, group_title: 'Warm up', items: [] }]
+	});
+	await stub(page, 'GET', '/api/trainings/*', { body: training });
+	await stub(page, 'GET', '/api/coach/exercises', {
+		body: exercisePage([
+			testExercise({ description: '   ' }),
+			testExercise({ id: 'exercise-2', name: 'Scapular pulls', description: null }),
+			testExercise({
+				id: 'exercise-3',
+				name: 'Front lever raises',
+				description: 'Five sets of three'
+			})
+		])
+	});
+	await stub(page, 'GET', '/api/coach/tags', { body: [testTag()] });
+
+	await page.goto('/trainings/training-1');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: 'Add item' }).first().click();
+	await page
+		.getByTestId('block-palette')
+		.getByRole('button', { name: 'Exercise', exact: true })
+		.click();
+
+	const picker = page.getByRole('dialog');
+	const whitespaceRow = await picker.getByRole('button', { name: /Max hangs/ }).boundingBox();
+	const absentRow = await picker.getByRole('button', { name: /Scapular pulls/ }).boundingBox();
+	const describedRow = await picker
+		.getByRole('button', { name: /Front lever raises/ })
+		.boundingBox();
+
+	expect(whitespaceRow?.height).toBe(absentRow?.height);
+	// The row that really has a description still shows it, so the guard did not
+	// simply stop rendering the line for everyone.
+	expect(describedRow?.height).toBeGreaterThan(absentRow?.height ?? 0);
+	await expect(picker.getByText('Five sets of three')).toBeVisible();
+});
+
 test.describe('grouping root blocks', () => {
 	/** The palette of the right rail, which always adds at the root. */
 	function rootPalette(page: Page) {
