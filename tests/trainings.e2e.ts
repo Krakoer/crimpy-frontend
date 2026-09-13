@@ -1325,11 +1325,11 @@ test.describe('stretching trainings exclude hangboard blocks', () => {
 });
 
 /**
- * A whitespace-only description used to render an empty line under the name,
- * and because that line carries a margin it was 2px of dead space rather than
- * nothing. Playwright normalises whitespace in text assertions, so the only
- * thing that tells the two apart is the height of the row: it has to match a
- * row whose description is genuinely absent.
+ * A whitespace-only description used to render an empty line under the name.
+ * Playwright normalises whitespace in text assertions, so a text assertion
+ * passes with the bug in place; what tells the two apart is whether the line
+ * exists at all. Counting the row's own divs says that directly, and says it
+ * without depending on the 2px margin that happens to make it visible today.
  */
 test('the exercise picker treats a whitespace-only description as absent', async ({ page }) => {
 	const training = testTraining({
@@ -1357,17 +1357,16 @@ test('the exercise picker treats a whitespace-only description as absent', async
 		.getByRole('button', { name: 'Exercise', exact: true })
 		.click();
 
+	// One div is the name on its own. The fixtures carry no tags, so the second
+	// div a row can hold is the description line and nothing else.
 	const picker = page.getByRole('dialog');
-	const whitespaceRow = await picker.getByRole('button', { name: /Max hangs/ }).boundingBox();
-	const absentRow = await picker.getByRole('button', { name: /Scapular pulls/ }).boundingBox();
-	const describedRow = await picker
-		.getByRole('button', { name: /Front lever raises/ })
-		.boundingBox();
-
-	expect(whitespaceRow?.height).toBe(absentRow?.height);
-	// The row that really has a description still shows it, so the guard did not
-	// simply stop rendering the line for everyone.
-	expect(describedRow?.height).toBeGreaterThan(absentRow?.height ?? 0);
+	await expect(picker.getByRole('button', { name: /Max hangs/ }).locator('div')).toHaveCount(1);
+	await expect(picker.getByRole('button', { name: /Scapular pulls/ }).locator('div')).toHaveCount(
+		1
+	);
+	await expect(
+		picker.getByRole('button', { name: /Front lever raises/ }).locator('div')
+	).toHaveCount(2);
 	await expect(picker.getByText('Five sets of three')).toBeVisible();
 });
 
