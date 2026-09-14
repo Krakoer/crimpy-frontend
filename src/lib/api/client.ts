@@ -138,20 +138,27 @@ export interface RepData {
 	updated_at: string;
 }
 
-// A count the run resolved for an item the prescription left open: the reps an
-// AMRAP turned out to be, or the rounds an emom was carried through before the
-// athlete dropped out. Nothing else records these, since a set of pull ups
-// passes through no sensor and so leaves no rep behind.
+// What the athlete reported about one pass through a prescribed item: the reps
+// an AMRAP turned out to be, the rounds an emom was carried through, and for any
+// step at all the load, the duration and the line they wrote about it. Nothing
+// else records any of it, since a set of pull ups passes through no sensor and
+// so leaves no rep behind.
+//
+// Every reported field is optional: a field the athlete said nothing about is
+// absent rather than zero, so a coach is never shown a number never given.
 export interface SessionItemResult {
 	id: string;
 	session_id: string;
-	// The prescription item the count answers, keyed the way a rep is.
+	// The prescription item the report answers, keyed the way a rep is.
 	training_item_id: string;
-	// Which pass through the item the count belongs to, from 0, when the item
+	// Which pass through the item the report belongs to, from 0, when the item
 	// sits inside a block that repeats.
 	occurrence: number;
-	field: 'reps' | 'cycles';
-	value: number;
+	reps?: number;
+	cycles?: number;
+	load_kg?: number;
+	duration_seconds?: number;
+	note?: string;
 	updated_at: string;
 }
 

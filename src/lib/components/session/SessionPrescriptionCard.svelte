@@ -14,8 +14,10 @@
 
 	interface Props {
 		prescription: PrescriptionSnapshot;
-		// What the run answered the open items with. Handed to the tree through
-		// context so every list and container in between stays unaware of it.
+		// What the athlete reported about the items they were prescribed. Handed
+		// to the tree through context so every list and container in between stays
+		// unaware of it, and each item view shows what it was asked for and what
+		// came back on the same card.
 		itemResults?: SessionItemResult[];
 	}
 

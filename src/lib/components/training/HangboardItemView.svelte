@@ -12,6 +12,7 @@
 	} from './hangboard-granularity';
 	import { buildSessionMap, commonConfig, storedConfig, storedVariation } from './hangboard-config';
 	import HangboardSessionMap from './HangboardSessionMap.svelte';
+	import AchievedNotes from './AchievedNotes.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -123,6 +124,8 @@
 				<HangboardSessionMap rows={setRows} />
 			</div>
 		{/if}
+
+		<AchievedNotes itemId={item.id} padded={false} />
 	{/snippet}
 </HangboardCard>
 

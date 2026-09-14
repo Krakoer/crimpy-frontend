@@ -255,19 +255,22 @@ test.describe('session details', () => {
 				[],
 				[],
 				[
-					testSessionItemResult({ training_item_id: 'pullup-1', field: 'reps', value: 23 }),
+					testSessionItemResult({
+						training_item_id: 'pullup-1',
+						reps: 23,
+						note: 'hard on the shoulders'
+					}),
 					testSessionItemResult({
 						id: 'item-result-2',
 						training_item_id: 'pullup-1',
 						occurrence: 1,
-						field: 'reps',
-						value: 18
+						reps: 18
 					}),
 					testSessionItemResult({
 						id: 'item-result-3',
 						training_item_id: 'emom-1',
-						field: 'cycles',
-						value: 7
+						reps: undefined,
+						cycles: 7
 					})
 				]
 			)
@@ -284,6 +287,60 @@ test.describe('session details', () => {
 		// once per pass through the block.
 		await expect(dialog.getByText('AMRAP').first()).toBeVisible();
 		await expect(dialog.getByTestId('achieved-badge').nth(1)).toContainText('23, 18 reps');
+		// The line the athlete wrote is what the coach came for, so it reads in
+		// full on the card of the step it was written against.
+		await expect(dialog.getByTestId('achieved-notes')).toContainText('hard on the shoulders');
+	});
+
+	// The issue this shape came from: an ordinary exercise, nothing a sensor ever
+	// sees, reporting what the athlete actually did and what they wrote about it.
+	test('shows the load, the reps and the note reported on an ordinary exercise', async ({
+		page
+	}) => {
+		const plainExercise = testPrescription({
+			items: [
+				{
+					id: 'dip-1',
+					type: 'exercise',
+					exercise_name: 'Weighted dip',
+					reps: 8,
+					loads: [{ unit: 'kg', value: 10 }]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: plainExercise });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[
+					testSessionItemResult({
+						training_item_id: 'dip-1',
+						reps: 6,
+						load_kg: 17.5,
+						note: 'failed at 6, shoulder was fine though'
+					})
+				]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		// Asked for eight reps at 10 kg, did six at 17.5, each one under the
+		// number it answers.
+		await expect(dialog.getByText('8', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('did 6', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('10 kg', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('did 17.5 kg', { exact: true })).toBeVisible();
+		await expect(dialog.getByTestId('achieved-notes')).toContainText(
+			'failed at 6, shoulder was fine though'
+		);
 	});
 
 	// A ten round emom records ten counts. Listed in full they overflow the header
@@ -316,8 +373,7 @@ test.describe('session details', () => {
 						id: `item-result-${occurrence}`,
 						training_item_id: 'pullup-1',
 						occurrence,
-						field: 'reps',
-						value
+						reps: value
 					})
 				)
 			)

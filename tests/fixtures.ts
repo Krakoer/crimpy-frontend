@@ -610,14 +610,17 @@ export interface TestSessionDetail {
 	item_results: TestSessionItemResult[];
 }
 
-/** One count a run recorded for an item the prescription left open. */
+/** What the athlete reported about one pass through a prescribed item. */
 export interface TestSessionItemResult {
 	id: string;
 	session_id: string;
 	training_item_id: string;
 	occurrence: number;
-	field: 'reps' | 'cycles';
-	value: number;
+	reps?: number;
+	cycles?: number;
+	load_kg?: number;
+	duration_seconds?: number;
+	note?: string;
 	updated_at: string;
 }
 
@@ -629,8 +632,7 @@ export function testSessionItemResult(
 		session_id: 'session-1',
 		training_item_id: 'item-1',
 		occurrence: 0,
-		field: 'reps',
-		value: 23,
+		reps: 23,
 		updated_at: isoDaysAgo(1),
 		...overrides
 	};

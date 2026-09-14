@@ -4,6 +4,9 @@
 	import type { AssessmentCatalog } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
+	import AchievedBadge from './AchievedBadge.svelte';
+	import AchievedNotes from './AchievedNotes.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
@@ -32,6 +35,9 @@
 		const count = item.items?.length ?? 0;
 		return `${sets} sets · ${fmtTime(rest)} rest · ${count} items`;
 	});
+
+	const results = getContext<ItemResultsByItem | undefined>(ITEM_RESULTS_KEY);
+	let achievedRounds = $derived(achievedValues(results, item.id, 'cycles'));
 
 	const collapseSignals = getContext<{ collapse: number; expand: number } | undefined>(
 		COLLAPSE_KEY
@@ -74,6 +80,7 @@
 			Circuit
 			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
 		</span>
+		<AchievedBadge values={achievedRounds} unit="rounds" prescribed={item.cycles ?? 1} />
 	</div>
 
 	{#if !collapsed}
@@ -84,5 +91,6 @@
 				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
 		</div>
+		<AchievedNotes itemId={item.id} />
 	{/if}
 </div>

@@ -5,6 +5,10 @@
 	import HangboardCard from './HangboardCard.svelte';
 	import { HANGBOARD_REP_HANDS, hangboardHand } from './hangboard-granularity';
 	import { storedConfig } from './hangboard-config';
+	import { getContext } from 'svelte';
+	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
+	import AchievedNotes from './AchievedNotes.svelte';
+	import AchievedUnder from './AchievedUnder.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -23,6 +27,10 @@
 	let collapsedSummary = $derived(
 		`${item.worktime_seconds ?? 0}s hang / ${item.rest_seconds ?? 0}s rest`
 	);
+
+	const results = getContext<ItemResultsByItem | undefined>(ITEM_RESULTS_KEY);
+	let achievedLoad = $derived(achievedValues(results, item.id, 'load_kg'));
+	let achievedDuration = $derived(achievedValues(results, item.id, 'duration_seconds'));
 </script>
 
 <HangboardCard title="Hang rep" summary={collapsedSummary} summaryOnlyWhenCollapsed>
@@ -31,6 +39,7 @@
 			<div class="hb-fact">
 				<span class="hb-label">Work</span>
 				<span class="hb-value">{item.worktime_seconds ?? 0}s</span>
+				<AchievedUnder values={achievedDuration} format={(v) => `${v}s`} />
 			</div>
 			<div class="hb-fact">
 				<span class="hb-label">Rest</span>
@@ -51,8 +60,11 @@
 			<div class="hb-fact">
 				<span class="hb-label">Load</span>
 				<span class="hb-value">{formatLoad(config.loadRight, catalog)}</span>
+				<AchievedUnder values={achievedLoad} format={(v) => `${v} kg`} />
 			</div>
 		</div>
+
+		<AchievedNotes itemId={item.id} padded={false} />
 	{/snippet}
 </HangboardCard>
 

@@ -4,6 +4,7 @@
 	import type { AssessmentCatalog } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
+	import AchievedNotes from './AchievedNotes.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
@@ -70,5 +71,6 @@
 				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
 		</div>
+		<AchievedNotes itemId={item.id} />
 	{/if}
 </div>
