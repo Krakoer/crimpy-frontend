@@ -436,7 +436,15 @@ test.describe('session details', () => {
 		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
 			body: testSessionDetail(
 				prescribed,
-				[],
+				// What a played strength session actually uploads: the run records a
+				// row for every step it finishes, so each counted exercise leaves one
+				// behind carrying no load and no time. Counting those beside the
+				// reported totals is how the stat came to claim more reps than were
+				// done, so the fixture carries them or it blesses the bug.
+				[
+					testRepData({ id: 'rep-1', index: 0, duration: 0, average_weight: 0, target_weight: 0 }),
+					testRepData({ id: 'rep-2', index: 1, duration: 0, average_weight: 0, target_weight: 0 })
+				],
 				[],
 				[
 					testSessionItemResult({ training_item_id: 'pullup-1', reps: 28 }),
@@ -448,10 +456,49 @@ test.describe('session details', () => {
 		await page.goto('/coachees/coachee-1');
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
-		const dialog = page.getByRole('dialog');
-		// No sensor rep at all, so the whole figure is what the athlete reported.
-		await expect(dialog.getByText('36', { exact: true })).toBeVisible();
-		await expect(dialog.getByText('0', { exact: true })).toBeHidden();
+		// 28 + 8, and not 38: the two placeholder rows are the steps themselves,
+		// not two more repetitions.
+		await expect(page.getByTestId('session-stat-reps')).toContainText('36');
+	});
+
+	// The other half of the same rule: a hangboard session is counted by its
+	// timed hangs, and a hang is never reported by a count.
+	test('counts a timed hang in the header stat', async ({ page }) => {
+		const hangs = testPrescription({
+			items: [
+				{
+					id: 'hangrep-1',
+					type: 'hangboard_rep',
+					worktime_seconds: 7,
+					hand: 'both',
+					granularity: 'uniform',
+					loads: [{ unit: 'kg', value: 30 }],
+					edge_sizes_mm: [20]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: hangs });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[
+					testRepData({ id: 'rep-1', index: 0, duration: 7 }),
+					testRepData({ id: 'rep-2', index: 1, duration: 7 }),
+					testRepData({ id: 'rep-3', index: 2, duration: 30, is_rest: true })
+				],
+				[],
+				[]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		// Two hangs, and the rest between them is not one of them.
+		await expect(page.getByTestId('session-stat-reps')).toContainText('2');
 	});
 
 	// A repeater is a hang: the app asks it for the seconds held and the load
