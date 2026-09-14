@@ -53,17 +53,20 @@
 	// only readable next to what it was answering.
 	const itemResults = $derived<SessionItemResult[]>(loaded?.item_results ?? []);
 
-	// How many repetitions the session actually holds: the hangs it timed, plus
-	// the repetitions the athlete reported on the steps that are counted rather
-	// than timed.
+	// How many repetitions the session actually holds: the steps the run put a
+	// clock on, plus the repetitions the athlete reported on the steps that are
+	// counted rather than timed.
 	//
 	// The run records a rep row for every step it finishes, not only for the
 	// ones a sensor watched, so a set of pull ups leaves a row behind too: one
 	// row for the whole set, carrying no load and no time. Counting those
 	// alongside the reported count would say twelve reps for a set of eleven
-	// plus its own placeholder. The timed ones are the hangs, and a hang is
-	// reported by its load and its duration rather than by a count, so the two
-	// halves below cannot answer for the same work.
+	// plus its own placeholder.
+	//
+	// A clocked step is a hang or a timed exercise, and the app asks for a count
+	// on neither: it reports both by their duration. That is what makes the two
+	// halves below disjoint, rather than any claim about which step types carry
+	// a clock.
 	const timedReps = $derived(reps.filter((rep) => !rep.is_rest && rep.duration > 0).length);
 	const reportedReps = $derived(
 		itemResults.reduce((total, result) => total + (result.reps ?? 0), 0)

@@ -419,8 +419,9 @@ test.describe('session details', () => {
 		await expect(dialog.getByTestId('achieved-notes')).toContainText('#4');
 	});
 
-	// The header stat counted only the reps a sensor measured, so a strength
-	// session read "Reps 0" over cards stating twenty eight pull ups. It is the
+	// The header stat counted every non-rest rep row, and the run leaves one
+	// behind per finished step, so a strength session read a placeholder count
+	// that had nothing to do with the reps the cards below it stated. It is the
 	// first number a coach's eye lands on, and it was the one that was wrong.
 	test('counts the reps the athlete reported in the header stat', async ({ page }) => {
 		const strength = testPrescription({
@@ -457,8 +458,9 @@ test.describe('session details', () => {
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
 		// 28 + 8, and not 38: the two placeholder rows are the steps themselves,
-		// not two more repetitions.
-		await expect(page.getByTestId('session-stat-reps')).toContainText('36');
+		// not two more repetitions. Matched whole, so the assertion cannot pass
+		// on a figure that merely contains it.
+		await expect(page.getByRole('dialog').getByTestId('session-stat-reps')).toContainText(/\b36\b/);
 	});
 
 	// The other half of the same rule: a hangboard session is counted by its
@@ -498,7 +500,7 @@ test.describe('session details', () => {
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
 		// Two hangs, and the rest between them is not one of them.
-		await expect(page.getByTestId('session-stat-reps')).toContainText('2');
+		await expect(page.getByRole('dialog').getByTestId('session-stat-reps')).toContainText(/\b2\b/);
 	});
 
 	// A repeater is a hang: the app asks it for the seconds held and the load
