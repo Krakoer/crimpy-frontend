@@ -610,27 +610,31 @@ export interface TestSessionDetail {
 	item_results: TestSessionItemResult[];
 }
 
-/** One count a run recorded for an item the prescription left open. */
+/** What the athlete reported about one pass through a prescribed item. */
 export interface TestSessionItemResult {
 	id: string;
 	session_id: string;
 	training_item_id: string;
 	occurrence: number;
-	field: 'reps' | 'cycles';
-	value: number;
+	reps?: number;
+	cycles?: number;
+	load_kg?: number;
+	duration_seconds?: number;
+	note?: string;
 	updated_at: string;
 }
 
 export function testSessionItemResult(
 	overrides: Partial<TestSessionItemResult> = {}
 ): TestSessionItemResult {
+	// No reported field by default, matching the "absent rather than zero"
+	// contract: a note-only or load-only fixture that forgets to clear a default
+	// count would render one it never meant to assert.
 	return {
 		id: 'item-result-1',
 		session_id: 'session-1',
 		training_item_id: 'item-1',
 		occurrence: 0,
-		field: 'reps',
-		value: 23,
 		updated_at: isoDaysAgo(1),
 		...overrides
 	};

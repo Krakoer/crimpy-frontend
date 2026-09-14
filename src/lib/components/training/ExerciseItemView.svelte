@@ -4,8 +4,10 @@
 	import { assessmentLabel, formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
-	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
+	import { ITEM_RESULTS_KEY, achievedEntries, type ItemResultsByItem } from './results-context';
 	import AchievedBadge from './AchievedBadge.svelte';
+	import AchievedNotes from './AchievedNotes.svelte';
+	import AchievedUnder from './AchievedUnder.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { videoLinkHref } from '$lib/video-link';
 
@@ -60,7 +62,9 @@
 	let isAmrap = $derived(item.reps_is_max === true);
 
 	const results = getContext<ItemResultsByItem | undefined>(ITEM_RESULTS_KEY);
-	let achievedReps = $derived(achievedValues(results, item.id, 'reps'));
+	let achievedReps = $derived(achievedEntries(results, item.id, 'reps'));
+	let achievedDuration = $derived(achievedEntries(results, item.id, 'duration_seconds'));
+	let achievedLoad = $derived(achievedEntries(results, item.id, 'load_kg'));
 
 	let collapsedSummary = $derived.by(() => {
 		const parts: string[] = [];
@@ -131,7 +135,17 @@
 				>
 			{/if}
 		</span>
-		<AchievedBadge values={achievedReps} unit="reps" />
+		<!-- Only while collapsed: expanded, the body states the same count under
+		     the number it answers, and two copies of it is what the ticket asks
+		     against. Named against what was asked for, so the collapsed card
+		     still compares rather than stating a bare figure. -->
+		{#if collapsed}
+			<AchievedBadge
+				values={achievedReps.map((e) => e.value)}
+				unit="reps"
+				prescribed={isAmrap || variableTarget ? undefined : (item.reps ?? undefined)}
+			/>
+		{/if}
 	</div>
 
 	{#if !collapsed}
@@ -161,22 +175,30 @@
 							: `${variableTarget.fallback} reps`}
 					</span>
 				{/if}
+				{#if isDuration}
+					<AchievedUnder entries={achievedDuration} format={fmtTime} />
+				{:else}
+					<AchievedUnder entries={achievedReps} format={(v) => `${v}`} />
+				{/if}
 			</div>
 
-			{#if item.loads && item.loads.length > 0}
+			<!-- Shown for a load the athlete reported even when none was prescribed:
+			     a dip taken with a belt is exactly what the coach wants to see. -->
+			{#if (item.loads && item.loads.length > 0) || achievedLoad.length > 0}
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span
 						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
 						>LOAD</span
 					>
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
-						{formatLoad(item.loads[0], catalog)}
+						{item.loads && item.loads.length > 0 ? formatLoad(item.loads[0], catalog) : 'none'}
 					</span>
-					{#if item.loads[0].unit === 'percent_assessment'}
+					{#if item.loads?.[0]?.unit === 'percent_assessment'}
 						<span style="font-size: 10px; color: var(--tx3);">
 							fallback {item.loads[0].fallback ?? 0} kg
 						</span>
 					{/if}
+					<AchievedUnder entries={achievedLoad} format={(v) => `${v} kg`} />
 				</div>
 			{/if}
 
@@ -202,6 +224,8 @@
 				</div>
 			</div>
 		{/if}
+
+		<AchievedNotes itemId={item.id} />
 
 		<!-- What the athlete gets for this movement. Shown here so a coach reads
 		     it off the training rather than guessing what their library sends. -->

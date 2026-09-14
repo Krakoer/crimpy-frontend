@@ -6,6 +6,7 @@
 	import { COLLAPSE_KEY } from './collapse-context';
 	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
 	import AchievedBadge from './AchievedBadge.svelte';
+	import AchievedNotes from './AchievedNotes.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { formatInterval } from './emom-format';
 
@@ -85,5 +86,6 @@
 				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
 		</div>
+		<AchievedNotes itemId={item.id} inset="0 14px 12px" />
 	{/if}
 </div>

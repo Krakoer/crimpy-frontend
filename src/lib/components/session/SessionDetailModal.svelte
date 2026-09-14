@@ -52,6 +52,26 @@
 	// against those items rather than in a list of their own: a bare number is
 	// only readable next to what it was answering.
 	const itemResults = $derived<SessionItemResult[]>(loaded?.item_results ?? []);
+
+	// How many repetitions the session actually holds: the steps the run put a
+	// clock on, plus the repetitions the athlete reported on the steps that are
+	// counted rather than timed.
+	//
+	// The run records a rep row for every step it finishes, not only for the
+	// ones a sensor watched, so a set of pull ups leaves a row behind too: one
+	// row for the whole set, carrying no load and no time. Counting those
+	// alongside the reported count would say twelve reps for a set of eleven
+	// plus its own placeholder.
+	//
+	// A clocked step is a hang or a timed exercise, and the app asks for a count
+	// on neither: it reports both by their duration. That is what makes the two
+	// halves below disjoint, rather than any claim about which step types carry
+	// a clock.
+	const timedReps = $derived(reps.filter((rep) => !rep.is_rest && rep.duration > 0).length);
+	const reportedReps = $derived(
+		itemResults.reduce((total, result) => total + (result.reps ?? 0), 0)
+	);
+	const totalReps = $derived(timedReps + reportedReps);
 	const type = $derived(sessionActivityInfo(detail.activity));
 
 	onMount(async () => {
@@ -138,8 +158,8 @@
 					class="grid grid-cols-4"
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
 				>
-					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading ? '--' : String(reps.filter((rep) => !rep.is_rest).length) }] as stat (stat.k)}
-						<div style="padding: 14px 16px;">
+					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading ? '--' : String(totalReps) }] as stat (stat.k)}
+						<div data-testid="session-stat-{stat.k.toLowerCase()}" style="padding: 14px 16px;">
 							<div
 								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 							>
