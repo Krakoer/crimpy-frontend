@@ -419,6 +419,41 @@ test.describe('session details', () => {
 		await expect(dialog.getByTestId('achieved-notes')).toContainText('#4');
 	});
 
+	// The header stat counted only the reps a sensor measured, so a strength
+	// session read "Reps 0" over cards stating twenty eight pull ups. It is the
+	// first number a coach's eye lands on, and it was the one that was wrong.
+	test('counts the reps the athlete reported in the header stat', async ({ page }) => {
+		const strength = testPrescription({
+			items: [
+				{ id: 'pullup-1', type: 'exercise', exercise_name: 'Pull up', reps_is_max: true },
+				{ id: 'dip-1', type: 'exercise', exercise_name: 'Dip', reps: 8 }
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: strength });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[
+					testSessionItemResult({ training_item_id: 'pullup-1', reps: 28 }),
+					testSessionItemResult({ id: 'item-result-2', training_item_id: 'dip-1', reps: 8 })
+				]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		// No sensor rep at all, so the whole figure is what the athlete reported.
+		await expect(dialog.getByText('36', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('0', { exact: true })).toBeHidden();
+	});
+
 	// A repeater is a hang: the app asks it for the seconds held and the load
 	// worked at, never for reps. Both have to surface, or a block reported at a
 	// heavier load for a shorter hang reaches the coach only if the athlete also
@@ -490,6 +525,85 @@ test.describe('session details', () => {
 		// repeater was missing.
 		await expect(dialog.getByText('did 12s', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('did 28 kg', { exact: true })).toBeVisible();
+	});
+
+	// A block that hangs one hand at a time prescribes a load per hand but is
+	// reported with one number, so the reported load sits beside the pair rather
+	// than inside either hand, which would claim the athlete weighed that arm.
+	test('states one reported load beside a hand-by-hand prescription', async ({ page }) => {
+		const split = testPrescription({
+			items: [
+				{
+					id: 'repeater-1',
+					type: 'repeater',
+					cycles: 4,
+					reps: 6,
+					worktime_seconds: 7,
+					rest_seconds: 3,
+					hand: 'split',
+					granularity: 'uniform',
+					loads: [{ unit: 'kg', value: 20 }],
+					left_loads: [{ unit: 'kg', value: 18 }],
+					edge_sizes_mm: [20]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: split });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[testSessionItemResult({ training_item_id: 'repeater-1', load_kg: 22 })]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Worked at', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('did 22 kg', { exact: true })).toBeVisible();
+	});
+
+	// A circuit is a block, so the app collects its rounds exactly as it does an
+	// emom's, and the badge has to compare them in the word the card beside it
+	// uses for the same number.
+	test('shows the sets a circuit was carried through', async ({ page }) => {
+		const circuit = testPrescription({
+			items: [
+				{
+					id: 'circuit-1',
+					type: 'circuit',
+					cycles: 4,
+					cycle_rest_seconds: 60,
+					items: [{ id: 'pushup-1', type: 'exercise', exercise_name: 'Push up', reps: 10 }]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: circuit });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[testSessionItemResult({ training_item_id: 'circuit-1', cycles: 3 })]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const badge = page.getByRole('dialog').getByTestId('achieved-badge').first();
+		await expect(badge).toContainText('3');
+		await expect(badge).toContainText('/4');
+		await expect(badge).toContainText('sets');
 	});
 
 	// A ten round emom records ten counts. Listed in full they overflow the header

@@ -80,7 +80,9 @@
 			Circuit
 			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
 		</span>
-		<AchievedBadge values={achievedRounds} unit="rounds" prescribed={item.cycles ?? 1} />
+		<!-- "sets" rather than "rounds": that is what the summary beside it and the
+		     editor both call a circuit's cycles, and rounds is the emom's word. -->
+		<AchievedBadge values={achievedRounds} unit="sets" prescribed={item.cycles ?? 1} />
 	</div>
 
 	{#if !collapsed}

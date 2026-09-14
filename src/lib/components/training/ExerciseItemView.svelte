@@ -225,10 +225,10 @@
 			</div>
 		{/if}
 
-		<!-- What the athlete gets for this movement. Shown here so a coach reads
-		     it off the training rather than guessing what their library sends. -->
 		<AchievedNotes itemId={item.id} />
 
+		<!-- What the athlete gets for this movement. Shown here so a coach reads
+		     it off the training rather than guessing what their library sends. -->
 		{#if exerciseDescription || exerciseComment || exerciseVideoLink}
 			<div
 				style="padding: 0 18px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start;"

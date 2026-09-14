@@ -52,6 +52,20 @@
 	// against those items rather than in a list of their own: a bare number is
 	// only readable next to what it was answering.
 	const itemResults = $derived<SessionItemResult[]>(loaded?.item_results ?? []);
+
+	// How many repetitions the session actually holds: the ones the sensor
+	// measured, plus the ones the athlete reported on a step that passed through
+	// no sensor. The two never overlap, since a step measured rep by rep is a
+	// hang and a hang is reported by its load and its time, never by a count.
+	//
+	// Counting only the measured ones read as "Reps 0" on a strength session
+	// whose cards below stated twenty eight pull ups, which is the first number
+	// a coach's eye lands on and the one that was wrong.
+	const measuredReps = $derived(reps.filter((rep) => !rep.is_rest).length);
+	const reportedReps = $derived(
+		itemResults.reduce((total, result) => total + (result.reps ?? 0), 0)
+	);
+	const totalReps = $derived(measuredReps + reportedReps);
 	const type = $derived(sessionActivityInfo(detail.activity));
 
 	onMount(async () => {
@@ -138,7 +152,7 @@
 					class="grid grid-cols-4"
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
 				>
-					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading ? '--' : String(reps.filter((rep) => !rep.is_rest).length) }] as stat (stat.k)}
+					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading ? '--' : String(totalReps) }] as stat (stat.k)}
 						<div style="padding: 14px 16px;">
 							<div
 								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
