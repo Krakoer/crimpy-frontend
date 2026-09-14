@@ -13,6 +13,9 @@
 	import { buildSessionMap, commonConfig, storedConfig, storedVariation } from './hangboard-config';
 	import HangboardSessionMap from './HangboardSessionMap.svelte';
 	import AchievedNotes from './AchievedNotes.svelte';
+	import AchievedUnder from './AchievedUnder.svelte';
+	import { getContext } from 'svelte';
+	import { ITEM_RESULTS_KEY, achievedEntries, type ItemResultsByItem } from './results-context';
 
 	interface Props {
 		item: TrainingItem;
@@ -37,6 +40,14 @@
 	let variationLabel = $derived(
 		variation === 'rep' ? 'VARIES BY REP' : variation === 'set' ? 'VARIES BY SET' : ''
 	);
+
+	// A repeater is a hang, so the app asks it for the seconds held and the load
+	// worked at, not for a rep count. Both are read here rather than nowhere: a
+	// block reported at 25 kg for 5s against a prescribed 20 kg for 7s would
+	// otherwise reach the coach only if the athlete also wrote a sentence.
+	const results = getContext<ItemResultsByItem | undefined>(ITEM_RESULTS_KEY);
+	let achievedDuration = $derived(achievedEntries(results, item.id, 'duration_seconds'));
+	let achievedLoad = $derived(achievedEntries(results, item.id, 'load_kg'));
 
 	let setRows = $derived(
 		buildSessionMap({
@@ -69,6 +80,7 @@
 			<div class="hb-fact">
 				<span class="hb-label">Work</span>
 				<span class="hb-value">{item.worktime_seconds ?? 0}s</span>
+				<AchievedUnder entries={achievedDuration} format={(v) => `${v}s`} />
 			</div>
 			<div class="hb-fact">
 				<span class="hb-label">Rep rest</span>
@@ -104,6 +116,7 @@
 					<div class="hb-fact">
 						<span class="hb-label">Load</span>
 						<span class="hb-value">{formatLoad(base.loadRight, catalog)}</span>
+						<AchievedUnder entries={achievedLoad} format={(v) => `${v} kg`} />
 					</div>
 				{:else}
 					<div class="hb-fact">
@@ -114,6 +127,15 @@
 						<span class="hb-label">Right</span>
 						<span class="hb-value">{base.gripRight} {formatLoad(base.loadRight, catalog)}</span>
 					</div>
+					<!-- The athlete reports one load for the block, so a two handed
+					     prescription states it beside the pair rather than inside
+					     either hand, which would claim they weighed that arm. -->
+					{#if achievedLoad.length > 0}
+						<div class="hb-fact">
+							<span class="hb-label">Worked at</span>
+							<AchievedUnder entries={achievedLoad} format={(v) => `${v} kg`} />
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -125,7 +147,7 @@
 			</div>
 		{/if}
 
-		<AchievedNotes itemId={item.id} inset="" />
+		<AchievedNotes itemId={item.id} inset={null} />
 	{/snippet}
 </HangboardCard>
 

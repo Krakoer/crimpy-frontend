@@ -419,6 +419,79 @@ test.describe('session details', () => {
 		await expect(dialog.getByTestId('achieved-notes')).toContainText('#4');
 	});
 
+	// A repeater is a hang: the app asks it for the seconds held and the load
+	// worked at, never for reps. Both have to surface, or a block reported at a
+	// heavier load for a shorter hang reaches the coach only if the athlete also
+	// wrote a sentence about it.
+	test('shows the seconds and the load reported on a hangboard block', async ({ page }) => {
+		const hangs = testPrescription({
+			items: [
+				{
+					id: 'repeater-1',
+					type: 'repeater',
+					cycles: 4,
+					reps: 6,
+					worktime_seconds: 7,
+					rest_seconds: 3,
+					hand: 'both',
+					granularity: 'uniform',
+					loads: [{ unit: 'kg', value: 20 }],
+					edge_sizes_mm: [20]
+				},
+				{
+					id: 'hangrep-1',
+					type: 'hangboard_rep',
+					worktime_seconds: 10,
+					rest_seconds: 60,
+					hand: 'both',
+					granularity: 'uniform',
+					loads: [{ unit: 'kg', value: 30 }],
+					edge_sizes_mm: [20]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: hangs });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[
+					testSessionItemResult({
+						training_item_id: 'repeater-1',
+						duration_seconds: 5,
+						load_kg: 25,
+						note: 'dropped early on the last set'
+					}),
+					testSessionItemResult({
+						id: 'item-result-2',
+						training_item_id: 'hangrep-1',
+						duration_seconds: 12,
+						load_kg: 28
+					})
+				]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		// The repeater asked for 7s at 20 kg and got 5s at 25 kg.
+		await expect(dialog.getByText('did 5s', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('did 25 kg', { exact: true })).toBeVisible();
+		await expect(dialog.getByTestId('achieved-notes')).toContainText(
+			'dropped early on the last set'
+		);
+		// The single hang rep carries its own pair, which is the view the
+		// repeater was missing.
+		await expect(dialog.getByText('did 12s', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('did 28 kg', { exact: true })).toBeVisible();
+	});
+
 	// A ten round emom records ten counts. Listed in full they overflow the header
 	// of a card nested two levels deep in the modal, so the badge shows the first
 	// few and counts the rest.

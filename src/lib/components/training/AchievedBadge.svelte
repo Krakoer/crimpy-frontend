@@ -5,7 +5,9 @@
 		// What the counts are, e.g. "reps" or "rounds".
 		unit: string;
 		// What was asked for, when there was a number to ask for. An emom names
-		// its rounds; an AMRAP names nothing, which is the point of it.
+		// its rounds; an AMRAP names nothing, which is the point of it. Over
+		// several passes it is said to be "each", since the figure beside it is
+		// then a list and a bare "/5" reads as a fraction of the last entry.
 		prescribed?: number;
 	}
 
@@ -37,7 +39,7 @@
 		>
 		{shown}{#if hidden > 0}<span style="font-weight: 600; opacity: 0.75;">+{hidden}</span
 			>{/if}{#if prescribed !== undefined}<span style="font-weight: 600; opacity: 0.75;"
-				>/{prescribed}</span
+				>/{prescribed}{#if values.length > 1}&nbsp;each{/if}</span
 			>{/if}
 		<span style="font-weight: 600; opacity: 0.75;">{unit}</span>
 	</span>

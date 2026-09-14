@@ -11,11 +11,10 @@
 		// The prescription item the notes were written against.
 		itemId: string | undefined;
 		// The card padding the block lays itself out with. A card body that is
-		// already padded, such as the hangboard one, passes an empty string; the
-		// whole block disappears with the notes either way, which is why the
-		// padding lives here rather than on a wrapper the caller would leave
-		// behind empty.
-		inset?: string;
+		// already padded, such as the hangboard one, passes null; the whole block
+		// disappears with the notes either way, which is why the padding lives
+		// here rather than on a wrapper the caller would leave behind empty.
+		inset?: string | null;
 	}
 
 	let { itemId, inset = '0 18px 12px' }: Props = $props();
@@ -35,7 +34,7 @@
 {#if notes.length > 0}
 	<div
 		data-testid="achieved-notes"
-		style="display: flex; flex-direction: column; gap: 6px; padding: {inset};"
+		style="display: flex; flex-direction: column; gap: 6px;{inset ? ` padding: ${inset};` : ''}"
 	>
 		<div
 			style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"

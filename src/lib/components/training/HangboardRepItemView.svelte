@@ -64,7 +64,7 @@
 			</div>
 		</div>
 
-		<AchievedNotes itemId={item.id} inset="" />
+		<AchievedNotes itemId={item.id} inset={null} />
 	{/snippet}
 </HangboardCard>
 
