@@ -86,6 +86,6 @@
 				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
 		</div>
-		<AchievedNotes itemId={item.id} />
+		<AchievedNotes itemId={item.id} inset="0 14px 12px" />
 	{/if}
 </div>

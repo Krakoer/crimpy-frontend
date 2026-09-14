@@ -4,7 +4,7 @@
 	import { assessmentLabel, formatLoad } from '$lib/assessments';
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
-	import { ITEM_RESULTS_KEY, achievedValues, type ItemResultsByItem } from './results-context';
+	import { ITEM_RESULTS_KEY, achievedEntries, type ItemResultsByItem } from './results-context';
 	import AchievedBadge from './AchievedBadge.svelte';
 	import AchievedNotes from './AchievedNotes.svelte';
 	import AchievedUnder from './AchievedUnder.svelte';
@@ -62,9 +62,9 @@
 	let isAmrap = $derived(item.reps_is_max === true);
 
 	const results = getContext<ItemResultsByItem | undefined>(ITEM_RESULTS_KEY);
-	let achievedReps = $derived(achievedValues(results, item.id, 'reps'));
-	let achievedDuration = $derived(achievedValues(results, item.id, 'duration_seconds'));
-	let achievedLoad = $derived(achievedValues(results, item.id, 'load_kg'));
+	let achievedReps = $derived(achievedEntries(results, item.id, 'reps'));
+	let achievedDuration = $derived(achievedEntries(results, item.id, 'duration_seconds'));
+	let achievedLoad = $derived(achievedEntries(results, item.id, 'load_kg'));
 
 	let collapsedSummary = $derived.by(() => {
 		const parts: string[] = [];
@@ -135,7 +135,17 @@
 				>
 			{/if}
 		</span>
-		<AchievedBadge values={achievedReps} unit="reps" />
+		<!-- Only while collapsed: expanded, the body states the same count under
+		     the number it answers, and two copies of it is what the ticket asks
+		     against. Named against what was asked for, so the collapsed card
+		     still compares rather than stating a bare figure. -->
+		{#if collapsed}
+			<AchievedBadge
+				values={achievedReps.map((e) => e.value)}
+				unit="reps"
+				prescribed={isAmrap || variableTarget ? undefined : (item.reps ?? undefined)}
+			/>
+		{/if}
 	</div>
 
 	{#if !collapsed}
@@ -166,9 +176,9 @@
 					</span>
 				{/if}
 				{#if isDuration}
-					<AchievedUnder values={achievedDuration} format={fmtTime} />
+					<AchievedUnder entries={achievedDuration} format={fmtTime} />
 				{:else}
-					<AchievedUnder values={achievedReps} format={(v) => `${v}`} />
+					<AchievedUnder entries={achievedReps} format={(v) => `${v}`} />
 				{/if}
 			</div>
 
@@ -188,7 +198,7 @@
 							fallback {item.loads[0].fallback ?? 0} kg
 						</span>
 					{/if}
-					<AchievedUnder values={achievedLoad} format={(v) => `${v} kg`} />
+					<AchievedUnder entries={achievedLoad} format={(v) => `${v} kg`} />
 				</div>
 			{/if}
 
@@ -218,7 +228,6 @@
 		<!-- What the athlete gets for this movement. Shown here so a coach reads
 		     it off the training rather than guessing what their library sends. -->
 		<AchievedNotes itemId={item.id} />
-
 		{#if exerciseDescription || exerciseComment || exerciseVideoLink}
 			<div
 				style="padding: 0 18px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start;"

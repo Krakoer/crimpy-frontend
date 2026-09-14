@@ -269,7 +269,6 @@ test.describe('session details', () => {
 					testSessionItemResult({
 						id: 'item-result-3',
 						training_item_id: 'emom-1',
-						reps: undefined,
 						cycles: 7
 					})
 				]
@@ -284,9 +283,13 @@ test.describe('session details', () => {
 		// The emom asked for ten rounds and the athlete made seven of them.
 		await expect(dialog.getByTestId('achieved-badge').first()).toContainText('7/10 rounds');
 		// The AMRAP asked for no number at all, so only what was done is shown,
-		// once per pass through the block.
+		// once per pass through the block, under the word that stands in for the
+		// count the coach did not give.
 		await expect(dialog.getByText('AMRAP').first()).toBeVisible();
-		await expect(dialog.getByTestId('achieved-badge').nth(1)).toContainText('23, 18 reps');
+		await expect(dialog.getByText('did 23, 18', { exact: true })).toBeVisible();
+		// Expanded, the card states the count once: the header badge is the
+		// collapsed summary and would otherwise repeat what is already there.
+		await expect(dialog.getByTestId('achieved-badge')).toHaveCount(1);
 		// The line the athlete wrote is what the coach came for, so it reads in
 		// full on the card of the step it was written against.
 		await expect(dialog.getByTestId('achieved-notes')).toContainText('hard on the shoulders');
@@ -343,6 +346,79 @@ test.describe('session details', () => {
 		);
 	});
 
+	// The load column now renders on a condition it never had before: a load the
+	// athlete reported where the coach prescribed none. A dip taken with a belt
+	// is exactly what a coach wants to see, and it is the path the prescription
+	// tree cannot show any other way.
+	test('shows a load the athlete reported where none was prescribed', async ({ page }) => {
+		const unloaded = testPrescription({
+			items: [{ id: 'swing-1', type: 'exercise', exercise_name: 'Kettlebell swing', reps: 12 }]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: unloaded });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[testSessionItemResult({ training_item_id: 'swing-1', reps: 12, load_kg: 24 })]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('LOAD', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('none', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('did 24 kg', { exact: true })).toBeVisible();
+	});
+
+	// A coach reading "did 8, 7" off sets 1 and 4 would take it for sets 1 and 2,
+	// so a gap in the reported passes names them.
+	test('names the pass when the athlete skipped some of them', async ({ page }) => {
+		const fourSets = testPrescription({
+			items: [
+				{
+					id: 'circuit-1',
+					type: 'circuit',
+					cycles: 4,
+					items: [{ id: 'pullup-1', type: 'exercise', exercise_name: 'Pull up', reps: 8 }]
+				}
+			]
+		});
+		const prescribed = testSession({ ...crimpySession, prescription: fourSets });
+
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(
+				prescribed,
+				[],
+				[],
+				[
+					testSessionItemResult({ training_item_id: 'pullup-1', occurrence: 0, reps: 8 }),
+					testSessionItemResult({
+						id: 'item-result-2',
+						training_item_id: 'pullup-1',
+						occurrence: 3,
+						reps: 7,
+						note: 'last set was a grind'
+					})
+				]
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('did #1 8, #4 7', { exact: true })).toBeVisible();
+		await expect(dialog.getByTestId('achieved-notes')).toContainText('#4');
+	});
+
 	// A ten round emom records ten counts. Listed in full they overflow the header
 	// of a card nested two levels deep in the modal, so the badge shows the first
 	// few and counts the rest.
@@ -382,7 +458,11 @@ test.describe('session details', () => {
 		await page.goto('/coachees/coachee-1');
 		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
 
-		const badge = page.getByRole('dialog').getByTestId('achieved-badge').last();
+		const dialog = page.getByRole('dialog');
+		// The badge is the collapsed summary, so the card is collapsed to read it.
+		await dialog.getByRole('button', { name: 'Pull up' }).click();
+
+		const badge = dialog.getByTestId('achieved-badge').last();
 		await expect(badge).toContainText('23, 18, 15, 12');
 		await expect(badge).toContainText('+6');
 		await expect(badge).toHaveAttribute('title', counts.join(', '));

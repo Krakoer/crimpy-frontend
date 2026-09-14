@@ -125,7 +125,7 @@
 			</div>
 		{/if}
 
-		<AchievedNotes itemId={item.id} padded={false} />
+		<AchievedNotes itemId={item.id} inset="" />
 	{/snippet}
 </HangboardCard>
 

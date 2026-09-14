@@ -627,12 +627,14 @@ export interface TestSessionItemResult {
 export function testSessionItemResult(
 	overrides: Partial<TestSessionItemResult> = {}
 ): TestSessionItemResult {
+	// No reported field by default, matching the "absent rather than zero"
+	// contract: a note-only or load-only fixture that forgets to clear a default
+	// count would render one it never meant to assert.
 	return {
 		id: 'item-result-1',
 		session_id: 'session-1',
 		training_item_id: 'item-1',
 		occurrence: 0,
-		reps: 23,
 		updated_at: isoDaysAgo(1),
 		...overrides
 	};
