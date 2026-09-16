@@ -16,18 +16,32 @@ export const ALL_BLOCK_TYPES: readonly TrainingItemType[] = [
 	'emom',
 	'group',
 	'repeater',
-	'hangboard_rep'
+	'hangboard_rep',
+	'free'
 ];
 
 const LEAF_TYPES: TrainingItemType[] = ['exercise', 'repeater', 'hangboard_rep'];
-const ROOT_CIRCUIT_TYPES: TrainingItemType[] = ['exercise', 'group', 'repeater', 'hangboard_rep'];
+
+// A note prescribes nothing: it is prose the athlete reads and confirms, so it
+// belongs wherever a coach may want to say something between blocks, whatever
+// depth that is. An emom is the one container it stays out of, because its
+// rounds start on the clock and a step waiting for a tap inside one would hold
+// that clock up.
+const LEAF_AND_NOTE_TYPES: TrainingItemType[] = [...LEAF_TYPES, 'free'];
+const ROOT_CIRCUIT_TYPES: TrainingItemType[] = [
+	'exercise',
+	'group',
+	'repeater',
+	'hangboard_rep',
+	'free'
+];
 
 // A group at the root is the one container that takes an emom, so a coach can
 // put the block inside the part of the session it belongs to. A circuit does
 // not, and neither does a group sitting inside one: rounds started on a clock
 // inside rounds that are not is two paces for one block, whether the emom is
 // nested directly or through a group.
-const GROUP_TYPES: TrainingItemType[] = [...LEAF_TYPES, 'emom'];
+const GROUP_TYPES: TrainingItemType[] = [...LEAF_TYPES, 'emom', 'free'];
 
 // What a container accepts, given the depth it sits at. A circuit at the root
 // still takes a group, anything deeper takes leaf blocks only, and a training
@@ -40,14 +54,16 @@ export function containerChildTypes(
 	innerAllowedTypes?: readonly TrainingItemType[]
 ): readonly TrainingItemType[] {
 	if (innerAllowedTypes) return innerAllowedTypes;
-	if (containerType === 'group') return depth < 1 ? GROUP_TYPES : LEAF_TYPES;
-	if (containerType === 'circuit' && depth < 1) return ROOT_CIRCUIT_TYPES;
-	return LEAF_TYPES;
+	if (containerType === 'emom') return LEAF_TYPES;
+	if (containerType === 'group') return depth < 1 ? GROUP_TYPES : LEAF_AND_NOTE_TYPES;
+	return depth < 1 ? ROOT_CIRCUIT_TYPES : LEAF_AND_NOTE_TYPES;
 }
 
 // What a training of this type takes at its root. A stretching session is a
 // list of stretches, optionally run as one circuit, so it takes no second
-// circuit and none of the blocks that count rounds or hangs.
+// circuit and none of the blocks that count rounds or hangs. A note is not one
+// of those: what it says about how the session is run is exactly what a coach
+// writing a stretching day needs a place for.
 export function trainingAllowedTypes(
 	trainingType: TrainingType | undefined,
 	items: TrainingItem[],
@@ -55,7 +71,7 @@ export function trainingAllowedTypes(
 ): readonly TrainingItemType[] {
 	if (trainingType !== 'stretching') return ALL_BLOCK_TYPES;
 	const hasCircuit = items.some((item) => item.type === 'circuit' && item._id !== ignoreItemId);
-	return hasCircuit ? ['exercise'] : ['exercise', 'circuit'];
+	return hasCircuit ? ['exercise', 'free'] : ['exercise', 'circuit', 'free'];
 }
 
 // What every container nested inside such a training takes, whatever the
@@ -64,5 +80,5 @@ export function trainingAllowedTypes(
 export function trainingInnerAllowedTypes(
 	trainingType: TrainingType | undefined
 ): readonly TrainingItemType[] | undefined {
-	return trainingType === 'stretching' ? ['exercise'] : undefined;
+	return trainingType === 'stretching' ? ['exercise', 'free'] : undefined;
 }

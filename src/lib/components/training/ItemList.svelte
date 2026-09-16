@@ -6,6 +6,7 @@
 	import CircuitItem from './CircuitItem.svelte';
 	import EmomItem from './EmomItem.svelte';
 	import GroupItem from './GroupItem.svelte';
+	import FreeItem from './FreeItem.svelte';
 	import SortableWrapper from './SortableWrapper.svelte';
 	import AddZone from './AddZone.svelte';
 	import DropZone from './DropZone.svelte';
@@ -268,6 +269,12 @@
 			onDuplicate={() => duplicateItem(i)}
 			{depth}
 			{innerAllowedTypes}
+		/>
+	{:else if item.type === 'free'}
+		<FreeItem
+			bind:item={items[i]}
+			onRemove={() => removeItem(i)}
+			onDuplicate={() => duplicateItem(i)}
 		/>
 	{/if}
 {/snippet}

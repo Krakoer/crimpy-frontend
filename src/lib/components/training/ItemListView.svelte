@@ -7,6 +7,7 @@
 	import CircuitItemView from './CircuitItemView.svelte';
 	import EmomItemView from './EmomItemView.svelte';
 	import GroupItemView from './GroupItemView.svelte';
+	import FreeItemView from './FreeItemView.svelte';
 	import { setContext, untrack } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 
@@ -70,6 +71,8 @@
 			<EmomItemView {item} {exercises} {catalog} {depth} />
 		{:else if item.type === 'group'}
 			<GroupItemView {item} {exercises} {catalog} {depth} />
+		{:else if item.type === 'free'}
+			<FreeItemView {item} />
 		{/if}
 	{/each}
 

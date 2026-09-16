@@ -42,6 +42,8 @@ export function createTrainingItem(type: TrainingItemType, exerciseId?: string):
 	} else if (type === 'group') {
 		item.group_title = 'Group';
 		item.items = [];
+	} else if (type === 'free') {
+		item.free_text = '';
 	} else if (type === 'repeater') {
 		applyHangboardDefaults(item);
 	} else if (type === 'hangboard_rep') {
