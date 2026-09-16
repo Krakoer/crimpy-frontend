@@ -9,6 +9,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { containerChildTypes } from './container-rules';
 	import { formatInterval } from './emom-format';
+	import ItemComment from './ItemComment.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -197,6 +198,10 @@
 					depth={depth + 1}
 					containerId={containerIdOf(item._id!)}
 				/>
+			</div>
+
+			<div style="margin-top: 14px;">
+				<ItemComment {item} {overriding} />
 			</div>
 		</div>
 	{/if}

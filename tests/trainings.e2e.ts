@@ -1248,6 +1248,79 @@ test.describe('hang rep items', () => {
 	});
 });
 
+test.describe('item comments', () => {
+	const COMMENT_PLACEHOLDER =
+		'Optional note for the athlete (e.g. first rep in pronation, second in supination)';
+
+	test('saves a comment typed on a repeater', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Ramp the hand spacing down.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			comment: 'Ramp the hand spacing down.'
+		});
+	});
+
+	test('saves a comment typed on a hang rep', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangRepItem());
+
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Max speed intent on the way up.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			comment: 'Max speed intent on the way up.'
+		});
+	});
+
+	test('saves a comment typed on an emom', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'emom',
+			position: 0,
+			cycles: 5,
+			interval_seconds: 60,
+			items: []
+		});
+
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Shoulders engaged, full apnea.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			comment: 'Shoulders engaged, full apnea.'
+		});
+	});
+
+	test('shows the comment of a repeater, a hang rep and an emom in the read-only view', async ({
+		page
+	}) => {
+		const training = testTraining({
+			items: [
+				hangboardItem({ id: 'item-1', comment: 'Repeater note' }),
+				hangRepItem({ id: 'item-2', comment: 'Hang rep note' }),
+				{
+					id: 'item-3',
+					type: 'emom',
+					position: 2,
+					cycles: 5,
+					interval_seconds: 60,
+					items: [],
+					comment: 'Emom note'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('Repeater note')).toBeVisible();
+		await expect(page.getByText('Hang rep note')).toBeVisible();
+		await expect(page.getByText('Emom note')).toBeVisible();
+	});
+});
+
 test.describe('hangboard card chrome', () => {
 	// The colour lives in one custom property on :root rather than in a constant
 	// each card sets inline, so it is worth proving it still reaches them.

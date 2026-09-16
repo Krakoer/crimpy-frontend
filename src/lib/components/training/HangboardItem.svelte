@@ -39,6 +39,7 @@
 		type StoredLayout
 	} from './hangboard-config';
 	import HangboardSessionMap from './HangboardSessionMap.svelte';
+	import ItemComment from './ItemComment.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -930,6 +931,8 @@
 				</div>
 			</div>
 		{/if}
+
+		<ItemComment {item} {overriding} />
 	{/snippet}
 </HangboardCard>
 
