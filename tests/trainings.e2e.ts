@@ -1309,6 +1309,40 @@ test.describe('item comments', () => {
 		});
 	});
 
+	test('saves a comment typed on a group', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'group',
+			position: 0,
+			group_title: 'Warmup',
+			items: []
+		});
+
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('No rest between exercises.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			comment: 'No rest between exercises.'
+		});
+	});
+
+	test('saves a comment typed on a circuit', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'circuit',
+			position: 0,
+			cycles: 3,
+			items: []
+		});
+
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Intensity 6 or 7 out of 10 maximum.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			comment: 'Intensity 6 or 7 out of 10 maximum.'
+		});
+	});
+
 	test('shows the comment of an exercise, a repeater, a hang rep and an emom in the read-only view', async ({
 		page
 	}) => {
@@ -1344,6 +1378,36 @@ test.describe('item comments', () => {
 		await expect(page.getByText('Repeater note')).toBeVisible();
 		await expect(page.getByText('Hang rep note')).toBeVisible();
 		await expect(page.getByText('Emom note')).toBeVisible();
+	});
+
+	test('shows the comment of a group and a circuit in the read-only view', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-0',
+					type: 'group',
+					position: 0,
+					group_title: 'Warmup',
+					items: [],
+					comment: 'No rest between exercises'
+				},
+				{
+					id: 'item-1',
+					type: 'circuit',
+					position: 1,
+					cycles: 3,
+					items: [],
+					comment: 'Intensity 6 or 7 out of 10 maximum'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('No rest between exercises')).toBeVisible();
+		await expect(page.getByText('Intensity 6 or 7 out of 10 maximum')).toBeVisible();
 	});
 });
 
@@ -2089,6 +2153,11 @@ test.describe('reordering root blocks', () => {
 	});
 
 	test('drops a block into an empty circuit when it is dragged over its body', async ({ page }) => {
+		// An empty circuit's add zone now sits below the comment field added for
+		// Krakoer/crimpy#66, close enough to the default viewport's bottom edge to
+		// fall inside dnd-kit's own autoscroll zone and race the drag. A taller
+		// viewport keeps the drop target away from that edge.
+		await page.setViewportSize({ width: 1280, height: 1400 });
 		await stubEditorPalette(page);
 		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
 		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });

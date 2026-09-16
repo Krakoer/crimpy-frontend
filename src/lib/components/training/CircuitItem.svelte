@@ -8,6 +8,7 @@
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import Icon from '$lib/components/Icon.svelte';
 	import { containerChildTypes } from './container-rules';
+	import ItemComment from './ItemComment.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -177,6 +178,10 @@
 						<span style="font-size: 10px; color: var(--tx3);">s</span>
 					</div>
 				</div>
+			</div>
+
+			<div style="margin-bottom: {overriding && !item.comment?.trim() ? '0' : '14px'};">
+				<ItemComment {item} {overriding} />
 			</div>
 
 			<div
