@@ -1250,7 +1250,7 @@ test.describe('hang rep items', () => {
 
 test.describe('item comments', () => {
 	const COMMENT_PLACEHOLDER =
-		'Optional note for the athlete (e.g. first rep in pronation, second in supination)';
+		'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)';
 
 	test('saves a comment typed on a repeater', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangboardItem());
@@ -1274,6 +1274,23 @@ test.describe('item comments', () => {
 		});
 	});
 
+	test('saves a comment typed on an exercise', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'exercise',
+			position: 0,
+			reps: 5,
+			rest_seconds: 0
+		});
+
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('First rep in pronation.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			comment: 'First rep in pronation.'
+		});
+	});
+
 	test('saves a comment typed on an emom', async ({ page }) => {
 		const updates = await openHangboardEditor(page, {
 			id: 'item-1',
@@ -1292,17 +1309,25 @@ test.describe('item comments', () => {
 		});
 	});
 
-	test('shows the comment of a repeater, a hang rep and an emom in the read-only view', async ({
+	test('shows the comment of an exercise, a repeater, a hang rep and an emom in the read-only view', async ({
 		page
 	}) => {
 		const training = testTraining({
 			items: [
+				{
+					id: 'item-0',
+					type: 'exercise',
+					position: 0,
+					reps: 5,
+					rest_seconds: 0,
+					comment: 'Exercise note'
+				},
 				hangboardItem({ id: 'item-1', comment: 'Repeater note' }),
 				hangRepItem({ id: 'item-2', comment: 'Hang rep note' }),
 				{
 					id: 'item-3',
 					type: 'emom',
-					position: 2,
+					position: 3,
 					cycles: 5,
 					interval_seconds: 60,
 					items: [],
@@ -1315,6 +1340,7 @@ test.describe('item comments', () => {
 
 		await page.goto('/trainings/training-1');
 
+		await expect(page.getByText('Exercise note')).toBeVisible();
 		await expect(page.getByText('Repeater note')).toBeVisible();
 		await expect(page.getByText('Hang rep note')).toBeVisible();
 		await expect(page.getByText('Emom note')).toBeVisible();

@@ -19,7 +19,9 @@
 			<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
 				>COMMENT</span
 			>
-			<p style="margin: 0; font-size: 12px; line-height: 1.4; color: var(--tx2);">
+			<p
+				style="margin: 0; font-size: 12px; line-height: 1.4; color: var(--tx2); white-space: pre-wrap; overflow-wrap: anywhere;"
+			>
 				{item.comment}
 			</p>
 		</div>
@@ -33,7 +35,7 @@
 			bind:value={item.comment}
 			maxlength={MAX_COMMENT_LENGTH}
 			rows="2"
-			placeholder="Optional note for the athlete (e.g. first rep in pronation, second in supination)"
+			placeholder="Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)"
 			onclick={(e) => e.stopPropagation()}
 			style="width: 100%; resize: vertical; min-height: 38px; padding: 6px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; line-height: 1.4; color: var(--tx); outline: none; background: #fff;"
 		></textarea>

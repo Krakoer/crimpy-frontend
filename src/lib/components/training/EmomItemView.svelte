@@ -81,13 +81,15 @@
 
 	{#if !collapsed}
 		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
+			<ItemCommentDisplay {item} inset={null} />
 			<div
-				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--pr) 20%, transparent);"
+				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--pr) 20%, transparent); margin-top: {item.comment?.trim()
+					? '10px'
+					: '0'};"
 			>
 				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
 		</div>
-		<ItemCommentDisplay {item} inset="0 14px 12px" />
 		<AchievedNotes itemId={item.id} inset="0 14px 12px" />
 	{/if}
 </div>

@@ -186,6 +186,10 @@
 				</span>
 			</div>
 
+			<div style="margin-bottom: 14px;">
+				<ItemComment {item} {overriding} />
+			</div>
+
 			<div
 				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--pr) 20%, transparent);"
 			>
@@ -198,10 +202,6 @@
 					depth={depth + 1}
 					containerId={containerIdOf(item._id!)}
 				/>
-			</div>
-
-			<div style="margin-top: 14px;">
-				<ItemComment {item} {overriding} />
 			</div>
 		</div>
 	{/if}
