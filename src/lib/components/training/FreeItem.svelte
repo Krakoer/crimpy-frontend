@@ -21,6 +21,10 @@
 
 	const NOTE_COLOR = BLOCK_PRESENTATION.free.color;
 
+	// Said out loud rather than left to the missing textarea, the way a group
+	// says it about its title.
+	const TEXT_FIXED_REASON = 'The note belongs to the training and is the same in every week';
+
 	let collapsed = $state(false);
 	let confirmDelete = $state(false);
 
@@ -117,15 +121,21 @@
 	{#if !collapsed}
 		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
 			{#if overriding}
-				{#if item.free_text?.trim()}
-					<p
-						style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--tx); white-space: pre-wrap; overflow-wrap: anywhere;"
+				<div style="display: flex; flex-direction: column; gap: 4px;" title={TEXT_FIXED_REASON}>
+					<span
+						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						>FIXED BY THE TRAINING</span
 					>
-						{item.free_text}
-					</p>
-				{:else}
-					<p style="margin: 0; font-size: 13px; color: var(--tx3);">No text</p>
-				{/if}
+					{#if item.free_text?.trim()}
+						<p
+							style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--tx); white-space: pre-wrap; overflow-wrap: anywhere;"
+						>
+							{item.free_text}
+						</p>
+					{:else}
+						<p style="margin: 0; font-size: 13px; color: var(--tx3);">No text</p>
+					{/if}
+				</div>
 			{:else}
 				<textarea
 					bind:value={item.free_text}

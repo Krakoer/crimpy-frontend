@@ -34,7 +34,7 @@
 		trainingAllowedTypes,
 		trainingInnerAllowedTypes
 	} from '$lib/components/training/container-rules';
-	import { EMPTY_NOTE_ERROR, hasEmptyNote } from '$lib/components/training/note-text';
+	import { emptyNoteError } from '$lib/components/training/note-text';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { saneCount } from '$lib/components/training/hangboard-granularity';
@@ -339,8 +339,9 @@
 	async function handleSave() {
 		const title = draft.title.trim();
 		if (!title) return;
-		if (!logOnly && hasEmptyNote(draft.items)) {
-			saveError = EMPTY_NOTE_ERROR;
+		const emptyNote = logOnly ? null : emptyNoteError(draft.items);
+		if (emptyNote) {
+			saveError = emptyNote;
 			return;
 		}
 		if (assessment.enabled && !assessment.prompt.trim()) {

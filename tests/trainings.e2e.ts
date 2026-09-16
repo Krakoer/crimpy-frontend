@@ -1526,7 +1526,9 @@ test.describe('notes', () => {
 		await page.getByTestId('block-palette').getByRole('button', { name: 'Note' }).click();
 		await page.getByRole('button', { name: 'Save training' }).click();
 
-		await expect(page.getByText('A note needs some text for the athlete to read.')).toBeVisible();
+		await expect(
+			page.getByText('A note needs some text for the athlete to read. Check block 2.')
+		).toBeVisible();
 		expect(updates).toHaveLength(0);
 
 		await page.getByLabel('Note text').fill('Grimpe :');
@@ -1537,6 +1539,30 @@ test.describe('notes', () => {
 			type: 'free',
 			free_text: 'Grimpe :'
 		});
+	});
+
+	// A note the app wrote carries no text at all, and goes back out as the null
+	// it came in as, which the app renders as "Free". Only the empty string the
+	// portal would send is refused, so an edit elsewhere in such a training is
+	// not held up by a block the coach never wrote.
+	test('saves an edit to a training carrying a note the app left text-less', async ({ page }) => {
+		const training = testTraining({ items: [{ id: 'item-1', type: 'free', position: 0 }] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByPlaceholder('Training title').first().fill('Renamed while the note sits there');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body as TrainingRequest).toMatchObject({
+			title: 'Renamed while the note sits there'
+		});
+		expect((updates[0].body as TrainingRequest).items?.[0].free_text).toBeUndefined();
 	});
 
 	// The stretching rule and the emom rule both hold: a training that allows a

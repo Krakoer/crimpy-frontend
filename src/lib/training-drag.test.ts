@@ -28,6 +28,14 @@ function group(id: string, items: TrainingItem[] = []): TrainingItem {
 	return { type: 'group', _id: id, items };
 }
 
+function emom(id: string, items: TrainingItem[] = []): TrainingItem {
+	return { type: 'emom', _id: id, items };
+}
+
+function note(id: string): TrainingItem {
+	return { type: 'free', _id: id, free_text: 'Grimpe :' };
+}
+
 const ids = (items: TrainingItem[]) => items.map((item) => item._id);
 
 describe('collision priority', () => {
@@ -139,10 +147,26 @@ describe('isValidMove', () => {
 		expect(isValidMove([only], 'stretching', only, ROOT_CONTAINER_ID)).toBe(true);
 	});
 
-	it('lets a stretching circuit hold stretches and nothing else', () => {
+	it('lets a stretching circuit hold stretches and notes, and nothing else', () => {
 		const stretching = [circuit('c')];
 		expect(isValidMove(stretching, 'stretching', exercise('x'), containerIdOf('c'))).toBe(true);
+		expect(isValidMove(stretching, 'stretching', note('x'), containerIdOf('c'))).toBe(true);
 		expect(isValidMove(stretching, 'stretching', group('x'), containerIdOf('c'))).toBe(false);
+	});
+
+	// Dragging one from the rail is the second way a coach adds a note, so the
+	// rules it lands on are worth pinning on this path too and not only on the
+	// palette's.
+	it('drops a note at the root and into a circuit', () => {
+		const items = [circuit('c')];
+		expect(isValidMove(items, 'workout', note('n'), ROOT_CONTAINER_ID)).toBe(true);
+		expect(isValidMove(items, 'workout', note('n'), containerIdOf('c'))).toBe(true);
+	});
+
+	it('refuses a note dragged into an emom', () => {
+		const items = [emom('e')];
+		expect(isValidMove(items, 'workout', note('n'), containerIdOf('e'))).toBe(false);
+		expect(isValidMove(items, 'workout', exercise('x'), containerIdOf('e'))).toBe(true);
 	});
 });
 

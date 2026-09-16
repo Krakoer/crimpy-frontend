@@ -1818,6 +1818,36 @@ test('shows a training item comment in the week editor, read only', async ({ pag
 	await expect(modal.getByPlaceholder(/Optional note for the athlete/)).toHaveCount(0);
 });
 
+// A note is prose for the athlete, and a week may change what a training asks
+// for rather than what it says, so the week editor reads the note out and says
+// that it is the training that holds it.
+test('shows a note in the week editor, read only and saying why', async ({ page }) => {
+	const withNote = openBlocksTraining();
+	withNote.items = [
+		{
+			id: 'item-note',
+			type: 'free',
+			position: 0,
+			free_text: 'Grimpe :\nkilter volume, 40 degrees'
+		},
+		...(withNote.items ?? [])
+	];
+	await stubTwoWeekProgram(page, [], withNote);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await expect(modal.getByText('kilter volume, 40 degrees')).toBeVisible();
+	await expect(modal.getByText('FIXED BY THE TRAINING')).toBeVisible();
+	await expect(modal.getByLabel('Note text')).toHaveCount(0);
+});
+
 test('a week that lowers a max hang to kilograms clears the max effort marker', async ({
 	page
 }) => {

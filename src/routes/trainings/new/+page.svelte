@@ -35,7 +35,7 @@
 		trainingAllowedTypes,
 		trainingInnerAllowedTypes
 	} from '$lib/components/training/container-rules';
-	import { EMPTY_NOTE_ERROR, hasEmptyNote } from '$lib/components/training/note-text';
+	import { emptyNoteError } from '$lib/components/training/note-text';
 
 	const { onDragStart, onDragOver, onDragEnd } = createTrainingDragHandlers(
 		() => draft,
@@ -228,8 +228,9 @@
 
 	async function handleSave() {
 		if (!draft.title.trim()) return;
-		if (!logOnly && hasEmptyNote(draft.items)) {
-			saveError = EMPTY_NOTE_ERROR;
+		const emptyNote = logOnly ? null : emptyNoteError(draft.items);
+		if (emptyNote) {
+			saveError = emptyNote;
 			return;
 		}
 		// Checked before the training is created: the server refuses a definition
