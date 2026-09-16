@@ -48,8 +48,23 @@ describe('containerChildTypes', () => {
 		expect(containerChildTypes('emom', 1)).not.toContain('free');
 	});
 
-	it('lets the training override the depth rules', () => {
+	it('lets the training narrow the depth rules', () => {
 		expect(containerChildTypes('circuit', 0, ['exercise'])).toEqual(['exercise']);
+	});
+
+	// The training's list and the container's own rule both hold. A stretching
+	// training allows a note, and an emom refuses one, so the emom wins for that
+	// one block and keeps the rest of what the training allows.
+	it('keeps a note out of an emom whatever the training allows', () => {
+		expect(containerChildTypes('emom', 0, ['exercise', 'free'])).toEqual(['exercise']);
+		expect(containerChildTypes('circuit', 0, ['exercise', 'free'])).toEqual(['exercise', 'free']);
+		expect(containerChildTypes('group', 0, ['exercise', 'free'])).toEqual(['exercise', 'free']);
+	});
+
+	// A training list naming a block the container refuses does not smuggle it
+	// in: an emom takes no group, whatever the training says.
+	it('never widens what a container takes', () => {
+		expect(containerChildTypes('emom', 0, ['exercise', 'group'])).toEqual(['exercise']);
 	});
 });
 

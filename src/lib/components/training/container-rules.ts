@@ -44,16 +44,30 @@ const ROOT_CIRCUIT_TYPES: TrainingItemType[] = [
 const GROUP_TYPES: TrainingItemType[] = [...LEAF_TYPES, 'emom', 'free'];
 
 // What a container accepts, given the depth it sits at. A circuit at the root
-// still takes a group, anything deeper takes leaf blocks only, and a training
-// that restricts its blocks overrides both. The list a container hands its
-// children and the check the grouping bar runs read the same answer from here,
-// so a selection the bar offers to wrap cannot end up refused once wrapped.
+// still takes a group, anything deeper takes leaf blocks only. The list a
+// container hands its children and the check the grouping bar runs read the same
+// answer from here, so a selection the bar offers to wrap cannot end up refused
+// once wrapped.
+//
+// A training that restricts its blocks narrows that answer rather than
+// replacing it: both rules hold at once. Letting the training's list win
+// outright would hand an emom whatever the training allows and lose the one
+// block the container itself refuses, which is how a stretching training ended
+// up offering a note inside an emom.
 export function containerChildTypes(
 	containerType: ContainerType,
 	depth: number,
 	innerAllowedTypes?: readonly TrainingItemType[]
 ): readonly TrainingItemType[] {
-	if (innerAllowedTypes) return innerAllowedTypes;
+	const byContainer = containerTypesAtDepth(containerType, depth);
+	if (!innerAllowedTypes) return byContainer;
+	return byContainer.filter((type) => innerAllowedTypes.includes(type));
+}
+
+function containerTypesAtDepth(
+	containerType: ContainerType,
+	depth: number
+): readonly TrainingItemType[] {
 	if (containerType === 'emom') return LEAF_TYPES;
 	if (containerType === 'group') return depth < 1 ? GROUP_TYPES : LEAF_AND_NOTE_TYPES;
 	return depth < 1 ? ROOT_CIRCUIT_TYPES : LEAF_AND_NOTE_TYPES;
@@ -74,9 +88,10 @@ export function trainingAllowedTypes(
 	return hasCircuit ? ['exercise', 'free'] : ['exercise', 'circuit', 'free'];
 }
 
-// What every container nested inside such a training takes, whatever the
-// container is and however deep it sits. Undefined leaves the depth rules
-// above in charge.
+// The most any container nested inside such a training may take, whatever the
+// container is and however deep it sits. Each container narrows it further with
+// its own rule, so this only ever takes blocks away. Undefined leaves the depth
+// rules above alone.
 export function trainingInnerAllowedTypes(
 	trainingType: TrainingType | undefined
 ): readonly TrainingItemType[] | undefined {

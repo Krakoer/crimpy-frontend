@@ -34,6 +34,7 @@
 		trainingAllowedTypes,
 		trainingInnerAllowedTypes
 	} from '$lib/components/training/container-rules';
+	import { EMPTY_NOTE_ERROR, hasEmptyNote } from '$lib/components/training/note-text';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { saneCount } from '$lib/components/training/hangboard-granularity';
@@ -338,6 +339,10 @@
 	async function handleSave() {
 		const title = draft.title.trim();
 		if (!title) return;
+		if (!logOnly && hasEmptyNote(draft.items)) {
+			saveError = EMPTY_NOTE_ERROR;
+			return;
+		}
 		if (assessment.enabled && !assessment.prompt.trim()) {
 			saveError = 'An assessment needs a question for the athlete to answer.';
 			return;

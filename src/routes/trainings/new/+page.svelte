@@ -35,6 +35,7 @@
 		trainingAllowedTypes,
 		trainingInnerAllowedTypes
 	} from '$lib/components/training/container-rules';
+	import { EMPTY_NOTE_ERROR, hasEmptyNote } from '$lib/components/training/note-text';
 
 	const { onDragStart, onDragOver, onDragEnd } = createTrainingDragHandlers(
 		() => draft,
@@ -227,6 +228,10 @@
 
 	async function handleSave() {
 		if (!draft.title.trim()) return;
+		if (!logOnly && hasEmptyNote(draft.items)) {
+			saveError = EMPTY_NOTE_ERROR;
+			return;
+		}
 		// Checked before the training is created: the server refuses a definition
 		// with no question, and the training would already exist by then, leaving
 		// an orphan behind and a second one on the retry.

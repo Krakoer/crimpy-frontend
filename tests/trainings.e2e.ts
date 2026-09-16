@@ -1511,6 +1511,59 @@ test.describe('notes', () => {
 		).toBeVisible();
 	});
 
+	// A note the coach never typed in would reach the athlete as a step with no
+	// title: the app falls back to "Free" on a null, and the portal would send
+	// the empty string.
+	test('refuses to save a note with no text and keeps the block', async ({ page }) => {
+		const training = testTraining({ items: [warmupGroup] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Note' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('A note needs some text for the athlete to read.')).toBeVisible();
+		expect(updates).toHaveLength(0);
+
+		await page.getByLabel('Note text').fill('Grimpe :');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect((updates[0].body as TrainingRequest).items?.[1]).toMatchObject({
+			type: 'free',
+			free_text: 'Grimpe :'
+		});
+	});
+
+	// The stretching rule and the emom rule both hold: a training that allows a
+	// note does not hand one to a block that refuses it.
+	test('offers no note inside an emom a stretching training still carries', async ({ page }) => {
+		const training = testTraining({
+			training_type: 'climbing',
+			items: [
+				{ id: 'item-1', type: 'emom', position: 0, cycles: 5, interval_seconds: 60, items: [] }
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Stretching' }).click();
+
+		const addZonePalette = page.getByTestId('block-palette').first();
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+
+		await expect(
+			addZonePalette.getByRole('button', { name: 'Exercise', exact: true })
+		).toBeVisible();
+		await expect(addZonePalette.getByRole('button', { name: 'Note' })).toBeHidden();
+	});
+
 	test('reads a note the app wrote with no text without breaking the list', async ({ page }) => {
 		const training = testTraining({
 			items: [{ id: 'item-1', type: 'free', position: 0 }]
