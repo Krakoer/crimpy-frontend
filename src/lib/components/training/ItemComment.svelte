@@ -14,7 +14,7 @@
 </script>
 
 {#if overriding}
-	{#if item.comment}
+	{#if item.comment?.trim()}
 		<div style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;">
 			<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
 				>COMMENT</span

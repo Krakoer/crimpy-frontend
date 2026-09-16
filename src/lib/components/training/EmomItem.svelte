@@ -186,7 +186,7 @@
 				</span>
 			</div>
 
-			<div style="margin-bottom: 14px;">
+			<div style="margin-bottom: {overriding && !item.comment?.trim() ? '0' : '14px'};">
 				<ItemComment {item} {overriding} />
 			</div>
 
