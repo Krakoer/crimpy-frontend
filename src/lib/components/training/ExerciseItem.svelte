@@ -14,6 +14,7 @@
 		type AssessmentCatalog
 	} from '$lib/assessments';
 	import { createPrescription, initialBoxes } from './exercise-prescription';
+	import ItemComment from './ItemComment.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -30,8 +31,6 @@
 	// override carries, are not rendered there.
 	const overrideMode = getContext<OverrideMode | undefined>(OVERRIDE_KEY);
 	const overriding = overrideMode !== undefined;
-
-	const MAX_COMMENT_LENGTH = 200;
 
 	let collapsed = $state(false);
 	let showEditModal = $state(false);
@@ -516,43 +515,7 @@
 				</div>
 			</div>
 
-			<!-- Comment. A note to the athlete is written once, on the training, so a
-			     program week reads it rather than edits it. -->
-			{#if overriding}
-				{#if item.comment}
-					<div
-						style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;"
-					>
-						<span
-							style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
-							>COMMENT</span
-						>
-						<p style="margin: 0; font-size: 12px; line-height: 1.4; color: var(--tx2);">
-							{item.comment}
-						</p>
-					</div>
-				{/if}
-			{:else}
-				<div
-					style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;"
-				>
-					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
-						>COMMENT</span
-					>
-					<textarea
-						bind:value={item.comment}
-						maxlength={MAX_COMMENT_LENGTH}
-						rows="2"
-						placeholder="Optional note for the athlete (e.g. first rep in pronation, second in supination)"
-						onclick={(e) => e.stopPropagation()}
-						style="width: 100%; resize: vertical; min-height: 38px; padding: 6px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; line-height: 1.4; color: var(--tx); outline: none; background: #fff;"
-					></textarea>
-					<span style="font-size: 10px; color: var(--tx3); align-self: flex-end;"
-						>{(item.comment ?? '').length}/{MAX_COMMENT_LENGTH}</span
-					>
-				</div>
-			{/if}
+			<ItemComment {item} {overriding} />
 		</div>
 	{/if}
 </div>

@@ -18,6 +18,7 @@
 		writeConfig,
 		type RepConfig
 	} from './hangboard-config';
+	import ItemComment from './ItemComment.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -231,6 +232,8 @@
 				/>
 			</div>
 		{/if}
+
+		<ItemComment {item} {overriding} />
 	{/snippet}
 </HangboardCard>
 

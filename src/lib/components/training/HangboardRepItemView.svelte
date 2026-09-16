@@ -9,6 +9,7 @@
 	import { ITEM_RESULTS_KEY, achievedEntries, type ItemResultsByItem } from './results-context';
 	import AchievedNotes from './AchievedNotes.svelte';
 	import AchievedUnder from './AchievedUnder.svelte';
+	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -63,6 +64,8 @@
 				<AchievedUnder entries={achievedLoad} format={(v) => `${v} kg`} />
 			</div>
 		</div>
+
+		<ItemCommentDisplay {item} inset={null} />
 
 		<AchievedNotes itemId={item.id} inset={null} />
 	{/snippet}

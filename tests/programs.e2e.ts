@@ -1604,7 +1604,8 @@ function openBlocksTraining() {
 				load_is_max: true,
 				loads: [{ value: 0, unit: 'max' }],
 				edge_sizes_mm: [20],
-				hand_positions: [['HC']]
+				hand_positions: [['HC']],
+				comment: 'Full crimp, watch the shoulder'
 			}
 		]
 	});
@@ -1797,6 +1798,24 @@ test('a week retimes a duration, moves an emom clock and opens a rep count', asy
 			}
 		]
 	});
+});
+
+// A note to the athlete is written once, on the training, so the week editor
+// shows it rather than offering to edit it: comment is not an override key.
+test('shows a training item comment in the week editor, read only', async ({ page }) => {
+	await stubTwoWeekProgram(page, [], openBlocksTraining());
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await expect(modal.getByText('Full crimp, watch the shoulder')).toBeVisible();
+	await expect(modal.getByPlaceholder(/Optional note for the athlete/)).toHaveCount(0);
 });
 
 test('a week that lowers a max hang to kilograms clears the max effort marker', async ({
