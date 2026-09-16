@@ -5,6 +5,7 @@
 	import { getContext } from 'svelte';
 	import { COLLAPSE_KEY } from './collapse-context';
 	import Icon from '$lib/components/Icon.svelte';
+	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -64,8 +65,11 @@
 
 	{#if !collapsed}
 		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
+			<ItemCommentDisplay {item} inset={null} />
 			<div
-				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tx2) 20%, transparent);"
+				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tx2) 20%, transparent); margin-top: {item.comment?.trim()
+					? '10px'
+					: '0'};"
 			>
 				<ItemListView items={item.items ?? []} {exercises} depth={depth + 1} {catalog} />
 			</div>
