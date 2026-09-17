@@ -494,6 +494,94 @@ test('sends existing sessions back with their id so the server keeps the row', a
 	});
 });
 
+/** A week carrying a phase name, as the server hands it back. */
+function namedWeekDetail(name?: string) {
+	return {
+		id: 'week-1',
+		program_id: 'program-1',
+		week_number: 1,
+		name,
+		notes: 'Finger work moved to Friday',
+		created_at: '',
+		updated_at: '',
+		sessions: []
+	};
+}
+
+async function stubNamedWeek(page: Page, name?: string): Promise<void> {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{
+				id: 'week-1',
+				program_id: 'program-1',
+				week_number: 1,
+				name,
+				created_at: '',
+				updated_at: ''
+			}
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: namedWeekDetail(name)
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: namedWeekDetail(name)
+	});
+}
+
+// Scanning the phase arc down the page is what the name is for, so a collapsed
+// week has to show it without being opened or the page put into edit mode.
+test('shows the phase of a week on the collapsed row', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity, 3 week block');
+
+	await page.goto(PROGRAM_URL);
+
+	const weekRow = page.getByRole('button', { name: /Wk 1/ });
+	await expect(weekRow).toContainText('capacity, 3 week block');
+	// Still the ten children the grid template lays out: the phase sits in the
+	// week column beside the number, not as an eleventh cell that would wrap.
+	expect(await weekRow.evaluate((row) => row.children.length)).toBe(10);
+});
+
+test('saves the phase a coach types beside the week number', async ({ page }) => {
+	await stubNamedWeek(page);
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Week 1 phase' }).fill('  deload  ');
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	await expect(page.getByText('Program saved')).toBeVisible();
+	expect(saves).toHaveLength(1);
+	// Trimmed, and beside the notes rather than instead of them: the two say
+	// different things about the same week.
+	expect(saves[0].body).toMatchObject({
+		name: 'deload',
+		notes: 'Finger work moved to Friday'
+	});
+});
+
+// The header row answers Enter and Space to expand the week it belongs to, and
+// the phase field sits inside it. A space typed into the name must reach the
+// name rather than collapse the week under the coach.
+test('leaves the week open while the phase is typed into', async ({ page }) => {
+	await stubNamedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+
+	const phase = page.getByRole('textbox', { name: 'Week 1 phase' });
+	await phase.click();
+	await phase.pressSequentially('max strength');
+
+	await expect(phase).toHaveValue('max strength');
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+});
+
 /**
  * A dropped session is re-rendered into its new cell, and dnd-kit needs a beat
  * before that fresh element answers a new drag. Only needed between two drags of

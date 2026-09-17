@@ -50,6 +50,7 @@
 		savedWeek,
 		scheduledRows,
 		sessionPlacement,
+		WEEK_NAME_MAX_LENGTH,
 		type DaySession,
 		type DraftSession,
 		type EverydaySession,
@@ -126,7 +127,13 @@
 			}
 		}
 		return {
-			...savedWeek({ notes: detail.notes ?? '', days, freqSessions, everydaySessions }),
+			...savedWeek({
+				name: detail.name ?? '',
+				notes: detail.notes ?? '',
+				days,
+				freqSessions,
+				everydaySessions
+			}),
 			saving: false,
 			saveError: '',
 			rereading: false,
@@ -506,6 +513,7 @@
 		draft.refusalMarked = false;
 		try {
 			const detail = await apiClient.upsertWeek(userId, programId, wn, {
+				name: draft.name.trim() || undefined,
 				notes: draft.notes.trim() || undefined,
 				sessions: draftToSessionRequests(draft, wn)
 			});
@@ -518,6 +526,7 @@
 					id: detail.id,
 					program_id: detail.program_id,
 					week_number: wn,
+					name: detail.name,
 					notes: detail.notes,
 					created_at: detail.created_at,
 					updated_at: detail.updated_at
@@ -574,6 +583,7 @@
 		if (!weekDrafts[targetWn]) weekDrafts[targetWn] = emptyDraft();
 		weekDrafts[targetWn] = {
 			...weekDrafts[targetWn],
+			name: src.name,
 			notes: src.notes,
 			days: src.days.map((d) => d.map(duplicatedDraftSession)),
 			freqSessions: src.freqSessions.map(duplicatedDraftSession),
@@ -757,6 +767,7 @@
 			days: draft.days.map((day) => day.filter((s) => s.locked)),
 			freqSessions: draft.freqSessions.filter((s) => s.locked),
 			everydaySessions: draft.everydaySessions.filter((s) => s.locked),
+			name: '',
 			notes: '',
 			deleteConfirm: false
 		};
@@ -1206,9 +1217,21 @@
 								transition: all 0.15s;
 							"
 								>
-									<!-- Row header (always visible) -->
-									<button
+									<!-- Row header (always visible). A div carrying the button role
+										rather than a button element, because the phase field lives in it:
+										an input inside a button is neither valid markup nor reachable.
+										The key handler answers only for the row itself, so typing in that
+										field does not collapse the week under the coach. -->
+									<div
+										role="button"
+										tabindex="0"
 										onclick={() => toggleWeek(wn)}
+										onkeydown={(e) => {
+											if (e.target !== e.currentTarget) return;
+											if (e.key !== 'Enter' && e.key !== ' ') return;
+											e.preventDefault();
+											toggleWeek(wn);
+										}}
 										style="
 										display: grid; grid-template-columns: {WEEK_GRID_COLUMNS};
 										width: 100%; align-items: center; cursor: pointer;
@@ -1217,7 +1240,7 @@
 											: expanded
 												? 'var(--panel2)'
 												: 'var(--panel)'};
-										border: none; font-family: var(--font); text-align: left;
+										font-family: var(--font); text-align: left;
 										min-height: {expanded ? '40px' : '48px'}; transition: background 0.1s;
 									"
 									>
@@ -1246,6 +1269,30 @@
 												{/if}
 												{#if isWeekDirty(draft)}
 													<span style="font-size: 9px; color: var(--pr);">*</span>
+												{/if}
+												<!-- The phase the week belongs to, beside the week number and
+													shown collapsed as well: reading the arc of the program down
+													this column is what the name is for. -->
+												{#if editMode}
+													<input
+														value={draft.name}
+														onclick={(e) => e.stopPropagation()}
+														oninput={(e) => (draft.name = e.currentTarget.value)}
+														maxlength={WEEK_NAME_MAX_LENGTH}
+														placeholder="Phase..."
+														aria-label="Week {wn} phase"
+														style="
+														flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+														font-family: var(--font); font-size: 11.5px; color: var(--tx2);
+														font-style: {draft.name ? 'normal' : 'italic'};
+													"
+													/>
+												{:else if draft.name}
+													<span
+														title={draft.name}
+														style="flex: 1; min-width: 0; font-size: 11.5px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+														>{draft.name}</span
+													>
 												{/if}
 											</div>
 											<div
@@ -1284,7 +1331,7 @@
 											<div></div>
 											<div></div>
 										{/if}
-									</button>
+									</div>
 
 									<!-- Expanded body -->
 									{#if expanded}
