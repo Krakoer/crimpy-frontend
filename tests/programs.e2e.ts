@@ -658,6 +658,48 @@ test('leaves the week open on a click in the indent beside the phase', async ({ 
 	await expect(page.getByTestId('cell:1:1')).toBeVisible();
 });
 
+// Expanding a week used to be the browser's job, and on this branch it is a
+// hand-written role, tabindex and key handler on a div, because the phase field
+// lives in the row. Nothing else in this file presses a key on it: every other
+// spec clicks. So this is what stops a later edit making the week grid
+// mouse-only without turning the suite red.
+test('expands and collapses a week from the keyboard', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity');
+
+	await page.goto(PROGRAM_URL);
+	const row = page.getByRole('button', { name: /Wk 1/ });
+	await expect(row).toBeVisible();
+
+	// Reached by Tab rather than by focus(): focus() succeeds on an element
+	// tabbing cannot reach, which is the failure this is here to catch.
+	await page.keyboard.press('Tab');
+	for (let hop = 0; hop < 20; hop++) {
+		if (await row.evaluate((element) => element === document.activeElement)) break;
+		await page.keyboard.press('Tab');
+	}
+	await expect(row).toBeFocused();
+
+	await page.keyboard.press('Enter');
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+
+	await page.keyboard.press(' ');
+	await expect(page.getByTestId('cell:1:1')).toBeHidden();
+});
+
+// The row says whether the week body under it is open, which is the only way a
+// screen reader can tell the two states apart.
+test('says whether the week it heads is open', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity');
+
+	await page.goto(PROGRAM_URL);
+	const row = page.getByRole('button', { name: /Wk 1/ });
+	await expect(row).toHaveAttribute('aria-expanded', 'false');
+
+	await row.click();
+
+	await expect(row).toHaveAttribute('aria-expanded', 'true');
+});
+
 // A duplicate is the whole week, phase included: copying a capacity week into
 // the next one and leaving it called nothing is not what the gesture says.
 test('carries the phase into a duplicated week', async ({ page }) => {

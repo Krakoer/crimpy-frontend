@@ -1243,6 +1243,7 @@
 									<div
 										role="button"
 										tabindex="0"
+										aria-expanded={expanded}
 										onpointerdowncapture={(e) => (pointerDownInPhaseField = startedInPhaseField(e))}
 										onclick={() => {
 											// A click whose gesture began in the phase field belongs to the
@@ -1300,7 +1301,7 @@
 													<span style="font-size: 9px; color: var(--pr);">*</span>
 												{/if}
 											</div>
-											<WeekPhaseField {wn} bind:name={draft.name} {editMode} />
+											<WeekPhaseField weekNumber={wn} bind:name={draft.name} {editMode} />
 											<div
 												style="display: flex; align-items: center; gap: 4px; padding-left: 18px;"
 											>

@@ -5,14 +5,14 @@
 		// The week this phase belongs to, for the field's accessible name: a
 		// program page carries one of these per week, so "phase" alone would
 		// name fourteen of them the same.
-		wn: number;
+		weekNumber: number;
 		// The phase the week is in, bound so the field writes straight into the
 		// week draft the save reads.
 		name: string;
 		editMode: boolean;
 	}
 
-	let { wn, name = $bindable(), editMode }: Props = $props();
+	let { weekNumber, name = $bindable(), editMode }: Props = $props();
 </script>
 
 <!--
@@ -34,7 +34,7 @@
 			oninput={(e) => (name = e.currentTarget.value)}
 			maxlength={WEEK_NAME_MAX_LENGTH}
 			placeholder="Phase..."
-			aria-label="Week {wn} phase"
+			aria-label="Week {weekNumber} phase"
 			style="
 				flex: 1; min-width: 0; border: none; outline: none; background: transparent;
 				font-family: var(--font); font-size: 11px; color: var(--tx2);
