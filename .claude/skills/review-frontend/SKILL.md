@@ -171,9 +171,10 @@ asks `/api/coach/enrollment-token` for.
 
 The dev compose stack already serves all of this: the api container on `:3000`
 and the frontend container on `:5173` both mount the working tree, so a branch
-is live on both without starting anything. `:5173` is also the only origin the
-API's CORS config allows, so a dev server started by hand on another port
-cannot log in.
+is live on both without starting anything. `http://localhost:5173` is also the only
+origin the API's CORS config allows, spelled exactly, so a dev server started
+by hand on another port cannot log in and neither can `127.0.0.1:5173`: both
+are refused at the preflight.
 
 **Create the data the feature needs, through the API.** The local database is
 seeded from before most features existed, so the row that shows a change off

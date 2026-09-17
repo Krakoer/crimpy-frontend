@@ -741,6 +741,22 @@
 		}
 	}
 
+	// Whether the gesture now in flight started inside a week's phase field.
+	// Plain state rather than $state: it is written on pointerdown and read by
+	// the click of the same gesture, and nothing renders from it.
+	let pointerDownInPhaseField = false;
+
+	// A week header toggles on a click anywhere in the row, and the phase field
+	// sits in it. A click event is dispatched on the nearest common ancestor of
+	// where the pointer went down and came up, so selecting a phase by dragging
+	// out of the narrow field lands the click on the header itself, and a click
+	// on the indent beside the field lands on its wrapper. Neither is a click on
+	// the row, so both are answered by where the gesture began.
+	function startedInPhaseField(event: PointerEvent): boolean {
+		const target = event.target;
+		return target instanceof Element && target.closest('[data-phase-field]') !== null;
+	}
+
 	function toggleWeek(wn: number) {
 		const next = new Set(expandedWeeks);
 		if (next.has(wn)) next.delete(wn);
@@ -1221,11 +1237,24 @@
 										rather than a button element, because the phase field lives in it:
 										an input inside a button is neither valid markup nor reachable.
 										The key handler answers only for the row itself, so typing in that
-										field does not collapse the week under the coach. -->
+										field does not collapse the week under the coach, and the click
+										handler ignores a gesture that started in the field, so does
+										selecting a phase to retype it. -->
 									<div
 										role="button"
 										tabindex="0"
-										onclick={() => toggleWeek(wn)}
+										onpointerdowncapture={(e) => (pointerDownInPhaseField = startedInPhaseField(e))}
+										onclick={() => {
+											// A click whose gesture began in the phase field belongs to the
+											// field, wherever it ended. The whole row toggles, so a plain
+											// target check cannot be used here the way the key handler uses
+											// one: every ordinary click on the row lands on a descendant.
+											if (pointerDownInPhaseField) {
+												pointerDownInPhaseField = false;
+												return;
+											}
+											toggleWeek(wn);
+										}}
 										onkeydown={(e) => {
 											if (e.target !== e.currentTarget) return;
 											if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -1278,7 +1307,10 @@
 												phases a coach writes are "max strength, 3 week block" and
 												not one word. -->
 											{#if editMode}
-												<div style="display: flex; align-items: center; padding-left: 18px;">
+												<div
+													data-phase-field
+													style="display: flex; align-items: center; padding-left: 18px;"
+												>
 													<input
 														value={draft.name}
 														onclick={(e) => e.stopPropagation()}
