@@ -10,6 +10,7 @@
 	import AchievedNotes from './AchievedNotes.svelte';
 	import AchievedUnder from './AchievedUnder.svelte';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
+	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -64,6 +65,8 @@
 				<AchievedUnder entries={achievedLoad} format={(v) => `${v} kg`} />
 			</div>
 		</div>
+
+		<ItemGoalDisplay {item} inset={null} />
 
 		<ItemCommentDisplay {item} inset={null} />
 

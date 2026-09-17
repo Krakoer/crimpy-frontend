@@ -409,6 +409,11 @@ export interface TrainingItem {
 	granularity?: HangboardGranularity;
 	free_text?: string;
 	comment?: string;
+	// Why the block is in the program, which is what makes it a different field
+	// from `comment` above: that one says how to run this instance, this one
+	// holds across the weeks that retune it. Not an override key for that
+	// reason.
+	goal?: string;
 	load_is_max?: boolean;
 	variable_targets?: VariableTargets;
 	edge_sizes_mm?: number[];

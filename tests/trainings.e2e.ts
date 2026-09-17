@@ -1412,6 +1412,189 @@ test.describe('item comments', () => {
 });
 
 /**
+ * A goal is why the block is in the program, which is the column the coaching
+ * spreadsheet kept beside the numbers. It is held apart from the comment: that
+ * one says how to run this instance and changes with the prescription, while a
+ * goal holds across the weeks that retune it.
+ */
+test.describe('item goals', () => {
+	const GOAL_PLACEHOLDER = 'What this block trains (e.g. finger endurance)';
+	const COMMENT_PLACEHOLDER =
+		'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)';
+
+	test('saves a goal typed on a repeater', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('resi doigts');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'resi doigts' });
+	});
+
+	test('saves a goal typed on a hang rep', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangRepItem());
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('force max doigts');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'force max doigts' });
+	});
+
+	test('saves a goal typed on an exercise', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'exercise',
+			position: 0,
+			reps: 5,
+			rest_seconds: 0
+		});
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('explo jambes');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'explo jambes' });
+	});
+
+	test('saves a goal typed on an emom', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'emom',
+			position: 0,
+			cycles: 5,
+			interval_seconds: 60,
+			items: []
+		});
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('capacite/endurance doigts');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'capacite/endurance doigts' });
+	});
+
+	test('saves a goal typed on a group', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'group',
+			position: 0,
+			group_title: 'Warmup',
+			items: []
+		});
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('garder du plaisir dans la pratique');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			goal: 'garder du plaisir dans la pratique'
+		});
+	});
+
+	test('saves a goal typed on a circuit', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'circuit',
+			position: 0,
+			cycles: 3,
+			items: []
+		});
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('force/hypertrophie des muscles de poussee');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			goal: 'force/hypertrophie des muscles de poussee'
+		});
+	});
+
+	// Two columns in the spreadsheet, two fields here: typing in one must not
+	// land in the other, on either the way out or the way back.
+	test('saves the goal and the comment of one item apart from each other', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'exercise',
+			position: 0,
+			reps: 5,
+			rest_seconds: 0
+		});
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('resi doigts');
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('First rep in pronation.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			goal: 'resi doigts',
+			comment: 'First rep in pronation.'
+		});
+	});
+
+	test('shows the goal of an exercise, a repeater, a hang rep and an emom in the read-only view', async ({
+		page
+	}) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-0',
+					type: 'exercise',
+					position: 0,
+					reps: 5,
+					rest_seconds: 0,
+					goal: 'explo jambes'
+				},
+				hangboardItem({ id: 'item-1', goal: 'resi doigts' }),
+				hangRepItem({ id: 'item-2', goal: 'force max doigts' }),
+				{
+					id: 'item-3',
+					type: 'emom',
+					position: 3,
+					cycles: 5,
+					interval_seconds: 60,
+					items: [],
+					goal: 'capacite aerobie'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('explo jambes')).toBeVisible();
+		await expect(page.getByText('resi doigts')).toBeVisible();
+		await expect(page.getByText('force max doigts')).toBeVisible();
+		await expect(page.getByText('capacite aerobie')).toBeVisible();
+	});
+
+	test('shows the goal of a group and a circuit in the read-only view', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-0',
+					type: 'group',
+					position: 0,
+					group_title: 'Warmup',
+					items: [],
+					goal: 'garder du plaisir dans la pratique'
+				},
+				{
+					id: 'item-1',
+					type: 'circuit',
+					position: 1,
+					cycles: 3,
+					items: [],
+					goal: 'force/hypertrophie des muscles de poussee'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('garder du plaisir dans la pratique')).toBeVisible();
+		await expect(page.getByText('force/hypertrophie des muscles de poussee')).toBeVisible();
+	});
+});
+
+/**
  * A note is the prose a coaching spreadsheet is full of: the section headers
  * that split a day into parts, and the prescriptions that are not exercises.
  * The athlete reads one and confirms it, so it prescribes nothing and goes

@@ -10,6 +10,7 @@
 	import { containerChildTypes } from './container-rules';
 	import { formatInterval } from './emom-format';
 	import ItemComment from './ItemComment.svelte';
+	import ItemGoal from './ItemGoal.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -184,6 +185,10 @@
 				<span style="font-size: 11px; color: var(--tx3); padding-bottom: 5px;">
 					Each round starts on the clock. What is left of the interval is the rest.
 				</span>
+			</div>
+
+			<div style="margin-bottom: {overriding && !item.goal?.trim() ? '0' : '14px'};">
+				<ItemGoal {item} {overriding} />
 			</div>
 
 			<div style="margin-bottom: {overriding && !item.comment?.trim() ? '0' : '14px'};">

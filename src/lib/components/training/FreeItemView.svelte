@@ -5,6 +5,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { BLOCK_PRESENTATION } from '$lib/block-presentation';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
+	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -79,11 +80,13 @@
 				<p style="margin: 0; font-size: 13px; color: var(--tx3);">No text</p>
 			{/if}
 
-			<!-- A note carries its own text, so the portal offers no separate comment
-			on one. The column is type agnostic though, and a training written
-			elsewhere can hold one, which the coach should still see. -->
-			{#if item.comment?.trim()}
-				<div style="margin-top: 10px;">
+			<!-- A note carries its own text, and is its own reason for being in the
+			program, so the portal offers neither a separate comment nor a goal on
+			one. Both columns are type agnostic though, and a training written
+			elsewhere can hold them, which the coach should still see. -->
+			{#if item.goal?.trim() || item.comment?.trim()}
+				<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+					<ItemGoalDisplay {item} inset={null} />
 					<ItemCommentDisplay {item} inset={null} />
 				</div>
 			{/if}

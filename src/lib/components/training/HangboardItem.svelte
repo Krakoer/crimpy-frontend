@@ -40,6 +40,7 @@
 	} from './hangboard-config';
 	import HangboardSessionMap from './HangboardSessionMap.svelte';
 	import ItemComment from './ItemComment.svelte';
+	import ItemGoal from './ItemGoal.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -932,6 +933,7 @@
 			</div>
 		{/if}
 
+		<ItemGoal {item} {overriding} />
 		<ItemComment {item} {overriding} />
 	{/snippet}
 </HangboardCard>

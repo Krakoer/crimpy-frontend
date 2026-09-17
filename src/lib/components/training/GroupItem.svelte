@@ -9,6 +9,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { containerChildTypes } from './container-rules';
 	import ItemComment from './ItemComment.svelte';
+	import ItemGoal from './ItemGoal.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -134,6 +135,10 @@
 
 	{#if !collapsed}
 		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
+			<div style="margin-bottom: {overriding && !item.goal?.trim() ? '0' : '14px'};">
+				<ItemGoal {item} {overriding} />
+			</div>
+
 			<div style="margin-bottom: {overriding && !item.comment?.trim() ? '0' : '14px'};">
 				<ItemComment {item} {overriding} />
 			</div>

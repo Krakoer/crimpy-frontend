@@ -15,6 +15,7 @@
 	import AchievedNotes from './AchievedNotes.svelte';
 	import AchievedUnder from './AchievedUnder.svelte';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
+	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
 	import { getContext } from 'svelte';
 	import { ITEM_RESULTS_KEY, achievedEntries, type ItemResultsByItem } from './results-context';
 
@@ -147,6 +148,8 @@
 				<HangboardSessionMap rows={setRows} />
 			</div>
 		{/if}
+
+		<ItemGoalDisplay {item} inset={null} />
 
 		<ItemCommentDisplay {item} inset={null} />
 

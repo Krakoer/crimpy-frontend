@@ -9,6 +9,7 @@
 	import AchievedNotes from './AchievedNotes.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
+	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -88,9 +89,13 @@
 
 	{#if !collapsed}
 		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
-			<ItemCommentDisplay {item} inset={null} />
+			<div style="display: flex; flex-direction: column; gap: 10px;">
+				<ItemGoalDisplay {item} inset={null} />
+				<ItemCommentDisplay {item} inset={null} />
+			</div>
 			<div
-				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--pr) 20%, transparent); margin-top: {item.comment?.trim()
+				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--pr) 20%, transparent); margin-top: {item.goal?.trim() ||
+				item.comment?.trim()
 					? '10px'
 					: '0'};"
 			>
