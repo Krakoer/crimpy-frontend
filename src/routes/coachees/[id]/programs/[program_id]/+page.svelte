@@ -1270,10 +1270,15 @@
 												{#if isWeekDirty(draft)}
 													<span style="font-size: 9px; color: var(--pr);">*</span>
 												{/if}
-												<!-- The phase the week belongs to, beside the week number and
-													shown collapsed as well: reading the arc of the program down
-													this column is what the name is for. -->
-												{#if editMode}
+											</div>
+											<!-- The phase the week belongs to, under the week number and
+												shown collapsed as well: reading the arc of the program down
+												this column is what the name is for. It takes a line of its
+												own rather than the room left beside the number, because the
+												phases a coach writes are "max strength, 3 week block" and
+												not one word. -->
+											{#if editMode}
+												<div style="display: flex; align-items: center; padding-left: 18px;">
 													<input
 														value={draft.name}
 														onclick={(e) => e.stopPropagation()}
@@ -1283,18 +1288,19 @@
 														aria-label="Week {wn} phase"
 														style="
 														flex: 1; min-width: 0; border: none; outline: none; background: transparent;
-														font-family: var(--font); font-size: 11.5px; color: var(--tx2);
+														font-family: var(--font); font-size: 11px; color: var(--tx2);
 														font-style: {draft.name ? 'normal' : 'italic'};
 													"
 													/>
-												{:else if draft.name}
-													<span
-														title={draft.name}
-														style="flex: 1; min-width: 0; font-size: 11.5px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-														>{draft.name}</span
-													>
-												{/if}
-											</div>
+												</div>
+											{:else if draft.name}
+												<div
+													title={draft.name}
+													style="padding-left: 18px; font-size: 11px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+												>
+													{draft.name}
+												</div>
+											{/if}
 											<div
 												style="display: flex; align-items: center; gap: 4px; padding-left: 18px;"
 											>
