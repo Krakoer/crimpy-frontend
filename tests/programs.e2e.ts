@@ -1818,6 +1818,29 @@ test('shows a training item comment in the week editor, read only', async ({ pag
 	await expect(modal.getByPlaceholder(/Optional note for the athlete/)).toHaveCount(0);
 });
 
+// Why a block is in the program holds across the weeks that retune its numbers,
+// so the week editor reads the goal out rather than offering to edit it: goal is
+// not an override key either. Offering the input here would be worse than
+// useless: diffOverrides would not emit what the coach typed, and the save would
+// discard it without saying so.
+test('shows a training item goal in the week editor, read only', async ({ page }) => {
+	const withGoal = openBlocksTraining();
+	(withGoal.items[2] as Record<string, unknown>).goal = 'capacite/endurance doigts';
+	await stubTwoWeekProgram(page, [], withGoal);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await expect(modal.getByText('capacite/endurance doigts')).toBeVisible();
+	await expect(modal.getByPlaceholder(/What this block trains/)).toHaveCount(0);
+});
+
 // A note is prose for the athlete, and a week may change what a training asks
 // for rather than what it says, so the week editor reads the note out and says
 // that it is the training that holds it.

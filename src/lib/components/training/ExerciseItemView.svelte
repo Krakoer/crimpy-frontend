@@ -11,6 +11,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { videoLinkHref } from '$lib/video-link';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
+	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -212,6 +213,8 @@
 				</span>
 			</div>
 		</div>
+
+		<ItemGoalDisplay {item} />
 
 		<ItemCommentDisplay {item} />
 
