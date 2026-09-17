@@ -34,8 +34,37 @@ describe('containerChildTypes', () => {
 		expect(containerChildTypes('emom', 0)).toEqual(['exercise', 'repeater', 'hangboard_rep']);
 	});
 
-	it('lets the training override the depth rules', () => {
+	it('lets a circuit and a group hold a note at every depth', () => {
+		for (const depth of [0, 1, 2]) {
+			expect(containerChildTypes('circuit', depth)).toContain('free');
+			expect(containerChildTypes('group', depth)).toContain('free');
+		}
+	});
+
+	// A note waits for the athlete to confirm it, which an emom round cannot
+	// afford: its next round starts on the clock.
+	it('keeps a note out of an emom', () => {
+		expect(containerChildTypes('emom', 0)).not.toContain('free');
+		expect(containerChildTypes('emom', 1)).not.toContain('free');
+	});
+
+	it('lets the training narrow the depth rules', () => {
 		expect(containerChildTypes('circuit', 0, ['exercise'])).toEqual(['exercise']);
+	});
+
+	// The training's list and the container's own rule both hold. A stretching
+	// training allows a note, and an emom refuses one, so the emom wins for that
+	// one block and keeps the rest of what the training allows.
+	it('keeps a note out of an emom whatever the training allows', () => {
+		expect(containerChildTypes('emom', 0, ['exercise', 'free'])).toEqual(['exercise']);
+		expect(containerChildTypes('circuit', 0, ['exercise', 'free'])).toEqual(['exercise', 'free']);
+		expect(containerChildTypes('group', 0, ['exercise', 'free'])).toEqual(['exercise', 'free']);
+	});
+
+	// A training list naming a block the container refuses does not smuggle it
+	// in: an emom takes no group, whatever the training says.
+	it('never widens what a container takes', () => {
+		expect(containerChildTypes('emom', 0, ['exercise', 'group'])).toEqual(['exercise']);
 	});
 });
 
@@ -45,25 +74,33 @@ describe('trainingAllowedTypes', () => {
 	});
 
 	it('offers a stretching training its one circuit', () => {
-		expect(trainingAllowedTypes('stretching', [])).toEqual(['exercise', 'circuit']);
+		expect(trainingAllowedTypes('stretching', [])).toEqual(['exercise', 'circuit', 'free']);
 	});
 
 	it('stops offering it once the training has one', () => {
-		expect(trainingAllowedTypes('stretching', [circuit('c')])).toEqual(['exercise']);
+		expect(trainingAllowedTypes('stretching', [circuit('c')])).toEqual(['exercise', 'free']);
 	});
 
 	// Reordering the circuit already there must not read it as a second one.
 	it('overlooks the circuit being moved', () => {
 		expect(trainingAllowedTypes('stretching', [circuit('c')], 'c')).toEqual([
 			'exercise',
-			'circuit'
+			'circuit',
+			'free'
 		]);
+	});
+
+	// The blocks a stretching session excludes are the ones that count rounds
+	// and hangs. A note counts nothing.
+	it('leaves a stretching training a place to write a note', () => {
+		expect(trainingAllowedTypes('stretching', [])).toContain('free');
+		expect(ALL_BLOCK_TYPES).toContain('free');
 	});
 });
 
 describe('trainingInnerAllowedTypes', () => {
-	it('keeps a stretching training to stretches at every depth', () => {
-		expect(trainingInnerAllowedTypes('stretching')).toEqual(['exercise']);
+	it('keeps a stretching training to stretches and notes at every depth', () => {
+		expect(trainingInnerAllowedTypes('stretching')).toEqual(['exercise', 'free']);
 	});
 
 	it('leaves the depth rules in charge otherwise', () => {

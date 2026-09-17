@@ -34,6 +34,7 @@
 		trainingAllowedTypes,
 		trainingInnerAllowedTypes
 	} from '$lib/components/training/container-rules';
+	import { emptyNoteError } from '$lib/components/training/note-text';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { saneCount } from '$lib/components/training/hangboard-granularity';
@@ -255,12 +256,10 @@
 		loadSidebarExercises();
 	}
 
+	let rootTypes = $derived(trainingAllowedTypes(draft.training_type, draft.items));
+
 	function addRootItem(type: TrainingItemType, exerciseId?: string) {
-		if (draft.training_type === 'stretching') {
-			if (type === 'group' || type === 'repeater' || type === 'hangboard_rep' || type === 'emom')
-				return;
-			if (type === 'circuit' && draft.items.some((i) => i.type === 'circuit')) return;
-		}
+		if (!rootTypes.includes(type)) return;
 		draft.items.push(createTrainingItem(type, exerciseId));
 	}
 
@@ -340,6 +339,11 @@
 	async function handleSave() {
 		const title = draft.title.trim();
 		if (!title) return;
+		const emptyNote = logOnly ? null : emptyNoteError(draft.items);
+		if (emptyNote) {
+			saveError = emptyNote;
+			return;
+		}
 		if (assessment.enabled && !assessment.prompt.trim()) {
 			saveError = 'An assessment needs a question for the athlete to answer.';
 			return;
@@ -410,12 +414,11 @@
 		}
 	}
 
+	// The rail offers what the root of this training takes, read from the same
+	// rules the add zone and a drop read, so a block the rail shows cannot be
+	// refused where it lands and one it hides cannot be dropped in instead.
 	let allowedStructureButtons = $derived(
-		draft.training_type === 'stretching'
-			? STRUCTURE_BLOCKS.filter(
-					(b) => b.type === 'circuit' && !draft.items.some((i) => i.type === 'circuit')
-				)
-			: STRUCTURE_BLOCKS
+		STRUCTURE_BLOCKS.filter((block) => rootTypes.includes(block.type))
 	);
 </script>
 
@@ -673,7 +676,7 @@
 						bind:items={draft.items}
 						{exercises}
 						catalog={assessmentCatalog.catalog}
-						allowedTypes={trainingAllowedTypes(draft.training_type, draft.items)}
+						allowedTypes={rootTypes}
 						innerAllowedTypes={trainingInnerAllowedTypes(draft.training_type)}
 					/>
 				</div>

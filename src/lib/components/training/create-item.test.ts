@@ -12,6 +12,12 @@ describe('createTrainingItem', () => {
 	it('leaves a leaf block without one', () => {
 		expect(createTrainingItem('exercise').items).toBeUndefined();
 	});
+
+	// The textarea binds to the field, so a fresh note opens on the empty string
+	// the coach is about to type into rather than on nothing.
+	it('gives a note the text field it is written in', () => {
+		expect(createTrainingItem('free').free_text).toBe('');
+	});
 });
 
 describe('prepareEditableTree', () => {

@@ -1411,6 +1411,199 @@ test.describe('item comments', () => {
 	});
 });
 
+/**
+ * A note is the prose a coaching spreadsheet is full of: the section headers
+ * that split a day into parts, and the prescriptions that are not exercises.
+ * The athlete reads one and confirms it, so it prescribes nothing and goes
+ * wherever a coach wants to say something.
+ */
+test.describe('notes', () => {
+	const climbingVolume = 'Grimpe :\nkilter volume, 40 degrees, ramp up from 6a';
+
+	test('saves the note a coach writes at the root of a training', async ({ page }) => {
+		const updates = await openHangboardEditor(page, warmupGroup);
+
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Note' }).click();
+		await page.getByLabel('Note text').fill(climbingVolume);
+		await saveTraining(page);
+
+		expect(updates).toHaveLength(1);
+		expect((updates[0].body as TrainingRequest).items?.[1]).toMatchObject({
+			type: 'free',
+			free_text: climbingVolume
+		});
+	});
+
+	test('saves a note written inside a circuit', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'circuit',
+			position: 0,
+			cycles: 3,
+			items: []
+		});
+
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+		await page.getByRole('button', { name: 'Note', exact: true }).first().click();
+		await page.getByLabel('Note text').fill('Shake out between rounds');
+		await saveTraining(page);
+
+		const saved = (updates[0].body as { items: Record<string, unknown>[] }).items[0];
+		expect((saved.items as Record<string, unknown>[])[0]).toMatchObject({
+			type: 'free',
+			free_text: 'Shake out between rounds'
+		});
+	});
+
+	// A step waiting for a tap inside an emom round would hold up the clock the
+	// next round starts on.
+	test('offers no note inside an emom', async ({ page }) => {
+		await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'emom',
+			position: 0,
+			cycles: 5,
+			interval_seconds: 60,
+			items: []
+		});
+
+		// The right rail carries a palette of its own, and it comes after the item
+		// list, so the add zone's is the first one on the page.
+		const addZonePalette = page.getByTestId('block-palette').first();
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+
+		await expect(addZonePalette.getByRole('button', { name: 'Hang rep' })).toBeVisible();
+		await expect(addZonePalette.getByRole('button', { name: 'Note' })).toBeHidden();
+	});
+
+	// The blocks a stretching session excludes are the ones counting rounds and
+	// hangs, and the spreadsheet's stretching days are headed by a note like any
+	// other part of the day.
+	test('offers a note to a stretching training', async ({ page }) => {
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/new');
+		await page.getByRole('button', { name: 'Stretching' }).click();
+
+		const palette = page.getByTestId('block-palette');
+		await expect(palette.getByRole('button', { name: 'Note' })).toBeVisible();
+		await expect(palette.getByRole('button', { name: 'Group' })).toBeHidden();
+	});
+
+	test('shows the note in the read-only view', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-1',
+					type: 'free',
+					position: 0,
+					free_text: '15 to 30 min rest between the strength work and the climbing'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(
+			page.getByText('15 to 30 min rest between the strength work and the climbing')
+		).toBeVisible();
+	});
+
+	// A note the coach never typed in would reach the athlete as a step with no
+	// title: the app falls back to "Free" on a null, and the portal would send
+	// the empty string.
+	test('refuses to save a note with no text and keeps the block', async ({ page }) => {
+		const training = testTraining({ items: [warmupGroup] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Note' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(
+			page.getByText('A note needs some text for the athlete to read. Check block 2.')
+		).toBeVisible();
+		expect(updates).toHaveLength(0);
+
+		await page.getByLabel('Note text').fill('Grimpe :');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect((updates[0].body as TrainingRequest).items?.[1]).toMatchObject({
+			type: 'free',
+			free_text: 'Grimpe :'
+		});
+	});
+
+	// A note the app wrote carries no text at all, and goes back out as the null
+	// it came in as, which the app renders as "Free". Only the empty string the
+	// portal would send is refused, so an edit elsewhere in such a training is
+	// not held up by a block the coach never wrote.
+	test('saves an edit to a training carrying a note the app left text-less', async ({ page }) => {
+		const training = testTraining({ items: [{ id: 'item-1', type: 'free', position: 0 }] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByPlaceholder('Training title').first().fill('Renamed while the note sits there');
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Training saved')).toBeVisible();
+		expect(updates).toHaveLength(1);
+		expect(updates[0].body as TrainingRequest).toMatchObject({
+			title: 'Renamed while the note sits there'
+		});
+		expect((updates[0].body as TrainingRequest).items?.[0].free_text).toBeUndefined();
+	});
+
+	// The stretching rule and the emom rule both hold: a training that allows a
+	// note does not hand one to a block that refuses it.
+	test('offers no note inside an emom a stretching training still carries', async ({ page }) => {
+		const training = testTraining({
+			training_type: 'climbing',
+			items: [
+				{ id: 'item-1', type: 'emom', position: 0, cycles: 5, interval_seconds: 60, items: [] }
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Stretching' }).click();
+
+		const addZonePalette = page.getByTestId('block-palette').first();
+		await page.getByRole('button', { name: 'Add item' }).first().click();
+
+		await expect(
+			addZonePalette.getByRole('button', { name: 'Exercise', exact: true })
+		).toBeVisible();
+		await expect(addZonePalette.getByRole('button', { name: 'Note' })).toBeHidden();
+	});
+
+	test('reads a note the app wrote with no text without breaking the list', async ({ page }) => {
+		const training = testTraining({
+			items: [{ id: 'item-1', type: 'free', position: 0 }]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('Note', { exact: true })).toBeVisible();
+		await expect(page.getByText('No text')).toBeVisible();
+	});
+});
+
 test.describe('hangboard card chrome', () => {
 	// The colour lives in one custom property on :root rather than in a constant
 	// each card sets inline, so it is worth proving it still reaches them.
