@@ -32,6 +32,7 @@
 			>COMMENT</span
 		>
 		<textarea
+			aria-label="Comment"
 			bind:value={item.comment}
 			maxlength={MAX_COMMENT_LENGTH}
 			rows="2"

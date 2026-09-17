@@ -36,6 +36,7 @@
 		>
 		<input
 			type="text"
+			aria-label="Goal"
 			bind:value={item.goal}
 			maxlength={MAX_GOAL_LENGTH}
 			placeholder="What this block trains (e.g. finger endurance)"

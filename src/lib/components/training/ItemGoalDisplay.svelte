@@ -18,10 +18,10 @@
 		     notes on a card are told apart without reading them: this one is why
 		     the block is in the program, the other is how to run it. -->
 		<div
-			style="display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; background: color-mix(in srgb, var(--gn) 10%, transparent); border-left: 3px solid var(--gn); border-radius: 0 var(--rs) var(--rs) 0;"
+			style="display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; background: var(--gn-fog); border-left: 3px solid var(--gn); border-radius: 0 var(--rs) var(--rs) 0;"
 		>
 			<span
-				style="font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--gn); flex-shrink: 0;"
+				style="font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--gn-tx); flex-shrink: 0;"
 				>GOAL</span
 			>
 			<span style="font-size: 12px; line-height: 1.5; color: var(--tx2); overflow-wrap: anywhere;"

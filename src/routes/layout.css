@@ -15,6 +15,12 @@
 	--pr-fog: #fbf1ea;
 	--gn: #6b8f71;
 	--gn-lt: #e3ede4;
+	/* The sage ground and sage text a goal is set on, beside the terracotta
+	   --pr-fog the comment uses. --gn itself is about 3.6:1 on white, under the
+	   4.5:1 floor for the label size, so the text token is carried further down;
+	   it is goalColor in crimpy-app/lib/theme/crimpy_theme.dart. */
+	--gn-fog: #f3f7f3;
+	--gn-tx: #4e7154;
 	--gd: #d4a15e;
 	--gd-lt: #faf0dc;
 	--pl: #907b99;
