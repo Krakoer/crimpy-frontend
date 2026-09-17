@@ -577,7 +577,7 @@ test('shows the phase of a week on the collapsed row', async ({ page }) => {
 	expect(await weekRow.evaluate((row) => row.children.length)).toBe(10);
 });
 
-test('saves the phase a coach types beside the week number', async ({ page }) => {
+test('saves the phase a coach types in the week header', async ({ page }) => {
 	await stubNamedWeek(page);
 	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
 

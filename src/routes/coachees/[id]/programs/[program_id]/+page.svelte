@@ -25,6 +25,7 @@
 	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
 	import SessionOverridesModal from '$lib/components/program/SessionOverridesModal.svelte';
 	import WeekNotice from '$lib/components/program/WeekNotice.svelte';
+	import WeekPhaseField from '$lib/components/program/WeekPhaseField.svelte';
 	import type {
 		AssessmentResponse,
 		Program,
@@ -50,7 +51,6 @@
 		savedWeek,
 		scheduledRows,
 		sessionPlacement,
-		WEEK_NAME_MAX_LENGTH,
 		type DaySession,
 		type DraftSession,
 		type EverydaySession,
@@ -1300,39 +1300,7 @@
 													<span style="font-size: 9px; color: var(--pr);">*</span>
 												{/if}
 											</div>
-											<!-- The phase the week belongs to, under the week number and
-												shown collapsed as well: reading the arc of the program down
-												this column is what the name is for. It takes a line of its
-												own rather than the room left beside the number, because the
-												phases a coach writes are "max strength, 3 week block" and
-												not one word. -->
-											{#if editMode}
-												<div
-													data-phase-field
-													style="display: flex; align-items: center; padding-left: 18px;"
-												>
-													<input
-														value={draft.name}
-														onclick={(e) => e.stopPropagation()}
-														oninput={(e) => (draft.name = e.currentTarget.value)}
-														maxlength={WEEK_NAME_MAX_LENGTH}
-														placeholder="Phase..."
-														aria-label="Week {wn} phase"
-														style="
-														flex: 1; min-width: 0; border: none; outline: none; background: transparent;
-														font-family: var(--font); font-size: 11px; color: var(--tx2);
-														font-style: {draft.name ? 'normal' : 'italic'};
-													"
-													/>
-												</div>
-											{:else if draft.name}
-												<div
-													title={draft.name}
-													style="padding-left: 18px; font-size: 11px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-												>
-													{draft.name}
-												</div>
-											{/if}
+											<WeekPhaseField {wn} bind:name={draft.name} {editMode} />
 											<div
 												style="display: flex; align-items: center; gap: 4px; padding-left: 18px;"
 											>
