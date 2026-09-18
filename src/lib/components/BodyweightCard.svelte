@@ -18,8 +18,8 @@
 
 	// Gaining and losing are neither good nor bad without knowing what the
 	// athlete is training for, so the change is coloured as information rather
-	// than as a verdict. The one thing worth a colour is that it moved.
-	let changeColor = $derived(change === '' ? 'var(--tx3)' : 'var(--tx2)');
+	// than as a verdict. Sage and terracotta carry a verdict elsewhere in the
+	// portal, which is why the change is never either.
 </script>
 
 <div
@@ -44,7 +44,7 @@
 				{bareKg(trend.latest.weight_kg)}
 			</div>
 			{#if change}
-				<div style="font-size: 12.5px; font-weight: 600; color: {changeColor};">
+				<div style="font-size: 12.5px; font-weight: 600; color: var(--tx2);">
 					{change}
 				</div>
 			{/if}
