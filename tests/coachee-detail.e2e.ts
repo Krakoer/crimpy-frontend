@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	API_URL,
 	BUILTIN_MAX_FORCE,
 	capture,
 	isoDaysAgo,
@@ -7,6 +8,9 @@ import {
 	signIn,
 	stub,
 	testAssessmentRecord,
+	testAssessmentSnapshot,
+	testSnapshotResult,
+	type TestAssessmentSnapshotResult,
 	testEnrolledUser,
 	testPrescription,
 	testProgram,
@@ -24,8 +28,45 @@ async function stubCoacheeDetail(page: Page): Promise<void> {
 	await stub(page, 'GET', '/api/coach/enrollments', { body: [nina] });
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [] });
+	await stub(page, 'GET', '/api/coach/clients/*/assessments/at', {
+		body: testAssessmentSnapshot('2026-03-02')
+	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/bodyweights', { body: [] });
+}
+
+/**
+ * The comparison asks for one snapshot per date, and the two answers are what
+ * it puts side by side, so the stub has to answer per date rather than serve
+ * one body to both calls the way stub() does.
+ */
+async function stubSnapshotsByDay(
+	page: Page,
+	byDay: Record<string, ReturnType<typeof testAssessmentSnapshot>>
+): Promise<void> {
+	await page.route(`${API_URL}/**`, async (route) => {
+		const request = route.request();
+		const url = new URL(request.url());
+		const isSnapshot = /^\/api\/coach\/clients\/[^/]+\/assessments\/at$/.test(url.pathname);
+		if (request.method() !== 'GET' || !isSnapshot) return route.fallback();
+		const day = url.searchParams.get('date') ?? '';
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(byDay[day] ?? testAssessmentSnapshot(day))
+		});
+	});
+}
+
+/** A result recorded on one day, which is also a day the comparison offers. */
+function recordOn(day: string, overrides: Record<string, unknown> = {}) {
+	return testAssessmentRecord({
+		id: `record-${day}`,
+		session_id: `session-${day}`,
+		session_date: `${day}T10:00:00Z`,
+		updated_at: `${day}T10:00:00Z`,
+		...overrides
+	});
 }
 
 /** A measurement [daysAgo] days old, as the series returns it. */
@@ -1633,6 +1674,148 @@ test.describe('programs tab', () => {
 		await expect(page.getByText('Program deleted')).toBeVisible();
 		await expect(page.getByText('No programs yet.')).toBeVisible();
 		expect(deletes).toHaveLength(1);
+	});
+});
+
+test.describe('assessment comparison', () => {
+	const march = '2026-03-02';
+	const june = '2026-06-02';
+
+	// Two dated columns with a progression between them is what a coach and an
+	// athlete actually review at the end of a block.
+	test('puts the two dates side by side with the progression', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 13, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 17, left_value: null })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(march, [
+				testSnapshotResult({ right_value: 13, right_measured_at: `${march}T10:00:00Z` })
+			]),
+			[june]: testAssessmentSnapshot(june, [
+				testSnapshotResult({ right_value: 17, right_measured_at: `${june}T10:00:00Z` })
+			])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(comparison.getByText('Compare two dates')).toBeVisible();
+		// The newer date is where the comparison lands, against the one before it.
+		await expect(page.getByLabel('From')).toHaveValue(march);
+		await expect(page.getByLabel('To')).toHaveValue(june);
+		await expect(comparison.getByText('13.0', { exact: true })).toBeVisible();
+		await expect(comparison.getByText('17.0', { exact: true })).toBeVisible();
+		await expect(comparison.getByText('+30.8 %')).toBeVisible();
+	});
+
+	// The whole point of the flag: kilograms alone are not comparable across a
+	// season, the ratio to the weight they were pulled at is.
+	test('reads a bodyweight relative result as a ratio, raw kilograms beside it', async ({
+		page
+	}) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 25, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 28, left_value: null })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(
+				march,
+				[
+					testSnapshotResult({
+						label: 'Weighted hang 20mm',
+						bodyweight_relative: true,
+						right_value: 25,
+						right_measured_at: `${march}T10:00:00Z`
+					})
+				],
+				71
+			),
+			[june]: testAssessmentSnapshot(
+				june,
+				[
+					testSnapshotResult({
+						label: 'Weighted hang 20mm',
+						bodyweight_relative: true,
+						right_value: 28,
+						right_measured_at: `${june}T10:00:00Z`
+					})
+				],
+				71
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(comparison.getByText('1.35', { exact: true })).toBeVisible();
+		await expect(comparison.getByText('1.39', { exact: true })).toBeVisible();
+		// The raw measurement and the weight it was read against stay on screen,
+		// since the ratio is a display of them and not a replacement.
+		await expect(comparison.getByText('25.0 kg at 71.0 kg')).toBeVisible();
+		await expect(comparison.getByText('28.0 kg at 71.0 kg')).toBeVisible();
+	});
+
+	// A test the athlete did not do on the earlier date has not fallen to zero,
+	// and drawing it as a loss would be a lie the coach acts on.
+	test('says a test was measured on only one of the two dates', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 13, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 17, left_value: null })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(march, []),
+			[june]: testAssessmentSnapshot(june, [
+				testSnapshotResult({ right_value: 17, right_measured_at: `${june}T10:00:00Z` })
+			])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(comparison.getByText('not measured')).toBeVisible();
+		await expect(comparison.getByText('first measured')).toBeVisible();
+		await expect(comparison.getByText('%')).toHaveCount(0);
+	});
+
+	// A snapshot carries the last value forward, so a test nobody ran again
+	// answers both dates with the same measurement. Zero percent would read as a
+	// test held steady, which is a different statement.
+	test('does not call a test nobody retested stable', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 13, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 17, left_value: null })
+			]
+		});
+		const carried: TestAssessmentSnapshotResult = testSnapshotResult({
+			right_value: 13,
+			right_measured_at: `${march}T10:00:00Z`
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(march, [carried]),
+			[june]: testAssessmentSnapshot(june, [carried])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(comparison.getByText('not retested')).toBeVisible();
+		await expect(comparison.getByText('measured 2 Mar 2026')).toBeVisible();
 	});
 });
 

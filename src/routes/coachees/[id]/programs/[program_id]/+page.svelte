@@ -2042,6 +2042,7 @@
 
 {#if showAssessments}
 	<AssessmentsModal
+		{userId}
 		athleteName={coacheeName}
 		records={coacheeAssessments}
 		failed={coacheeAssessmentsFailed}

@@ -1123,7 +1123,7 @@
 						</div>
 					</div>
 
-					<AssessmentResults records={assessments} />
+					<AssessmentResults userId={data.id!} records={assessments} />
 				</div>
 
 				<!-- Notes tab -->
