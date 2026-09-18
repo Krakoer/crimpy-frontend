@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * The app resolves its API base url at runtime from GET /config.json, which
@@ -672,6 +672,40 @@ export function testEnrollmentTokenInfo(
 }
 
 /**
+ * Waits until the drop has been answered, rather than guessing how long that
+ * takes. dnd-kit marks the element it is dragging with data-dnd-dragging for
+ * the whole gesture and data-dnd-dropping while the drop animates, and drops
+ * both when it cleans up, so their absence is the gesture being over.
+ *
+ * Every drag here ends on it, because what a spec does next is nearly always
+ * either another drag, which the dropped element cannot answer until it has
+ * been re-rendered, or an edit, which is discarded along with the drop if it
+ * lands inside that window.
+ */
+async function settleAfterDrop(page: Page): Promise<void> {
+	await expect(page.locator('[data-dnd-dragging], [data-dnd-dropping]')).toHaveCount(0);
+}
+
+/** The beat dnd-kit needs to answer a move, after which the target has moved. */
+const DROP_TARGET_TIMEOUT = 300;
+
+/** How many times a drag aims afresh before it gives up and says so. */
+const DROP_TARGET_ATTEMPTS = 8;
+
+/**
+ * Whether the editor is now saying a drop would land on this target. Both
+ * droppables a drag can be aimed at, DroppableCell and AddZone, publish it.
+ */
+async function becomesDropTarget(page: Page, target: Locator): Promise<boolean> {
+	const deadline = Date.now() + DROP_TARGET_TIMEOUT;
+	do {
+		if ((await target.getAttribute('data-drop-target')) === 'true') return true;
+		await page.waitForTimeout(16);
+	} while (Date.now() < deadline);
+	return false;
+}
+
+/**
  * One drag that releases on another item, which is what a reorder is. Drives
  * the dnd-kit pointer sensor, which only activates after 8px of travel, as
  * dragVia and dragInto below do too.
@@ -684,10 +718,10 @@ export function testEnrollmentTokenInfo(
  *
  * Use dragInto to drop into a container instead. A cell, a frequency column or
  * an add zone slides while the drag is on, and releasing where it used to be
- * drops on nothing: dnd-kit answers that by cancelling, and a cancelled drag
- * restores the state captured at drag start, which looks exactly like a drag
- * that went nowhere. Assertions about a round trip pass either way, so a
- * cancelled drag can stay invisible until something later goes wrong.
+ * releases on whatever took its place. dnd-kit does not call that a cancel: its
+ * pointer sensor only reports one when the pointer goes up before the drag has
+ * initialized, so the tree keeps whatever the last drag over made of it, which
+ * for a container is usually the list the pointer drifted back out to.
  */
 export async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
 	const from = await source.boundingBox();
@@ -713,6 +747,7 @@ export async function dragOnto(page: Page, source: Locator, target: Locator): Pr
 		await page.waitForTimeout(50);
 	}
 	await page.mouse.up();
+	await settleAfterDrop(page);
 }
 
 /**
@@ -736,13 +771,26 @@ export async function dragVia(page: Page, source: Locator, waypoints: Locator[])
 		await page.waitForTimeout(120);
 	}
 	await page.mouse.up();
+	await settleAfterDrop(page);
 }
 
 /**
  * Dropping into a container is aimed at a target that moves: the tree is
  * rewritten under the pointer while the drag is on. Reading the target again
- * after every hop follows it, the way a coach watching the screen does, and
- * the drop happens once it has stopped moving.
+ * after every hop follows it, the way a coach watching the screen does, and the
+ * release waits for the editor to say the drop would land there.
+ *
+ * That condition is the whole of it. Aiming alone does not converge, because
+ * the pointer and the target chase each other: dragging a block down into a
+ * circuit crosses the circuit's own header on the way, which reorders the root
+ * list, which carries the circuit and its add zone hundreds of pixels up, and
+ * aiming at where the add zone went crosses the header again and puts it back.
+ * Measured on "drops a block into an empty circuit when it is dragged over its
+ * body": the pointer sits in that two-cycle for the whole drag, and every
+ * failure was a release made while the circuit was not the drop target, 9 in 90
+ * runs once the beat between hops was shortened enough to leave it there.
+ * Releasing on the condition instead landed on the first or second aim in every
+ * one of 90 runs, including at 4x, 8x and 16x CPU throttling.
  */
 export async function dragInto(page: Page, source: Locator, target: Locator): Promise<void> {
 	const from = await source.boundingBox();
@@ -753,17 +801,18 @@ export async function dragInto(page: Page, source: Locator, target: Locator): Pr
 	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 20, { steps: 5 });
 	await page.waitForTimeout(50);
 
-	let previous: { x: number; y: number } | null = null;
-	for (let hop = 0; hop < 5; hop++) {
+	let landed = false;
+	for (let attempt = 0; attempt < DROP_TARGET_ATTEMPTS && !landed; attempt++) {
 		const to = await target.boundingBox();
 		if (!to) throw new Error('Cannot drag onto an element that is not laid out');
-		const aim = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
-		if (previous && Math.abs(previous.x - aim.x) < 2 && Math.abs(previous.y - aim.y) < 2) break;
-		await page.mouse.move(aim.x, aim.y, { steps: 5 });
-		await page.waitForTimeout(80);
-		previous = aim;
+		await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 5 });
+		landed = await becomesDropTarget(page, target);
 	}
 	await page.mouse.up();
+	await settleAfterDrop(page);
+	if (!landed) {
+		throw new Error('The drag never reached its target, so it was released on something else');
+	}
 }
 
 export interface TestFeedEvent {

@@ -736,23 +736,6 @@ test('drops the phase when the week is cleared', async ({ page }) => {
 	await expect(page.getByRole('textbox', { name: 'Week 1 phase' })).toHaveValue('');
 });
 
-/**
- * Waits until the drop has been answered, rather than guessing how long that
- * takes. dnd-kit marks the element it is dragging with data-dnd-dragging for
- * the whole gesture and data-dnd-dropping while the drop animates, and drops
- * both when it cleans up, so their absence is the gesture being over.
- *
- * Needed between two drags of the same session, because the dropped session is
- * re-rendered into its new cell and the fresh element does not answer a new
- * drag until then, and before editing a week a drag has just rewritten,
- * because an edit made inside that window is discarded with it. Measured on
- * "keeps the weekly count of a session dragged over a day and back": 2 failures
- * in 120 runs without this wait, 0 in 120 with it.
- */
-async function settleAfterDrop(page: Page): Promise<void> {
-	await expect(page.locator('[data-dnd-dragging], [data-dnd-dropping]')).toHaveCount(0);
-}
-
 test('warns when a dropped training needs an assessment the coachee has not done', async ({
 	page
 }) => {
@@ -1018,19 +1001,11 @@ test('keeps the weekly count of a session dragged over a day and back', async ({
 		page.getByTestId('freq:1').getByRole('button', { name: /Power endurance block/ }),
 		page.getByTestId('cell:1:0')
 	);
-	await settleAfterDrop(page);
 	await dragInto(
 		page,
 		page.getByTestId('cell:1:0').getByRole('button', { name: /Power endurance block/ }),
 		page.getByTestId('freq:1')
 	);
-	// Settled after this drag as well as the first, because what comes next edits
-	// the week rather than dragging again, and an edit made before the drop has
-	// been answered is discarded with it. Observed as the count typed below
-	// going back to 4, leaving the week clean and the save button reading
-	// "Saved", so the run died 30s later waiting for a "Save program" that never
-	// appeared. Removing this wait reproduces it, 2 failures in 120 runs.
-	await settleAfterDrop(page);
 
 	await expect(page.getByTestId('freq:1').getByRole('spinbutton')).toHaveValue('4');
 	// The week ends holding what it was loaded with, so there is nothing to write.
