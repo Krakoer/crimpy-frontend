@@ -671,19 +671,23 @@ export function testEnrollmentTokenInfo(
 	};
 }
 
-/** Drives the dnd-kit pointer sensor, which only activates after 8px of travel. */
 /**
- * One drag that releases on another item, which is what a reorder is: the drop
- * swaps the two, so the target is deliberately aimed at where it was before the
- * drag started. Following it here would chase it around, because the sort runs
- * on drag over and the target moves out from under the pointer on every hop.
+ * One drag that releases on another item, which is what a reorder is. Drives
+ * the dnd-kit pointer sensor, which only activates after 8px of travel, as
+ * dragVia and dragInto below do too.
+ *
+ * The target is deliberately aimed at where it was before the drag started.
+ * Following it here would chase it around, because the sort runs on drag over:
+ * the drop swaps the two, so the target moves out from under the pointer on
+ * every hop, and a pointer that keeps following can land on the container in
+ * between and undo the swap.
  *
  * Use dragInto to drop into a container instead. A cell, a frequency column or
  * an add zone slides while the drag is on, and releasing where it used to be
  * drops on nothing: dnd-kit answers that by cancelling, and a cancelled drag
  * restores the state captured at drag start, which looks exactly like a drag
- * that went nowhere. Assertions about a round trip pass either way, so the
- * cancel stays invisible until a later edit is silently rolled back with it.
+ * that went nowhere. Assertions about a round trip pass either way, so a
+ * cancelled drag can stay invisible until something later goes wrong.
  */
 export async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
 	const from = await source.boundingBox();

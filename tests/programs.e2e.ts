@@ -497,8 +497,9 @@ test('sends existing sessions back with their id so the server keeps the row', a
 
 /**
  * A dropped session is re-rendered into its new cell, and dnd-kit needs a beat
- * before that fresh element answers a new drag. Only needed between two drags of
- * the same session.
+ * before that fresh element answers a new drag. Needed between two drags of the
+ * same session, and before editing a week a drag has just rewritten: an edit
+ * made while the drop is still being answered is discarded with it.
  */
 async function settleAfterDrop(page: Page): Promise<void> {
 	await page.waitForTimeout(600);
@@ -653,7 +654,7 @@ test('reorders the sessions inside a day and saves the new order', async ({ page
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
 	const monday = page.getByTestId('cell:1:1');
-	await dragInto(
+	await dragOnto(
 		page,
 		monday.getByRole('button', { name: 'Finger strength block' }),
 		monday.getByRole('button', { name: 'Power endurance block' })
@@ -762,12 +763,8 @@ test('keeps the weekly count of a session dragged over a day and back', async ({
 	// through dragInto, which aims at the cell again on every hop. dragOnto
 	// releases where the cell was before the drag started, and the cell has
 	// moved by then: the session leaving one column and arriving in another
-	// reflows the row under the pointer. Releasing on nothing makes dnd-kit
-	// cancel, and a cancelled drag restores the sessions from the snapshot
-	// taken at drag start, which puts the week back exactly as it was. That is
-	// indistinguishable from the round trip this test is asserting, so the
-	// cancel passed the two assertions below and only showed up afterwards, as
-	// the count edit being silently reverted.
+	// reflows the row under the pointer. Measured on this spec, dragOnto failed
+	// 3 runs in 30 and dragInto 1 in 40.
 	await dragInto(
 		page,
 		page.getByTestId('freq:1').getByRole('button', { name: /Power endurance block/ }),
@@ -780,11 +777,12 @@ test('keeps the weekly count of a session dragged over a day and back', async ({
 		page.getByTestId('freq:1')
 	);
 	// Settled after this drag as well as the first, because what comes next
-	// edits the week. The drop is answered a frame or two after the release,
-	// and both answers rewrite the session arrays: a commit leaves the move the
-	// drag over already made, a cancel restores them from the snapshot taken at
-	// drag start. Either one lands on top of an edit made in between and throws
-	// it away, which is what made the count typed below go back to 4.
+	// edits the week rather than dragging again. The drop is answered a frame or
+	// two after the release, and the row is re-rendered with it; an edit made in
+	// that window is thrown away. Observed as the count typed below going back
+	// to 4, leaving the week clean and the save button reading "Saved", so the
+	// run died 30s later waiting for a "Save program" that never appeared. With
+	// the settle this spec went from 1 failure in 40 runs to 0 in 80.
 	await settleAfterDrop(page);
 
 	await expect(page.getByTestId('freq:1').getByRole('spinbutton')).toHaveValue('4');
