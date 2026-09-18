@@ -222,6 +222,17 @@ export interface AssessmentDefinitionSnapshot {
 	unit_locked?: boolean;
 }
 
+// One dated bodyweight measurement. measured_at is when the athlete weighed
+// themselves rather than when the row reached the server, so a measurement
+// taken offline keeps the day it belongs to.
+export interface Bodyweight {
+	id: string;
+	user_id: string;
+	weight_kg: number;
+	measured_at: string;
+	created_at: string;
+}
+
 export interface EnrolledUser {
 	enrollment_id: string;
 	user_id: string;
@@ -985,6 +996,14 @@ class ApiClient {
 
 	async getClientAssessments(userId: string): Promise<AssessmentResponse[]> {
 		return this.requestList<AssessmentResponse>(`/api/coach/clients/${userId}/assessments`);
+	}
+
+	// The athlete's dated bodyweight series, newest first. Every finger and
+	// pulling score is a ratio to the bodyweight of the day rather than an
+	// absolute, so this is the denominator those numbers are read against.
+	async getClientBodyweights(userId: string, limit?: number): Promise<Bodyweight[]> {
+		const query = limit === undefined ? '' : `?limit=${limit}`;
+		return this.requestList<Bodyweight>(`/api/coach/clients/${userId}/bodyweights${query}`);
 	}
 
 	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {

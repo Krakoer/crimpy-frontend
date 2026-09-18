@@ -8,10 +8,13 @@
 		SessionResponse,
 		EnrolledUser,
 		AssessmentResponse,
+		Bodyweight,
 		Program,
 		ProgramRequest
 	} from '$lib/api/client';
 	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
+	import BodyweightCard from '$lib/components/BodyweightCard.svelte';
+	import { bodyweightTrend, formatKg } from '$lib/bodyweight';
 	import AssessmentResults from '$lib/components/assessment/AssessmentResults.svelte';
 	import {
 		firstGrip,
@@ -35,6 +38,11 @@
 	let coachee = $state<EnrolledUser | null>(null);
 	let sessions = $state<SessionResponse[]>([]);
 	let assessments = $state<AssessmentResponse[]>([]);
+	let bodyweights = $state<Bodyweight[]>([]);
+	let loadingBodyweights = $state(false);
+	// A series nobody could read is not an athlete who never weighed themselves,
+	// and the card has to tell the two apart.
+	let bodyweightsFailed = $state(false);
 	let loading = $state(false);
 	let error = $state('');
 
@@ -261,7 +269,23 @@
 			loading = false;
 		}
 		loadPrograms();
+		loadBodyweights();
 	});
+
+	// Read on its own rather than with the three above, because it is one card on
+	// a page about sessions, programs and assessments: a series that cannot be
+	// fetched should cost the coach that card, not the page.
+	async function loadBodyweights() {
+		loadingBodyweights = true;
+		try {
+			bodyweights = (await apiClient.getClientBodyweights(data.id!)) ?? [];
+			bodyweightsFailed = false;
+		} catch {
+			bodyweightsFailed = true;
+		} finally {
+			loadingBodyweights = false;
+		}
+	}
 
 	const sessionGroups = $derived(groupSessionsByDate(displayedSessions));
 
@@ -282,6 +306,9 @@
 	);
 
 	const totalAssessmentCount = $derived(assessments.length);
+
+	// The weight a ratio is read against, which is the latest one measured.
+	const bodyweightInEffect = $derived(bodyweightTrend(bodyweights)?.latest ?? null);
 </script>
 
 <AppShell
@@ -654,6 +681,12 @@
 								>View all</button
 							>
 						</div>
+
+						<BodyweightCard
+							series={bodyweights}
+							loading={loadingBodyweights}
+							failed={bodyweightsFailed}
+						/>
 
 						{#each recordedAssessments as assessment (assessment.id)}
 							<AssessmentSummaryCard {assessment} selectedGrip={firstGrip(assessment)} />
@@ -1054,10 +1087,30 @@
 				<!-- Assessments tab -->
 			{:else if activeTab === 'assess'}
 				<div style="display: flex; flex-direction: column; gap: 14px;">
-					<div style="display: flex; align-items: center; justify-content: space-between;">
+					<div
+						style="display: flex; align-items: center; justify-content: space-between; gap: 12px;"
+					>
 						<div style="font-size: 13px; color: var(--tx2);">
 							<span style="font-weight: 600; color: var(--tx);">{totalAssessmentCount} records</span
 							>
+						</div>
+						<!-- The denominator, next to the numbers read against it: a finger
+						     score is a ratio to the bodyweight of the day, not an absolute. -->
+						<div style="font-size: 12.5px; color: var(--tx2);">
+							{#if bodyweightInEffect}
+								Bodyweight <span style="font-weight: 600; color: var(--tx);"
+									>{formatKg(bodyweightInEffect.weight_kg)}</span
+								>
+								<span style="color: var(--tx3);"
+									>on {new Date(bodyweightInEffect.measured_at).toLocaleDateString('en-GB', {
+										day: 'numeric',
+										month: 'short',
+										year: 'numeric'
+									})}</span
+								>
+							{:else}
+								<span style="color: var(--tx3);">No bodyweight recorded</span>
+							{/if}
 						</div>
 					</div>
 
