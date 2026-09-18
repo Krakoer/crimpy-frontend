@@ -689,17 +689,30 @@ async function settleAfterDrop(page: Page): Promise<void> {
 /** The beat dnd-kit needs to answer a move, after which the target has moved. */
 const DROP_TARGET_TIMEOUT = 300;
 
+/** How long one read of that answer may take before it is treated as a no. */
+const DROP_TARGET_READ_TIMEOUT = 100;
+
 /** How many times a drag aims afresh before it gives up and says so. */
 const DROP_TARGET_ATTEMPTS = 8;
 
 /**
  * Whether the editor is now saying a drop would land on this target. Both
- * droppables a drag can be aimed at, DroppableCell and AddZone, publish it.
+ * elements a drag is aimed at publish it: DroppableCell, which is the droppable
+ * itself, and the add zone, which is not one and republishes the answer of the
+ * list it closes, so looking for a createDroppable on AddZone finds nothing.
+ *
+ * Each read is bounded, because the deadline is only a deadline if no single
+ * read can outlive it: a target detached for a frame would otherwise sit on
+ * Playwright's own timeout and kill the test before the drag could say what
+ * went wrong.
  */
 async function becomesDropTarget(page: Page, target: Locator): Promise<boolean> {
 	const deadline = Date.now() + DROP_TARGET_TIMEOUT;
 	do {
-		if ((await target.getAttribute('data-drop-target')) === 'true') return true;
+		const answer = await target
+			.getAttribute('data-drop-target', { timeout: DROP_TARGET_READ_TIMEOUT })
+			.catch(() => null);
+		if (answer === 'true') return true;
 		await page.waitForTimeout(16);
 	} while (Date.now() < deadline);
 	return false;

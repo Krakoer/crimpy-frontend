@@ -1108,8 +1108,8 @@ test('keeps the session id when it is dragged to another week and back', async (
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
 	);
-	// dnd-kit animates the dropped card back into place, and dragging again while
-	// that clone is still mounted picks up a stale position, so wait it out.
+	// Read back rather than assumed, so the second drag starts from a card the
+	// first one really moved. dragInto has already waited for the drop itself.
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
 	// Onto another day of week one, so the week the row belongs to has an edit to
 	// write and the save is not skipped for want of anything to save.
@@ -1149,8 +1149,8 @@ test('does not save a week a session was dropped into and dragged back out of', 
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
 	);
-	// dnd-kit animates the dropped card back into place, and dragging again while
-	// that clone is still mounted picks up a stale position, so wait it out.
+	// Read back rather than assumed, so the second drag starts from a card the
+	// first one really moved. dragInto has already waited for the drop itself.
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
 	// Back into week one, on another day, so week one has a real edit to save and
 	// the save is not skipped for want of anything to write.
