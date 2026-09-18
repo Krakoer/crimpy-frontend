@@ -494,6 +494,247 @@ test('sends existing sessions back with their id so the server keeps the row', a
 	});
 });
 
+/** A week carrying a phase name, as the server hands it back. */
+function namedWeekDetail(name?: string) {
+	return {
+		id: 'week-1',
+		program_id: 'program-1',
+		week_number: 1,
+		name,
+		notes: 'Finger work moved to Friday',
+		created_at: '',
+		updated_at: '',
+		sessions: []
+	};
+}
+
+/** The two week program the phase duplicate and clear cases need. */
+async function stubTwoNamedWeeks(page: Page): Promise<void> {
+	await stubProgram(page, testProgram({ duration_weeks: 2, start_date: mondayDaysAgo(0) }));
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{
+				id: 'week-1',
+				program_id: 'program-1',
+				week_number: 1,
+				name: 'capacity',
+				created_at: '',
+				updated_at: ''
+			},
+			{
+				id: 'week-2',
+				program_id: 'program-1',
+				week_number: 2,
+				created_at: '',
+				updated_at: ''
+			}
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/1', {
+		body: namedWeekDetail('capacity')
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/2', {
+		body: { ...namedWeekDetail(), id: 'week-2', week_number: 2, notes: undefined }
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: namedWeekDetail('capacity')
+	});
+}
+
+async function stubNamedWeek(page: Page, name?: string): Promise<void> {
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{
+				id: 'week-1',
+				program_id: 'program-1',
+				week_number: 1,
+				name,
+				created_at: '',
+				updated_at: ''
+			}
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: namedWeekDetail(name)
+	});
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: namedWeekDetail(name)
+	});
+}
+
+// Scanning the phase arc down the page is what the name is for, so a collapsed
+// week has to show it without being opened or the page put into edit mode.
+test('shows the phase of a week on the collapsed row', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity, 3 week block');
+
+	await page.goto(PROGRAM_URL);
+
+	const weekRow = page.getByRole('button', { name: /Wk 1/ });
+	await expect(weekRow).toContainText('capacity, 3 week block');
+	// Still the ten children the grid template lays out: the phase takes a line
+	// inside the week column, not an eleventh cell that would wrap.
+	expect(await weekRow.evaluate((row) => row.children.length)).toBe(10);
+});
+
+test('saves the phase a coach types in the week header', async ({ page }) => {
+	await stubNamedWeek(page);
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Week 1 phase' }).fill('  deload  ');
+	await page.getByRole('button', { name: 'Save program' }).click();
+
+	await expect(page.getByText('Program saved')).toBeVisible();
+	expect(saves).toHaveLength(1);
+	// Trimmed, and beside the notes rather than instead of them: the two say
+	// different things about the same week.
+	expect(saves[0].body).toMatchObject({
+		name: 'deload',
+		notes: 'Finger work moved to Friday'
+	});
+});
+
+// The header row answers Enter and Space to expand the week it belongs to, and
+// the phase field sits inside it. A space typed into the name must reach the
+// name rather than collapse the week under the coach.
+test('leaves the week open while the phase is typed into', async ({ page }) => {
+	await stubNamedWeek(page);
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+
+	const phase = page.getByRole('textbox', { name: 'Week 1 phase' });
+	await phase.click();
+	await phase.pressSequentially('max strength');
+
+	await expect(phase).toHaveValue('max strength');
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+});
+
+// Selecting a phase to retype it means dragging out of a field narrower than
+// the name in it, and a click event is dispatched on the nearest common
+// ancestor of where the pointer went down and came up. That is the header
+// itself, so without a guard the gesture that selects the text also collapses
+// the week being edited.
+test('leaves the week open when a phase selection is dragged out of the field', async ({
+	page
+}) => {
+	await stubNamedWeek(page, 'max strength, 3 week block');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+
+	const field = page.getByRole('textbox', { name: 'Week 1 phase' });
+	const box = (await field.boundingBox())!;
+	await page.mouse.move(box.x + 10, box.y + box.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box.x + box.width + 120, box.y + box.height / 2, { steps: 8 });
+	await page.mouse.up();
+
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+});
+
+// The phase is indented to clear the chevron, so the left edge of its line is
+// the field's own wrapper rather than the row.
+test('leaves the week open on a click in the indent beside the phase', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+
+	await page
+		.locator('[data-phase-field]')
+		.first()
+		.click({ position: { x: 3, y: 6 } });
+
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+});
+
+// Expanding a week used to be the browser's job, and on this branch it is a
+// hand-written role, tabindex and key handler on a div, because the phase field
+// lives in the row. Nothing else in this file presses a key on it: every other
+// spec clicks. So this is what stops a later edit making the week grid
+// mouse-only without turning the suite red.
+test('expands and collapses a week from the keyboard', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity');
+
+	await page.goto(PROGRAM_URL);
+	const row = page.getByRole('button', { name: /Wk 1/ });
+	await expect(row).toBeVisible();
+
+	// Reached by Tab rather than by focus(): focus() succeeds on an element
+	// tabbing cannot reach, which is the failure this is here to catch.
+	await page.keyboard.press('Tab');
+	for (let hop = 0; hop < 20; hop++) {
+		if (await row.evaluate((element) => element === document.activeElement)) break;
+		await page.keyboard.press('Tab');
+	}
+	await expect(row).toBeFocused();
+
+	await page.keyboard.press('Enter');
+	await expect(page.getByTestId('cell:1:1')).toBeVisible();
+
+	await page.keyboard.press(' ');
+	await expect(page.getByTestId('cell:1:1')).toBeHidden();
+});
+
+// The row says whether the week body under it is open, which is the only way a
+// screen reader can tell the two states apart.
+test('says whether the week it heads is open', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity');
+
+	await page.goto(PROGRAM_URL);
+	const row = page.getByRole('button', { name: /Wk 1/ });
+	await expect(row).toHaveAttribute('aria-expanded', 'false');
+
+	await row.click();
+
+	await expect(row).toHaveAttribute('aria-expanded', 'true');
+});
+
+// A duplicate is the whole week, phase included: copying a capacity week into
+// the next one and leaving it called nothing is not what the gesture says.
+test('carries the phase into a duplicated week', async ({ page }) => {
+	await stubTwoNamedWeeks(page);
+	const saves = capture(page, 'PUT', '/api/coach/clients/*/programs/*/weeks/*');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByTitle('Expand all').click();
+	await page.getByRole('button', { name: 'Duplicate' }).first().click();
+	await page.getByRole('button', { name: '2', exact: true }).click();
+
+	await expect(page.getByRole('textbox', { name: 'Week 2 phase' })).toHaveValue('capacity');
+
+	await page.getByRole('button', { name: 'Save program' }).click();
+	await expect(page.getByText('Program saved')).toBeVisible();
+	const weekTwo = saves.find((save) => save.url.endsWith('/weeks/2'));
+	expect(weekTwo?.body).toMatchObject({ name: 'capacity' });
+});
+
+// Clearing a week empties what the week is, not only what is in it.
+test('drops the phase when the week is cleared', async ({ page }) => {
+	await stubNamedWeek(page, 'capacity');
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+	await expect(page.getByRole('textbox', { name: 'Week 1 phase' })).toHaveValue('capacity');
+
+	await page.getByRole('button', { name: 'Clear', exact: true }).first().click();
+	await page.getByRole('button', { name: 'Confirm clear' }).click();
+
+	await expect(page.getByRole('textbox', { name: 'Week 1 phase' })).toHaveValue('');
+});
+
 /**
  * A dropped session is re-rendered into its new cell, and dnd-kit needs a beat
  * before that fresh element answers a new drag. Only needed between two drags of

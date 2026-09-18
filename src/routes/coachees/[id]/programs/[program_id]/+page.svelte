@@ -25,6 +25,7 @@
 	import AssessmentsModal from '$lib/components/assessment/AssessmentsModal.svelte';
 	import SessionOverridesModal from '$lib/components/program/SessionOverridesModal.svelte';
 	import WeekNotice from '$lib/components/program/WeekNotice.svelte';
+	import WeekPhaseField from '$lib/components/program/WeekPhaseField.svelte';
 	import type {
 		AssessmentResponse,
 		Program,
@@ -126,7 +127,13 @@
 			}
 		}
 		return {
-			...savedWeek({ notes: detail.notes ?? '', days, freqSessions, everydaySessions }),
+			...savedWeek({
+				name: detail.name ?? '',
+				notes: detail.notes ?? '',
+				days,
+				freqSessions,
+				everydaySessions
+			}),
 			saving: false,
 			saveError: '',
 			rereading: false,
@@ -506,6 +513,7 @@
 		draft.refusalMarked = false;
 		try {
 			const detail = await apiClient.upsertWeek(userId, programId, wn, {
+				name: draft.name.trim() || undefined,
 				notes: draft.notes.trim() || undefined,
 				sessions: draftToSessionRequests(draft, wn)
 			});
@@ -518,6 +526,7 @@
 					id: detail.id,
 					program_id: detail.program_id,
 					week_number: wn,
+					name: detail.name,
 					notes: detail.notes,
 					created_at: detail.created_at,
 					updated_at: detail.updated_at
@@ -574,6 +583,7 @@
 		if (!weekDrafts[targetWn]) weekDrafts[targetWn] = emptyDraft();
 		weekDrafts[targetWn] = {
 			...weekDrafts[targetWn],
+			name: src.name,
 			notes: src.notes,
 			days: src.days.map((d) => d.map(duplicatedDraftSession)),
 			freqSessions: src.freqSessions.map(duplicatedDraftSession),
@@ -731,6 +741,22 @@
 		}
 	}
 
+	// Whether the gesture now in flight started inside a week's phase field.
+	// Plain state rather than $state: it is written on pointerdown and read by
+	// the click of the same gesture, and nothing renders from it.
+	let pointerDownInPhaseField = false;
+
+	// A week header toggles on a click anywhere in the row, and the phase field
+	// sits in it. A click event is dispatched on the nearest common ancestor of
+	// where the pointer went down and came up, so selecting a phase by dragging
+	// out of the narrow field lands the click on the header itself, and a click
+	// on the indent beside the field lands on its wrapper. Neither is a click on
+	// the row, so both are answered by where the gesture began.
+	function startedInPhaseField(event: PointerEvent): boolean {
+		const target = event.target;
+		return target instanceof Element && target.closest('[data-phase-field]') !== null;
+	}
+
 	function toggleWeek(wn: number) {
 		const next = new Set(expandedWeeks);
 		if (next.has(wn)) next.delete(wn);
@@ -757,6 +783,7 @@
 			days: draft.days.map((day) => day.filter((s) => s.locked)),
 			freqSessions: draft.freqSessions.filter((s) => s.locked),
 			everydaySessions: draft.everydaySessions.filter((s) => s.locked),
+			name: '',
 			notes: '',
 			deleteConfirm: false
 		};
@@ -1206,9 +1233,35 @@
 								transition: all 0.15s;
 							"
 								>
-									<!-- Row header (always visible) -->
-									<button
-										onclick={() => toggleWeek(wn)}
+									<!-- Row header (always visible). A div carrying the button role
+										rather than a button element, because the phase field lives in it:
+										an input inside a button is neither valid markup nor reachable.
+										The key handler answers only for the row itself, so typing in that
+										field does not collapse the week under the coach, and the click
+										handler ignores a gesture that started in the field, so does
+										selecting a phase to retype it. -->
+									<div
+										role="button"
+										tabindex="0"
+										aria-expanded={expanded}
+										onpointerdowncapture={(e) => (pointerDownInPhaseField = startedInPhaseField(e))}
+										onclick={() => {
+											// A click whose gesture began in the phase field belongs to the
+											// field, wherever it ended. The whole row toggles, so a plain
+											// target check cannot be used here the way the key handler uses
+											// one: every ordinary click on the row lands on a descendant.
+											if (pointerDownInPhaseField) {
+												pointerDownInPhaseField = false;
+												return;
+											}
+											toggleWeek(wn);
+										}}
+										onkeydown={(e) => {
+											if (e.target !== e.currentTarget) return;
+											if (e.key !== 'Enter' && e.key !== ' ') return;
+											e.preventDefault();
+											toggleWeek(wn);
+										}}
 										style="
 										display: grid; grid-template-columns: {WEEK_GRID_COLUMNS};
 										width: 100%; align-items: center; cursor: pointer;
@@ -1217,7 +1270,7 @@
 											: expanded
 												? 'var(--panel2)'
 												: 'var(--panel)'};
-										border: none; font-family: var(--font); text-align: left;
+										font-family: var(--font); text-align: left;
 										min-height: {expanded ? '40px' : '48px'}; transition: background 0.1s;
 									"
 									>
@@ -1248,6 +1301,7 @@
 													<span style="font-size: 9px; color: var(--pr);">*</span>
 												{/if}
 											</div>
+											<WeekPhaseField weekNumber={wn} bind:name={draft.name} {editMode} />
 											<div
 												style="display: flex; align-items: center; gap: 4px; padding-left: 18px;"
 											>
@@ -1284,7 +1338,7 @@
 											<div></div>
 											<div></div>
 										{/if}
-									</button>
+									</div>
 
 									<!-- Expanded body -->
 									{#if expanded}

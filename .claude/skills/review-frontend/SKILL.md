@@ -161,8 +161,20 @@ local API on `:3000` is the one that runs current `dev`:
 
 `/config.json` is served by `src/routes/config.json/+server.ts` out of
 `$env/dynamic/public`, so that variable wins over `.env` and nothing in the
-working tree has to be edited. The seeded local accounts are `coach@local.com`
-and `local@local.com`, both with password `coucou`.
+working tree has to be edited. The coach account is `coach@local.com` with
+password `coucou`. There is no `local@local.com`: the seeded athlete is
+`athlete@local.com` and its password is not `coucou`, so an athlete the coach
+can be given a program for is quickest registered through `/auth/register`,
+verified by reading `users.verification_token` out of the dev database and
+posting it to `/auth/verify`, then enrolled with an enrollment token the coach
+asks `/api/coach/enrollment-token` for.
+
+The dev compose stack already serves all of this: the api container on `:3000`
+and the frontend container on `:5173` both mount the working tree, so a branch
+is live on both without starting anything. `http://localhost:5173` is also the only
+origin the API's CORS config allows, spelled exactly, so a dev server started
+by hand on another port cannot log in and neither can `127.0.0.1:5173`: both
+are refused at the preflight.
 
 **Create the data the feature needs, through the API.** The local database is
 seeded from before most features existed, so the row that shows a change off

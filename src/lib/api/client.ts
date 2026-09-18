@@ -489,6 +489,10 @@ export interface WeekSummary {
 	id: string;
 	program_id: string;
 	week_number: number;
+	// The training phase this week belongs to ("capacity", "deload"), reused
+	// across the weeks of one block and what a coach scans the program by.
+	// Distinct from notes below, which is a message about this one week.
+	name?: string;
 	notes?: string;
 	created_at: string;
 	updated_at: string;
@@ -620,6 +624,7 @@ export interface SessionRequest {
 }
 
 export interface WeekRequest {
+	name?: string;
 	notes?: string;
 	sessions: SessionRequest[];
 }
