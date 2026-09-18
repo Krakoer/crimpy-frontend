@@ -4,6 +4,7 @@ import type {
 	AssessmentSnapshot,
 	AssessmentSnapshotResult
 } from '$lib/api/client';
+import { formatUnitValue } from '$lib/assessments';
 import {
 	bodyweightScore,
 	compareSnapshots,
@@ -24,6 +25,19 @@ function result(overrides: Partial<AssessmentSnapshotResult> = {}): AssessmentSn
 		right_measured_at: '2026-03-02T10:00:00Z',
 		...overrides
 	};
+}
+
+/** A result with the weight it was pulled at, as the snapshot returns it. */
+function weighed(
+	overrides: Partial<AssessmentSnapshotResult>,
+	bodyweightKg: number
+): AssessmentSnapshotResult {
+	return result({
+		bodyweight_relative: true,
+		right_bodyweight_kg: bodyweightKg,
+		left_bodyweight_kg: bodyweightKg,
+		...overrides
+	});
 }
 
 function snapshot(
@@ -92,20 +106,10 @@ describe('compareSnapshots', () => {
 
 	it('reads a bodyweight relative result as a ratio to the weight of the day', () => {
 		const rows = compareSnapshots(
-			snapshot(
-				'2026-03-02T23:59:59Z',
-				[result({ bodyweight_relative: true, right_value: 25 })],
-				71
-			),
+			snapshot('2026-03-02T23:59:59Z', [weighed({ right_value: 25 }, 71)], 71),
 			snapshot(
 				'2026-06-02T23:59:59Z',
-				[
-					result({
-						bodyweight_relative: true,
-						right_value: 28,
-						right_measured_at: '2026-06-02T10:00:00Z'
-					})
-				],
+				[weighed({ right_value: 28, right_measured_at: '2026-06-02T10:00:00Z' }, 71)],
 				71
 			)
 		);
@@ -124,7 +128,7 @@ describe('compareSnapshots', () => {
 			snapshot('2026-03-02T23:59:59Z', [result({ bodyweight_relative: true })]),
 			snapshot(
 				'2026-06-02T23:59:59Z',
-				[result({ bodyweight_relative: true, right_measured_at: '2026-06-02T10:00:00Z' })],
+				[weighed({ right_measured_at: '2026-06-02T10:00:00Z' }, 71)],
 				71
 			)
 		);
@@ -231,16 +235,10 @@ describe('compareSnapshots', () => {
 
 	it('takes the label and the flag as the later date reads them', () => {
 		const rows = compareSnapshots(
-			snapshot('2026-03-02T23:59:59Z', [result({ label: 'Old name' })], 71),
+			snapshot('2026-03-02T23:59:59Z', [weighed({ label: 'Old name' }, 71)], 71),
 			snapshot(
 				'2026-06-02T23:59:59Z',
-				[
-					result({
-						label: 'New name',
-						bodyweight_relative: true,
-						right_measured_at: '2026-06-02T10:00:00Z'
-					})
-				],
+				[weighed({ label: 'New name', right_measured_at: '2026-06-02T10:00:00Z' }, 71)],
 				71
 			)
 		);
@@ -249,6 +247,77 @@ describe('compareSnapshots', () => {
 		// So the older side is scored as a ratio too, rather than one date
 		// reading as kilograms and the other as a ratio.
 		expect(rows[0].hands[0].before?.bodyweightKg).toBe(71);
+	});
+
+	// A result the snapshot carried forward was pulled at the weight of the day it
+	// was measured. Dividing it by the weight of the date asked for prints a ratio
+	// the athlete never achieved, and reports a progression that did not happen.
+	it('scores a carried forward value against the weight it was pulled at', () => {
+		const carried = weighed({ right_value: 25, right_measured_at: '2026-01-08T10:00:00Z' }, 65);
+		const rows = compareSnapshots(
+			// The athlete weighs 71 on the date asked for, but the hang is from
+			// January, when they weighed 65.
+			snapshot('2026-03-02T23:59:59Z', [carried], 71),
+			snapshot(
+				'2026-06-02T23:59:59Z',
+				[weighed({ right_value: 28, right_measured_at: '2026-06-02T10:00:00Z' }, 71)],
+				71
+			)
+		);
+		const hand = rows[0].hands[0];
+		expect(hand.before?.bodyweightKg).toBe(65);
+		expect(hand.before?.score).toBeCloseTo(1.385, 3);
+		expect(hand.after?.score).toBeCloseTo(1.394, 3);
+		expect(hand.percent).toBeCloseTo(0.7, 2);
+	});
+
+	// The same measurement on both sides is one ratio, whatever the athlete
+	// weighed on the two dates, or an untouched test reads as a drop.
+	it('gives one unchanged measurement the same ratio on both dates', () => {
+		const carried = weighed({ right_value: 22, right_measured_at: '2026-03-02T10:00:00Z' }, 71);
+		const rows = compareSnapshots(
+			snapshot('2026-03-02T23:59:59Z', [carried], 71),
+			snapshot('2026-06-02T23:59:59Z', [carried], 75)
+		);
+		const hand = rows[0].hands[0];
+		expect(hand.unchanged).toBe(true);
+		expect(hand.before?.score).toBe(hand.after?.score);
+		expect(hand.before?.bodyweightKg).toBe(71);
+		expect(hand.after?.bodyweightKg).toBe(71);
+	});
+
+	// The two hands can come from sessions months apart, so each carries its own
+	// denominator.
+	it('weighs each hand on its own date', () => {
+		const rows = compareSnapshots(
+			snapshot('2026-03-02T23:59:59Z', [
+				result({
+					per_hand: true,
+					bodyweight_relative: true,
+					right_value: 20,
+					right_bodyweight_kg: 71,
+					left_value: 19,
+					left_measured_at: '2026-03-02T10:00:00Z',
+					left_bodyweight_kg: 71
+				})
+			]),
+			snapshot('2026-06-02T23:59:59Z', [
+				result({
+					per_hand: true,
+					bodyweight_relative: true,
+					right_value: 22,
+					right_measured_at: '2026-06-02T10:00:00Z',
+					right_bodyweight_kg: 75,
+					left_value: 19,
+					left_measured_at: '2026-03-02T10:00:00Z',
+					left_bodyweight_kg: 71
+				})
+			])
+		);
+		const [left, right] = rows[0].hands;
+		expect(right.after?.bodyweightKg).toBe(75);
+		expect(left.after?.bodyweightKg).toBe(71);
+		expect(left.unchanged).toBe(true);
 	});
 });
 
@@ -263,11 +332,15 @@ describe('formatScore', () => {
 	});
 
 	// A half second is a real result, and rounding it away would print the same
-	// number in both columns beside a progression saying they differ.
+	// number in both columns beside a progression saying they differ. The rule is
+	// formatUnitValue's, so the cards above the table print it the same way.
 	it('keeps a fractional second rather than rounding it into a contradiction', () => {
 		expect(formatScore({ raw: 4.4, measuredAt: 'x', score: 4.4 }, 'seconds')).toBe('4.4');
 		expect(formatScore({ raw: 8.5, measuredAt: 'x', score: 8.5 }, 'seconds')).toBe('8.5');
 		expect(formatScore({ raw: 4, measuredAt: 'x', score: 4 }, 'seconds')).toBe('4');
+		expect(formatScore({ raw: 8.5, measuredAt: 'x', score: 8.5 }, 'seconds')).toBe(
+			formatUnitValue(8.5, 'seconds')
+		);
 	});
 });
 

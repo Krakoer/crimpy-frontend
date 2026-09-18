@@ -114,8 +114,10 @@ export interface TestAssessmentSnapshotResult {
 	grip_position: number;
 	right_value?: number | null;
 	right_measured_at?: string | null;
+	right_bodyweight_kg?: number | null;
 	left_value?: number | null;
 	left_measured_at?: string | null;
+	left_bodyweight_kg?: number | null;
 }
 
 export function testSnapshotResult(
@@ -141,6 +143,29 @@ export function testAssessmentSnapshot(
 	bodyweightKg: number | null = null
 ) {
 	return { date: `${day}T23:59:59Z`, results, bodyweight_kg: bodyweightKg };
+}
+
+/**
+ * The comparison asks for one snapshot per date, and the two answers are what it
+ * puts side by side, so a stub has to answer per date rather than serve one body
+ * to both calls the way stub() does. A day with no entry answers empty.
+ */
+export async function stubSnapshotsByDay(
+	page: Page,
+	byDay: Record<string, ReturnType<typeof testAssessmentSnapshot>>
+): Promise<void> {
+	await page.route(`${API_URL}/**`, async (route) => {
+		const request = route.request();
+		const url = new URL(request.url());
+		const isSnapshot = /^\/api\/coach\/clients\/[^/]+\/assessments\/at$/.test(url.pathname);
+		if (request.method() !== 'GET' || !isSnapshot) return route.fallback();
+		const day = url.searchParams.get('date') ?? '';
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(byDay[day] ?? testAssessmentSnapshot(day))
+		});
+	});
 }
 
 export interface TestUser {

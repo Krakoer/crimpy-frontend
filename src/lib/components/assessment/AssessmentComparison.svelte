@@ -36,7 +36,12 @@
 	let pickedTo = $state('');
 
 	const toDay = $derived(days.includes(pickedTo) ? pickedTo : (days[0] ?? ''));
-	const fromDay = $derived(days.includes(pickedFrom) ? pickedFrom : (days[1] ?? days[0] ?? ''));
+	// From only offers days before To, so the pair cannot name one day twice, and
+	// cannot be inverted into a table reporting every progression backwards with
+	// only the column headers saying so. Moving To past From therefore re-points
+	// From at the newest day still older than it, rather than leaving it stranded.
+	const fromDays = $derived(days.filter((day) => day < toDay));
+	const fromDay = $derived(fromDays.includes(pickedFrom) ? pickedFrom : (fromDays[0] ?? ''));
 
 	let rows = $state<ComparisonRow[]>([]);
 	let loading = $state(false);
@@ -51,7 +56,7 @@
 		const to = toDay;
 		// One test day is not a comparison, and the panel says so instead of
 		// drawing the table, so the two reads it would take are not made.
-		if (!from || !to || days.length < 2) return;
+		if (!from || !to) return;
 		const request = ++latestRequest;
 		loading = true;
 		// A read that failed is about the dates it was asked for. Leaving the
@@ -132,7 +137,7 @@
 				Every assessment side by side, as it stood on each of the two test days.
 			</p>
 		</div>
-		{#if days.length > 0}
+		{#if days.length > 1}
 			<div class="flex items-center gap-2">
 				<label style={headerCell} for="comparison-from">From</label>
 				<select
@@ -141,7 +146,7 @@
 					onchange={(e) => (pickedFrom = e.currentTarget.value)}
 					style={selectStyle}
 				>
-					{#each days as day (day)}
+					{#each fromDays as day (day)}
 						<option value={day}>{formatDay(day)}</option>
 					{/each}
 				</select>
@@ -228,6 +233,14 @@
 									hand
 								)};"
 							>
+								{#if handLabel(hand)}
+									<!-- The value cells beside this one are one to three lines tall
+									     depending on the ratio and the carried forward note, so the
+									     two hands cannot be told apart by their position. -->
+									<span style="color: var(--tx3); font-weight: 600; font-size: 11px;"
+										>{handLabel(hand)}</span
+									>
+								{/if}
 								{progressionLabel(hand)}
 							</div>
 						{/each}

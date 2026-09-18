@@ -3,6 +3,7 @@ import type {
 	AssessmentSnapshot,
 	AssessmentSnapshotResult
 } from '$lib/api/client';
+import { formatUnitValue } from '$lib/assessments';
 
 // The days an athlete actually tested on, newest first, as the API spells a day:
 // the UTC date of the session. Taken from the UTC instant rather than from a
@@ -146,9 +147,12 @@ export function compareSnapshots(
 		after.results.map((r) => [rowKey(r.assessment_id, r.grip_position), r])
 	);
 
+	// The denominator travels with the value rather than with the snapshot: a
+	// result the snapshot carried forward was pulled at the weight of the day it
+	// was measured, and dividing it by the weight of the date asked for prints a
+	// ratio the athlete never achieved.
 	function sideValue(
 		result: AssessmentSnapshotResult | undefined,
-		bodyweightKg: number | null | undefined,
 		bodyweightRelative: boolean,
 		side: 'right' | 'left'
 	): ComparedValue | undefined {
@@ -156,7 +160,7 @@ export function compareSnapshots(
 			side === 'right' ? result?.right_value : result?.left_value,
 			side === 'right' ? result?.right_measured_at : result?.left_measured_at,
 			bodyweightRelative,
-			bodyweightKg
+			side === 'right' ? result?.right_bodyweight_kg : result?.left_bodyweight_kg
 		);
 	}
 
@@ -172,10 +176,10 @@ export function compareSnapshots(
 		row.bodyweightRelative = definition.bodyweight_relative;
 
 		const relative = row.bodyweightRelative;
-		const wasRight = sideValue(was, before.bodyweight_kg, relative, 'right');
-		const wasLeft = sideValue(was, before.bodyweight_kg, relative, 'left');
-		const nowRight = sideValue(now, after.bodyweight_kg, relative, 'right');
-		const nowLeft = sideValue(now, after.bodyweight_kg, relative, 'left');
+		const wasRight = sideValue(was, relative, 'right');
+		const wasLeft = sideValue(was, relative, 'left');
+		const nowRight = sideValue(now, relative, 'right');
+		const nowLeft = sideValue(now, relative, 'left');
 
 		if (definition.per_hand) {
 			const hands = [
@@ -202,19 +206,14 @@ export function compareSnapshots(
 	});
 }
 
-// A score as the table prints it: two decimals for a ratio, since that is where
-// a season of finger training shows, and the unit's own precision otherwise.
-//
-// Seconds and repetitions are whole numbers nearly always, and a rep count reads
-// badly with a trailing zero, but a half second is a real result: the spreadsheet
-// this table comes from writes 8.5 sec. Rounding it away would print the same
-// number in both columns beside a progression saying they differ, so a value that
-// is not whole keeps its decimal.
+// A score as the table prints it: two decimals for a ratio, since that is where a
+// season of finger training shows. A score that is not a ratio is the measurement
+// itself, so it is printed by the one rule the cards and the history table use,
+// or the same number reads differently in two panels of the same tab.
 export function formatScore(value: ComparedValue, unit: string): string {
 	if (value.score === undefined) return '--';
 	if (value.bodyweightKg !== undefined) return value.score.toFixed(2);
-	if (unit === 'kilograms') return value.score.toFixed(1);
-	return Number.isInteger(value.score) ? value.score.toFixed(0) : value.score.toFixed(1);
+	return formatUnitValue(value.score, unit);
 }
 
 // A change with its sign, so a gain and a loss read as different things at a

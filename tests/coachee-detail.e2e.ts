@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-	API_URL,
 	BUILTIN_MAX_FORCE,
 	capture,
 	isoDaysAgo,
@@ -8,6 +7,7 @@ import {
 	signIn,
 	stub,
 	testAssessmentRecord,
+	stubSnapshotsByDay,
 	testAssessmentSnapshot,
 	testSnapshotResult,
 	type TestAssessmentSnapshotResult,
@@ -33,29 +33,6 @@ async function stubCoacheeDetail(page: Page): Promise<void> {
 	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/bodyweights', { body: [] });
-}
-
-/**
- * The comparison asks for one snapshot per date, and the two answers are what
- * it puts side by side, so the stub has to answer per date rather than serve
- * one body to both calls the way stub() does.
- */
-async function stubSnapshotsByDay(
-	page: Page,
-	byDay: Record<string, ReturnType<typeof testAssessmentSnapshot>>
-): Promise<void> {
-	await page.route(`${API_URL}/**`, async (route) => {
-		const request = route.request();
-		const url = new URL(request.url());
-		const isSnapshot = /^\/api\/coach\/clients\/[^/]+\/assessments\/at$/.test(url.pathname);
-		if (request.method() !== 'GET' || !isSnapshot) return route.fallback();
-		const day = url.searchParams.get('date') ?? '';
-		await route.fulfill({
-			status: 200,
-			contentType: 'application/json',
-			body: JSON.stringify(byDay[day] ?? testAssessmentSnapshot(day))
-		});
-	});
 }
 
 /** A result recorded on one day, which is also a day the comparison offers. */
@@ -1733,7 +1710,8 @@ test.describe('assessment comparison', () => {
 						label: 'Weighted hang 20mm',
 						bodyweight_relative: true,
 						right_value: 25,
-						right_measured_at: `${march}T10:00:00Z`
+						right_measured_at: `${march}T10:00:00Z`,
+						right_bodyweight_kg: 71
 					})
 				],
 				71
@@ -1745,7 +1723,8 @@ test.describe('assessment comparison', () => {
 						label: 'Weighted hang 20mm',
 						bodyweight_relative: true,
 						right_value: 28,
-						right_measured_at: `${june}T10:00:00Z`
+						right_measured_at: `${june}T10:00:00Z`,
+						right_bodyweight_kg: 71
 					})
 				],
 				71
@@ -1788,6 +1767,53 @@ test.describe('assessment comparison', () => {
 		await expect(comparison.getByText('not measured')).toBeVisible();
 		await expect(comparison.getByText('first measured')).toBeVisible();
 		await expect(comparison.getByText('%')).toHaveCount(0);
+	});
+
+	// The weight a ratio is divided by is the one the result was pulled at, not the
+	// one the athlete carries on the date asked for.
+	test('divides a carried forward result by the weight it was pulled at', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 25, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 28, left_value: null })
+			]
+		});
+		const carried = testSnapshotResult({
+			label: 'Weighted hang 20mm',
+			bodyweight_relative: true,
+			right_value: 25,
+			// Measured in January, when the athlete was lighter.
+			right_measured_at: '2026-01-08T10:00:00Z',
+			right_bodyweight_kg: 65
+		});
+		await stubSnapshotsByDay(page, {
+			// The athlete weighs 71 on both dates asked for, but the March column
+			// holds a hang from January.
+			[march]: testAssessmentSnapshot(march, [carried], 71),
+			[june]: testAssessmentSnapshot(
+				june,
+				[
+					testSnapshotResult({
+						label: 'Weighted hang 20mm',
+						bodyweight_relative: true,
+						right_value: 28,
+						right_measured_at: `${june}T10:00:00Z`,
+						right_bodyweight_kg: 71
+					})
+				],
+				71
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(comparison.getByText('25.0 kg at 65.0 kg')).toBeVisible();
+		await expect(comparison.getByText('1.38', { exact: true })).toBeVisible();
+		// Not the +3.1 % that dividing January's hang by March's weight would give.
+		await expect(comparison.getByText('+0.7 %')).toBeVisible();
 	});
 
 	// A snapshot carries the last value forward, so a test nobody ran again

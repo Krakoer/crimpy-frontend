@@ -323,14 +323,20 @@ export interface AssessmentSnapshotResult {
 	grip_position: number;
 	right_value?: number | null;
 	right_measured_at?: string | null;
+	// The weight in effect when this hand was measured, which is the denominator
+	// its ratio has to be read against. Not the snapshot's bodyweight_kg: a value
+	// carried forward from an earlier session was pulled at the weight of that
+	// day. Absent when no weigh-in precedes the measurement.
+	right_bodyweight_kg?: number | null;
 	left_value?: number | null;
 	left_measured_at?: string | null;
+	left_bodyweight_kg?: number | null;
 }
 
-// What an athlete had measured as of a date. The bodyweight is the one in
-// effect then rather than the one they carry now, so a ratio is read against
-// the weight the result was actually pulled at. Absent when nothing had been
-// recorded by then, which a reader says out loud rather than divides by.
+// What an athlete had measured as of a date. The bodyweight is what the athlete
+// weighed on that date, which is not the same thing as what any one result was
+// pulled at: the weight a ratio is read against travels with the value, on the
+// result. Absent when nothing had been recorded by then.
 export interface AssessmentSnapshot {
 	date: string;
 	bodyweight_kg?: number | null;

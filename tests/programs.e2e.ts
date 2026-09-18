@@ -15,6 +15,7 @@ import {
 	stub,
 	testAssessmentDefinition,
 	testAssessmentRecord,
+	stubSnapshotsByDay,
 	testAssessmentSnapshot,
 	testSnapshotResult,
 	testEnrolledUser,
@@ -1695,25 +1696,13 @@ test('compares two dates for the right athlete inside the assessments modal', as
 	});
 	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
 	const snapshots = capture(page, 'GET', '/api/coach/clients/*/assessments/at');
-	await page.route(`http://api.test/**`, async (route) => {
-		const url = new URL(route.request().url());
-		if (
-			route.request().method() !== 'GET' ||
-			!/^\/api\/coach\/clients\/[^/]+\/assessments\/at$/.test(url.pathname)
-		) {
-			return route.fallback();
-		}
-		const day = url.searchParams.get('date') ?? '';
-		const value = day === march ? 13 : 17;
-		await route.fulfill({
-			status: 200,
-			contentType: 'application/json',
-			body: JSON.stringify(
-				testAssessmentSnapshot(day, [
-					testSnapshotResult({ right_value: value, right_measured_at: `${day}T10:00:00Z` })
-				])
-			)
-		});
+	await stubSnapshotsByDay(page, {
+		[march]: testAssessmentSnapshot(march, [
+			testSnapshotResult({ right_value: 13, right_measured_at: `${march}T10:00:00Z` })
+		]),
+		[june]: testAssessmentSnapshot(june, [
+			testSnapshotResult({ right_value: 17, right_measured_at: `${june}T10:00:00Z` })
+		])
 	});
 
 	await page.goto(PROGRAM_URL);
