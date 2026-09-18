@@ -216,6 +216,7 @@ export interface AssessmentDefinitionSnapshot {
 	prompt?: string | null;
 	unit: string;
 	per_hand: boolean;
+	bodyweight_relative?: boolean;
 	training_id?: string | null;
 	// Set once the unit and the hands can no longer move: results were measured
 	// against them, or a training reads a number against them.
@@ -260,6 +261,10 @@ export interface SessionAssessment {
 	label: string;
 	unit: string;
 	per_hand: boolean;
+	// Whether the result reads as a ratio to the bodyweight it was pulled at,
+	// (bodyweight + result) / bodyweight, rather than as an absolute load. The
+	// value beside it is always the raw measurement.
+	bodyweight_relative: boolean;
 	// The training the assessment is run from, absent on the ones Crimpy ships.
 	training_id?: string | null;
 	right_value: number | null;
@@ -277,6 +282,10 @@ export interface AssessmentDefinition {
 	prompt?: string | null;
 	training_id?: string | null;
 	per_hand: boolean;
+	// Whether a result in kilograms is drawn as a ratio to the bodyweight it was
+	// pulled at. Free to toggle at any time, unlike the unit and the hands:
+	// nothing derived from it is stored.
+	bodyweight_relative: boolean;
 	is_builtin: boolean;
 	// Set once the unit and the hands can no longer move: results were measured
 	// against them, or a training reads a number against them.
@@ -291,12 +300,41 @@ export interface AssessmentDefinitionRequest {
 	prompt: string;
 	unit: string;
 	per_hand: boolean;
+	bodyweight_relative: boolean;
 }
 
 // The session-scoped assessment joined with the date of the session it was
 // recorded in, which only the per-user listing endpoint returns.
 export interface AssessmentResponse extends SessionAssessment {
 	session_date: string;
+}
+
+// One assessment as it stood on a date: the last value measured for it at or
+// before then, per grip and per hand. The measured dates are what tell a value
+// taken around that date from one the snapshot carried forward, which a
+// comparison has to say rather than draw as an unchanged result.
+export interface AssessmentSnapshotResult {
+	assessment_id: string;
+	label: string;
+	unit: string;
+	per_hand: boolean;
+	bodyweight_relative: boolean;
+	training_id?: string | null;
+	grip_position: number;
+	right_value?: number | null;
+	right_measured_at?: string | null;
+	left_value?: number | null;
+	left_measured_at?: string | null;
+}
+
+// What an athlete had measured as of a date. The bodyweight is the one in
+// effect then rather than the one they carry now, so a ratio is read against
+// the weight the result was actually pulled at. Absent when nothing had been
+// recorded by then, which a reader says out loud rather than divides by.
+export interface AssessmentSnapshot {
+	date: string;
+	bodyweight_kg?: number | null;
+	results: AssessmentSnapshotResult[];
 }
 
 export interface Tag {
@@ -1007,6 +1045,15 @@ class ApiClient {
 	// real weigh-in frequency.
 	async getClientBodyweights(userId: string, limit: number): Promise<Bodyweight[]> {
 		return this.requestList<Bodyweight>(`/api/coach/clients/${userId}/bodyweights?limit=${limit}`);
+	}
+
+	// The client's results as they stood on one day, which is one side of a two
+	// date comparison. The day is YYYY-MM-DD and means the state of things that
+	// evening, so a test run that afternoon is included.
+	async getClientAssessmentSnapshot(userId: string, day: string): Promise<AssessmentSnapshot> {
+		return this.request<AssessmentSnapshot>(
+			`/api/coach/clients/${userId}/assessments/at?date=${encodeURIComponent(day)}`
+		);
 	}
 
 	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {

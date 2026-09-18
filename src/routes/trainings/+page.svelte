@@ -139,7 +139,8 @@
 				label: title,
 				prompt: original.assessment.prompt ?? '',
 				unit: original.assessment.unit,
-				per_hand: original.assessment.per_hand
+				per_hand: original.assessment.per_hand,
+				bodyweight_relative: original.assessment.bodyweight_relative ?? false
 			});
 			// The catalog is loaded once and shared, so every picker that names an
 			// assessment would go on not knowing about this one.
