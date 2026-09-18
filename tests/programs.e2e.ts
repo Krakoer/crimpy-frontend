@@ -736,23 +736,6 @@ test('drops the phase when the week is cleared', async ({ page }) => {
 	await expect(page.getByRole('textbox', { name: 'Week 1 phase' })).toHaveValue('');
 });
 
-/**
- * Waits until the drop has been answered, rather than guessing how long that
- * takes. dnd-kit marks the element it is dragging with data-dnd-dragging for
- * the whole gesture and data-dnd-dropping while the drop animates, and drops
- * both when it cleans up, so their absence is the gesture being over.
- *
- * Needed between two drags of the same session, because the dropped session is
- * re-rendered into its new cell and the fresh element does not answer a new
- * drag until then, and before editing a week a drag has just rewritten,
- * because an edit made inside that window is discarded with it. Measured on
- * "keeps the weekly count of a session dragged over a day and back": 2 failures
- * in 120 runs without this wait, 0 in 120 with it.
- */
-async function settleAfterDrop(page: Page): Promise<void> {
-	await expect(page.locator('[data-dnd-dragging], [data-dnd-dropping]')).toHaveCount(0);
-}
-
 test('warns when a dropped training needs an assessment the coachee has not done', async ({
 	page
 }) => {
@@ -1018,19 +1001,11 @@ test('keeps the weekly count of a session dragged over a day and back', async ({
 		page.getByTestId('freq:1').getByRole('button', { name: /Power endurance block/ }),
 		page.getByTestId('cell:1:0')
 	);
-	await settleAfterDrop(page);
 	await dragInto(
 		page,
 		page.getByTestId('cell:1:0').getByRole('button', { name: /Power endurance block/ }),
 		page.getByTestId('freq:1')
 	);
-	// Settled after this drag as well as the first, because what comes next edits
-	// the week rather than dragging again, and an edit made before the drop has
-	// been answered is discarded with it. Observed as the count typed below
-	// going back to 4, leaving the week clean and the save button reading
-	// "Saved", so the run died 30s later waiting for a "Save program" that never
-	// appeared. Removing this wait reproduces it, 2 failures in 120 runs.
-	await settleAfterDrop(page);
 
 	await expect(page.getByTestId('freq:1').getByRole('spinbutton')).toHaveValue('4');
 	// The week ends holding what it was loaded with, so there is nothing to write.
@@ -1133,8 +1108,8 @@ test('keeps the session id when it is dragged to another week and back', async (
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
 	);
-	// dnd-kit animates the dropped card back into place, and dragging again while
-	// that clone is still mounted picks up a stale position, so wait it out.
+	// Read back rather than assumed, so the second drag starts from a card the
+	// first one really moved. dragInto has already waited for the drop itself.
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
 	// Onto another day of week one, so the week the row belongs to has an edit to
 	// write and the save is not skipped for want of anything to save.
@@ -1174,8 +1149,8 @@ test('does not save a week a session was dropped into and dragged back out of', 
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
 	);
-	// dnd-kit animates the dropped card back into place, and dragging again while
-	// that clone is still mounted picks up a stale position, so wait it out.
+	// Read back rather than assumed, so the second drag starts from a card the
+	// first one really moved. dragInto has already waited for the drop itself.
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
 	// Back into week one, on another day, so week one has a real edit to save and
 	// the save is not skipped for want of anything to write.

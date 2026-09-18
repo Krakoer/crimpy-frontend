@@ -36,6 +36,7 @@
 		<button
 			onclick={() => (expanded = true)}
 			class="w-full"
+			data-drop-target={isDropTarget ? 'true' : undefined}
 			style="
 				padding: 10px 14px; border-radius: var(--rl);
 				border: 1.5px dashed {isDropTarget ? 'var(--pr)' : 'var(--bd)'};
