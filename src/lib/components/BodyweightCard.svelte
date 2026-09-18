@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Bodyweight } from '$lib/api/client';
-	import { bodyweightTrend, formatChangeKg, formatKg, TREND_WINDOW_DAYS } from '$lib/bodyweight';
+	import { bodyweightTrend, formatChangeKg, formatKg, formatMeasuredOn } from '$lib/bodyweight';
 
 	interface Props {
 		series: Bodyweight[];
@@ -19,14 +19,6 @@
 	// athlete is training for, so the change is coloured as information rather
 	// than as a verdict. The one thing worth a colour is that it moved.
 	let changeColor = $derived(change === '' ? 'var(--tx3)' : 'var(--tx2)');
-
-	function measuredOn(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', {
-			day: 'numeric',
-			month: 'short',
-			year: 'numeric'
-		});
-	}
 </script>
 
 <div
@@ -58,13 +50,18 @@
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">
 			{#if change}
-				Measured {measuredOn(trend.latest.measured_at)}, against {formatKg(
+				Measured {formatMeasuredOn(trend.latest.measured_at)}, against {formatKg(
 					trend.previous!.weight_kg
-				)} on {measuredOn(trend.previous!.measured_at)}
+				)} on {formatMeasuredOn(trend.previous!.measured_at)}
 			{:else if trend.previous}
-				Measured {measuredOn(trend.latest.measured_at)}, unchanged over {TREND_WINDOW_DAYS} days
+				<!-- Named against the date it compared, not the window: the comparison
+				     point is the nearest measurement outside the window, which can be far
+				     older than it. -->
+				Measured {formatMeasuredOn(trend.latest.measured_at)}, unchanged since {formatMeasuredOn(
+					trend.previous.measured_at
+				)}
 			{:else}
-				Measured {measuredOn(trend.latest.measured_at)}, nothing older to compare
+				Measured {formatMeasuredOn(trend.latest.measured_at)}, nothing older to compare
 			{/if}
 		</div>
 	{:else}

@@ -5,6 +5,15 @@ import type { Bodyweight } from '$lib/api/client';
 // they signed up, and a season's worth of noise would swamp that.
 export const TREND_WINDOW_DAYS = 30;
 
+// How many measurements to ask the API for. The trend can only compare against
+// a measurement it was given, so this has to cover the window even for an
+// athlete who weighs in several times a day: at the API's own default of 60
+// rows, three weigh-ins a day reach back 20 days and the comparison point is
+// never in the page, so the card would say there is nothing older to compare
+// for an athlete with a year of data. Sized well past that, and the endpoint
+// refuses anything over 365.
+export const TREND_SERIES_LIMIT = 365;
+
 export interface BodyweightTrend {
 	/// The weight in effect, which is what a ratio is read against.
 	latest: Bodyweight;
@@ -41,6 +50,15 @@ export function bodyweightTrend(
 		previous,
 		changeKg: latest.weight_kg - previous.weight_kg
 	};
+}
+
+/// The day a measurement was taken, as a coach reads it.
+export function formatMeasuredOn(iso: string): string {
+	return new Date(iso).toLocaleDateString('en-GB', {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric'
+	});
 }
 
 /// A weight as a coach reads it. One decimal, because that is the precision a

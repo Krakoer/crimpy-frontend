@@ -14,7 +14,7 @@
 	} from '$lib/api/client';
 	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
 	import BodyweightCard from '$lib/components/BodyweightCard.svelte';
-	import { bodyweightTrend, formatKg } from '$lib/bodyweight';
+	import { bodyweightTrend, formatKg, formatMeasuredOn, TREND_SERIES_LIMIT } from '$lib/bodyweight';
 	import AssessmentResults from '$lib/components/assessment/AssessmentResults.svelte';
 	import {
 		firstGrip,
@@ -278,7 +278,7 @@
 	async function loadBodyweights() {
 		loadingBodyweights = true;
 		try {
-			bodyweights = (await apiClient.getClientBodyweights(data.id!)) ?? [];
+			bodyweights = await apiClient.getClientBodyweights(data.id!, TREND_SERIES_LIMIT);
 			bodyweightsFailed = false;
 		} catch {
 			bodyweightsFailed = true;
@@ -1097,17 +1097,20 @@
 						<!-- The denominator, next to the numbers read against it: a finger
 						     score is a ratio to the bodyweight of the day, not an absolute. -->
 						<div style="font-size: 12.5px; color: var(--tx2);">
+							<!-- The same three states the card tells apart. Saying "none
+							     recorded" for a series nobody could read would claim something
+							     about the athlete that the page has no basis for. -->
 							{#if bodyweightInEffect}
 								Bodyweight <span style="font-weight: 600; color: var(--tx);"
 									>{formatKg(bodyweightInEffect.weight_kg)}</span
 								>
 								<span style="color: var(--tx3);"
-									>on {new Date(bodyweightInEffect.measured_at).toLocaleDateString('en-GB', {
-										day: 'numeric',
-										month: 'short',
-										year: 'numeric'
-									})}</span
+									>on {formatMeasuredOn(bodyweightInEffect.measured_at)}</span
 								>
+							{:else if loadingBodyweights}
+								<span style="color: var(--tx3);">Loading bodyweight...</span>
+							{:else if bodyweightsFailed}
+								<span style="color: var(--tx3);">Bodyweight could not be loaded</span>
 							{:else}
 								<span style="color: var(--tx3);">No bodyweight recorded</span>
 							{/if}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bodyweightTrend, formatChangeKg, formatKg } from './bodyweight';
+import {
+	bodyweightTrend,
+	formatChangeKg,
+	formatKg,
+	formatMeasuredOn,
+	TREND_SERIES_LIMIT,
+	TREND_WINDOW_DAYS
+} from './bodyweight';
 import type { Bodyweight } from '$lib/api/client';
 
 const NOW = new Date('2026-09-18T10:00:00Z');
@@ -64,6 +71,32 @@ describe('bodyweightTrend', () => {
 		const trend = bodyweightTrend([entry(1, 72), entry(30, 70)], NOW);
 
 		expect(trend?.changeKg).toBeCloseTo(2);
+	});
+
+	// The comparison point is the nearest measurement outside the window, which
+	// can be much older than the window itself. Whatever says so on screen has
+	// to name that date rather than the window.
+	it('reports a comparison far older than the window as itself', () => {
+		const trend = bodyweightTrend([entry(1, 71), entry(400, 71.02)], NOW);
+
+		expect(trend?.previous?.measured_at).toBe(entry(400, 71.02).measured_at);
+		// Under the noise floor, so nothing is shown as a change.
+		expect(formatChangeKg(trend!.changeKg!)).toBe('');
+	});
+});
+
+describe('the series limit', () => {
+	// The trend can only compare against a measurement it was given. At the
+	// API's default of 60 rows, an athlete weighing in three times a day has a
+	// page reaching back 20 days and no comparison point ever lands in it.
+	it('covers the window at a realistic weigh-in frequency', () => {
+		expect(TREND_SERIES_LIMIT).toBeGreaterThan(TREND_WINDOW_DAYS * 3);
+	});
+});
+
+describe('formatMeasuredOn', () => {
+	it('writes the day a measurement was taken', () => {
+		expect(formatMeasuredOn('2026-08-16T08:00:00Z')).toBe('16 Aug 2026');
 	});
 });
 

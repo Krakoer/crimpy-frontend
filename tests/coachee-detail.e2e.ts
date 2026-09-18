@@ -104,6 +104,49 @@ test.describe('bodyweight', () => {
 		await expect(page.getByText(/Not recorded yet/)).toHaveCount(0);
 	});
 
+	// Nothing old enough to compare is one thing; a comparison point far outside
+	// the window is another, and naming the window there would be a date the
+	// data does not support.
+	test('names the date it compared against, not the window', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			body: [testBodyweight(1, 71), testBodyweight(400, 71.02)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText(/unchanged since/)).toBeVisible();
+		await expect(page.getByText(/unchanged over 30 days/)).toHaveCount(0);
+	});
+
+	// The same claim the card refuses to make: a series nobody could read says
+	// nothing about whether the athlete ever weighed themselves.
+	test('does not call a failed read an athlete who never weighed', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			status: 500,
+			body: { error: 'the database is having a moment' }
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		await expect(page.getByText('Bodyweight could not be loaded')).toBeVisible();
+		await expect(page.getByText('No bodyweight recorded')).toHaveCount(0);
+	});
+
+	// The trend can only compare against what it was given, so the page has to
+	// ask for a series that spans the window rather than taking the API default.
+	test('asks for a series long enough to hold a comparison', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const reads = capture(page, 'GET', '/api/coach/clients/*/bodyweights');
+
+		await page.goto('/coachees/coachee-1');
+		await expect(page.getByText(/Not recorded yet/)).toBeVisible();
+
+		expect(reads[0].url).toContain('limit=365');
+	});
+
 	test('names the denominator beside the assessment records', async ({ page }) => {
 		await stubCoacheeDetail(page);
 		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {

@@ -1001,9 +1001,12 @@ class ApiClient {
 	// The athlete's dated bodyweight series, newest first. Every finger and
 	// pulling score is a ratio to the bodyweight of the day rather than an
 	// absolute, so this is the denominator those numbers are read against.
-	async getClientBodyweights(userId: string, limit?: number): Promise<Bodyweight[]> {
-		const query = limit === undefined ? '' : `?limit=${limit}`;
-		return this.requestList<Bodyweight>(`/api/coach/clients/${userId}/bodyweights${query}`);
+	// The limit is the caller's to state, because what the series has to reach
+	// back to is a property of what the caller draws from it rather than of the
+	// endpoint. The API's own default is far shorter than a trend window at any
+	// real weigh-in frequency.
+	async getClientBodyweights(userId: string, limit: number): Promise<Bodyweight[]> {
+		return this.requestList<Bodyweight>(`/api/coach/clients/${userId}/bodyweights?limit=${limit}`);
 	}
 
 	async getExercises(params?: ExerciseListParams): Promise<ExercisePage> {
