@@ -1114,8 +1114,7 @@
 							{:else if bodyweightInEffect}
 								Latest bodyweight <span style="font-weight: 600; color: var(--tx);"
 									>{formatKg(bodyweightInEffect.weight_kg)}</span
-								>
-								<span style="color: var(--tx3);"
+								><span style="color: var(--tx3);"
 									>, {formatDayMonth(bodyweightInEffect.measured_at)}</span
 								>
 							{:else}
