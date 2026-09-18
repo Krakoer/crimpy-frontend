@@ -692,14 +692,27 @@ const DROP_TARGET_TIMEOUT = 300;
 /** How long one read of that answer may take before it is treated as a no. */
 const DROP_TARGET_READ_TIMEOUT = 100;
 
+/**
+ * How long a target has to be laid out before the aim gives up on it. Generous
+ * next to the read above, because it is spent once per aim rather than every
+ * 16ms, and because it has to outlast a target that is merely reflowing.
+ */
+const TARGET_BOX_TIMEOUT = 1000;
+
 /** How many times a drag aims afresh before it gives up and says so. */
 const DROP_TARGET_ATTEMPTS = 8;
 
 /**
- * Whether the editor is now saying a drop would land on this target. Both
- * elements a drag is aimed at publish it: DroppableCell, which is the droppable
- * itself, and the add zone, which is not one and republishes the answer of the
- * list it closes, so looking for a createDroppable on AddZone finds nothing.
+ * Whether dnd-kit is now pointing the drop at this target. Both elements a drag
+ * is aimed at publish it: DroppableCell, which is the droppable itself, and the
+ * add zone, which is not one and republishes the answer of the list it closes,
+ * so looking for a createDroppable on AddZone finds nothing.
+ *
+ * It is the collision answer and nothing more. What the tree does with the drop
+ * is decided afterwards, by container-rules.ts through isValidMove, and a
+ * container that refuses the block is still the drop target while the pointer
+ * is over it. A spec about a refused drop cannot read this as the drop having
+ * been taken.
  *
  * Each read is bounded, because the deadline is only a deadline if no single
  * read can outlive it: a target detached for a frame would otherwise sit on
@@ -791,7 +804,14 @@ export async function dragVia(page: Page, source: Locator, waypoints: Locator[])
  * Dropping into a container is aimed at a target that moves: the tree is
  * rewritten under the pointer while the drag is on. Reading the target again
  * after every hop follows it, the way a coach watching the screen does, and the
- * release waits for the editor to say the drop would land there.
+ * release waits for dnd-kit to point the drop at it.
+ *
+ * Releasing the moment it does is not a race of its own. dnd-kit's collision
+ * observer recomputes when a droppable's shape changes, but publishes nothing
+ * for a pointer that has not moved since the last pass, and no move is made
+ * between that answer and the release. The one thing it does publish for an
+ * unmoved pointer is an empty set, which both editors answer by clearing the
+ * drag over latch rather than by moving anything.
  *
  * That condition is the whole of it. Aiming alone does not converge, because
  * the pointer and the target chase each other: dragging a block down into a
@@ -815,16 +835,19 @@ export async function dragInto(page: Page, source: Locator, target: Locator): Pr
 	await page.waitForTimeout(50);
 
 	let landed = false;
-	for (let attempt = 0; attempt < DROP_TARGET_ATTEMPTS && !landed; attempt++) {
-		const to = await target.boundingBox();
-		if (!to) throw new Error('Cannot drag onto an element that is not laid out');
+	let aims = 0;
+	for (; aims < DROP_TARGET_ATTEMPTS && !landed; aims++) {
+		const to = await target.boundingBox({ timeout: TARGET_BOX_TIMEOUT }).catch(() => null);
+		if (!to) throw new Error(`Cannot drag onto ${target}, which is not laid out`);
 		await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 5 });
 		landed = await becomesDropTarget(page, target);
 	}
 	await page.mouse.up();
 	await settleAfterDrop(page);
 	if (!landed) {
-		throw new Error('The drag never reached its target, so it was released on something else');
+		throw new Error(
+			`The drag never reached ${target} in ${aims} aims, so it was released on something else`
+		);
 	}
 }
 
