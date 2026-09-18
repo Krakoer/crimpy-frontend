@@ -36,11 +36,17 @@ async function stubEditorPalette(page: Page): Promise<void> {
 }
 
 /**
- * The delete control on a grid card is icon-only with no accessible name, so it
- * has to be reached through the card that contains it.
+ * The delete control on a grid card, which is icon-only and named for its row.
+ * Matched exactly: the card is itself a role="button" whose accessible name is
+ * built from its contents, so it answers to any substring of them.
  */
 function deleteButtonOn(page: Page, title: string) {
-	return page.getByRole('button', { name: new RegExp(title) }).getByRole('button');
+	return page.getByRole('button', { name: `Delete ${title}`, exact: true });
+}
+
+/** The duplicate control on a grid card, likewise icon-only and named. */
+function duplicateButtonOn(page: Page, title: string) {
+	return page.getByRole('button', { name: `Duplicate ${title}`, exact: true });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -117,6 +123,197 @@ test.describe('training list', () => {
 		await expect(page.getByText('Power endurance block')).toBeHidden();
 		expect(deletes).toHaveLength(1);
 		expect(deletes[0].url).toContain('/api/trainings/training-1');
+	});
+
+	test('duplicates a training and opens the copy', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', { body: [powerEndurance] });
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: { ...powerEndurance, items: [warmupGroup] }
+		});
+		await stub(page, 'POST', '/api/trainings', {
+			body: testTraining({ id: 'training-9', title: 'Power endurance block (copy)' })
+		});
+		await stubEditorPalette(page);
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings');
+		await duplicateButtonOn(page, 'Power endurance block').click();
+
+		// The copy is where the coach lands, because duplicating is the first step
+		// of editing a variation.
+		await expect(page).toHaveURL(/\/trainings\/training-9$/);
+		await expect(page.getByText('Duplicated as "Power endurance block (copy)"')).toBeVisible();
+
+		expect(posted).toHaveLength(1);
+		const body = posted[0].body as TrainingRequest;
+		expect(body.title).toBe('Power endurance block (copy)');
+		expect(body.training_type).toBe(powerEndurance.training_type);
+		expect(body.items).toHaveLength(1);
+		// An id on a write means keep this row, and a copy keeps nothing.
+		expect(JSON.stringify(body.items)).not.toContain('"id"');
+	});
+
+	// Two copies of one training have to be tellable apart in the library, which
+	// is the whole reason the suffix is numbered rather than repeated.
+	test('numbers the copy when one already exists', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', {
+			body: [
+				powerEndurance,
+				testTraining({ id: 'training-3', title: 'Power endurance block (copy)' })
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: powerEndurance });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stubEditorPalette(page);
+		const posted = capture(page, 'POST', '/api/trainings');
+
+		await page.goto('/trainings');
+		await duplicateButtonOn(page, 'Power endurance block').first().click();
+
+		await expect.poll(() => posted.length).toBe(1);
+		expect((posted[0].body as TrainingRequest).title).toBe('Power endurance block (copy 2)');
+	});
+
+	// The assessment a training measures is a row of its own, so the copy needs a
+	// second write or it looks like a duplicate and does not run like one.
+	test('carries the assessment of an assessment training', async ({ page }) => {
+		const assessed = testTraining({
+			id: 'training-4',
+			title: 'Max hang',
+			assessment: testAssessmentDefinition({
+				id: 'assessment-1',
+				label: 'Max hang',
+				prompt: 'How long did you hang?',
+				unit: 'seconds',
+				per_hand: true
+			})
+		});
+		await stub(page, 'GET', '/api/trainings', { body: [assessed] });
+		await stub(page, 'GET', '/api/trainings/*', { body: assessed });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			body: testAssessmentDefinition({ id: 'assessment-2' })
+		});
+		await stubEditorPalette(page);
+		const definitions = capture(page, 'POST', '/api/assessment-definitions');
+
+		await page.goto('/trainings');
+		await duplicateButtonOn(page, 'Max hang').click();
+
+		await expect.poll(() => definitions.length).toBe(1);
+		expect(definitions[0].body).toMatchObject({
+			training_id: 'training-9',
+			label: 'Max hang (copy)',
+			prompt: 'How long did you hang?',
+			unit: 'seconds',
+			per_hand: true
+		});
+	});
+
+	// The training is already created by the time the assessment write fails, so
+	// the copy is real and the coach is told what is missing from it rather than
+	// being handed a silent half copy.
+	test('says so when the assessment cannot be carried across', async ({ page }) => {
+		const assessed = testTraining({
+			id: 'training-4',
+			title: 'Max hang',
+			assessment: testAssessmentDefinition({ id: 'assessment-1', label: 'Max hang' })
+		});
+		await stub(page, 'GET', '/api/trainings', { body: [assessed] });
+		await stub(page, 'GET', '/api/trainings/*', { body: assessed });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			status: 500,
+			body: { error: 'the database is having a moment' }
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings');
+		await duplicateButtonOn(page, 'Max hang').click();
+
+		await expect(page.getByText(/its assessment did not come across/)).toBeVisible();
+		await expect(page).toHaveURL(/\/trainings\/training-9$/);
+	});
+
+	// The card is a role="button" that opens the training, and the controls on it
+	// are buttons inside that. Without the same guard the click handler has, Enter
+	// on Duplicate opens the original before the copy exists, and a failed copy
+	// leaves the coach in the wrong training.
+	// Asserted through a refused copy on purpose. When the copy succeeds both
+	// behaviours end on the copy, because its goto lands second and wins, so the
+	// missing guard is invisible. It is a failed duplicate that shows it: the
+	// coach is left sitting in the original they never asked to open.
+	test('leaves the coach on the list when a keyboard duplicate is refused', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', { body: [powerEndurance] });
+		await stub(page, 'GET', '/api/trainings/*', { body: powerEndurance });
+		await stub(page, 'POST', '/api/trainings', {
+			status: 500,
+			body: { error: 'Failed to create training' }
+		});
+
+		await page.goto('/trainings');
+		await duplicateButtonOn(page, 'Power endurance block').focus();
+		await page.keyboard.press('Enter');
+
+		await expect(page.getByText('Failed to create training')).toBeVisible();
+		await expect(page).toHaveURL(/\/trainings$/);
+		// Every Duplicate is disabled while one is in flight, which blurs the
+		// button the coach pressed. On this path they stay here, so it is handed
+		// back rather than leaving them to Tab in from the top of the sidebar.
+		await expect(duplicateButtonOn(page, 'Power endurance block')).toBeFocused();
+	});
+
+	// The definition list is loaded once and shared, so a copy's assessment that
+	// never reaches it cannot be prescribed until the tab is reloaded.
+	test('makes the carried assessment available to prescribe at once', async ({ page }) => {
+		const assessed = testTraining({
+			id: 'training-4',
+			title: 'Max hang',
+			assessment: testAssessmentDefinition({ id: 'assessment-1', label: 'Max hang' })
+		});
+		await stub(page, 'GET', '/api/trainings', { body: [assessed] });
+		await stub(page, 'GET', '/api/trainings/*', { body: assessed });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			body: testAssessmentDefinition({ id: 'assessment-2' })
+		});
+		await stubEditorPalette(page);
+		const reads = capture(page, 'GET', '/api/assessment-definitions');
+
+		// The catalog is cached in module state, so this has to stay inside one
+		// document: a page.goto would reload the app and clear the cache, and the
+		// copy's editor would fetch the list again whatever this PR does. So the
+		// editor is opened and left through the sidebar, which is client side
+		// navigation, and is the path a coach takes anyway.
+		await page.goto('/trainings');
+		await page.getByText('Max hang').first().click();
+		await expect(page).toHaveURL(/\/trainings\/training-4$/);
+		await expect.poll(() => reads.length).toBe(1);
+
+		// The sidebar link and the breadcrumb are both named "Trainings".
+		await page.getByRole('button', { name: 'Trainings', exact: true }).first().click();
+		await expect(page).toHaveURL(/\/trainings$/);
+		await duplicateButtonOn(page, 'Max hang').click();
+		await expect(page).toHaveURL(/\/trainings\/training-9$/);
+
+		// Read again after the write, rather than serving every picker the list the
+		// catalog had cached before the copy's assessment existed.
+		await expect.poll(() => reads.length).toBeGreaterThan(1);
+	});
+
+	test('reports the server error when a duplicate fails', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', { body: [powerEndurance] });
+		await stub(page, 'GET', '/api/trainings/*', { body: powerEndurance });
+		await stub(page, 'POST', '/api/trainings', {
+			status: 500,
+			body: { error: 'Failed to create training' }
+		});
+
+		await page.goto('/trainings');
+		await duplicateButtonOn(page, 'Power endurance block').click();
+
+		await expect(page.getByText('Failed to create training')).toBeVisible();
+		await expect(page).toHaveURL(/\/trainings$/);
 	});
 
 	test('reports the server error when a delete fails', async ({ page }) => {

@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { TrainingSummary, TrainingType } from '$lib/api/client';
+	import type { Training, TrainingSummary, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
@@ -13,10 +14,17 @@
 		trainingTypeInfo,
 		type TrainingTypeInfo
 	} from '$lib/trainingTypes';
+	import { copyTitle, trainingCopyRequest } from '$lib/duplicate-training';
 
 	let trainings = $state<TrainingSummary[]>([]);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
+	let duplicatingId = $state<string | null>(null);
+	// A duplicate is two or three round trips, and the coach can open something
+	// else while it runs. Landing them in the copy is only right if they are
+	// still on the list when it arrives.
+	let leftTheList = false;
+	onDestroy(() => (leftTheList = true));
 	let deleting = $state(false);
 	let deleteError = $state('');
 	let search = $state('');
@@ -73,6 +81,72 @@
 			deleteError = e instanceof Error ? e.message : 'Failed to delete training.';
 		} finally {
 			deleting = false;
+		}
+	}
+
+	// A duplicate is composed here rather than asked of the server: the create
+	// endpoint takes the whole training, so reading one and posting it back under
+	// a free title is the copy. The coach lands in the copy, because duplicating
+	// is the first step of editing a variation rather than an end in itself.
+	// The control is taken as well as the id: disabling every Duplicate while one
+	// is in flight blurs the button the coach just pressed, and on the refusal
+	// path they stay on this page, so it has to be given back. The disable stays
+	// global rather than per row because two duplicates in flight would both
+	// number their copy against the same list and land on the same title.
+	async function handleDuplicate(id: string, control: HTMLButtonElement) {
+		duplicatingId = id;
+		try {
+			const original = await apiClient.getTraining(id);
+			const title = copyTitle(
+				original.title,
+				trainings.map((t) => t.title)
+			);
+			const copy = await apiClient.createTraining(trainingCopyRequest(original, title));
+			const refused = await carryAssessment(original, copy.id, title);
+			snackbar.show(
+				refused === null
+					? `Duplicated as "${title}"`
+					: `Duplicated as "${title}", but its assessment did not come across, so the copy does not measure anything yet. ${refused}`,
+				refused === null ? 'success' : 'warning'
+			);
+			if (!leftTheList) goto(`/trainings/${copy.id}`);
+		} catch (e) {
+			snackbar.show(e instanceof Error ? e.message : 'Failed to duplicate training.', 'error');
+			duplicatingId = null;
+			await tick();
+			control.focus();
+		} finally {
+			duplicatingId = null;
+		}
+	}
+
+	// The assessment a training measures is a row of its own rather than part of
+	// the training, so a copy of an assessment training needs a second write. It
+	// is reported rather than thrown: the training is already created by now, and
+	// losing it to roll back an assessment would be the worse trade.
+	// Answers null when there was nothing to carry or it was carried, and the
+	// server's own words when it was refused, so the coach is told which of the
+	// several reasons it was rather than that something went wrong.
+	async function carryAssessment(
+		original: Training,
+		copyId: string,
+		title: string
+	): Promise<string | null> {
+		if (!original.assessment) return null;
+		try {
+			await apiClient.createAssessmentDefinition({
+				training_id: copyId,
+				label: title,
+				prompt: original.assessment.prompt ?? '',
+				unit: original.assessment.unit,
+				per_hand: original.assessment.per_hand
+			});
+			// The catalog is loaded once and shared, so every picker that names an
+			// assessment would go on not knowing about this one.
+			await assessmentCatalog.refresh();
+			return null;
+		} catch (e) {
+			return e instanceof Error ? e.message : 'The server refused it.';
 		}
 	}
 
@@ -242,6 +316,10 @@
 							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
 						}}
 						onkeydown={(e) => {
+							// The same guard the click handler uses: a key pressed on a control
+							// inside the card belongs to that control. Without it, Enter on
+							// Duplicate opens the original before the copy exists.
+							if ((e.target as HTMLElement).closest('button')) return;
 							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
@@ -296,7 +374,24 @@
 										</button>
 									{:else}
 										<button
+											onclick={(e) => handleDuplicate(training.id, e.currentTarget)}
+											disabled={duplicatingId !== null}
+											aria-label="Duplicate {training.title}"
+											title="Duplicate"
+											style="
+												width: 28px; height: 28px; border-radius: 6px;
+												border: none; background: transparent;
+												display: flex; align-items: center; justify-content: center;
+												cursor: {duplicatingId ? 'default' : 'pointer'};
+												opacity: {duplicatingId === training.id ? 0.5 : 1};
+											"
+										>
+											<Icon name="copy" size={14} color="var(--tx3)" />
+										</button>
+										<button
 											onclick={() => (confirmDeleteId = training.id)}
+											aria-label="Delete {training.title}"
+											title="Delete"
 											style="
 												width: 28px; height: 28px; border-radius: 6px;
 												border: none; background: transparent;
@@ -392,6 +487,10 @@
 							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
 						}}
 						onkeydown={(e) => {
+							// The same guard the click handler uses: a key pressed on a control
+							// inside the card belongs to that control. Without it, Enter on
+							// Duplicate opens the original before the copy exists.
+							if ((e.target as HTMLElement).closest('button')) return;
 							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
@@ -475,17 +574,34 @@
 									</button>
 								</div>
 							{:else}
-								<button
-									onclick={() => (confirmDeleteId = training.id)}
-									style="
-										padding: 4px 10px; border-radius: 6px;
-										border: 1px solid var(--bd); color: var(--tx3);
-										background: transparent; font-size: 12px; font-weight: 500;
-										cursor: pointer; font-family: var(--font);
-									"
-								>
-									Delete
-								</button>
+								<div style="display: flex; gap: 4px;">
+									<button
+										onclick={(e) => handleDuplicate(training.id, e.currentTarget)}
+										disabled={duplicatingId !== null}
+										aria-label="Duplicate {training.title}"
+										style="
+											padding: 4px 10px; border-radius: 6px;
+											border: 1px solid var(--bd); color: var(--tx3);
+											background: transparent; font-size: 12px; font-weight: 500;
+											cursor: {duplicatingId ? 'default' : 'pointer'}; font-family: var(--font);
+											opacity: {duplicatingId === training.id ? 0.5 : 1};
+										"
+									>
+										{duplicatingId === training.id ? 'Copying...' : 'Duplicate'}
+									</button>
+									<button
+										onclick={() => (confirmDeleteId = training.id)}
+										aria-label="Delete {training.title}"
+										style="
+											padding: 4px 10px; border-radius: 6px;
+											border: 1px solid var(--bd); color: var(--tx3);
+											background: transparent; font-size: 12px; font-weight: 500;
+											cursor: pointer; font-family: var(--font);
+										"
+									>
+										Delete
+									</button>
+								</div>
 							{/if}
 						</div>
 						<div style="display: flex; justify-content: flex-end;">
