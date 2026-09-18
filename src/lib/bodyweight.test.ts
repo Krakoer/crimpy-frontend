@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	bareKg,
 	bodyweightTrend,
 	formatChangeKg,
 	formatKg,
-	formatMeasuredOn,
 	TREND_SERIES_LIMIT,
 	TREND_WINDOW_DAYS
 } from './bodyweight';
@@ -94,21 +94,22 @@ describe('the series limit', () => {
 	});
 });
 
-describe('formatMeasuredOn', () => {
-	it('writes the day a measurement was taken', () => {
-		expect(formatMeasuredOn('2026-08-16T08:00:00Z')).toBe('16 Aug 2026');
-	});
-});
-
 describe('formatting', () => {
 	it('writes a weight to the precision a scale gives', () => {
 		expect(formatKg(71.25)).toBe('71.3 kg');
 		expect(formatKg(70)).toBe('70.0 kg');
 	});
 
+	// A card whose corner already says kg must not label the number again, the
+	// way the assessment cards beside it do not.
+	it('leaves the unit off where the card already carries one', () => {
+		expect(bareKg(71.25)).toBe('71.3');
+		expect(formatChangeKg(1.2)).toBe('+1.2');
+	});
+
 	it('signs a change so a gain and a loss read differently', () => {
-		expect(formatChangeKg(1.2)).toBe('+1.2 kg');
-		expect(formatChangeKg(-1.2)).toBe('-1.2 kg');
+		expect(formatChangeKg(1.2)).toBe('+1.2');
+		expect(formatChangeKg(-1.2)).toBe('-1.2');
 	});
 
 	// Scale noise rather than a trend, and a coach should not be shown "+0.0".

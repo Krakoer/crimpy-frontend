@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
-	import { mondayOf } from '$lib/date';
+	import { formatDayMonth, mondayOf } from '$lib/date';
 	import { goto } from '$app/navigation';
 	import type {
 		SessionResponse,
@@ -14,7 +14,7 @@
 	} from '$lib/api/client';
 	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
 	import BodyweightCard from '$lib/components/BodyweightCard.svelte';
-	import { bodyweightTrend, formatKg, formatMeasuredOn, TREND_SERIES_LIMIT } from '$lib/bodyweight';
+	import { bodyweightTrend, formatKg, TREND_SERIES_LIMIT } from '$lib/bodyweight';
 	import AssessmentResults from '$lib/components/assessment/AssessmentResults.svelte';
 	import {
 		firstGrip,
@@ -1097,20 +1097,27 @@
 						<!-- The denominator, next to the numbers read against it: a finger
 						     score is a ratio to the bodyweight of the day, not an absolute. -->
 						<div style="font-size: 12.5px; color: var(--tx2);">
-							<!-- The same three states the card tells apart. Saying "none
-							     recorded" for a series nobody could read would claim something
-							     about the athlete that the page has no basis for. -->
-							{#if bodyweightInEffect}
-								Bodyweight <span style="font-weight: 600; color: var(--tx);"
-									>{formatKg(bodyweightInEffect.weight_kg)}</span
-								>
-								<span style="color: var(--tx3);"
-									>on {formatMeasuredOn(bodyweightInEffect.measured_at)}</span
-								>
-							{:else if loadingBodyweights}
+							<!-- The same states the card tells apart, in the same order, because
+							     two copies of one state machine drift. Saying "none recorded" for a
+							     series nobody could read would claim something about the athlete
+							     that the page has no basis for.
+
+							     "Latest" is load bearing: this is the weight in effect, and the
+							     table below holds records measured against earlier ones. Reading an
+							     old row against this number is wrong by whatever the athlete's
+							     weight did since, which is why the day is named too. A denominator
+							     per record is Krakoer/crimpy#75. -->
+							{#if loadingBodyweights}
 								<span style="color: var(--tx3);">Loading bodyweight...</span>
 							{:else if bodyweightsFailed}
 								<span style="color: var(--tx3);">Bodyweight could not be loaded</span>
+							{:else if bodyweightInEffect}
+								Latest bodyweight <span style="font-weight: 600; color: var(--tx);"
+									>{formatKg(bodyweightInEffect.weight_kg)}</span
+								>
+								<span style="color: var(--tx3);"
+									>, {formatDayMonth(bodyweightInEffect.measured_at)}</span
+								>
 							{:else}
 								<span style="color: var(--tx3);">No bodyweight recorded</span>
 							{/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Bodyweight } from '$lib/api/client';
-	import { bodyweightTrend, formatChangeKg, formatKg, formatMeasuredOn } from '$lib/bodyweight';
+	import { bareKg, bodyweightTrend, formatChangeKg, formatKg } from '$lib/bodyweight';
+	import { formatDayMonth } from '$lib/date';
 
 	interface Props {
 		series: Bodyweight[];
@@ -40,7 +41,7 @@
 	{:else if trend}
 		<div style="display: flex; align-items: baseline; gap: 8px;">
 			<div style="font-size: 22px; font-weight: 700; color: var(--tx); letter-spacing: -0.02em;">
-				{formatKg(trend.latest.weight_kg)}
+				{bareKg(trend.latest.weight_kg)}
 			</div>
 			{#if change}
 				<div style="font-size: 12.5px; font-weight: 600; color: {changeColor};">
@@ -50,18 +51,18 @@
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">
 			{#if change}
-				Measured {formatMeasuredOn(trend.latest.measured_at)}, against {formatKg(
+				Measured {formatDayMonth(trend.latest.measured_at)}, against {formatKg(
 					trend.previous!.weight_kg
-				)} on {formatMeasuredOn(trend.previous!.measured_at)}
+				)} on {formatDayMonth(trend.previous!.measured_at)}
 			{:else if trend.previous}
 				<!-- Named against the date it compared, not the window: the comparison
 				     point is the nearest measurement outside the window, which can be far
 				     older than it. -->
-				Measured {formatMeasuredOn(trend.latest.measured_at)}, unchanged since {formatMeasuredOn(
+				Measured {formatDayMonth(trend.latest.measured_at)}, unchanged since {formatDayMonth(
 					trend.previous.measured_at
 				)}
 			{:else}
-				Measured {formatMeasuredOn(trend.latest.measured_at)}, nothing older to compare
+				Measured {formatDayMonth(trend.latest.measured_at)}, nothing older to compare
 			{/if}
 		</div>
 	{:else}

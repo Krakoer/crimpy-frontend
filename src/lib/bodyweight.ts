@@ -52,25 +52,25 @@ export function bodyweightTrend(
 	};
 }
 
-/// The day a measurement was taken, as a coach reads it.
-export function formatMeasuredOn(iso: string): string {
-	return new Date(iso).toLocaleDateString('en-GB', {
-		day: 'numeric',
-		month: 'short',
-		year: 'numeric'
-	});
-}
-
 /// A weight as a coach reads it. One decimal, because that is the precision a
 /// scale gives and the precision a ratio needs.
+///
+/// The unit is included, for prose. Where the surrounding card already carries
+/// a unit in its corner, the way the assessment cards do, use [bareKg] instead
+/// so the number is not labelled twice.
 export function formatKg(weightKg: number): string {
-	return `${weightKg.toFixed(1)} kg`;
+	return `${bareKg(weightKg)} kg`;
+}
+
+/// The same number with no unit, for a card whose corner already names one.
+export function bareKg(weightKg: number): string {
+	return weightKg.toFixed(1);
 }
 
 /// A change with its sign, so "+0.4" and "-0.4" read as different things at a
 /// glance. Answers an empty string for a change of less than 50g, which is
-/// scale noise rather than a trend.
+/// scale noise rather than a trend. No unit, for the same reason as [bareKg].
 export function formatChangeKg(changeKg: number): string {
 	if (Math.abs(changeKg) < 0.05) return '';
-	return `${changeKg > 0 ? '+' : ''}${changeKg.toFixed(1)} kg`;
+	return `${changeKg > 0 ? '+' : ''}${changeKg.toFixed(1)}`;
 }

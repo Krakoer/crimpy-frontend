@@ -57,8 +57,10 @@ test.describe('bodyweight', () => {
 
 		await page.goto('/coachees/coachee-1');
 
-		await expect(page.getByText('71.2 kg').first()).toBeVisible();
-		await expect(page.getByText('+1.8 kg')).toBeVisible();
+		// The card carries its unit in the corner, like the assessment cards it
+		// sits with, so the number itself is bare.
+		await expect(page.getByText('71.2', { exact: true })).toBeVisible();
+		await expect(page.getByText('+1.8', { exact: true })).toBeVisible();
 	});
 
 	// Nothing old enough to compare against is not a plateau, and must not be
@@ -71,9 +73,9 @@ test.describe('bodyweight', () => {
 
 		await page.goto('/coachees/coachee-1');
 
-		await expect(page.getByText('71.2 kg').first()).toBeVisible();
+		await expect(page.getByText('71.2', { exact: true })).toBeVisible();
 		await expect(page.getByText('nothing older to compare')).toBeVisible();
-		await expect(page.getByText(/^\+0\.0 kg$/)).toHaveCount(0);
+		await expect(page.getByText(/^\+0\.0$/)).toHaveCount(0);
 	});
 
 	// A missing denominator is said out loud: without it a percent_bw load
@@ -149,6 +151,11 @@ test.describe('bodyweight', () => {
 
 	test('names the denominator beside the assessment records', async ({ page }) => {
 		await stubCoacheeDetail(page);
+		// With a record present, so this says what its name says: the denominator
+		// sits beside the numbers read against it.
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [testAssessmentRecord({ assessment_id: BUILTIN_MAX_FORCE, right_value: 52 })]
+		});
 		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
 			body: [testBodyweight(2, 71.2)]
 		});
@@ -156,8 +163,11 @@ test.describe('bodyweight', () => {
 		await page.goto('/coachees/coachee-1');
 		await page.getByRole('button', { name: 'Assessments' }).first().click();
 
-		await expect(page.getByText(/Bodyweight/).last()).toBeVisible();
-		await expect(page.getByText('71.2 kg').last()).toBeVisible();
+		// "Latest", because the rows below it were measured against earlier
+		// weights and the line must not read as their denominator.
+		await expect(page.getByText(/Latest bodyweight/)).toBeVisible();
+		await expect(page.getByText('71.2 kg')).toBeVisible();
+		await expect(page.getByText('Assessment history')).toBeVisible();
 	});
 });
 
