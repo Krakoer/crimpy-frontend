@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	BUILTIN_MAX_FORCE,
 	capture,
+	isoDaysAgo,
 	mockApi,
 	signIn,
 	stub,
@@ -24,11 +25,150 @@ async function stubCoacheeDetail(page: Page): Promise<void> {
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/programs', { body: [] });
+	await stub(page, 'GET', '/api/coach/clients/*/bodyweights', { body: [] });
+}
+
+/** A measurement [daysAgo] days old, as the series returns it. */
+function testBodyweight(daysAgo: number, weightKg: number) {
+	const measured = isoDaysAgo(daysAgo);
+	return {
+		id: `bw-${daysAgo}`,
+		user_id: nina.user_id,
+		weight_kg: weightKg,
+		measured_at: measured,
+		created_at: measured
+	};
 }
 
 test.beforeEach(async ({ page }) => {
 	await mockApi(page);
 	await signIn(page, testUser());
+});
+
+// The whole point of the series: a coach reads a strength number as a ratio to
+// the bodyweight of the day, so the weight and which day it is from both have
+// to be on the page.
+test.describe('bodyweight', () => {
+	test('shows the weight in effect and how it has moved', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			body: [testBodyweight(2, 71.2), testBodyweight(40, 69.4)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		// The card carries its unit in the corner, like the assessment cards it
+		// sits with, so the number itself is bare.
+		await expect(page.getByText('71.2', { exact: true })).toBeVisible();
+		await expect(page.getByText('+1.8', { exact: true })).toBeVisible();
+	});
+
+	// Nothing old enough to compare against is not a plateau, and must not be
+	// drawn as one.
+	test('says nothing about a trend it cannot draw', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			body: [testBodyweight(2, 71.2), testBodyweight(5, 71)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('71.2', { exact: true })).toBeVisible();
+		await expect(page.getByText('nothing older to compare')).toBeVisible();
+		await expect(page.getByText(/^\+0\.0$/)).toHaveCount(0);
+	});
+
+	// A missing denominator is said out loud: without it a percent_bw load
+	// cannot be read at all, and a coach has to know that rather than wonder.
+	test('says when the athlete has never recorded one', async ({ page }) => {
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText(/Not recorded yet/)).toBeVisible();
+	});
+
+	// One card on a page about sessions, programs and assessments. A series that
+	// cannot be read costs the coach that card, not the page.
+	test('keeps the page when the series cannot be read', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			status: 500,
+			body: { error: 'the database is having a moment' }
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByRole('heading', { name: 'Nina Crimp' }).first()).toBeVisible();
+		// And it says so, rather than reading as an athlete who never weighed
+		// themselves.
+		await expect(page.getByText(/Could not be loaded/)).toBeVisible();
+		await expect(page.getByText(/Not recorded yet/)).toHaveCount(0);
+	});
+
+	// Nothing old enough to compare is one thing; a comparison point far outside
+	// the window is another, and naming the window there would be a date the
+	// data does not support.
+	test('names the date it compared against, not the window', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			body: [testBodyweight(1, 71), testBodyweight(400, 71.02)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText(/unchanged since/)).toBeVisible();
+		await expect(page.getByText(/unchanged over 30 days/)).toHaveCount(0);
+	});
+
+	// The same claim the card refuses to make: a series nobody could read says
+	// nothing about whether the athlete ever weighed themselves.
+	test('does not call a failed read an athlete who never weighed', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			status: 500,
+			body: { error: 'the database is having a moment' }
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		await expect(page.getByText('Bodyweight could not be loaded')).toBeVisible();
+		await expect(page.getByText('No bodyweight recorded')).toHaveCount(0);
+	});
+
+	// The trend can only compare against what it was given, so the page has to
+	// ask for a series that spans the window rather than taking the API default.
+	test('asks for a series long enough to hold a comparison', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const reads = capture(page, 'GET', '/api/coach/clients/*/bodyweights');
+
+		await page.goto('/coachees/coachee-1');
+		await expect(page.getByText(/Not recorded yet/)).toBeVisible();
+
+		expect(reads[0].url).toContain('limit=365');
+	});
+
+	test('names the denominator beside the assessment records', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		// With a record present, so this says what its name says: the denominator
+		// sits beside the numbers read against it.
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [testAssessmentRecord({ assessment_id: BUILTIN_MAX_FORCE, right_value: 52 })]
+		});
+		await stub(page, 'GET', '/api/coach/clients/*/bodyweights', {
+			body: [testBodyweight(2, 71.2)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		// "Latest", because the rows below it were measured against earlier
+		// weights and the line must not read as their denominator.
+		await expect(page.getByText(/Latest bodyweight/)).toBeVisible();
+		await expect(page.getByText('71.2 kg')).toBeVisible();
+		await expect(page.getByText('Assessment history')).toBeVisible();
+	});
 });
 
 test.describe('coachee detail', () => {
