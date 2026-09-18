@@ -18,13 +18,15 @@ export function copyTitle(title: string, existingTitles: string[]): string {
 	const first = `${base} (copy)`;
 	if (!taken.has(first)) return first;
 
-	// Bounded by the number of titles that can be in the way, plus the one that
-	// is therefore free.
+	// The candidates are "(copy)" and "(copy 2)" through "(copy size + 2)", which
+	// is size + 2 distinct titles against at most size taken ones, so two of them
+	// are always free and the loop always returns. The throw states that rather
+	// than handing back the collision the first check already rejected.
 	for (let n = 2; n <= taken.size + 2; n++) {
 		const candidate = `${base} (copy ${n})`;
 		if (!taken.has(candidate)) return candidate;
 	}
-	return `${base} (copy)`;
+	throw new Error(`No free copy title for "${title}"`);
 }
 
 // The ids the server gave the items it read back. They are dropped rather than

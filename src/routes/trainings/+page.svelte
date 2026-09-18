@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import type { Training, TrainingSummary, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
+	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
@@ -19,6 +20,11 @@
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
 	let duplicatingId = $state<string | null>(null);
+	// A duplicate is two or three round trips, and the coach can open something
+	// else while it runs. Landing them in the copy is only right if they are
+	// still on the list when it arrives.
+	let leftTheList = false;
+	onDestroy(() => (leftTheList = true));
 	let deleting = $state(false);
 	let deleteError = $state('');
 	let search = $state('');
@@ -91,14 +97,14 @@
 				trainings.map((t) => t.title)
 			);
 			const copy = await apiClient.createTraining(trainingCopyRequest(original, title));
-			const carried = await carryAssessment(original, copy.id, title);
+			const refused = await carryAssessment(original, copy.id, title);
 			snackbar.show(
-				carried
+				refused === null
 					? `Duplicated as "${title}"`
-					: `Duplicated as "${title}", but its assessment did not come across. Add it again here.`,
-				carried ? 'success' : 'warning'
+					: `Duplicated as "${title}", but its assessment did not come across, so the copy does not measure anything yet. ${refused}`,
+				refused === null ? 'success' : 'warning'
 			);
-			goto(`/trainings/${copy.id}`);
+			if (!leftTheList) goto(`/trainings/${copy.id}`);
 		} catch (e) {
 			snackbar.show(e instanceof Error ? e.message : 'Failed to duplicate training.', 'error');
 		} finally {
@@ -110,12 +116,15 @@
 	// the training, so a copy of an assessment training needs a second write. It
 	// is reported rather than thrown: the training is already created by now, and
 	// losing it to roll back an assessment would be the worse trade.
+	// Answers null when there was nothing to carry or it was carried, and the
+	// server's own words when it was refused, so the coach is told which of the
+	// several reasons it was rather than that something went wrong.
 	async function carryAssessment(
 		original: Training,
 		copyId: string,
 		title: string
-	): Promise<boolean> {
-		if (!original.assessment) return true;
+	): Promise<string | null> {
+		if (!original.assessment) return null;
 		try {
 			await apiClient.createAssessmentDefinition({
 				training_id: copyId,
@@ -124,9 +133,12 @@
 				unit: original.assessment.unit,
 				per_hand: original.assessment.per_hand
 			});
-			return true;
-		} catch {
-			return false;
+			// The catalog is loaded once and shared, so every picker that names an
+			// assessment would go on not knowing about this one.
+			await assessmentCatalog.refresh();
+			return null;
+		} catch (e) {
+			return e instanceof Error ? e.message : 'The server refused it.';
 		}
 	}
 
@@ -296,6 +308,10 @@
 							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
 						}}
 						onkeydown={(e) => {
+							// The same guard the click handler uses: a key pressed on a control
+							// inside the card belongs to that control. Without it, Enter on
+							// Duplicate opens the original before the copy exists.
+							if ((e.target as HTMLElement).closest('button')) return;
 							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
@@ -463,6 +479,10 @@
 							if (!(e.target as HTMLElement).closest('button')) goto(`/trainings/${training.id}`);
 						}}
 						onkeydown={(e) => {
+							// The same guard the click handler uses: a key pressed on a control
+							// inside the card belongs to that control. Without it, Enter on
+							// Duplicate opens the original before the copy exists.
+							if ((e.target as HTMLElement).closest('button')) return;
 							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
