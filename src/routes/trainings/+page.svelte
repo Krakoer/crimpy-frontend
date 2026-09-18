@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
@@ -88,7 +88,12 @@
 	// endpoint takes the whole training, so reading one and posting it back under
 	// a free title is the copy. The coach lands in the copy, because duplicating
 	// is the first step of editing a variation rather than an end in itself.
-	async function handleDuplicate(id: string) {
+	// The control is taken as well as the id: disabling every Duplicate while one
+	// is in flight blurs the button the coach just pressed, and on the refusal
+	// path they stay on this page, so it has to be given back. The disable stays
+	// global rather than per row because two duplicates in flight would both
+	// number their copy against the same list and land on the same title.
+	async function handleDuplicate(id: string, control: HTMLButtonElement) {
 		duplicatingId = id;
 		try {
 			const original = await apiClient.getTraining(id);
@@ -107,6 +112,9 @@
 			if (!leftTheList) goto(`/trainings/${copy.id}`);
 		} catch (e) {
 			snackbar.show(e instanceof Error ? e.message : 'Failed to duplicate training.', 'error');
+			duplicatingId = null;
+			await tick();
+			control.focus();
 		} finally {
 			duplicatingId = null;
 		}
@@ -366,7 +374,7 @@
 										</button>
 									{:else}
 										<button
-											onclick={() => handleDuplicate(training.id)}
+											onclick={(e) => handleDuplicate(training.id, e.currentTarget)}
 											disabled={duplicatingId !== null}
 											aria-label="Duplicate {training.title}"
 											title="Duplicate"
@@ -568,7 +576,7 @@
 							{:else}
 								<div style="display: flex; gap: 4px;">
 									<button
-										onclick={() => handleDuplicate(training.id)}
+										onclick={(e) => handleDuplicate(training.id, e.currentTarget)}
 										disabled={duplicatingId !== null}
 										aria-label="Duplicate {training.title}"
 										style="
@@ -583,6 +591,7 @@
 									</button>
 									<button
 										onclick={() => (confirmDeleteId = training.id)}
+										aria-label="Delete {training.title}"
 										style="
 											padding: 4px 10px; border-radius: 6px;
 											border: 1px solid var(--bd); color: var(--tx3);

@@ -250,7 +250,6 @@ test.describe('training list', () => {
 			status: 500,
 			body: { error: 'Failed to create training' }
 		});
-		await stubEditorPalette(page);
 
 		await page.goto('/trainings');
 		await duplicateButtonOn(page, 'Power endurance block').focus();
@@ -258,6 +257,10 @@ test.describe('training list', () => {
 
 		await expect(page.getByText('Failed to create training')).toBeVisible();
 		await expect(page).toHaveURL(/\/trainings$/);
+		// Every Duplicate is disabled while one is in flight, which blurs the
+		// button the coach pressed. On this path they stay here, so it is handed
+		// back rather than leaving them to Tab in from the top of the sidebar.
+		await expect(duplicateButtonOn(page, 'Power endurance block')).toBeFocused();
 	});
 
 	// The definition list is loaded once and shared, so a copy's assessment that
