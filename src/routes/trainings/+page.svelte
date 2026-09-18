@@ -3,7 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { TrainingSummary, TrainingType } from '$lib/api/client';
+	import type { Training, TrainingSummary, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -13,10 +13,12 @@
 		trainingTypeInfo,
 		type TrainingTypeInfo
 	} from '$lib/trainingTypes';
+	import { copyTitle, trainingCopyRequest } from '$lib/duplicate-training';
 
 	let trainings = $state<TrainingSummary[]>([]);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
+	let duplicatingId = $state<string | null>(null);
 	let deleting = $state(false);
 	let deleteError = $state('');
 	let search = $state('');
@@ -73,6 +75,58 @@
 			deleteError = e instanceof Error ? e.message : 'Failed to delete training.';
 		} finally {
 			deleting = false;
+		}
+	}
+
+	// A duplicate is composed here rather than asked of the server: the create
+	// endpoint takes the whole training, so reading one and posting it back under
+	// a free title is the copy. The coach lands in the copy, because duplicating
+	// is the first step of editing a variation rather than an end in itself.
+	async function handleDuplicate(id: string) {
+		duplicatingId = id;
+		try {
+			const original = await apiClient.getTraining(id);
+			const title = copyTitle(
+				original.title,
+				trainings.map((t) => t.title)
+			);
+			const copy = await apiClient.createTraining(trainingCopyRequest(original, title));
+			const carried = await carryAssessment(original, copy.id, title);
+			snackbar.show(
+				carried
+					? `Duplicated as "${title}"`
+					: `Duplicated as "${title}", but its assessment did not come across. Add it again here.`,
+				carried ? 'success' : 'warning'
+			);
+			goto(`/trainings/${copy.id}`);
+		} catch (e) {
+			snackbar.show(e instanceof Error ? e.message : 'Failed to duplicate training.', 'error');
+		} finally {
+			duplicatingId = null;
+		}
+	}
+
+	// The assessment a training measures is a row of its own rather than part of
+	// the training, so a copy of an assessment training needs a second write. It
+	// is reported rather than thrown: the training is already created by now, and
+	// losing it to roll back an assessment would be the worse trade.
+	async function carryAssessment(
+		original: Training,
+		copyId: string,
+		title: string
+	): Promise<boolean> {
+		if (!original.assessment) return true;
+		try {
+			await apiClient.createAssessmentDefinition({
+				training_id: copyId,
+				label: title,
+				prompt: original.assessment.prompt ?? '',
+				unit: original.assessment.unit,
+				per_hand: original.assessment.per_hand
+			});
+			return true;
+		} catch {
+			return false;
 		}
 	}
 
@@ -296,7 +350,24 @@
 										</button>
 									{:else}
 										<button
+											onclick={() => handleDuplicate(training.id)}
+											disabled={duplicatingId !== null}
+											aria-label="Duplicate {training.title}"
+											title="Duplicate"
+											style="
+												width: 28px; height: 28px; border-radius: 6px;
+												border: none; background: transparent;
+												display: flex; align-items: center; justify-content: center;
+												cursor: {duplicatingId ? 'default' : 'pointer'};
+												opacity: {duplicatingId === training.id ? 0.5 : 1};
+											"
+										>
+											<Icon name="copy" size={14} color="var(--tx3)" />
+										</button>
+										<button
 											onclick={() => (confirmDeleteId = training.id)}
+											aria-label="Delete {training.title}"
+											title="Delete"
 											style="
 												width: 28px; height: 28px; border-radius: 6px;
 												border: none; background: transparent;
@@ -475,17 +546,33 @@
 									</button>
 								</div>
 							{:else}
-								<button
-									onclick={() => (confirmDeleteId = training.id)}
-									style="
-										padding: 4px 10px; border-radius: 6px;
-										border: 1px solid var(--bd); color: var(--tx3);
-										background: transparent; font-size: 12px; font-weight: 500;
-										cursor: pointer; font-family: var(--font);
-									"
-								>
-									Delete
-								</button>
+								<div style="display: flex; gap: 4px;">
+									<button
+										onclick={() => handleDuplicate(training.id)}
+										disabled={duplicatingId !== null}
+										aria-label="Duplicate {training.title}"
+										style="
+											padding: 4px 10px; border-radius: 6px;
+											border: 1px solid var(--bd); color: var(--tx3);
+											background: transparent; font-size: 12px; font-weight: 500;
+											cursor: {duplicatingId ? 'default' : 'pointer'}; font-family: var(--font);
+											opacity: {duplicatingId === training.id ? 0.5 : 1};
+										"
+									>
+										{duplicatingId === training.id ? 'Copying...' : 'Duplicate'}
+									</button>
+									<button
+										onclick={() => (confirmDeleteId = training.id)}
+										style="
+											padding: 4px 10px; border-radius: 6px;
+											border: 1px solid var(--bd); color: var(--tx3);
+											background: transparent; font-size: 12px; font-weight: 500;
+											cursor: pointer; font-family: var(--font);
+										"
+									>
+										Delete
+									</button>
+								</div>
 							{/if}
 						</div>
 						<div style="display: flex; justify-content: flex-end;">
