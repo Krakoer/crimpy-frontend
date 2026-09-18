@@ -5,6 +5,7 @@ import {
 	BUILTIN_MAX_FORCE,
 	builtinAssessmentDefinitions,
 	capture,
+	dragInto,
 	dragOnto,
 	dragVia,
 	isoDaysAgo,
@@ -736,12 +737,20 @@ test('drops the phase when the week is cleared', async ({ page }) => {
 });
 
 /**
- * A dropped session is re-rendered into its new cell, and dnd-kit needs a beat
- * before that fresh element answers a new drag. Only needed between two drags of
- * the same session.
+ * Waits until the drop has been answered, rather than guessing how long that
+ * takes. dnd-kit marks the element it is dragging with data-dnd-dragging for
+ * the whole gesture and data-dnd-dropping while the drop animates, and drops
+ * both when it cleans up, so their absence is the gesture being over.
+ *
+ * Needed between two drags of the same session, because the dropped session is
+ * re-rendered into its new cell and the fresh element does not answer a new
+ * drag until then, and before editing a week a drag has just rewritten,
+ * because an edit made inside that window is discarded with it. Measured on
+ * "keeps the weekly count of a session dragged over a day and back": 2 failures
+ * in 120 runs without this wait, 0 in 120 with it.
  */
 async function settleAfterDrop(page: Page): Promise<void> {
-	await page.waitForTimeout(600);
+	await expect(page.locator('[data-dnd-dragging], [data-dnd-dropping]')).toHaveCount(0);
 }
 
 test('warns when a dropped training needs an assessment the coachee has not done', async ({
@@ -776,7 +785,7 @@ test('warns when a dropped training needs an assessment the coachee has not done
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByText('Power endurance block').first(),
 		page.getByTestId('cell:1:0')
@@ -997,17 +1006,31 @@ test('keeps the weekly count of a session dragged over a day and back', async ({
 
 	// The move runs on drag over, so merely passing over a day cell must not cost
 	// the session the count the coach prescribed for it.
-	await dragOnto(
+	//
+	// Both of these drop into a cell rather than onto a sibling, so they go
+	// through dragInto, which aims at the cell again on every hop. dragOnto
+	// releases where the cell was before the drag started, and the cell has
+	// moved by then: the session leaving one column and arriving in another
+	// reflows the row under the pointer. Measured on this spec, dragOnto failed
+	// 3 runs in 30 and dragInto 1 in 40.
+	await dragInto(
 		page,
 		page.getByTestId('freq:1').getByRole('button', { name: /Power endurance block/ }),
 		page.getByTestId('cell:1:0')
 	);
 	await settleAfterDrop(page);
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:0').getByRole('button', { name: /Power endurance block/ }),
 		page.getByTestId('freq:1')
 	);
+	// Settled after this drag as well as the first, because what comes next edits
+	// the week rather than dragging again, and an edit made before the drop has
+	// been answered is discarded with it. Observed as the count typed below
+	// going back to 4, leaving the week clean and the save button reading
+	// "Saved", so the run died 30s later waiting for a "Save program" that never
+	// appeared. Removing this wait reproduces it, 2 failures in 120 runs.
+	await settleAfterDrop(page);
 
 	await expect(page.getByTestId('freq:1').getByRole('spinbutton')).toHaveValue('4');
 	// The week ends holding what it was loaded with, so there is nothing to write.
@@ -1043,7 +1066,7 @@ test('keeps the session id when it is dragged within its own week', async ({ pag
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:3')
@@ -1105,7 +1128,7 @@ test('keeps the session id when it is dragged to another week and back', async (
 	await page.getByTitle('Expand all').click();
 
 	// The mis-drop, then the correction. The row must survive both.
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
@@ -1115,7 +1138,7 @@ test('keeps the session id when it is dragged to another week and back', async (
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
 	// Onto another day of week one, so the week the row belongs to has an edit to
 	// write and the save is not skipped for want of anything to save.
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:3')
@@ -1146,7 +1169,7 @@ test('does not save a week a session was dropped into and dragged back out of', 
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByTitle('Expand all').click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
@@ -1156,7 +1179,7 @@ test('does not save a week a session was dropped into and dragged back out of', 
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
 	// Back into week one, on another day, so week one has a real edit to save and
 	// the save is not skipped for want of anything to write.
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:3')
@@ -1178,13 +1201,13 @@ test('leaves the program without asking once the session is dragged back', async
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByTitle('Expand all').click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
 	);
 	await expect(page.getByTestId('cell:2:0').getByText('Power endurance block')).toHaveCount(1);
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:2:0').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:1')
@@ -1332,7 +1355,7 @@ test('reschedules a played session within its own week', async ({ page }) => {
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:3')
@@ -1363,7 +1386,7 @@ test('refuses to drag a played session into another week', async ({ page }) => {
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByTitle('Expand all').click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:2:0')
@@ -1475,7 +1498,7 @@ test('keeps a played session saveable after the stale week recovery', async ({ p
 	await page.getByRole('button', { name: 'Edit' }).click();
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
-	await dragOnto(
+	await dragInto(
 		page,
 		page.getByTestId('cell:1:1').getByRole('button', { name: 'Power endurance block' }),
 		page.getByTestId('cell:1:4')
