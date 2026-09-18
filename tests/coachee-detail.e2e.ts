@@ -1769,6 +1769,68 @@ test.describe('assessment comparison', () => {
 		await expect(comparison.getByText('%')).toHaveCount(0);
 	});
 
+	// Three test days, so the pair can actually be moved. With two, every From
+	// option is forced and the filtering below never runs.
+	const january = '2026-01-08';
+
+	async function threeTestDays(page: Page) {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [january, march, june].map((day) =>
+				recordOn(day, { per_hand: false, right_value: 10, left_value: null })
+			)
+		});
+		await stubSnapshotsByDay(page, {
+			[january]: testAssessmentSnapshot(january, [
+				testSnapshotResult({ right_value: 10, right_measured_at: `${january}T10:00:00Z` })
+			]),
+			[march]: testAssessmentSnapshot(march, [
+				testSnapshotResult({ right_value: 13, right_measured_at: `${march}T10:00:00Z` })
+			]),
+			[june]: testAssessmentSnapshot(june, [
+				testSnapshotResult({ right_value: 17, right_measured_at: `${june}T10:00:00Z` })
+			])
+		});
+	}
+
+	// Moving To re-points From at the newest day still older than it, and the
+	// table redraws against the pair the selects now name.
+	test('redraws when the coach moves the later date', async ({ page }) => {
+		await threeTestDays(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(page.getByLabel('From')).toHaveValue(march);
+		await expect(page.getByLabel('To')).toHaveValue(june);
+		await expect(comparison.getByText('+30.8 %')).toBeVisible();
+
+		await page.getByLabel('To').selectOption(march);
+		await expect(page.getByLabel('From')).toHaveValue(january);
+		await expect(comparison.getByText('10.0', { exact: true })).toBeVisible();
+		await expect(comparison.getByText('13.0', { exact: true })).toBeVisible();
+		await expect(comparison.getByText('+30.0 %')).toBeVisible();
+		await expect(comparison.getByText('+30.8 %')).toHaveCount(0);
+	});
+
+	// The first test day cannot be the later side of anything, so it is not on
+	// offer as To: picking it would leave From with nothing to point at.
+	test('does not offer the first test day as the later one', async ({ page }) => {
+		await threeTestDays(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		await expect(page.getByRole('region', { name: 'Assessment comparison' })).toBeVisible();
+		await expect(page.getByLabel('To').locator('option')).toHaveText(['2 Jun 2026', '2 Mar 2026']);
+		// And From never offers the day To already names.
+		await expect(page.getByLabel('From').locator('option')).toHaveText([
+			'2 Mar 2026',
+			'8 Jan 2026'
+		]);
+	});
+
 	// The weight a ratio is divided by is the one the result was pulled at, not the
 	// one the athlete carries on the date asked for.
 	test('divides a carried forward result by the weight it was pulled at', async ({ page }) => {

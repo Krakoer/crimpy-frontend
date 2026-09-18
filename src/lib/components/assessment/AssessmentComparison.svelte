@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { apiClient, type AssessmentResponse, type AssessmentSnapshot } from '$lib/api/client';
 	import { gripLabel } from '$lib/sessions';
-	import { unitLabel } from '$lib/assessments';
+	import { formatUnitValue, unitLabel } from '$lib/assessments';
 	import {
 		compareSnapshots,
 		formatDay,
@@ -35,10 +35,14 @@
 	let pickedFrom = $state('');
 	let pickedTo = $state('');
 
-	const toDay = $derived(days.includes(pickedTo) ? pickedTo : (days[0] ?? ''));
+	// The athlete's first test day cannot be the later side of anything, so To
+	// does not offer it. Without that, picking it would leave From with no day to
+	// fall back to and the table standing on the pair it drew last.
+	const toDays = $derived(days.slice(0, -1));
+	const toDay = $derived(toDays.includes(pickedTo) ? pickedTo : (toDays[0] ?? ''));
 	// From only offers days before To, so the pair cannot name one day twice, and
 	// cannot be inverted into a table reporting every progression backwards with
-	// only the column headers saying so. Moving To past From therefore re-points
+	// only the column headers saying so. Moving To earlier therefore re-points
 	// From at the newest day still older than it, rather than leaving it stranded.
 	const fromDays = $derived(days.filter((day) => day < toDay));
 	const fromDay = $derived(fromDays.includes(pickedFrom) ? pickedFrom : (fromDays[0] ?? ''));
@@ -55,8 +59,15 @@
 		const from = fromDay;
 		const to = toDay;
 		// One test day is not a comparison, and the panel says so instead of
-		// drawing the table, so the two reads it would take are not made.
-		if (!from || !to) return;
+		// drawing the table, so the two reads it would take are not made. Nothing
+		// to read leaves nothing to show either: holding the last pair's rows
+		// would draw them under whichever dates the selects now name.
+		if (!from || !to) {
+			rows = [];
+			loading = false;
+			failed = false;
+			return;
+		}
 		const request = ++latestRequest;
 		loading = true;
 		// A read that failed is about the dates it was asked for. Leaving the
@@ -95,16 +106,20 @@
 		return hand.delta > 0 ? 'var(--gn-tx)' : 'var(--rd)';
 	}
 
-	function progressionLabel(hand: ComparedHand): string {
+	function progressionLabel(hand: ComparedHand, row: ComparisonRow): string {
 		if (hand.unchanged) return 'not retested';
 		if (!hand.before && !hand.after) return '--';
 		if (!hand.before) return 'first measured';
 		if (!hand.after) return 'not measured';
 		if (hand.percent !== undefined) return formatPercent(hand.percent);
-		// A percentage of a zero result is not a percentage, so the absolute
-		// change answers for it.
+		// A percentage of a zero result is not a percentage, so the absolute change
+		// answers for it, printed by the same rule and in the same unit as the
+		// values it sits between.
 		if (hand.delta !== undefined) {
-			return `${hand.delta > 0 ? '+' : ''}${hand.delta.toFixed(1)}`;
+			const change = row.bodyweightRelative
+				? hand.delta.toFixed(2)
+				: `${formatUnitValue(hand.delta, row.unit)} ${unitLabel(row.unit)}`.trim();
+			return `${hand.delta > 0 ? '+' : ''}${change}`;
 		}
 		return 'no weight on file';
 	}
@@ -157,7 +172,7 @@
 					onchange={(e) => (pickedTo = e.currentTarget.value)}
 					style={selectStyle}
 				>
-					{#each days as day (day)}
+					{#each toDays as day (day)}
 						<option value={day}>{formatDay(day)}</option>
 					{/each}
 				</select>
@@ -241,7 +256,7 @@
 										>{handLabel(hand)}</span
 									>
 								{/if}
-								{progressionLabel(hand)}
+								{progressionLabel(hand, row)}
 							</div>
 						{/each}
 					</div>
