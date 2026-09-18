@@ -426,6 +426,35 @@ describe('isWeekDirty', () => {
 		expect(isWeekDirty(drafts[1])).toBe(false);
 	});
 
+	it('reads an edited name as unsaved and a typed back name as saved', () => {
+		const drafts = draftsWithMonday('a');
+
+		drafts[1].name = 'capacity';
+		expect(isWeekDirty(drafts[1])).toBe(true);
+
+		drafts[1].name = '';
+		expect(isWeekDirty(drafts[1])).toBe(false);
+	});
+
+	// The save trims the name too, so whitespace on its own writes nothing.
+	it('ignores whitespace the save would trim off the name', () => {
+		const drafts = draftsWithMonday('a');
+		drafts[1].name = '  ';
+		expect(isWeekDirty(drafts[1])).toBe(false);
+	});
+
+	// The name and the notes are different things said about the same week, so
+	// neither can stand in for the other in what the week would be saved as.
+	it('tells a name apart from the notes holding the same words', () => {
+		const named = draftsWithMonday('a');
+		named[1].name = 'deload';
+
+		const noted = draftsWithMonday('a');
+		noted[1].notes = 'deload';
+
+		expect(weekFingerprint(named[1])).not.toBe(weekFingerprint(noted[1]));
+	});
+
 	// The parameters modal writes into the session the same way a drag does.
 	it('reads an override set and taken back off as saved', () => {
 		const drafts = draftsWithMonday('a');

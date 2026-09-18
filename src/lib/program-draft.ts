@@ -40,6 +40,10 @@ export type EverydaySession = DraftSession;
 // a flag set by one gesture and never cleared by the one that undid it makes a
 // week nobody changed claim unsaved work.
 export type WeekDraft = {
+	// The training phase the week belongs to, the empty string when it has
+	// none. Held beside the notes and never folded into them: the name says
+	// what the week is, the notes say something about this one week.
+	name: string;
 	notes: string;
 	days: DaySession[][];
 	freqSessions: FreqSession[];
@@ -111,17 +115,19 @@ function overridesFingerprint(overrides: SessionOverride[]): unknown[] {
 
 // What a week holds, apart from what it is doing about it.
 export type WeekContent = {
+	name: string;
 	notes: string;
 	days: DaySession[][];
 	freqSessions: FreqSession[];
 	everydaySessions: EverydaySession[];
 };
 
-// The notes and the sessions, in the order that decides what the save writes.
-// The notes are trimmed the way the save trims them, so whitespace typed and
-// taken back out again is not a change.
+// The name, the notes and the sessions, in the order that decides what the save
+// writes. Both text fields are trimmed the way the save trims them, so
+// whitespace typed and taken back out again is not a change.
 export function weekFingerprint(week: WeekContent): string {
 	return JSON.stringify([
+		week.name.trim(),
 		week.notes.trim(),
 		week.days.map((day) => day.map((session) => sessionFingerprint(session, false))),
 		week.freqSessions.map((session) => sessionFingerprint(session, true)),
@@ -144,6 +150,7 @@ export function isWeekDirty(draft: WeekDraft): boolean {
 export function emptyDraft(): WeekDraft {
 	return {
 		...savedWeek({
+			name: '',
 			notes: '',
 			days: Array.from({ length: 7 }, () => []),
 			freqSessions: [],
@@ -352,6 +359,13 @@ export function restoreWeekSessions(drafts: WeekDrafts, snapshot: WeekSessionsSn
 		draft.everydaySessions = saved ? saved.everydaySessions : [];
 	}
 }
+
+// What a week name may hold, mirroring maxWeekNameLen in the backend's
+// internal/handler/program_week.go, which refuses a longer one. The field caps
+// what can be typed rather than letting the save be refused for it: the name is
+// a label a coach reads back beside the week number, so the limit is visible in
+// the field rather than discovered on save.
+export const WEEK_NAME_MAX_LENGTH = 60;
 
 // The days a week grid lays out, Monday first, which is the order day_of_week
 // counts in.
