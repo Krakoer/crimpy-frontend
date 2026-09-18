@@ -209,6 +209,26 @@ describe('compareSnapshots', () => {
 		expect(rows[1].hands[0].delta).toBeUndefined();
 	});
 
+	// A hand the athlete never did on either date would otherwise render a line
+	// reading "not measured" against "not measured", forever.
+	it('drops a hand that was never measured on either date', () => {
+		const rows = compareSnapshots(
+			snapshot('2026-03-02T23:59:59Z', [
+				result({ per_hand: true, right_value: 3, left_value: null, left_measured_at: null })
+			]),
+			snapshot('2026-06-02T23:59:59Z', [
+				result({
+					per_hand: true,
+					right_value: 4.5,
+					right_measured_at: '2026-06-02T10:00:00Z',
+					left_value: null,
+					left_measured_at: null
+				})
+			])
+		);
+		expect(rows[0].hands.map((h) => h.hand)).toEqual(['right']);
+	});
+
 	it('takes the label and the flag as the later date reads them', () => {
 		const rows = compareSnapshots(
 			snapshot('2026-03-02T23:59:59Z', [result({ label: 'Old name' })], 71),
@@ -240,6 +260,14 @@ describe('formatScore', () => {
 		expect(formatScore({ raw: 25, measuredAt: 'x', score: 25 }, 'kilograms')).toBe('25.0');
 		expect(formatScore({ raw: 17, measuredAt: 'x', score: 17 }, 'repetitions')).toBe('17');
 		expect(formatScore({ raw: 25, measuredAt: 'x' }, 'kilograms')).toBe('--');
+	});
+
+	// A half second is a real result, and rounding it away would print the same
+	// number in both columns beside a progression saying they differ.
+	it('keeps a fractional second rather than rounding it into a contradiction', () => {
+		expect(formatScore({ raw: 4.4, measuredAt: 'x', score: 4.4 }, 'seconds')).toBe('4.4');
+		expect(formatScore({ raw: 8.5, measuredAt: 'x', score: 8.5 }, 'seconds')).toBe('8.5');
+		expect(formatScore({ raw: 4, measuredAt: 'x', score: 4 }, 'seconds')).toBe('4');
 	});
 });
 

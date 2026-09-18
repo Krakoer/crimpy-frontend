@@ -1105,8 +1105,12 @@
 							     "Latest" is load bearing: this is the weight in effect, and the
 							     table below holds records measured against earlier ones. Reading an
 							     old row against this number is wrong by whatever the athlete's
-							     weight did since, which is why the day is named too. A denominator
-							     per record is Krakoer/crimpy#75. -->
+							     weight did since, which is why the day is named too.
+
+							     The comparison panel below does read a denominator per date,
+							     because each snapshot carries the weight in effect then. The cards
+							     and the history table still show raw kilograms, since the list they
+							     are drawn from carries no weight at all: Krakoer/crimpy#116. -->
 							{#if loadingBodyweights}
 								<span style="color: var(--tx3);">Loading bodyweight...</span>
 							{:else if bodyweightsFailed}

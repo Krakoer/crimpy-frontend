@@ -100,8 +100,9 @@
 
 			{#if measured}
 				<p style="margin: 0; font-size: 12px; color: var(--tx2);">
-					This assessment is already in use, so the unit and the hands are fixed. The name and the
-					question can still be changed.
+					This assessment is already in use, so the unit and the hands are fixed. The name, the
+					question and the bodyweight score can still be changed: the score is only a way of reading
+					the kilograms already recorded.
 				</p>
 			{/if}
 		</div>

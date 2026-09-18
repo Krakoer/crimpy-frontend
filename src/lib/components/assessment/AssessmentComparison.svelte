@@ -49,9 +49,15 @@
 	$effect(() => {
 		const from = fromDay;
 		const to = toDay;
-		if (!from || !to) return;
+		// One test day is not a comparison, and the panel says so instead of
+		// drawing the table, so the two reads it would take are not made.
+		if (!from || !to || days.length < 2) return;
 		const request = ++latestRequest;
 		loading = true;
+		// A read that failed is about the dates it was asked for. Leaving the
+		// message up would have the panel report an error against a pair nobody
+		// has tried yet.
+		failed = false;
 		Promise.all([
 			apiClient.getClientAssessmentSnapshot(userId, from),
 			apiClient.getClientAssessmentSnapshot(userId, to)

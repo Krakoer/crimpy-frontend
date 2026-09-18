@@ -178,10 +178,16 @@ export function compareSnapshots(
 		const nowLeft = sideValue(now, after.bodyweight_kg, relative, 'left');
 
 		if (definition.per_hand) {
-			row.hands = [
+			const hands = [
 				comparedHand('left', wasLeft, nowLeft),
 				comparedHand('right', wasRight, nowRight)
 			];
+			// A hand the athlete never did on either date has nothing to say, and
+			// a line reading "not measured" against "not measured" says it forever.
+			// Both empty only happens on a row that exists for its other hand, so
+			// dropping them cannot empty the row.
+			const measured = hands.filter((hand) => hand.before || hand.after);
+			row.hands = measured.length > 0 ? measured : hands;
 		} else {
 			// A single value is stored on the right hand, the left staying empty, so
 			// either side answers for it.
@@ -198,10 +204,17 @@ export function compareSnapshots(
 
 // A score as the table prints it: two decimals for a ratio, since that is where
 // a season of finger training shows, and the unit's own precision otherwise.
+//
+// Seconds and repetitions are whole numbers nearly always, and a rep count reads
+// badly with a trailing zero, but a half second is a real result: the spreadsheet
+// this table comes from writes 8.5 sec. Rounding it away would print the same
+// number in both columns beside a progression saying they differ, so a value that
+// is not whole keeps its decimal.
 export function formatScore(value: ComparedValue, unit: string): string {
 	if (value.score === undefined) return '--';
 	if (value.bodyweightKg !== undefined) return value.score.toFixed(2);
-	return unit === 'kilograms' ? value.score.toFixed(1) : value.score.toFixed(0);
+	if (unit === 'kilograms') return value.score.toFixed(1);
+	return Number.isInteger(value.score) ? value.score.toFixed(0) : value.score.toFixed(1);
 }
 
 // A change with its sign, so a gain and a loss read as different things at a
