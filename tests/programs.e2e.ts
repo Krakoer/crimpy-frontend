@@ -216,6 +216,38 @@ test('a week declared with nothing on it does not read as never declared', async
 	await expect(page.getByTestId('availability:1')).not.toContainText('has not said');
 });
 
+test('does not call a week clear on the strength of a missing activities list', async ({
+	page
+}) => {
+	// "Declared and clear" is a statement about the athlete's answer. A day that
+	// came back without an activities list at all, which is what a portal
+	// deployed ahead of the API would see, says nothing about their week, and
+	// reading it as an empty list would put words in their mouth.
+	const program = testProgram({ start_date: mondayDaysAgo(0) });
+	await stubProgram(page, program);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/availability', {
+		body: [
+			{
+				user_id: 'coachee-1',
+				week_start: program.start_date,
+				updated_at: isoDaysAgo(1),
+				days: Array.from({ length: 7 }, (_unused, day) => ({ day_of_week: day }))
+			}
+		]
+	});
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByTestId('availability:1')).not.toContainText('has nothing on it');
+});
+
 test('drops the availability row on a week that is over and was never declared', async ({
 	page
 }) => {

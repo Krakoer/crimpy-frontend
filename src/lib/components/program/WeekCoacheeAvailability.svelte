@@ -16,25 +16,34 @@
 
 	let { weekNumber, availability, failed }: Props = $props();
 
-	// The API sends all seven days; a week is always written whole, but the row
-	// must not assume that when reading one back.
+	// The API sends all seven days, each with a list. A day that came back
+	// without one is left undefined rather than read as an empty list: the two
+	// look the same in a grid of dashes, but only one of them licenses the
+	// sentence below, and an API that is not sending lists is not an athlete
+	// saying their week is clear.
 	const daysByIndex = $derived.by(() => {
-		const days: DayActivity[][] = Array.from({ length: 7 }, () => []);
+		const days: (DayActivity[] | undefined)[] = Array.from({ length: 7 }, () => undefined);
 		for (const day of availability?.days ?? []) {
-			if (day.day_of_week >= 0 && day.day_of_week <= 6)
-				days[day.day_of_week] = day.activities ?? [];
+			if (day.day_of_week >= 0 && day.day_of_week <= 6 && Array.isArray(day.activities))
+				days[day.day_of_week] = day.activities;
 		}
 		return days;
 	});
 
 	const plannedDayCount = $derived(
-		daysByIndex.filter((activities) => activities.length > 0).length
+		daysByIndex.filter((activities) => activities !== undefined && activities.length > 0).length
 	);
 
 	// A week is in the list only because the athlete declared it, so one holding
 	// nothing is them saying their week is clear, not them staying silent. The
-	// two read differently to a coach about to write the week.
-	const declaredEmpty = $derived(Boolean(availability) && !failed && plannedDayCount === 0);
+	// two read differently to a coach about to write the week, which is why this
+	// is only claimed when all seven days actually came back with a list.
+	const declaredEmpty = $derived(
+		Boolean(availability) &&
+			!failed &&
+			daysByIndex.every((activities) => activities !== undefined) &&
+			plannedDayCount === 0
+	);
 
 	// The same reading as the duration of a run played that day, so the two rows
 	// of the same column are compared rather than converted.
@@ -85,7 +94,10 @@
 				Planned
 			</span>
 		</div>
-		{#if availability && !failed}
+		<!-- Hidden on a week declared empty the way it is on a failed read: the
+			sentence beside it already says the count, and "0 days" only ever meant
+			a grid of dashes before. -->
+		{#if availability && !failed && !declaredEmpty}
 			<div style="font-size: 10px; color: var(--tx3); padding-left: 17px;">
 				{plannedDayCount} day{plannedDayCount === 1 ? '' : 's'}
 			</div>
@@ -103,7 +115,8 @@
 			{emptyMessage}
 		</div>
 	{:else}
-		{#each daysByIndex as activities, dayIndex (dayIndex)}
+		{#each daysByIndex as dayActivities, dayIndex (dayIndex)}
+			{@const activities = dayActivities ?? []}
 			<div
 				data-testid="availability:{weekNumber}:{dayIndex}"
 				style="
@@ -122,6 +135,7 @@
 					</div>
 				{:else}
 					{#each activities as activity, activityIndex (activityIndex)}
+						{@const context = contextLabel(activity)}
 						<div title={activityTitle(activity)} style="padding: 0 2px; min-width: 0;">
 							<div class="flex items-center gap-1" style="min-width: 0;">
 								<div
@@ -139,12 +153,12 @@
 									</span>
 								{/if}
 							</div>
-							{#if contextLabel(activity)}
+							{#if context}
 								<span
 									class="block truncate"
 									style="font-size: 10px; color: var(--tx2); padding-left: 8px;"
 								>
-									{contextLabel(activity)}
+									{context}
 								</span>
 							{/if}
 						</div>
