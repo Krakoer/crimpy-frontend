@@ -691,12 +691,23 @@ export interface WeekRequest {
 	sessions: SessionRequest[];
 }
 
+/** One thing the athlete plans to do on a day. Only the label is always there:
+ *  a duration they could not guess, or a place they had not picked, come back
+ *  missing rather than empty. "when" is free text, so "before work" and "after
+ *  the kids are down" are both answers, and neither is a fixed slot. */
+export interface DayActivity {
+	label: string;
+	duration_minutes?: number;
+	when?: string;
+	where?: string;
+}
+
 export interface DayAvailability {
 	// Monday first, like day_of_week on a program session.
 	day_of_week: number;
-	is_available: boolean;
-	duration_minutes?: number;
-	note?: string;
+	// In the order the athlete entered them. An empty list is an answer, not a
+	// gap: it says nothing is on that day.
+	activities: DayActivity[];
 }
 
 export interface WeekAvailability {
@@ -705,6 +716,9 @@ export interface WeekAvailability {
 	// athlete declares whether or not a program covers that week.
 	week_start: string;
 	updated_at: string;
+	// Always all seven days. A week is only ever in this list because the
+	// athlete declared it, so a week holding no activity at all is a declared
+	// week where nothing is on, not a week they never answered.
 	days: DayAvailability[];
 }
 
