@@ -225,8 +225,8 @@
 	let playedSessionsFailed = $state(false);
 	let openedSession = $state<SessionResponse | null>(null);
 
-	// When the athlete said they can train, read beside the week being written so
-	// the program is built around the week they actually have.
+	// What the athlete said their week holds, read beside the week being written
+	// so the program is built around the week they actually have.
 	let coacheeAvailability = $state<WeekAvailability[]>([]);
 	let coacheeAvailabilityFailed = $state(false);
 	// Keyed by the Monday the athlete declared for. Program weeks start on a

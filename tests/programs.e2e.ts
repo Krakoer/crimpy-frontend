@@ -38,7 +38,7 @@ async function stubProgram(page: Page, program = testProgram()): Promise<void> {
 	// The editor reads what the athlete played beside the program. A test that
 	// cares about those rows registers its own stub on top of this one.
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
-	// The editor also reads when the athlete said they can train. A test that
+	// The editor also reads what the athlete said their week holds. A test that
 	// cares about that row registers its own stub on top of this one.
 	await stub(page, 'GET', '/api/coach/clients/*/availability', { body: [] });
 }
@@ -125,7 +125,7 @@ test('lays the week grid out on one row, with the columns the day header names',
 	}
 });
 
-test('shows what the athlete said they can train, under the days it is about', async ({ page }) => {
+test('lists the activities the athlete planned, under the days they are on', async ({ page }) => {
 	const program = testProgram();
 	await stubProgram(page, program);
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
@@ -162,6 +162,12 @@ test('shows what the athlete said they can train, under the days it is about', a
 	// An activity with no duration still shows, and says so without a number.
 	await expect(page.getByTestId('availability:1:4')).toContainText('Long run');
 	await expect(page.getByTestId('availability:1:0')).not.toContainText('Long run');
+	// A day that came back with an empty list is the athlete saying nothing is
+	// on. The tooltip is the only place that difference is visible, and the
+	// degraded case below asserts the other side of it.
+	await expect(
+		page.locator('[data-testid="availability:1:0"] [title="Nothing planned"]')
+	).toHaveCount(1);
 });
 
 test('a week the athlete never declared says so, and a failed read says something else', async ({
