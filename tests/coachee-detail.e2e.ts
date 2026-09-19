@@ -2159,3 +2159,58 @@ test.describe('session feedback', () => {
 		await expect(dialog.getByRole('textbox', { name: 'Reply to the athlete' })).toBeHidden();
 	});
 });
+
+test.describe('session RPE', () => {
+	test('shows the value and its written anchor on the session', async ({ page }) => {
+		const hard = testSession({ name: 'Board session', rpe: 9 });
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [hard] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', { body: testSessionDetail(hard) });
+
+		await page.goto('/coachees/coachee-1');
+
+		const row = page.getByRole('button', { name: 'Open Board session' });
+		await expect(row.getByTestId('session-rpe')).toContainText('9');
+
+		await row.click();
+		const card = page.getByRole('dialog').getByTestId('session-rpe-card');
+		await expect(card).toContainText('Session RPE');
+		await expect(card).toContainText('Needs two full rest days');
+	});
+
+	test('reads a failed session as ECHEC rather than as a number', async ({ page }) => {
+		const failed = testSession({ name: 'Board session', rpe_failed: true });
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [failed] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(failed)
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		const row = page.getByRole('button', { name: 'Open Board session' });
+		await expect(row.getByTestId('session-rpe')).toContainText('ECHEC');
+
+		await row.click();
+		const card = page.getByRole('dialog').getByTestId('session-rpe-card');
+		await expect(card).toContainText('Could not be carried through');
+	});
+
+	test('says a session carries no RPE rather than staying silent about it', async ({ page }) => {
+		const unrated = testSession({ name: 'Board session' });
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [unrated] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(unrated)
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		const row = page.getByRole('button', { name: 'Open Board session' });
+		await expect(row.getByTestId('session-rpe')).toBeHidden();
+
+		await row.click();
+		const card = page.getByRole('dialog').getByTestId('session-rpe-card');
+		await expect(card).toContainText('Not reported by the athlete.');
+	});
+});

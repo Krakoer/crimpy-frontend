@@ -102,6 +102,13 @@ export interface SessionResponse {
 	coach_reply?: string | null;
 	coach_reply_at?: string | null;
 	coach_reply_read: boolean;
+	// How much recovery the session cost the athlete, on the session RPE scale,
+	// absent while they have not reported one. See $lib/rpe for the anchors that
+	// make a value readable, and note this is not the set RPE scale. rpe_failed
+	// is that scale's ECHEC, a session that could not be carried through, and it
+	// is never true beside a number.
+	rpe?: number | null;
+	rpe_failed: boolean;
 	updated_at: string;
 	// Only on the list endpoint, which does not carry the reps themselves.
 	rep_count?: number;

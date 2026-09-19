@@ -31,6 +31,8 @@
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
+	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
+	import { sessionRpe } from '$lib/rpe';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	let { data } = $props();
@@ -603,6 +605,7 @@
 										</div>
 										{#each group.items as session (session.id)}
 											{@const type = sessionActivityInfo(session.activity)}
+											{@const rpe = sessionRpe(session)}
 											<button
 												onclick={() => (openedSession = session)}
 												aria-label="Open {session.name}"
@@ -643,6 +646,9 @@
 													{/if}
 												</div>
 												<div class="flex items-center gap-2">
+													{#if rpe}
+														<SessionRpeBadge {rpe} />
+													{/if}
 													{#if awaitsCoachReply(session)}
 														<span
 															style="

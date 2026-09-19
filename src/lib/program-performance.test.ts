@@ -18,6 +18,7 @@ function session(
 		origin: 'played',
 		is_assessment: false,
 		coach_reply_read: false,
+		rpe_failed: false,
 		updated_at: date,
 		...overrides
 	};

@@ -1544,7 +1544,8 @@ async function stubPlayedWeekWithSessions(page: Page): Promise<void> {
 				date: inFirstWeek(WEEK_ONE_TUESDAY),
 				origin: 'played',
 				program_session_id: 'ws-1',
-				notes: 'Right elbow hurt on the last set.'
+				notes: 'Right elbow hurt on the last set.',
+				rpe: 9
 			}),
 			testSession({
 				id: 'played-2',
@@ -1572,6 +1573,17 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	).toHaveAttribute('title', /Right elbow hurt on the last set\./);
 	// The run the athlete started themselves is marked as off program.
 	await expect(performed.getByTitle('Played outside this program')).toBeVisible();
+	// The cost of the day reads off the strip itself: scanning the week for the
+	// outlier is what this row is for, and opening every session is not scanning.
+	await expect(
+		performed.getByRole('button', { name: 'Open Power endurance block' }).getByTestId('session-rpe')
+	).toContainText('9');
+	await expect(
+		performed.getByRole('button', { name: 'Open Power endurance block' })
+	).toHaveAttribute('title', /Session RPE 9: needs two full rest days/);
+	await expect(
+		performed.getByRole('button', { name: 'Open Evening bouldering' }).getByTestId('session-rpe')
+	).toHaveCount(0);
 
 	// Each run sits in the column of the day it was played, under the session
 	// that prescribed that day.
