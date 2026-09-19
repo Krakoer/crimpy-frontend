@@ -561,6 +561,10 @@ export interface TestSession {
 	coach_reply?: string | null;
 	coach_reply_at?: string | null;
 	coach_reply_read: boolean;
+	// What the athlete reported about how much the session cost them, on the
+	// session RPE scale, and the scale's ECHEC beside it.
+	rpe?: number | null;
+	rpe_failed: boolean;
 	updated_at: string;
 	prescription?: TestPrescription | null;
 }
@@ -633,6 +637,7 @@ export function testSession(overrides: Partial<TestSession> = {}): TestSession {
 		origin: 'logged',
 		is_assessment: false,
 		coach_reply_read: false,
+		rpe_failed: false,
 		updated_at: isoDaysAgo(1),
 		...overrides
 	};

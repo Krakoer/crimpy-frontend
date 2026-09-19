@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { SessionResponse } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
+	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
 	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
+	import { sessionRpe, sessionRpeTitle, type SessionRpe } from '$lib/rpe';
 	import {
 		awaitsCoachReply,
 		formatDuration,
@@ -42,9 +44,11 @@
 	// session itself is one click away, and this is what a coach scanning the week
 	// needs before deciding to open it.
 	function summary(session: SessionResponse): string {
+		const rpe = sessionRpe(session);
 		return [
 			session.name,
 			`${formatSessionTime(session.date)} - ${formatDuration(session.duration)}`,
+			rpe ? sessionRpeTitle(rpe) : null,
 			session.notes?.trim() ? `"${session.notes.trim()}"` : null,
 			awaitsCoachReply(session) ? 'Waiting for an answer.' : null
 		]
@@ -54,6 +58,26 @@
 
 	function isOffProgram(session: SessionResponse): boolean {
 		return !session.program_session_id || !programSessionIDs.has(session.program_session_id);
+	}
+
+	// An explicit aria-label replaces everything inside the button, so every
+	// marker the card shows has to be named here or a screen reader hears a
+	// plain session. Spelled out rather than appended at each marker, so the
+	// next one added is one entry rather than another interpolation.
+	function sessionCardLabel(
+		session: SessionResponse,
+		rpe: SessionRpe | null,
+		needsReply: boolean
+	): string {
+		return [
+			`Open ${session.name}`,
+			rpe ? sessionRpeTitle(rpe) : null,
+			isOffProgram(session) ? 'played outside this program' : null,
+			session.is_assessment ? 'assessment' : null,
+			needsReply ? 'waiting for an answer' : session.coach_reply ? 'answered' : null
+		]
+			.filter(Boolean)
+			.join(', ');
 	}
 
 	const emptyMessage = $derived(
@@ -115,9 +139,10 @@
 				{#each daySessions as session (session.id)}
 					{@const type = sessionActivityInfo(session.activity)}
 					{@const needsReply = awaitsCoachReply(session)}
+					{@const rpe = sessionRpe(session)}
 					<button
 						onclick={() => onOpen(session)}
-						aria-label="Open {session.name}"
+						aria-label={sessionCardLabel(session, rpe, needsReply)}
 						title={summary(session)}
 						style="
 							display: flex; align-items: center; gap: 4px; width: 100%;
@@ -138,6 +163,9 @@
 						>
 							{session.name}
 						</span>
+						{#if rpe}
+							<SessionRpeBadge {rpe} compact />
+						{/if}
 						{#if isOffProgram(session)}
 							<span
 								title="Played outside this program"

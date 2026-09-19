@@ -13,6 +13,7 @@
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
 	import SessionPrescriptionCard from '$lib/components/session/SessionPrescriptionCard.svelte';
 	import SessionFeedbackCard from '$lib/components/session/SessionFeedbackCard.svelte';
+	import { sessionRpe, sessionRpeColor, sessionRpeTint } from '$lib/rpe';
 	import {
 		formatDuration,
 		formatSessionDate,
@@ -73,6 +74,10 @@
 	);
 	const totalReps = $derived(timedReps + reportedReps);
 	const type = $derived(sessionActivityInfo(detail.activity));
+	// What the session cost the athlete. Null when they reported nothing, which
+	// the card below still says out loud: an unanswered prompt is a thing a coach
+	// may want to nudge about, and silence would read as a session that was easy.
+	const rpe = $derived(sessionRpe(detail));
 
 	onMount(async () => {
 		try {
@@ -210,6 +215,37 @@
 					</div>
 				</div>
 			{/if}
+
+			<!-- The scale is named and its anchor spelled out, because a bare number
+			     is ambiguous between the session scale and the set scale, and the
+			     written anchor is the whole of what makes either readable. -->
+			<div
+				data-testid="session-rpe-card"
+				class="flex items-center gap-4"
+				style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); padding: 14px 18px;"
+			>
+				<div
+					class="flex items-center justify-center"
+					style="
+						width: 52px; height: 52px; border-radius: var(--rs); flex-shrink: 0;
+						background: {rpe ? sessionRpeTint(rpe) : 'var(--panel2)'};
+						color: {rpe ? sessionRpeColor(rpe) : 'var(--tx3)'};
+						font-size: {rpe?.failed ? '12px' : '22px'}; font-weight: 700;
+					"
+				>
+					{rpe ? rpe.short : '--'}
+				</div>
+				<div style="min-width: 0;">
+					<div
+						style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+					>
+						Session RPE
+					</div>
+					<div style="font-size: 13px; color: var(--tx); margin-top: 3px;">
+						{rpe ? rpe.anchor : 'Not reported by the athlete.'}
+					</div>
+				</div>
+			</div>
 
 			{#if loading}
 				<div

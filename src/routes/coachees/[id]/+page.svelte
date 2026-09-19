@@ -31,6 +31,8 @@
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
+	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
+	import { sessionRpe, sessionRpeTitle } from '$lib/rpe';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	let { data } = $props();
@@ -603,9 +605,16 @@
 										</div>
 										{#each group.items as session (session.id)}
 											{@const type = sessionActivityInfo(session.activity)}
+											{@const rpe = sessionRpe(session)}
 											<button
 												onclick={() => (openedSession = session)}
-												aria-label="Open {session.name}"
+												aria-label="Open {session.name}{rpe
+													? `, ${sessionRpeTitle(rpe)}`
+													: ''}{awaitsCoachReply(session)
+													? ', waiting for an answer'
+													: session.coach_reply
+														? ', answered'
+														: ''}"
 												style="
 											display: grid; grid-template-columns: 44px 1fr auto; width: 100%;
 											padding: 12px 20px; align-items: center; gap: 12px; text-align: left;
@@ -643,6 +652,9 @@
 													{/if}
 												</div>
 												<div class="flex items-center gap-2">
+													{#if rpe}
+														<SessionRpeBadge {rpe} />
+													{/if}
 													{#if awaitsCoachReply(session)}
 														<span
 															style="
