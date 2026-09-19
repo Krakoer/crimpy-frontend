@@ -26,8 +26,12 @@ export const SESSION_RPE_FAILED_ANCHOR = 'Could not be carried through';
 // they reported nothing. One reader, so the session list, the modal and the
 // week strip cannot disagree about whether a session carries an answer.
 export interface SessionRpe {
-	// What the badge shows: the value, or ECHEC.
+	// What the badge shows where there is room: the value, or ECHEC.
 	short: string;
+	// What it shows in the week grid, where a session is one short line and the
+	// name has to survive beside it. A failure is one glyph there rather than
+	// five characters that would leave the name a single letter.
+	mark: string;
 	// The written anchor, which is what makes the number mean something.
 	anchor: string;
 	// The scale value, null on a failure, which sits outside it.
@@ -39,6 +43,7 @@ export function sessionRpe(session: SessionResponse): SessionRpe | null {
 	if (session.rpe_failed) {
 		return {
 			short: SESSION_RPE_FAILED_SHORT,
+			mark: 'X',
 			anchor: SESSION_RPE_FAILED_ANCHOR,
 			value: null,
 			failed: true
@@ -48,6 +53,7 @@ export function sessionRpe(session: SessionResponse): SessionRpe | null {
 	if (value === null || value === undefined) return null;
 	return {
 		short: String(value),
+		mark: String(value),
 		anchor: SESSION_RPE_ANCHORS[value] ?? 'Reported by the athlete',
 		value,
 		failed: false
@@ -58,11 +64,15 @@ export function sessionRpe(session: SessionResponse): SessionRpe | null {
 // coach only scans: the outlier week is the one with a run of hard sessions in
 // it. Sage up to what repeats within a day, gold for a session that costs a
 // rest day, terracotta above it, and the error red for a failure.
+//
+// The darkest token each hue has is used, because the badge carries this colour
+// as text at label size on the matching light ground: --gn-tx and --pr-dk exist
+// for exactly that, while gold and red have no darker text token yet.
 export function sessionRpeColor(rpe: SessionRpe): string {
 	if (rpe.failed) return 'var(--rd)';
-	if (rpe.value !== null && rpe.value >= 9) return 'var(--pr)';
+	if (rpe.value !== null && rpe.value >= 9) return 'var(--pr-dk)';
 	if (rpe.value !== null && rpe.value >= 8) return 'var(--gd)';
-	return 'var(--gn)';
+	return 'var(--gn-tx)';
 }
 
 export function sessionRpeTint(rpe: SessionRpe): string {

@@ -1584,6 +1584,13 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	await expect(
 		performed.getByRole('button', { name: 'Open Evening bouldering' }).getByTestId('session-rpe')
 	).toHaveCount(0);
+	// The RPE rides on the accessible name too: the explicit aria-label replaces
+	// the badge in the accessibility tree.
+	await expect(
+		performed.getByRole('button', {
+			name: 'Open Power endurance block, Session RPE 9: needs two full rest days'
+		})
+	).toBeVisible();
 
 	// Each run sits in the column of the day it was played, under the session
 	// that prescribed that day.

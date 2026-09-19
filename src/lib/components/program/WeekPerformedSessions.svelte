@@ -122,7 +122,7 @@
 					{@const rpe = sessionRpe(session)}
 					<button
 						onclick={() => onOpen(session)}
-						aria-label="Open {session.name}"
+						aria-label="Open {session.name}{rpe ? `, ${sessionRpeTitle(rpe)}` : ''}"
 						title={summary(session)}
 						style="
 							display: flex; align-items: center; gap: 4px; width: 100%;

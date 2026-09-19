@@ -32,7 +32,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionDetailModal from '$lib/components/session/SessionDetailModal.svelte';
 	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
-	import { sessionRpe } from '$lib/rpe';
+	import { sessionRpe, sessionRpeTitle } from '$lib/rpe';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 
 	let { data } = $props();
@@ -608,7 +608,7 @@
 											{@const rpe = sessionRpe(session)}
 											<button
 												onclick={() => (openedSession = session)}
-												aria-label="Open {session.name}"
+												aria-label="Open {session.name}{rpe ? `, ${sessionRpeTitle(rpe)}` : ''}"
 												style="
 											display: grid; grid-template-columns: 44px 1fr auto; width: 100%;
 											padding: 12px 20px; align-items: center; gap: 12px; text-align: left;
