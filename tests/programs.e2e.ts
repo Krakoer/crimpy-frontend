@@ -168,6 +168,13 @@ test('lists the activities the athlete planned, under the days they are on', asy
 	await expect(
 		page.locator('[data-testid="availability:1:0"] [title="Nothing planned"]')
 	).toHaveCount(1);
+	// The column truncates, so the tooltip is the only place a coach reads the
+	// whole of an activity.
+	await expect(
+		page.locator(
+			'[data-testid="availability:1:1"] [title="Bouldering - 1h 30m - after work - Arkose"]'
+		)
+	).toHaveCount(1);
 });
 
 test('a week the athlete never declared says so, and a failed read says something else', async ({

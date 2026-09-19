@@ -707,7 +707,13 @@ export interface DayAvailability {
 	day_of_week: number;
 	// In the order the athlete entered them. An empty list is an answer, not a
 	// gap: it says nothing is on that day.
-	activities: DayActivity[];
+	//
+	// Optional because the portal can be deployed ahead of the API, and a day
+	// that came back without a list says nothing about the athlete's week. The
+	// API always sends one, so this is about deploy skew and not about the
+	// contract; it is optional here so a reader has to decide what an absent
+	// list means rather than assuming it is an empty one.
+	activities?: DayActivity[];
 }
 
 export interface WeekAvailability {
