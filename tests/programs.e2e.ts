@@ -152,6 +152,11 @@ test('lists the activities the athlete planned, under the days they are on', asy
 	await page.goto(PROGRAM_URL);
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
+	// The row says what it is counting. Under the new model there is no
+	// is_available to read, so a header still saying "Available" would be
+	// claiming something the API stopped sending.
+	await expect(page.getByTestId('availability:1')).toContainText('Planned');
+	await expect(page.getByTestId('availability:1')).not.toContainText('Available');
 	await expect(page.getByTestId('availability:1')).toContainText('2 days');
 	// Two activities on one day is what the old one-row-per-day shape could not
 	// hold, so both have to be on the column.
@@ -159,6 +164,8 @@ test('lists the activities the athlete planned, under the days they are on', asy
 	await expect(page.getByTestId('availability:1:1')).toContainText('1h 30m');
 	await expect(page.getByTestId('availability:1:1')).toContainText('after work - Arkose');
 	await expect(page.getByTestId('availability:1:1')).toContainText('Stretching');
+	// The order the athlete entered them in is the order the coach reads them.
+	await expect(page.getByTestId('availability:1:1')).toHaveText(/Bouldering[\s\S]*Stretching/);
 	// An activity with no duration still shows, and says so without a number.
 	await expect(page.getByTestId('availability:1:4')).toContainText('Long run');
 	await expect(page.getByTestId('availability:1:0')).not.toContainText('Long run');

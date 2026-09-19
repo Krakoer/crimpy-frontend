@@ -1798,7 +1798,8 @@
 										)}
 										<!-- An athlete only ever declares the week ahead, so a week
 											that is over would otherwise carry "has not said" forever.
-											Past weeks keep the row only when there is something in it. -->
+											Past weeks keep the row only when the athlete declared them,
+											which includes a week they declared clear. -->
 										{#if declared || Date.now() < weekStart(program.start_date, wn + 1).getTime()}
 											<WeekCoacheeAvailability
 												weekNumber={wn}
