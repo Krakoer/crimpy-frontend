@@ -476,6 +476,12 @@ export interface TrainingItem {
 	// holds across the weeks that retune it. Not an override key for that
 	// reason.
 	goal?: string;
+	// The rule the athlete resolves while performing the block, in the coach's
+	// own prose ("to failure or 40s; past 40s add 5kg"). A prescription is often
+	// a condition rather than a number, and nothing here evaluates it: the
+	// athlete reads it and records what came of it on the session. Not an
+	// override key, for the reason `goal` and `comment` are not.
+	protocol?: string;
 	load_is_max?: boolean;
 	variable_targets?: VariableTargets;
 	edge_sizes_mm?: number[];

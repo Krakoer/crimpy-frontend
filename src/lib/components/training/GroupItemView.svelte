@@ -7,6 +7,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
 	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
+	import ItemProtocolDisplay from './ItemProtocolDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -68,10 +69,12 @@
 		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
 			<div style="display: flex; flex-direction: column; gap: 10px;">
 				<ItemGoalDisplay {item} inset={null} />
+				<ItemProtocolDisplay {item} inset={null} />
 				<ItemCommentDisplay {item} inset={null} />
 			</div>
 			<div
 				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tx2) 20%, transparent); margin-top: {item.goal?.trim() ||
+				item.protocol?.trim() ||
 				item.comment?.trim()
 					? '10px'
 					: '0'};"
