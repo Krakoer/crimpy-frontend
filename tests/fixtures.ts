@@ -511,11 +511,16 @@ export function testProgram(overrides: Partial<TestProgram> = {}): TestProgram {
 	};
 }
 
+export interface TestDayActivity {
+	label: string;
+	duration_minutes?: number;
+	when?: string;
+	where?: string;
+}
+
 export interface TestDayAvailability {
 	day_of_week: number;
-	is_available: boolean;
-	duration_minutes?: number;
-	note?: string;
+	activities: TestDayActivity[];
 }
 
 export interface TestWeekAvailability {
@@ -526,12 +531,14 @@ export interface TestWeekAvailability {
 }
 
 /**
- * A declared calendar week. Days not named are declared unavailable, since the
- * API only ever holds a week that was written whole.
+ * A declared calendar week. Days not named carry no activity, which is the
+ * athlete saying nothing is on rather than a day left unanswered: the API only
+ * ever holds a week that was written whole, and the week is declared by being
+ * there at all.
  */
 export function testWeekAvailability(
 	weekStart: string,
-	available: Record<number, Partial<TestDayAvailability>> = {}
+	planned: Record<number, TestDayActivity[]> = {}
 ): TestWeekAvailability {
 	return {
 		user_id: 'coachee-1',
@@ -539,8 +546,7 @@ export function testWeekAvailability(
 		updated_at: isoDaysAgo(1),
 		days: Array.from({ length: 7 }, (_unused, day) => ({
 			day_of_week: day,
-			is_available: false,
-			...available[day]
+			activities: planned[day] ?? []
 		}))
 	};
 }

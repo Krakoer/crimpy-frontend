@@ -133,7 +133,7 @@
 							</h3>
 						</div>
 						<p style="font-size: 13px; color: var(--tx2); margin-bottom: 6px;">
-							Nudge every athlete you coach who has not said yet when they can train next week, so
+							Nudge every athlete you coach who has not said yet what their next week looks like, so
 							you write their program around the week they actually have.
 						</p>
 						<p style="font-size: 12px; color: var(--tx3); margin-bottom: 18px;">

@@ -225,8 +225,8 @@
 	let playedSessionsFailed = $state(false);
 	let openedSession = $state<SessionResponse | null>(null);
 
-	// When the athlete said they can train, read beside the week being written so
-	// the program is built around the week they actually have.
+	// What the athlete said their week holds, read beside the week being written
+	// so the program is built around the week they actually have.
 	let coacheeAvailability = $state<WeekAvailability[]>([]);
 	let coacheeAvailabilityFailed = $state(false);
 	// Keyed by the Monday the athlete declared for. Program weeks start on a
@@ -1798,7 +1798,8 @@
 										)}
 										<!-- An athlete only ever declares the week ahead, so a week
 											that is over would otherwise carry "has not said" forever.
-											Past weeks keep the row only when there is something in it. -->
+											Past weeks keep the row only when the athlete declared them,
+											which includes a week they declared clear. -->
 										{#if declared || Date.now() < weekStart(program.start_date, wn + 1).getTime()}
 											<WeekCoacheeAvailability
 												weekNumber={wn}
