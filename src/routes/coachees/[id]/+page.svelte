@@ -608,7 +608,13 @@
 											{@const rpe = sessionRpe(session)}
 											<button
 												onclick={() => (openedSession = session)}
-												aria-label="Open {session.name}{rpe ? `, ${sessionRpeTitle(rpe)}` : ''}"
+												aria-label="Open {session.name}{rpe
+													? `, ${sessionRpeTitle(rpe)}`
+													: ''}{awaitsCoachReply(session)
+													? ', waiting for an answer'
+													: session.coach_reply
+														? ', answered'
+														: ''}"
 												style="
 											display: grid; grid-template-columns: 44px 1fr auto; width: 100%;
 											padding: 12px 20px; align-items: center; gap: 12px; text-align: left;

@@ -19,6 +19,7 @@
 
 <span
 	data-testid="session-rpe"
+	data-compact={compact ? 'true' : 'false'}
 	{title}
 	style="
 		display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;

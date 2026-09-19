@@ -66,8 +66,10 @@ export function sessionRpe(session: SessionResponse): SessionRpe | null {
 // rest day, terracotta above it, and the error red for a failure.
 //
 // The darkest token each hue has is used, because the badge carries this colour
-// as text at label size on the matching light ground: --gn-tx and --pr-dk exist
-// for exactly that, while gold and red have no darker text token yet.
+// as text at label size on the matching light ground. Only the sage band clears
+// the 4.5:1 floor today, at 4.59; terracotta is 3.86, red 3.49 and gold 2.05,
+// and closing those needs text tokens the palette does not have yet. See
+// Krakoer/crimpy#119, which carries the measurements.
 export function sessionRpeColor(rpe: SessionRpe): string {
 	if (rpe.failed) return 'var(--rd)';
 	if (rpe.value !== null && rpe.value >= 9) return 'var(--pr-dk)';

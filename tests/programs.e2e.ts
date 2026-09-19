@@ -1521,6 +1521,7 @@ test('duplicating a week holding a played session yields an unlocked copy', asyn
  */
 const WEEK_ONE_TUESDAY = 1;
 const WEEK_ONE_WEDNESDAY = 2;
+const WEEK_ONE_THURSDAY = 3;
 
 function inFirstWeek(dayOfWeek: number, hour = 9): string {
 	const date = new Date(`${mondayDaysAgo(7)}T00:00:00`);
@@ -1552,6 +1553,13 @@ async function stubPlayedWeekWithSessions(page: Page): Promise<void> {
 				name: 'Evening bouldering',
 				date: inFirstWeek(WEEK_ONE_WEDNESDAY),
 				origin: 'logged'
+			}),
+			testSession({
+				id: 'played-3',
+				name: 'Repeaters 20mm',
+				date: inFirstWeek(WEEK_ONE_THURSDAY),
+				origin: 'logged',
+				rpe_failed: true
 			})
 		]
 	});
@@ -1564,20 +1572,24 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
 	const performed = page.getByTestId('performed:1');
-	await expect(performed).toContainText('2 sessions');
+	await expect(performed).toContainText('3 sessions');
 	await expect(performed.getByRole('button', { name: 'Open Evening bouldering' })).toBeVisible();
 	// The card is one line, so the notes ride on its tooltip rather than being
 	// printed under it.
 	await expect(
 		performed.getByRole('button', { name: 'Open Power endurance block' })
 	).toHaveAttribute('title', /Right elbow hurt on the last set\./);
-	// The run the athlete started themselves is marked as off program.
-	await expect(performed.getByTitle('Played outside this program')).toBeVisible();
+	// The runs the athlete started themselves are marked as off program: the
+	// bouldering evening and the repeaters that failed.
+	await expect(performed.getByTitle('Played outside this program')).toHaveCount(2);
 	// The cost of the day reads off the strip itself: scanning the week for the
 	// outlier is what this row is for, and opening every session is not scanning.
-	await expect(
-		performed.getByRole('button', { name: 'Open Power endurance block' }).getByTestId('session-rpe')
-	).toContainText('9');
+	const ratedBadge = performed
+		.getByRole('button', { name: 'Open Power endurance block' })
+		.getByTestId('session-rpe');
+	await expect(ratedBadge).toHaveAttribute('data-compact', 'true');
+	// The value alone, since a cell this narrow has a name to fit beside it.
+	await expect(ratedBadge).toHaveText('9');
 	await expect(
 		performed.getByRole('button', { name: 'Open Power endurance block' })
 	).toHaveAttribute('title', /Session RPE 9: needs two full rest days/);
@@ -1589,6 +1601,16 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	await expect(
 		performed.getByRole('button', {
 			name: 'Open Power endurance block, Session RPE 9: needs two full rest days'
+		})
+	).toBeVisible();
+	// A failure is one glyph here. The word is five characters in a cell about
+	// 110px wide, and it took the session name with it.
+	const failedCard = performed.getByRole('button', { name: 'Open Repeaters 20mm' });
+	await expect(failedCard.getByTestId('session-rpe')).toHaveText('X');
+	await expect(failedCard).toContainText('Repeaters');
+	await expect(
+		performed.getByRole('button', {
+			name: 'Open Repeaters 20mm, Session RPE ECHEC: could not be carried through'
 		})
 	).toBeVisible();
 

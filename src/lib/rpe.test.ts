@@ -88,7 +88,9 @@ describe('sessionRpeColor', () => {
 		expect(colorOf({ rpe: 10 })).toBe('var(--pr-dk)');
 		expect(colorOf({ rpe_failed: true })).toBe('var(--rd)');
 	});
+});
 
+describe('sessionRpeTint', () => {
 	it('grounds each band on the tint of its own hue', () => {
 		const tintOf = (overrides: Partial<SessionResponse>) =>
 			sessionRpeTint(sessionRpe(session(overrides))!);

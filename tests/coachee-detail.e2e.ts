@@ -2178,24 +2178,6 @@ test.describe('session RPE', () => {
 		await expect(card).toContainText('Needs two full rest days');
 	});
 
-	test('marks a failure with one glyph in the week-sized badge', async ({ page }) => {
-		const failed = testSession({ name: 'Board session', rpe_failed: true });
-		await stubCoacheeDetail(page);
-		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [failed] });
-
-		await page.goto('/coachees/coachee-1');
-
-		// The row has room for the word; the week grid strip does not, which is
-		// what the compact form is for. Both name the scale in full to a reader.
-		const row = page.getByRole('button', { name: 'Open Board session' });
-		await expect(row.getByTestId('session-rpe')).toContainText('ECHEC');
-		await expect(
-			page.getByRole('button', {
-				name: 'Open Board session, Session RPE ECHEC: could not be carried through'
-			})
-		).toBeVisible();
-	});
-
 	test('reads a failed session as ECHEC rather than as a number', async ({ page }) => {
 		const failed = testSession({ name: 'Board session', rpe_failed: true });
 		await stubCoacheeDetail(page);
@@ -2206,8 +2188,18 @@ test.describe('session RPE', () => {
 
 		await page.goto('/coachees/coachee-1');
 
+		// The row has room for the word, unlike the week grid cell, and it names
+		// the scale rather than leaving the value to stand on its own.
 		const row = page.getByRole('button', { name: 'Open Board session' });
-		await expect(row.getByTestId('session-rpe')).toContainText('ECHEC');
+		const badge = row.getByTestId('session-rpe');
+		await expect(badge).toHaveAttribute('data-compact', 'false');
+		await expect(badge).toContainText('RPE');
+		await expect(badge).toContainText('ECHEC');
+		await expect(
+			page.getByRole('button', {
+				name: 'Open Board session, Session RPE ECHEC: could not be carried through'
+			})
+		).toBeVisible();
 
 		await row.click();
 		const card = page.getByRole('dialog').getByTestId('session-rpe-card');
