@@ -1792,6 +1792,202 @@ test.describe('item goals', () => {
 });
 
 /**
+ * A protocol is the rule the athlete resolves while performing the block, the
+ * half of a real prescription that a reps integer and a loads array cannot
+ * hold. Nothing here evaluates it: the coach writes it, the athlete reads it
+ * and records what came out of it on the session.
+ *
+ * The four prescriptions below are the ones the ticket is measured against, and
+ * they are used verbatim so the test fails if the field ever stops carrying one
+ * of them whole.
+ */
+test.describe('item protocols', () => {
+	const PROTOCOL_PLACEHOLDER =
+		'The rule the athlete resolves (e.g. to failure or 40s; past 40s add 5kg, short of it put your feet on the ground)';
+	const GOAL_PLACEHOLDER = 'What this block trains (e.g. finger endurance)';
+	const COMMENT_PLACEHOLDER =
+		'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)';
+
+	const branchOnTheResult =
+		'Hang on 20mm, 3 fingers extended, to failure or 40s, 3 sets, 2 min rest. If you go past 40s add 5kg; if you fall short, put your feet on the ground.';
+	const deriveLaterSets =
+		'5 on / 5 off on 20mm. Max reps on set 1, but stop at 36 if you have not failed by then. Then minus 25% of that, rounded down, on each following set.';
+	const rampToALimit =
+		'Ramp up in 5kg steps, then 2.5kg once you are near the limit. If you hold more than 5 sec, stop the set and add load.';
+	const stopRuleOnATest =
+		'Aim for 24 reps. If you get past 24, stop, rest 10 min, then add 5kg and go again.';
+
+	test('saves the branch on the result written on a repeater', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangboardItem());
+
+		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(branchOnTheResult);
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ protocol: branchOnTheResult });
+	});
+
+	test('saves the derived sets rule written on a hang rep', async ({ page }) => {
+		const updates = await openHangboardEditor(page, hangRepItem());
+
+		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(deriveLaterSets);
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ protocol: deriveLaterSets });
+	});
+
+	test('saves the ramp stop rule written on an exercise', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'exercise',
+			position: 0,
+			reps: 5,
+			rest_seconds: 0
+		});
+
+		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(rampToALimit);
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ protocol: rampToALimit });
+	});
+
+	test('saves the test stop rule written on a circuit', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'circuit',
+			position: 0,
+			cycles: 3,
+			items: []
+		});
+
+		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(stopRuleOnATest);
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ protocol: stopRuleOnATest });
+	});
+
+	test('saves a protocol written on an emom', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'emom',
+			position: 0,
+			cycles: 5,
+			interval_seconds: 60,
+			items: []
+		});
+
+		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill('Drop out when you miss a round.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			protocol: 'Drop out when you miss a round.'
+		});
+	});
+
+	test('saves a protocol written on a group', async ({ page }) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'group',
+			position: 0,
+			group_title: 'Warmup',
+			items: []
+		});
+
+		await page
+			.getByPlaceholder(PROTOCOL_PLACEHOLDER)
+			.fill('Skip the last block if the fingers feel cold.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			protocol: 'Skip the last block if the fingers feel cold.'
+		});
+	});
+
+	// Three columns on one item now, answering three different questions.
+	// Typing in one must not land in another, on either the way out or back.
+	test('saves the goal, the protocol and the comment of one item apart from each other', async ({
+		page
+	}) => {
+		const updates = await openHangboardEditor(page, {
+			id: 'item-1',
+			type: 'exercise',
+			position: 0,
+			reps: 5,
+			rest_seconds: 0
+		});
+
+		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('resi doigts');
+		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(stopRuleOnATest);
+		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('First rep in pronation.');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({
+			goal: 'resi doigts',
+			protocol: stopRuleOnATest,
+			comment: 'First rep in pronation.'
+		});
+	});
+
+	test('shows every worked example in the read-only view', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-0',
+					type: 'exercise',
+					position: 0,
+					reps: 5,
+					rest_seconds: 0,
+					protocol: stopRuleOnATest
+				},
+				hangboardItem({ id: 'item-1', protocol: branchOnTheResult }),
+				hangRepItem({ id: 'item-2', protocol: deriveLaterSets }),
+				{
+					id: 'item-3',
+					type: 'circuit',
+					position: 3,
+					cycles: 3,
+					items: [],
+					protocol: rampToALimit
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText(stopRuleOnATest)).toBeVisible();
+		await expect(page.getByText(branchOnTheResult)).toBeVisible();
+		await expect(page.getByText(deriveLaterSets)).toBeVisible();
+		await expect(page.getByText(rampToALimit)).toBeVisible();
+	});
+
+	// A rule broken over several lines is read line by line, so the view keeps
+	// the breaks rather than running them together.
+	test('keeps the line breaks of a protocol in the read-only view', async ({ page }) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-0',
+					type: 'exercise',
+					position: 0,
+					reps: 5,
+					rest_seconds: 0,
+					protocol: 'Set 1: max reps, stop at 36.\nSets 2 and 3: minus 25%, rounded down.'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		const rule = page.getByText('Set 1: max reps, stop at 36.');
+		await expect(rule).toBeVisible();
+		await expect(rule).toHaveCSS('white-space', 'pre-wrap');
+	});
+});
+
+/**
  * A note is the prose a coaching spreadsheet is full of: the section headers
  * that split a day into parts, and the prescriptions that are not exercises.
  * The athlete reads one and confirms it, so it prescribes nothing and goes
@@ -2767,6 +2963,12 @@ test.describe('reordering root blocks', () => {
 	});
 
 	test('moves a block up when it is dropped onto the one above it', async ({ page }) => {
+		// Two group cards each carry a goal, a protocol and a comment field, so
+		// the second handle sits near the default viewport's bottom edge, inside
+		// dnd-kit's own autoscroll zone, and the drag races it. Same fix as the
+		// empty circuit case below: a taller viewport keeps the handle clear of
+		// that edge.
+		await page.setViewportSize({ width: 1280, height: 1400 });
 		const training = testTraining({ items: [warmupGroup, cooldownGroup] });
 		await stub(page, 'GET', '/api/trainings/*', { body: training });
 		await stub(page, 'PUT', '/api/trainings/*', { body: training });

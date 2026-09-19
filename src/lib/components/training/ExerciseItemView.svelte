@@ -12,6 +12,7 @@
 	import { videoLinkHref } from '$lib/video-link';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
 	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
+	import ItemProtocolDisplay from './ItemProtocolDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -215,6 +216,7 @@
 		</div>
 
 		<ItemGoalDisplay {item} />
+		<ItemProtocolDisplay {item} />
 
 		<ItemCommentDisplay {item} />
 

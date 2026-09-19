@@ -16,6 +16,7 @@
 	import AchievedUnder from './AchievedUnder.svelte';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
 	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
+	import ItemProtocolDisplay from './ItemProtocolDisplay.svelte';
 	import { getContext } from 'svelte';
 	import { ITEM_RESULTS_KEY, achievedEntries, type ItemResultsByItem } from './results-context';
 
@@ -150,6 +151,7 @@
 		{/if}
 
 		<ItemGoalDisplay {item} inset={null} />
+		<ItemProtocolDisplay {item} inset={null} />
 
 		<ItemCommentDisplay {item} inset={null} />
 

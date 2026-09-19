@@ -23,6 +23,11 @@
 	--gn-tx: #4e7154;
 	--gd: #d4a15e;
 	--gd-lt: #faf0dc;
+	/* The gold text a protocol label is set in, beside --gn-tx for a goal.
+	   --gd itself is about 2.3:1 on white, far under the 4.5:1 floor for type
+	   that small, so the text token is carried further down; it is
+	   protocolColor in crimpy-app/lib/theme/crimpy_theme.dart. */
+	--gd-tx: #8a6220;
 	--pl: #907b99;
 	--pl-lt: #ede8f0;
 	--pl-fog: #faf7fe;

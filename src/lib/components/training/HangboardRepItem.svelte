@@ -20,6 +20,7 @@
 	} from './hangboard-config';
 	import ItemComment from './ItemComment.svelte';
 	import ItemGoal from './ItemGoal.svelte';
+	import ItemProtocol from './ItemProtocol.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -235,6 +236,7 @@
 		{/if}
 
 		<ItemGoal {item} {overriding} />
+		<ItemProtocol {item} {overriding} />
 		<ItemComment {item} {overriding} />
 	{/snippet}
 </HangboardCard>

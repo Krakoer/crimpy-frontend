@@ -11,6 +11,7 @@
 	import AchievedUnder from './AchievedUnder.svelte';
 	import ItemCommentDisplay from './ItemCommentDisplay.svelte';
 	import ItemGoalDisplay from './ItemGoalDisplay.svelte';
+	import ItemProtocolDisplay from './ItemProtocolDisplay.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -67,6 +68,7 @@
 		</div>
 
 		<ItemGoalDisplay {item} inset={null} />
+		<ItemProtocolDisplay {item} inset={null} />
 
 		<ItemCommentDisplay {item} inset={null} />
 
