@@ -15,6 +15,9 @@ import {
 	stub,
 	testAssessmentDefinition,
 	testAssessmentRecord,
+	stubSnapshotsByDay,
+	testAssessmentSnapshot,
+	testSnapshotResult,
 	testEnrolledUser,
 	testProgram,
 	testSession,
@@ -1662,6 +1665,57 @@ test('shows the coachee assessments without leaving the program', async ({ page 
 	const modal = page.getByRole('dialog', { name: 'Assessment results' });
 	await expect(modal.getByText('Max Force').first()).toBeVisible();
 	await expect(modal.getByText('Assessment history')).toBeVisible();
+});
+
+// The comparison is threaded through the modal by the athlete id the program page
+// holds, and reading the wrong id would show another athlete's results with nothing
+// on screen saying so.
+test('compares two dates for the right athlete inside the assessments modal', async ({ page }) => {
+	const march = '2026-03-02';
+	const june = '2026-06-02';
+	await stubProgram(page);
+	await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+		body: [
+			testAssessmentRecord({
+				id: 'record-march',
+				per_hand: false,
+				right_value: 13,
+				left_value: null,
+				session_date: `${march}T10:00:00Z`,
+				updated_at: `${march}T10:00:00Z`
+			}),
+			testAssessmentRecord({
+				id: 'record-june',
+				per_hand: false,
+				right_value: 17,
+				left_value: null,
+				session_date: `${june}T10:00:00Z`,
+				updated_at: `${june}T10:00:00Z`
+			})
+		]
+	});
+	await stub(page, 'GET', '/api/assessment-definitions', { body: builtinAssessmentDefinitions() });
+	const snapshots = capture(page, 'GET', '/api/coach/clients/*/assessments/at');
+	await stubSnapshotsByDay(page, {
+		[march]: testAssessmentSnapshot(march, [
+			testSnapshotResult({ right_value: 13, right_measured_at: `${march}T10:00:00Z` })
+		]),
+		[june]: testAssessmentSnapshot(june, [
+			testSnapshotResult({ right_value: 17, right_measured_at: `${june}T10:00:00Z` })
+		])
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Assessments/ }).click();
+
+	const modal = page.getByRole('dialog', { name: 'Assessment results' });
+	const comparison = modal.getByRole('region', { name: 'Assessment comparison' });
+	await expect(comparison.getByText('+30.8 %')).toBeVisible();
+	// Both snapshots were asked of the athlete the program belongs to.
+	expect(snapshots.length).toBeGreaterThanOrEqual(2);
+	for (const read of snapshots) {
+		expect(read.url).toContain('/api/coach/clients/coachee-1/assessments/at');
+	}
 });
 
 test('answers the notes on a played run without leaving the program', async ({ page }) => {

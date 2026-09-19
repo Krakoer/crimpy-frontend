@@ -1,10 +1,15 @@
 <script lang="ts">
 	import type { AssessmentResponse } from '$lib/api/client';
+	import AssessmentComparison from './AssessmentComparison.svelte';
 	import AssessmentHistoryTable from './AssessmentHistoryTable.svelte';
 	import AssessmentResultCard from './AssessmentResultCard.svelte';
 	import { firstGrip, groupRecordedAssessments, measuredAt } from './assessment-records';
 
 	interface Props {
+		// The athlete the records belong to. The comparison reads its two dates
+		// from the server rather than folding the records, since a snapshot also
+		// carries the bodyweight those dates are read against.
+		userId: string;
 		records: AssessmentResponse[];
 		// How many of the most recent results the table below the cards lists.
 		historyLength?: number;
@@ -14,7 +19,7 @@
 		failed?: boolean;
 	}
 
-	let { records, historyLength = 8, failed = false }: Props = $props();
+	let { userId, records, historyLength = 8, failed = false }: Props = $props();
 
 	const recorded = $derived(groupRecordedAssessments(records));
 	const history = $derived(
@@ -76,6 +81,8 @@
 			/>
 		{/each}
 	</div>
+
+	<AssessmentComparison {userId} {records} />
 
 	<AssessmentHistoryTable records={history} formatDate={formatAssessmentDate} />
 {/if}

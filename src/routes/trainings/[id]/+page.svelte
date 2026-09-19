@@ -18,6 +18,7 @@
 	import AssessmentDefinitionFields from '$lib/components/training/AssessmentDefinitionFields.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import {
+		assessmentDraftFlags,
 		emptyAssessmentDraft,
 		type AssessmentDraft
 	} from '$lib/components/training/assessment-draft';
@@ -316,7 +317,8 @@
 						enabled: true,
 						prompt: training.assessment.prompt ?? '',
 						unit: training.assessment.unit as AssessmentUnit,
-						perHand: training.assessment.per_hand
+						perHand: training.assessment.per_hand,
+						bodyweightRelative: training.assessment.bodyweight_relative ?? false
 					};
 				}
 				savedSnapshot = currentSnapshot();
@@ -383,7 +385,8 @@
 				label: title,
 				prompt: assessment.prompt.trim(),
 				unit: assessment.unit,
-				per_hand: assessment.perHand
+				per_hand: assessment.perHand,
+				...assessmentDraftFlags(assessment)
 			};
 			if (savedAssessmentId) {
 				await apiClient.updateAssessmentDefinition(savedAssessmentId, payload);

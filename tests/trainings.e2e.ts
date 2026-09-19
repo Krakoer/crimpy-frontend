@@ -2362,6 +2362,65 @@ test.describe('custom assessments', () => {
 		});
 	});
 
+	// A finger strength result in kilograms is only comparable across a season as a
+	// ratio to the weight it was pulled at, which is what the flag asks for.
+	test('scores an assessment against bodyweight when the coach asks for it', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			body: testAssessmentDefinition({ id: 'assessment-9' })
+		});
+		const declared = capture(page, 'POST', '/api/assessment-definitions');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('Weighted hang 20mm');
+		await page.getByLabel('This training is an assessment').check();
+		await page.getByPlaceholder('How many pull ups did you do?').fill('How much did you add?');
+
+		// The score only means something on a weight, so it is not offered until
+		// the unit is one.
+		await expect(page.getByLabel('Score it against bodyweight')).toBeHidden();
+		await page.getByRole('button', { name: 'Kilograms' }).click();
+		await page.getByLabel('Score it against bodyweight').check();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Assessment created')).toBeVisible();
+		expect(declared[0].body).toMatchObject({
+			unit: 'kilograms',
+			bodyweight_relative: true
+		});
+	});
+
+	// Ticking the score and then moving the unit off kilograms leaves the checkbox
+	// hidden but still ticked in the draft, and the server refuses that pair.
+	test('drops the bodyweight score when the unit is no longer a weight', async ({ page }) => {
+		await stubEditorPalette(page);
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });
+		await stub(page, 'POST', '/api/assessment-definitions', {
+			body: testAssessmentDefinition({ id: 'assessment-9' })
+		});
+		const declared = capture(page, 'POST', '/api/assessment-definitions');
+
+		await page.goto('/trainings/new');
+		await page.getByPlaceholder('Training title').first().fill('One arm lock off');
+		await page.getByLabel('This training is an assessment').check();
+		await page.getByPlaceholder('How many pull ups did you do?').fill('How long did you hold?');
+		await page.getByRole('button', { name: 'Kilograms' }).click();
+		await page.getByLabel('Score it against bodyweight').check();
+		await page.getByRole('button', { name: 'Seconds' }).click();
+		await page.getByRole('button', { name: 'Save training' }).click();
+
+		await expect(page.getByText('Assessment created')).toBeVisible();
+		expect(declared[0].body).toMatchObject({
+			unit: 'seconds',
+			bodyweight_relative: false
+		});
+	});
+
 	test('refuses to save an assessment with no question', async ({ page }) => {
 		await stubEditorPalette(page);
 		await stub(page, 'GET', '/api/trainings', { body: [] });

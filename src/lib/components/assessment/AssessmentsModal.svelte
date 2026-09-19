@@ -4,13 +4,14 @@
 	import AssessmentResults from './AssessmentResults.svelte';
 
 	interface Props {
+		userId: string;
 		athleteName: string;
 		records: AssessmentResponse[];
 		failed?: boolean;
 		onClose: () => void;
 	}
 
-	let { athleteName, records, failed = false, onClose }: Props = $props();
+	let { userId, athleteName, records, failed = false, onClose }: Props = $props();
 
 	function onKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
@@ -67,7 +68,7 @@
 		</div>
 
 		<div class="space-y-3 overflow-y-auto" style="padding: 18px 20px; background: var(--bg);">
-			<AssessmentResults {records} {failed} />
+			<AssessmentResults {userId} {records} {failed} />
 		</div>
 	</div>
 </div>

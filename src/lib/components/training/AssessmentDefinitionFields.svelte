@@ -82,10 +82,28 @@
 				<span style="font-size: 13px; color: var(--tx);">Measured on each hand separately</span>
 			</label>
 
+			{#if draft.unit === 'kilograms'}
+				<!-- Not frozen by the results the unit above is: the flag stores
+				     nothing, so turning it on or off only changes how the same
+				     kilograms are drawn, for the whole history at once. -->
+				<label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;">
+					<input type="checkbox" bind:checked={draft.bodyweightRelative} style="margin-top: 3px;" />
+					<span style="font-size: 13px; color: var(--tx);">
+						Score it against bodyweight
+						<span style="display: block; font-size: 12px; color: var(--tx2);">
+							The result is drawn as (bodyweight + result) / bodyweight, so a season of added weight
+							stays comparable. The kilograms are still what is recorded.
+						</span>
+					</span>
+				</label>
+			{/if}
+
 			{#if measured}
 				<p style="margin: 0; font-size: 12px; color: var(--tx2);">
 					This assessment is already in use, so the unit and the hands are fixed. The name and the
-					question can still be changed.
+					question can still be changed{draft.unit === 'kilograms'
+						? ', and so can the bodyweight score: it is only a way of reading the kilograms already recorded'
+						: ''}.
 				</p>
 			{/if}
 		</div>

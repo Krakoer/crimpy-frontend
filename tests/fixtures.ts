@@ -26,6 +26,7 @@ export interface TestAssessmentDefinition {
 	prompt?: string;
 	training_id?: string;
 	per_hand: boolean;
+	bodyweight_relative: boolean;
 	is_builtin: boolean;
 	created_at: string;
 	updated_at: string;
@@ -39,6 +40,7 @@ export function testAssessmentDefinition(
 		label: 'Max Force',
 		unit: 'kilograms',
 		per_hand: true,
+		bodyweight_relative: false,
 		is_builtin: true,
 		created_at: isoDaysAgo(90),
 		updated_at: isoDaysAgo(90),
@@ -66,6 +68,7 @@ export interface TestAssessmentRecord {
 	label: string;
 	unit: string;
 	per_hand: boolean;
+	bodyweight_relative: boolean;
 	training_id?: string;
 	right_value: number | null;
 	left_value: number | null;
@@ -86,6 +89,7 @@ export function testAssessmentRecord(
 		label: 'Max Force',
 		unit: 'kilograms',
 		per_hand: true,
+		bodyweight_relative: false,
 		right_value: 42,
 		left_value: 40,
 		session_id: 'session-1',
@@ -94,6 +98,74 @@ export function testAssessmentRecord(
 		session_date: updated,
 		...overrides
 	};
+}
+
+/**
+ * One row of GET /api/coach/clients/:id/assessments/at, the last value measured
+ * for an assessment and a grip at or before the date asked for.
+ */
+export interface TestAssessmentSnapshotResult {
+	assessment_id: string;
+	label: string;
+	unit: string;
+	per_hand: boolean;
+	bodyweight_relative: boolean;
+	training_id?: string;
+	grip_position: number;
+	right_value?: number | null;
+	right_measured_at?: string | null;
+	right_bodyweight_kg?: number | null;
+	left_value?: number | null;
+	left_measured_at?: string | null;
+	left_bodyweight_kg?: number | null;
+}
+
+export function testSnapshotResult(
+	overrides: Partial<TestAssessmentSnapshotResult> = {}
+): TestAssessmentSnapshotResult {
+	return {
+		assessment_id: BUILTIN_MAX_FORCE,
+		label: 'Max Force',
+		unit: 'kilograms',
+		per_hand: false,
+		bodyweight_relative: false,
+		grip_position: 0,
+		right_value: 25,
+		right_measured_at: '2026-03-02T10:00:00Z',
+		...overrides
+	};
+}
+
+/** A whole snapshot, with the bodyweight in effect on that date. */
+export function testAssessmentSnapshot(
+	day: string,
+	results: TestAssessmentSnapshotResult[] = [],
+	bodyweightKg: number | null = null
+) {
+	return { date: `${day}T23:59:59Z`, results, bodyweight_kg: bodyweightKg };
+}
+
+/**
+ * The comparison asks for one snapshot per date, and the two answers are what it
+ * puts side by side, so a stub has to answer per date rather than serve one body
+ * to both calls the way stub() does. A day with no entry answers empty.
+ */
+export async function stubSnapshotsByDay(
+	page: Page,
+	byDay: Record<string, ReturnType<typeof testAssessmentSnapshot>>
+): Promise<void> {
+	await page.route(`${API_URL}/**`, async (route) => {
+		const request = route.request();
+		const url = new URL(request.url());
+		const isSnapshot = /^\/api\/coach\/clients\/[^/]+\/assessments\/at$/.test(url.pathname);
+		if (request.method() !== 'GET' || !isSnapshot) return route.fallback();
+		const day = url.searchParams.get('date') ?? '';
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(byDay[day] ?? testAssessmentSnapshot(day))
+		});
+	});
 }
 
 export interface TestUser {

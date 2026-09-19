@@ -14,6 +14,7 @@
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import AssessmentDefinitionFields from '$lib/components/training/AssessmentDefinitionFields.svelte';
 	import {
+		assessmentDraftFlags,
 		emptyAssessmentDraft,
 		type AssessmentDraft
 	} from '$lib/components/training/assessment-draft';
@@ -257,7 +258,8 @@
 					label: draft.title.trim(),
 					prompt: assessment.prompt.trim(),
 					unit: assessment.unit,
-					per_hand: assessment.perHand
+					per_hand: assessment.perHand,
+					...assessmentDraftFlags(assessment)
 				});
 				await assessmentCatalog.refresh();
 			}

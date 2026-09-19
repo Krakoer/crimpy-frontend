@@ -31,11 +31,16 @@ export function unitLabel(unit: string): string {
 	return UNIT_LABELS[unit] ?? '';
 }
 
-// A measured number in its unit's precision: kilograms read to a decimal, a
-// count of seconds or repetitions does not.
+// A measured number in its unit's precision: kilograms always read to a decimal,
+// a count of seconds or repetitions only when it has one. A rep count reads badly
+// with a trailing zero, but a half second is a real result, and the spreadsheet
+// the assessment screens come from writes 8.5 sec: rounding it to 9 loses the
+// half the athlete earned, and a comparison beside it would report a change
+// between two numbers printed identically.
 export function formatUnitValue(value: number | null | undefined, unit: string): string {
 	if (value === null || value === undefined) return '--';
-	return unit === 'kilograms' ? value.toFixed(1) : value.toFixed(0);
+	if (unit === 'kilograms') return value.toFixed(1);
+	return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
 }
 
 export interface AssessmentTypeInfo {
