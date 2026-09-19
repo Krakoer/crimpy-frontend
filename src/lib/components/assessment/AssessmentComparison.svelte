@@ -102,6 +102,9 @@
 
 	function progressionColor(hand: ComparedHand): string {
 		if (hand.delta === undefined) return 'var(--tx3)';
+		// A result that did not move is not a loss, including the one the
+		// percentage cannot answer for because it started at zero.
+		if (hand.delta === 0) return 'var(--tx2)';
 		if (hand.percent !== undefined && Math.abs(hand.percent) < 0.05) return 'var(--tx2)';
 		return hand.delta > 0 ? 'var(--gn-tx)' : 'var(--rd)';
 	}

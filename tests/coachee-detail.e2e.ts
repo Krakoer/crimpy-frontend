@@ -1769,6 +1769,44 @@ test.describe('assessment comparison', () => {
 		await expect(comparison.getByText('%')).toHaveCount(0);
 	});
 
+	// A percentage of a zero result is not a percentage, so the change reads as an
+	// absolute number. Zero to zero is that case and a standstill at once, and the
+	// colour is the only thing saying which, so it is what the test reads.
+	test('does not paint a result that did not move as a loss', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 0, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 0, left_value: null })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(march, [
+				testSnapshotResult({
+					unit: 'repetitions',
+					right_value: 0,
+					right_measured_at: `${march}T10:00:00Z`
+				})
+			]),
+			[june]: testAssessmentSnapshot(june, [
+				testSnapshotResult({
+					unit: 'repetitions',
+					right_value: 0,
+					right_measured_at: `${june}T10:00:00Z`
+				})
+			])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		const change = comparison.getByText('0 reps', { exact: true });
+		await expect(change).toBeVisible();
+		// The muted tone, --tx2, rather than the loss red --rd.
+		await expect(change).toHaveCSS('color', 'rgb(122, 110, 98)');
+	});
+
 	// Three test days, so the pair can actually be moved. With two, every From
 	// option is forced and the filtering below never runs.
 	const january = '2026-01-08';
