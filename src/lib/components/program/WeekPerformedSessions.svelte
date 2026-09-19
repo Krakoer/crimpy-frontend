@@ -3,7 +3,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
 	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
-	import { sessionRpe, sessionRpeTitle } from '$lib/rpe';
+	import { sessionRpe, sessionRpeTitle, type SessionRpe } from '$lib/rpe';
 	import {
 		awaitsCoachReply,
 		formatDuration,
@@ -58,6 +58,26 @@
 
 	function isOffProgram(session: SessionResponse): boolean {
 		return !session.program_session_id || !programSessionIDs.has(session.program_session_id);
+	}
+
+	// An explicit aria-label replaces everything inside the button, so every
+	// marker the card shows has to be named here or a screen reader hears a
+	// plain session. Spelled out rather than appended at each marker, so the
+	// next one added is one entry rather than another interpolation.
+	function sessionCardLabel(
+		session: SessionResponse,
+		rpe: SessionRpe | null,
+		needsReply: boolean
+	): string {
+		return [
+			`Open ${session.name}`,
+			rpe ? sessionRpeTitle(rpe) : null,
+			isOffProgram(session) ? 'played outside this program' : null,
+			session.is_assessment ? 'assessment' : null,
+			needsReply ? 'waiting for an answer' : session.coach_reply ? 'answered' : null
+		]
+			.filter(Boolean)
+			.join(', ');
 	}
 
 	const emptyMessage = $derived(
@@ -122,11 +142,7 @@
 					{@const rpe = sessionRpe(session)}
 					<button
 						onclick={() => onOpen(session)}
-						aria-label="Open {session.name}{rpe ? `, ${sessionRpeTitle(rpe)}` : ''}{isOffProgram(
-							session
-						)
-							? ', played outside this program'
-							: ''}{needsReply ? ', waiting for an answer' : ''}"
+						aria-label={sessionCardLabel(session, rpe, needsReply)}
 						title={summary(session)}
 						style="
 							display: flex; align-items: center; gap: 4px; width: 100%;

@@ -1584,12 +1584,11 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	await expect(performed.getByTitle('Played outside this program')).toHaveCount(2);
 	// The cost of the day reads off the strip itself: scanning the week for the
 	// outlier is what this row is for, and opening every session is not scanning.
-	const ratedBadge = performed
-		.getByRole('button', { name: 'Open Power endurance block' })
-		.getByTestId('session-rpe');
-	await expect(ratedBadge).toHaveAttribute('data-compact', 'true');
 	// The value alone, since a cell this narrow has a name to fit beside it.
-	await expect(ratedBadge).toHaveText('9');
+	// Exact text, so an RPE label reappearing in compact mode fails here.
+	await expect(
+		performed.getByRole('button', { name: 'Open Power endurance block' }).getByTestId('session-rpe')
+	).toHaveText('9');
 	await expect(
 		performed.getByRole('button', { name: 'Open Power endurance block' })
 	).toHaveAttribute('title', /Session RPE 9: needs two full rest days/);
@@ -1608,9 +1607,16 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	const failedCard = performed.getByRole('button', { name: 'Open Repeaters 20mm' });
 	await expect(failedCard.getByTestId('session-rpe')).toHaveText('X');
 	await expect(failedCard).toContainText('Repeaters');
+	// The label carries every marker the card shows, since an explicit
+	// aria-label replaces everything inside the button.
 	await expect(
 		performed.getByRole('button', {
-			name: 'Open Repeaters 20mm, Session RPE ECHEC: could not be carried through'
+			name: 'Open Repeaters 20mm, Session RPE ECHEC: could not be carried through, played outside this program'
+		})
+	).toBeVisible();
+	await expect(
+		performed.getByRole('button', {
+			name: 'Open Power endurance block, Session RPE 9: needs two full rest days, waiting for an answer'
 		})
 	).toBeVisible();
 
