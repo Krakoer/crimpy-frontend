@@ -1961,6 +1961,51 @@ test.describe('item protocols', () => {
 		await expect(page.getByText(rampToALimit)).toBeVisible();
 	});
 
+	// A group, a circuit and an emom each compute their own margin above the
+	// list they hold from the three note fields, so the protocol arm of that
+	// expression needs its own read.
+	test('shows the protocol of a group, a circuit and an emom in the read-only view', async ({
+		page
+	}) => {
+		const training = testTraining({
+			items: [
+				{
+					id: 'item-0',
+					type: 'group',
+					position: 0,
+					group_title: 'Warmup',
+					items: [],
+					protocol: 'Skip the last block if the fingers feel cold.'
+				},
+				{
+					id: 'item-1',
+					type: 'circuit',
+					position: 1,
+					cycles: 3,
+					items: [],
+					protocol: stopRuleOnATest
+				},
+				{
+					id: 'item-2',
+					type: 'emom',
+					position: 2,
+					cycles: 5,
+					interval_seconds: 60,
+					items: [],
+					protocol: 'Drop out when you miss a round.'
+				}
+			]
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('Skip the last block if the fingers feel cold.')).toBeVisible();
+		await expect(page.getByText(stopRuleOnATest)).toBeVisible();
+		await expect(page.getByText('Drop out when you miss a round.')).toBeVisible();
+	});
+
 	// A rule broken over several lines is read line by line, so the view keeps
 	// the breaks rather than running them together.
 	test('keeps the line breaks of a protocol in the read-only view', async ({ page }) => {
