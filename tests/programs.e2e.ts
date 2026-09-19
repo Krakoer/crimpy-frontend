@@ -246,6 +246,13 @@ test('does not call a week clear on the strength of a missing activities list', 
 
 	await page.goto(PROGRAM_URL);
 	await expect(page.getByTestId('availability:1')).not.toContainText('has nothing on it');
+	// What it shows instead: the day grid, with nothing claimed about any day
+	// and no count of days the athlete never gave.
+	await expect(page.getByTestId('availability:1:0')).toContainText('-');
+	await expect(
+		page.locator('[data-testid="availability:1:0"] [title="Nothing planned"]')
+	).toHaveCount(0);
+	await expect(page.getByTestId('availability:1')).not.toContainText('0 days');
 });
 
 test('drops the availability row on a week that is over and was never declared', async ({

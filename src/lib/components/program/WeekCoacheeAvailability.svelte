@@ -34,15 +34,17 @@
 		daysByIndex.filter((activities) => activities !== undefined && activities.length > 0).length
 	);
 
+	// Every day came back with a list, so what is shown is the whole of what the
+	// athlete said. Without it the row can show a day, but cannot count them or
+	// call any of them empty.
+	const wholeWeekRead = $derived(daysByIndex.every((activities) => activities !== undefined));
+
 	// A week is in the list only because the athlete declared it, so one holding
 	// nothing is them saying their week is clear, not them staying silent. The
 	// two read differently to a coach about to write the week, which is why this
 	// is only claimed when all seven days actually came back with a list.
 	const declaredEmpty = $derived(
-		Boolean(availability) &&
-			!failed &&
-			daysByIndex.every((activities) => activities !== undefined) &&
-			plannedDayCount === 0
+		Boolean(availability) && !failed && wholeWeekRead && plannedDayCount === 0
 	);
 
 	// The same reading as the duration of a run played that day, so the two rows
@@ -96,8 +98,10 @@
 		</div>
 		<!-- Hidden on a week declared empty the way it is on a failed read: the
 			sentence beside it already says the count, and "0 days" only ever meant
-			a grid of dashes before. -->
-		{#if availability && !failed && !declaredEmpty}
+			a grid of dashes before. Hidden too when a day did not come back with a
+			list, since "0 days" would then be a claim about the athlete made out of
+			a gap in the response. -->
+		{#if availability && !failed && !declaredEmpty && wholeWeekRead}
 			<div style="font-size: 10px; color: var(--tx3); padding-left: 17px;">
 				{plannedDayCount} day{plannedDayCount === 1 ? '' : 's'}
 			</div>
@@ -126,9 +130,13 @@
 				"
 			>
 				{#if activities.length === 0}
+					<!-- The dash says the same thing either way, but the tooltip must
+						not: a day that came back with an empty list is the athlete
+						saying nothing is on, and a day that came back without one says
+						nothing at all. -->
 					<div
 						class="flex items-center justify-center"
-						title="Nothing planned"
+						title={dayActivities === undefined ? undefined : 'Nothing planned'}
 						style="flex: 1; color: var(--bd); font-size: 14px;"
 					>
 						-
