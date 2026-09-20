@@ -246,6 +246,7 @@ test.describe('weekly training load', () => {
 
 		await expect(page.getByText(/could not be read/)).toBeVisible();
 	});
+
 	test('still draws the chart when the server refuses the browser zone', async ({ page }) => {
 		// A few host zones resolve to a name the API will not take, since it holds
 		// a zone to the shape Area/Location and answers 400 otherwise. The coach
