@@ -82,10 +82,16 @@
 				itemStyle: { color: wash(bandColor(band, theme), band.tone === 'unlabelled' ? 0.1 : 0.12) },
 				label: {
 					show: showLabels,
+					// On the band's own upper edge, which is where the chronic line
+					// also runs, so the name is set on a plate of the panel colour
+					// rather than left to fight the line for the same pixels.
 					position: 'insideTopRight' as const,
 					color: theme.textFaint,
 					fontFamily: theme.font,
 					fontSize: 9,
+					backgroundColor: theme.panel,
+					padding: [2, 4, 2, 4],
+					borderRadius: 3,
 					formatter: band.label
 				}
 			},
@@ -136,7 +142,7 @@
 					if (!week) return '';
 					const ratioBand = bandFor(RATIO_BANDS, week.acute_chronic_ratio);
 					const rows = [
-						`Week of ${formatWeekLabel(week.week_start)}${week.week_number === null ? '' : `, week ${week.week_number}`}`,
+						`Week of ${formatWeekLabel(week.week_start)}${week.week_number === null ? '' : `, week ${week.week_number}${week.program_name === null ? '' : ` of ${week.program_name}`}`}`,
 						`Sessions ${week.session_count}, ${week.total_minutes} min`,
 						`Mean RPE ${formatRpe(week.mean_rpe)} over ${week.rated_sessions} rated`,
 						`Acute ${formatLoad(week.acute_load)}, chronic ${formatLoad(week.chronic_load)}`,

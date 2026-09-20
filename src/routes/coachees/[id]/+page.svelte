@@ -450,7 +450,7 @@
 			<div
 				style="display: flex; gap: 4px; border-bottom: 1px solid var(--bd); padding: 0 4px; margin-bottom: 20px;"
 			>
-				{#each [{ id: 'sessions', label: 'Sessions', n: sessions.length }, { id: 'programs', label: 'Programs', n: programs.length }, { id: 'load', label: 'Load', n: trainingLoad.length }, { id: 'assess', label: 'Assessments', n: totalAssessmentCount }, { id: 'notes', label: 'Notes', n: 0 }] as tab (tab.id)}
+				{#each [{ id: 'sessions', label: 'Sessions', n: sessions.length }, { id: 'programs', label: 'Programs', n: programs.length }, { id: 'load', label: 'Load' }, { id: 'assess', label: 'Assessments', n: totalAssessmentCount }, { id: 'notes', label: 'Notes', n: 0 }] as tab (tab.id)}
 					<button
 						onclick={() => (activeTab = tab.id as typeof activeTab)}
 						style="
@@ -463,13 +463,18 @@
 					"
 					>
 						{tab.label}
-						<span
-							style="
+						<!-- The load tab carries no count: its series is a fixed length grid of
+						     weeks, zero weeks included, so a badge would read 12 for every
+						     coachee forever. -->
+						{#if tab.n !== undefined}
+							<span
+								style="
 						font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
 						background: {activeTab === tab.id ? 'var(--pr-fog)' : 'var(--bd2)'};
 						color: {activeTab === tab.id ? 'var(--pr)' : 'var(--tx3)'};
 					">{tab.n}</span
-						>
+							>
+						{/if}
 					</button>
 				{/each}
 			</div>
@@ -1122,7 +1127,7 @@
 					{/if}
 				</div>
 
-				<!-- Assessments tab -->
+				<!-- Load tab -->
 			{:else if activeTab === 'load'}
 				<TrainingLoadPanel
 					weeks={trainingLoad}

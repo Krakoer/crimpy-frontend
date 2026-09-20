@@ -233,14 +233,22 @@ export interface AssessmentDefinitionSnapshot {
 // One dated bodyweight measurement. measured_at is when the athlete weighed
 // themselves rather than when the row reached the server, so a measurement
 // taken offline keeps the day it belongs to.
+export interface Bodyweight {
+	id: string;
+	user_id: string;
+	weight_kg: number;
+	measured_at: string;
+	created_at: string;
+}
+
 // One calendar week of the coach's training load view, cut on Monday in the
 // caller's own time. A week the athlete trained nothing is still present, with
 // zeros, because the chronic mean has to count it.
 //
 // The nullable figures are absences rather than zeros. mean_rpe is null when no
 // session that week was rated; acute_load is zero for a week with no session at
-// all and null for a week that holds sessions but no rating, since the effort
-// is then simply not recorded. A session marked ECHEC is outside mean_rpe
+// all and null for a week that holds sessions but no rating or no recorded
+// duration, since the effort is then simply not known. A session marked ECHEC is outside mean_rpe
 // altogether and is reported as failed_sessions: it names an outcome, not a
 // point on the 5 to 10 scale.
 export interface WeeklyTrainingLoad {
@@ -265,14 +273,6 @@ export interface WeeklyTrainingLoad {
 
 export interface TrainingLoadSeries {
 	weeks: WeeklyTrainingLoad[];
-}
-
-export interface Bodyweight {
-	id: string;
-	user_id: string;
-	weight_kg: number;
-	measured_at: string;
-	created_at: string;
 }
 
 export interface EnrolledUser {

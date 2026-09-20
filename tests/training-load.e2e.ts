@@ -115,6 +115,18 @@ test.describe('weekly training load', () => {
 		// resting on two of four sessions reads like one resting on all four.
 		await expect(page.getByText(/2 of 4 rated/)).toBeVisible();
 		await expect(page.getByText(/1 ECHEC, outside the mean/).first()).toBeVisible();
+
+		// The bars and the ratio points are coloured on two different scales that
+		// share their tones, so each legend row has to say which panel it keys or
+		// a sage bar reads as an optimal AL:CL.
+		await expect(page.getByText('Bars, acute load')).toBeVisible();
+		await expect(page.getByText('Lower panel, AL:CL')).toBeVisible();
+		await expect(page.getByText('2000 to 4000 optimal')).toBeVisible();
+		await expect(page.getByText('0.8 to 1.3 optimal workload')).toBeVisible();
+
+		// The last week of the series is the week being trained now, and the
+		// tiles must not read as a verdict on a week that has not finished.
+		await expect(page.getByText(/still in progress/)).toBeVisible();
 	});
 
 	test('never lets a week land in the range the sheet does not label', async ({ page }) => {
@@ -193,8 +205,15 @@ test.describe('weekly training load', () => {
 		// Two hours were trained. The effort is not known, so the load is a gap
 		// and never a zero that would pull the coach's reading the wrong way.
 		await expect(page.getByText('2h').first()).toBeVisible();
-		await expect(page.getByText('Not rated').first()).toBeVisible();
+		await expect(page.getByText('Not rated, so not known')).toBeVisible();
 		await expect(page.getByText('0 of 2 rated')).toBeVisible();
+
+		// The baseline is there, it is this week's own load that is not known, so
+		// the tile must not claim there is no history while the table below shows
+		// a chronic load of 600 for the same week.
+		await expect(
+			page.getByText('This week is not rated, so there is nothing to compare')
+		).toBeVisible();
 	});
 
 	test('says the bands are the coach reference and not a Crimpy verdict', async ({ page }) => {

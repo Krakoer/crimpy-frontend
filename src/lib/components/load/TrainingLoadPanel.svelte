@@ -11,6 +11,7 @@
 		bandFor,
 		bandRangeLabel,
 		chronicBaselineNote,
+		missingRatioNote,
 		climbingShare,
 		formatLoad,
 		formatMinutes,
@@ -37,6 +38,11 @@
 	const loadBand = $derived(bandFor(ACUTE_LOAD_BANDS, current?.acute_load ?? null));
 	const changeBand = $derived(bandFor(LOAD_CHANGE_BANDS, current?.load_change_percent ?? null));
 	const baselineNote = $derived(current ? chronicBaselineNote(current) : null);
+	// The series always ends on the Monday of the week being trained now, so the
+	// tiles are a week that has not finished. Said out loud, because otherwise
+	// the biggest numbers on the page read as a verdict on a week that is two
+	// days old.
+	const currentWeekLabel = $derived(current ? formatWeekLabel(current.week_start) : '');
 	const anyFailed = $derived(weeks.some((week) => week.failed_sessions > 0));
 	const anyUnlabelled = $derived(
 		weeks.some((week) => bandFor(RATIO_BANDS, week.acute_chronic_ratio)?.tone === 'unlabelled')
@@ -69,8 +75,14 @@
 		</div>
 	{:else}
 		<!-- This week at a glance -->
+		<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 4px;">
+			<div style={captionStyle}>Week of {currentWeekLabel}</div>
+			<div style="font-size: 11px; color: var(--tx3);">
+				still in progress, so every figure below is a part week
+			</div>
+		</div>
 		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? 'No baseline yet', c: ratioBand ? toneColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? 'Not rated', c: loadBand ? toneColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
+			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? 'Not rated, so not known', c: loadBand ? toneColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
 				<div style="{cardStyle} padding: 14px 16px;">
 					<div style={captionStyle}>{tile.k}</div>
 					<div
@@ -103,20 +115,28 @@
 			</div>
 			<TrainingLoadChart {weeks} />
 
-			<!-- Band legend. The bands are the coach's reference and are named as
-			     such, here and nowhere else, so the chart never looks like it is
-			     pronouncing on the athlete. -->
+			<!-- Band legend. Two rows, each naming the panel it keys: the bars are
+			     coloured by the acute load bands and the ratio points by the AL:CL
+			     bands, and the two scales share their tones, so one unlabelled row
+			     of ranges would be read against whichever panel the eye lands on.
+			     The bands are the coach's reference and are named as such, so the
+			     chart never looks like it is pronouncing on the athlete. -->
 			<div
-				style="display: flex; flex-wrap: wrap; gap: 6px 14px; padding-top: 10px; border-top: 1px solid var(--bd2); margin-top: 8px;"
+				style="display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--bd2); margin-top: 8px;"
 			>
-				{#each RATIO_BANDS as band (band.label)}
-					<div style="display: flex; align-items: center; gap: 6px;">
-						<span
-							style="width: 10px; height: 10px; border-radius: 3px; background: {toneColor(
-								band.tone
-							)};"
-						></span>
-						<span style="font-size: 11px; color: var(--tx2);">{bandRangeLabel(band)}</span>
+				{#each [{ title: 'Bars, acute load', bands: ACUTE_LOAD_BANDS }, { title: 'Lower panel, AL:CL', bands: RATIO_BANDS }] as row (row.title)}
+					<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;">
+						<span style="{captionStyle} min-width: 132px;">{row.title}</span>
+						{#each row.bands as band (band.label)}
+							<div style="display: flex; align-items: center; gap: 6px;">
+								<span
+									style="width: 10px; height: 10px; border-radius: 3px; background: {toneColor(
+										band.tone
+									)};"
+								></span>
+								<span style="font-size: 11px; color: var(--tx2);">{bandRangeLabel(band)}</span>
+							</div>
+						{/each}
 					</div>
 				{/each}
 			</div>
@@ -236,7 +256,7 @@
 									style="font-weight: 700; color: {rowRatioBand
 										? toneColor(rowRatioBand.tone)
 										: 'var(--tx3)'};"
-									title={rowRatioBand?.label ?? 'No baseline yet'}
+									title={rowRatioBand?.label ?? missingRatioNote(week)}
 								>
 									{formatRatio(week.acute_chronic_ratio)}
 								</span>

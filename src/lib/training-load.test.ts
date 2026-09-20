@@ -8,6 +8,7 @@ import {
 	bandFor,
 	chronicBaselineNote,
 	climbingShare,
+	missingRatioNote,
 	formatLoad,
 	formatMinutes,
 	formatPercent,
@@ -130,6 +131,24 @@ describe('ratingCoverage', () => {
 
 	it('says so when there is nothing to average', () => {
 		expect(ratingCoverage(week())).toBe('No sessions');
+	});
+});
+
+describe('missingRatioNote', () => {
+	it('tells a missing baseline apart from a week that was never rated', () => {
+		// Both leave acute_chronic_ratio null, and calling them the same thing
+		// would have the tile claim there is no history while the table two cards
+		// below shows the chronic load for that very week.
+		expect(missingRatioNote(week())).toBe('No history behind this week yet');
+		expect(missingRatioNote(week({ chronic_load: 600, chronic_weeks: 2, acute_load: null }))).toBe(
+			'This week is not rated, so there is nothing to compare'
+		);
+	});
+
+	it('names a real layoff rather than calling it missing data', () => {
+		expect(missingRatioNote(week({ chronic_load: 0, chronic_weeks: 3 }))).toBe(
+			'Nothing trained in the last three weeks'
+		);
 	});
 });
 

@@ -146,6 +146,16 @@ export function ratingCoverage(week: WeeklyTrainingLoad): string {
 	return parts.join(' - ');
 }
 
+// What to say under an AL:CL that has no value. The ratio is missing for two
+// quite different reasons and they must not share a caption: either there is no
+// baseline to divide by, or the baseline is there and it is this week's own load
+// that was never rated.
+export function missingRatioNote(week: WeeklyTrainingLoad): string {
+	if (week.chronic_load === null) return 'No history behind this week yet';
+	if (week.chronic_load === 0) return 'Nothing trained in the last three weeks';
+	return 'This week is not rated, so there is nothing to compare';
+}
+
 // Why a chronic load is not yet the three week mean it will become. The coach
 // needs this beside the ratio: a first week always divides by itself and lands
 // on exactly 1.00, which is arithmetic rather than a reading of their training.
