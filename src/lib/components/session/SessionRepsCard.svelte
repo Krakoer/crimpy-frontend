@@ -125,7 +125,7 @@
 				<span
 					style="
 						font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
-						color: {allOnTarget ? 'var(--gn)' : 'var(--gd)'};
+						color: {allOnTarget ? 'var(--gn-tx)' : 'var(--gd-tx)'};
 						background: {allOnTarget ? 'var(--gn-lt)' : 'var(--gd-lt)'};
 					">{onTargetLabel(count)}</span
 				>

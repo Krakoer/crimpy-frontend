@@ -336,7 +336,7 @@
 					class="flex items-start gap-2"
 					style="border: 1px solid var(--gd); background: var(--gd-lt); border-radius: var(--rs); padding: 9px 11px;"
 				>
-					<div style="padding-top: 1px;"><Icon name="alert" size={14} color="var(--gd)" /></div>
+					<div style="padding-top: 1px;"><Icon name="alert" size={14} color="var(--gd-tx)" /></div>
 					<span style="font-size: 12px; color: var(--tx2);">
 						{markedBlocks === 1
 							? 'One block below asks for something the training no longer takes.'

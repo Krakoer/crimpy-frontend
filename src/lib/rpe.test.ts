@@ -83,10 +83,10 @@ describe('sessionRpeColor', () => {
 	it('reads the scale as four bands, so a week is scanned by colour', () => {
 		expect(colorOf({ rpe: 5 })).toBe('var(--gn-tx)');
 		expect(colorOf({ rpe: 7 })).toBe('var(--gn-tx)');
-		expect(colorOf({ rpe: 8 })).toBe('var(--gd)');
-		expect(colorOf({ rpe: 9 })).toBe('var(--pr-dk)');
-		expect(colorOf({ rpe: 10 })).toBe('var(--pr-dk)');
-		expect(colorOf({ rpe_failed: true })).toBe('var(--rd)');
+		expect(colorOf({ rpe: 8 })).toBe('var(--gd-tx)');
+		expect(colorOf({ rpe: 9 })).toBe('var(--pr-tx)');
+		expect(colorOf({ rpe: 10 })).toBe('var(--pr-tx)');
+		expect(colorOf({ rpe_failed: true })).toBe('var(--rd-tx)');
 	});
 });
 

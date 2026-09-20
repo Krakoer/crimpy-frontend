@@ -13,6 +13,12 @@
 	--pr-dk: #a85e40;
 	--pr-lt: #f5e2d7;
 	--pr-fog: #fbf1ea;
+	/* The terracotta an accent is written in when it sits on --pr-lt, the way
+	   --gn-tx and --gd-tx do for sage and gold. --pr reads 2.90:1 there and
+	   --pr-dk 3.86:1, both under the 4.5:1 floor for the label sizes these
+	   pills use; this reads 4.75:1. It is accentOrangeText in
+	   crimpy-app/lib/theme/crimpy_theme.dart. */
+	--pr-tx: #965134;
 	--gn: #6b8f71;
 	--gn-lt: #e3ede4;
 	/* The sage ground and sage text a goal is set on, beside the terracotta
@@ -35,12 +41,27 @@
 	--pl: #907b99;
 	--pl-lt: #ede8f0;
 	--pl-fog: #faf7fe;
+	/* The plum an accent is written in when it sits on --pl-lt. --pl reads
+	   3.18:1 there, under the floor; this reads 4.77:1. It is accentPurpleText
+	   in crimpy-app/lib/theme/crimpy_theme.dart. */
+	--pl-tx: #735f7b;
 	--rd: #c26b6b;
 	/* The light error ground, which is bgError in
 	   crimpy-app/lib/theme/crimpy_theme.dart. */
 	--rd-lt: #fdf5f5;
+	/* The red an accent is written in when it sits on --rd-lt. --rd reads
+	   3.49:1 there, under the floor; this reads 5.22:1, and 4.90:1 on --bg so a
+	   failure still reads outside its own pill. It is carried a little further
+	   down than --rd-lt alone would ask for because the app tints its error
+	   ground from a darker red than this one, and one value has to clear both.
+	   It is statusErrorText in crimpy-app/lib/theme/crimpy_theme.dart. */
+	--rd-tx: #ac4747;
 	--bl: #5b7fa6;
 	--bl-lt: #e6ecf2;
+	/* The blue an accent is written in when it sits on --bl-lt. --bl reads
+	   3.51:1 there, under the floor; this reads 4.79:1. It is accentBlueText in
+	   crimpy-app/lib/theme/crimpy_theme.dart. */
+	--bl-tx: #4b698a;
 	--hb: #4a7c8c;
 	--r: 10px;
 	--rs: 8px;

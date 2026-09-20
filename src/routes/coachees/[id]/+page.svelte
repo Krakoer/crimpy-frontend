@@ -394,7 +394,7 @@
 				<div
 					style="
 				width: 64px; height: 64px; border-radius: 50%;
-				background: var(--pr-lt); color: var(--pr);
+				background: var(--pr-lt); color: var(--pr-tx);
 				display: flex; align-items: center; justify-content: center;
 				font-size: 22px; font-weight: 700; flex-shrink: 0;
 			"
@@ -658,7 +658,7 @@
 												<div
 													style="
 												width: 44px; height: 44px; border-radius: var(--rs);
-												background: {type.tint}; color: {type.color};
+												background: {type.tint}; color: {type.text};
 												display: flex; align-items: center; justify-content: center;
 												font-size: 11px; font-weight: 700; flex-shrink: 0;
 											"
@@ -690,7 +690,7 @@
 														<span
 															style="
 														padding: 3px 8px; border-radius: 999px;
-														background: var(--pr-lt); color: var(--pr);
+														background: var(--pr-lt); color: var(--pr-tx);
 														font-size: 10.5px; font-weight: 700;
 														letter-spacing: 0.04em; text-transform: uppercase;
 													">Reply</span

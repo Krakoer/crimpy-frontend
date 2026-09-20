@@ -732,6 +732,10 @@
 		return trainingTypeInfo(trainingById(id)?.training_type).tint;
 	}
 
+	function trainingText(id: string): string {
+		return trainingTypeInfo(trainingById(id)?.training_type).text;
+	}
+
 	function formatDate(d: string): string {
 		return new Date(d).toLocaleDateString('en-GB', {
 			year: 'numeric',
@@ -1483,7 +1487,7 @@
 										{#if saveRefusalLine(draft)}
 											<div
 												data-testid="week-refusal-{wn}"
-												style="padding: 6px 12px; background: var(--rd-lt); color: var(--rd); font-size: 12px; border-bottom: 1px solid var(--rd);"
+												style="padding: 6px 12px; background: var(--rd-lt); color: var(--rd-tx); font-size: 12px; border-bottom: 1px solid var(--rd);"
 											>
 												{saveRefusalLine(draft)}
 											</div>
@@ -1639,6 +1643,7 @@
 													{#each draft.freqSessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
+														{@const text = trainingText(session.training_id)}
 														{@const played = playedFor(session)}
 														<SortableSession
 															id={session._id}
@@ -1683,9 +1688,9 @@
 																				parseInt(e.currentTarget.value) || 1)}
 																		min="1"
 																		max="14"
-																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700; position: relative;"
+																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {text}; font-weight: 700; position: relative;"
 																	/>
-																	<span style="font-size: 10px; color: {color}; font-weight: 600;"
+																	<span style="font-size: 10px; color: {text}; font-weight: 600;"
 																		>x/wk</span
 																	>
 																	<div style="flex: 1;"></div>
@@ -1937,7 +1942,7 @@
 									<div
 										style="
 								width: 24px; height: 24px; border-radius: 5px;
-								background: {info.tint}; color: {info.color};
+								background: {info.tint}; color: {info.text};
 								display: flex; align-items: center; justify-content: center;
 								font-size: 8.5px; font-weight: 700; flex-shrink: 0;
 							"

@@ -48,15 +48,25 @@
 		return `${event.user_firstname?.[0] ?? ''}${event.user_lastname?.[0] ?? ''}`.toUpperCase();
 	}
 
-	function accent(event: FeedEvent): { icon: string; color: string; tint: string } {
+	function accent(event: FeedEvent): {
+		icon: string;
+		color: string;
+		tint: string;
+		text: string;
+	} {
 		if (event.kind === 'session_completed') {
 			const activity = sessionActivityInfo(event.activity ?? -1);
-			return { icon: activity.icon, color: activity.color, tint: activity.tint };
+			return {
+				icon: activity.icon,
+				color: activity.color,
+				tint: activity.tint,
+				text: activity.text
+			};
 		}
 		if (event.kind === 'availability_declared') {
-			return { icon: 'calendar', color: 'var(--bl)', tint: 'var(--bl-lt)' };
+			return { icon: 'calendar', color: 'var(--bl)', tint: 'var(--bl-lt)', text: 'var(--bl-tx)' };
 		}
-		return { icon: 'users', color: 'var(--gn)', tint: 'var(--gn-lt)' };
+		return { icon: 'users', color: 'var(--gn)', tint: 'var(--gn-lt)', text: 'var(--gn-tx)' };
 	}
 
 	function headline(event: FeedEvent): string {
@@ -111,12 +121,12 @@
 				<div
 					style="
 						width: 30px; height: 30px; border-radius: 50%;
-						background: {style.tint}; color: {style.color};
+						background: {style.tint}; color: {style.text};
 						display: flex; align-items: center; justify-content: center;
 						flex-shrink: 0; margin-top: 1px;
 					"
 				>
-					<Icon name={style.icon} size={15} color={style.color} />
+					<Icon name={style.icon} size={15} color={style.text} />
 				</div>
 				<div style="flex: 1; min-width: 0;">
 					<div style="font-size: 12.5px; color: var(--tx2); line-height: 1.45;">
@@ -147,7 +157,7 @@
 					<span
 						style="
 							width: 22px; height: 22px; border-radius: 50%;
-							background: var(--pr-lt); color: var(--pr);
+							background: var(--pr-lt); color: var(--pr-tx);
 							display: flex; align-items: center; justify-content: center;
 							font-size: 9.5px; font-weight: 700;
 						"

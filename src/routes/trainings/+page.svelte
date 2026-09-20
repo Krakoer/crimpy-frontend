@@ -341,7 +341,7 @@
 								<span
 									style="
 										display: inline-flex; align-items: center;
-										background: {tc.tint}; color: {tc.color};
+										background: {tc.tint}; color: {tc.text};
 										font-size: 11px; font-weight: 600;
 										padding: 3px 9px; border-radius: 999px;
 									"
@@ -505,7 +505,7 @@
 						<div
 							style="
 								width: 48px; height: 48px; border-radius: var(--rs);
-								background: {tc.tint}; color: {tc.color};
+								background: {tc.tint}; color: {tc.text};
 								display: flex; align-items: center; justify-content: center;
 								font-size: 12px; font-weight: 700;
 							"
@@ -536,7 +536,7 @@
 							<span
 								style="
 									display: inline-flex; align-items: center;
-									background: {tc.tint}; color: {tc.color};
+									background: {tc.tint}; color: {tc.text};
 									font-size: 11px; font-weight: 600;
 									padding: 3px 9px; border-radius: 999px;
 								"

@@ -65,15 +65,15 @@ export function sessionRpe(session: SessionResponse): SessionRpe | null {
 // it. Sage up to what repeats within a day, gold for a session that costs a
 // rest day, terracotta above it, and the error red for a failure.
 //
-// The darkest token each hue has is used, because the badge carries this colour
-// as text at label size on the matching light ground. Only the sage band clears
-// the 4.5:1 floor today, at 4.59; terracotta is 3.86, red 3.49 and gold 2.05,
-// and closing those needs text tokens the palette does not have yet. See
-// Krakoer/crimpy#119, which carries the measurements.
+// The text token of each hue is used, because the badge carries this colour as
+// text at label size on the matching light ground, 10.5px bold on a session row
+// and 9px bold in the week grid. Both are far under the 18.66px bold threshold
+// that would earn the 3:1 large text exemption, so every band is held to 4.5:1:
+// sage 4.59, gold 4.82, terracotta 4.75 and red 4.92 on their own tints.
 export function sessionRpeColor(rpe: SessionRpe): string {
-	if (rpe.failed) return 'var(--rd)';
-	if (rpe.value !== null && rpe.value >= 9) return 'var(--pr-dk)';
-	if (rpe.value !== null && rpe.value >= 8) return 'var(--gd)';
+	if (rpe.failed) return 'var(--rd-tx)';
+	if (rpe.value !== null && rpe.value >= 9) return 'var(--pr-tx)';
+	if (rpe.value !== null && rpe.value >= 8) return 'var(--gd-tx)';
 	return 'var(--gn-tx)';
 }
 
