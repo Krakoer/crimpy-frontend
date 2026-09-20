@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { gripLabel } from '$lib/sessions';
+	import { singleValue, unitLabel, type RecordedAssessment } from './assessment-records';
 	import {
-		formatRecordValue,
-		singleValue,
-		unitLabel,
-		type RecordedAssessment
-	} from './assessment-records';
+		denominatorNoteColor,
+		formatDenominatorNote,
+		readRecordDenominator,
+		readRecordRatio
+	} from './bodyweight-ratio';
+	import LatestValue from './LatestValue.svelte';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -21,9 +23,21 @@
 	);
 	let latest = $derived(history.at(-1));
 
-	function format(value: number | null | undefined): string {
-		return formatRecordValue(value, assessment.unit);
+	// Read by the one rule the whole tab reads a bodyweight relative result by,
+	// so the summary beside the sessions and the card on the assessments tab
+	// cannot print two different numbers for the same measurement.
+	function reading(value: number | null | undefined) {
+		return latest ? readRecordRatio(latest, value) : null;
 	}
+
+	let bodyweightRelative = $derived(assessment.bodyweightRelative);
+	let readingLabel = $derived(
+		bodyweightRelative ? 'ratio to bodyweight' : unitLabel(assessment.unit)
+	);
+	let latestLeft = $derived(reading(latest?.left_value));
+	let latestRight = $derived(reading(latest?.right_value));
+	let latestSingle = $derived(reading(singleValue(latest)));
+	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
 </script>
 
 <div
@@ -36,7 +50,7 @@
 			{assessment.label}
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
-			{unitLabel(assessment.unit)}
+			{readingLabel}
 		</div>
 	</div>
 	{#if assessment.hasGrips}
@@ -44,33 +58,42 @@
 			{gripLabel(selectedGrip)}
 		</div>
 	{/if}
-	<div style="display: flex; gap: 20px; align-items: center;">
+	<div style="display: flex; gap: 20px; align-items: flex-start;">
 		{#if assessment.perHand}
-			<div>
-				<div style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;">
-					LEFT
-				</div>
-				<div style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(latest?.left_value)}
-				</div>
-			</div>
-			<div>
-				<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">
-					RIGHT
-				</div>
-				<div style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(latest?.right_value)}
-				</div>
-			</div>
+			<LatestValue
+				label="LEFT"
+				labelColor="var(--gn)"
+				reading={latestLeft}
+				unit={assessment.unit}
+				size={22}
+			/>
+			<LatestValue
+				label="RIGHT"
+				labelColor="var(--pr)"
+				reading={latestRight}
+				unit={assessment.unit}
+				size={22}
+			/>
 		{:else}
-			<div>
-				<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">
-					LATEST
-				</div>
-				<div style="font-size: 22px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(singleValue(latest))}
-				</div>
-			</div>
+			<LatestValue
+				label="LATEST"
+				labelColor="var(--pr)"
+				reading={latestSingle}
+				unit={assessment.unit}
+				size={22}
+			/>
 		{/if}
 	</div>
+
+	{#if denominator}
+		<!-- Named once, because one session is one weigh-in: saying it under each
+		     hand repeats it and wraps mid date in a column half a card wide. The
+		     load itself stays per hand, above. -->
+		<div
+			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(denominator)};"
+			data-testid="denominator-note"
+		>
+			{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+		</div>
+	{/if}
 </div>

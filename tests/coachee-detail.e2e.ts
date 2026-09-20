@@ -7,6 +7,7 @@ import {
 	signIn,
 	stub,
 	testAssessmentRecord,
+	type TestAssessmentRecord,
 	stubSnapshotsByDay,
 	testAssessmentSnapshot,
 	testSnapshotResult,
@@ -1739,9 +1740,61 @@ test.describe('assessment comparison', () => {
 		await expect(comparison.getByText('1.35', { exact: true })).toBeVisible();
 		await expect(comparison.getByText('1.39', { exact: true })).toBeVisible();
 		// The raw measurement and the weight it was read against stay on screen,
-		// since the ratio is a display of them and not a replacement.
-		await expect(comparison.getByText('25.0 kg at 71.0 kg')).toBeVisible();
-		await expect(comparison.getByText('28.0 kg at 71.0 kg')).toBeVisible();
+		// since the ratio is a display of them and not a replacement, and the day
+		// the weight was taken with them: the last weigh-in at or before a result
+		// can be the same morning or weeks old.
+		await expect(comparison.getByText('25.0 kg at 71.0 kg, 2 Mar')).toBeVisible();
+		await expect(comparison.getByText('28.0 kg at 71.0 kg, 2 Jun')).toBeVisible();
+	});
+
+	// The panel and the cards above it answer to one rule, so a denominator too
+	// old to divide by is refused in both places and said the same way.
+	test('declines the ratio in the panel when the weigh-in went stale', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 25, left_value: null }),
+				recordOn(june, { per_hand: false, right_value: 28, left_value: null })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(
+				march,
+				[
+					testSnapshotResult({
+						label: 'Weighted hang 20mm',
+						bodyweight_relative: true,
+						right_value: 25,
+						right_measured_at: `${march}T10:00:00Z`,
+						right_bodyweight_kg: 71,
+						right_bodyweight_measured_at: '2026-01-20T08:00:00Z'
+					})
+				],
+				71
+			),
+			[june]: testAssessmentSnapshot(
+				june,
+				[
+					testSnapshotResult({
+						label: 'Weighted hang 20mm',
+						bodyweight_relative: true,
+						right_value: 28,
+						right_measured_at: `${june}T10:00:00Z`,
+						right_bodyweight_kg: 71
+					})
+				],
+				71
+			)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(comparison.getByText('no recent weight')).toBeVisible();
+		await expect(comparison.getByText('1.39', { exact: true })).toBeVisible();
+		// Nothing to subtract between a ratio and a load in kilograms.
+		await expect(comparison.getByText('no ratio to compare')).toBeVisible();
 	});
 
 	// A test the athlete did not do on the earlier date has not fallen to zero,
@@ -2037,6 +2090,418 @@ test.describe('assessment results', () => {
 		const results = page.getByRole('list', { name: 'Assessment results' });
 		await expect(results.getByText('Max Force')).toBeVisible();
 		await expect(results.getByText('Pull up pyramid')).toBeVisible();
+	});
+});
+
+// The flag says how the result is read, not how it is read in one table: the
+// cards and the history table divide by the weigh-in the row carries, the same
+// one the comparison panel below them divides by.
+test.describe('bodyweight relative results outside the comparison', () => {
+	const hangDay = '2026-03-02';
+
+	function weightedHang(overrides: Record<string, unknown> = {}) {
+		return recordOn(hangDay, {
+			assessment_id: 'assessment-hang',
+			label: 'Weighted hang 20mm',
+			unit: 'kilograms',
+			per_hand: false,
+			bodyweight_relative: true,
+			training_id: 'training-hang',
+			grip_position: null,
+			right_value: 25,
+			left_value: null,
+			...overrides
+		});
+	}
+
+	async function openAssessments(page: Page, record: TestAssessmentRecord): Promise<void> {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', { body: [record] });
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+	}
+
+	test('reads the card as a ratio with the load, the weight and the weigh-in day', async ({
+		page
+	}) => {
+		await openAssessments(
+			page,
+			weightedHang({
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${hangDay}T08:00:00Z`
+			})
+		);
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('1.35', { exact: true })).toBeVisible();
+		// The load is per hand, above; the weigh-in and its day belong to the
+		// session and are named once under them.
+		await expect(results.getByText('25.0 kg', { exact: true })).toBeVisible();
+		await expect(results.getByText('ratio to 71.0 kg, weighed 2 Mar')).toBeVisible();
+		// The corner says what the number is, since it is not kilograms.
+		await expect(results.getByText('ratio to bodyweight')).toBeVisible();
+	});
+
+	test('shows the raw kilograms and says so when the weigh-in went stale', async ({ page }) => {
+		await openAssessments(
+			page,
+			weightedHang({
+				bodyweight_kg: 71,
+				bodyweight_measured_at: '2026-01-20T08:00:00Z'
+			})
+		);
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('25.0', { exact: true })).toBeVisible();
+		await expect(results.getByText('kg, no recent weight')).toBeVisible();
+	});
+
+	test('shows the raw kilograms when the athlete never weighed in', async ({ page }) => {
+		await openAssessments(page, weightedHang());
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('25.0', { exact: true })).toBeVisible();
+		await expect(results.getByText('kg, no weight on file')).toBeVisible();
+	});
+
+	test('names the denominator once on the history row, with the day it was taken', async ({
+		page
+	}) => {
+		await openAssessments(
+			page,
+			weightedHang({
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${hangDay}T08:00:00Z`
+			})
+		);
+
+		// Scoped to the table: the card above it now says the same thing, because
+		// both name one session's weigh-in by the one rule.
+		const history = page.getByText('Assessment history').locator('../..');
+		await expect(history.getByText('ratio to 71.0 kg, weighed 2 Mar')).toBeVisible();
+	});
+
+	// The measurement is never replaced by what was derived from it, on any
+	// surface: a ratio a coach cannot check against the load is one they have to
+	// take on trust, and the two hands of a session are two different loads so
+	// the row note cannot carry them.
+	test('keeps the load the athlete pulled in the history cell, under the ratio', async ({
+		page
+	}) => {
+		await openAssessments(
+			page,
+			weightedHang({
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${hangDay}T08:00:00Z`
+			})
+		);
+
+		const history = page.getByText('Assessment history').locator('../..');
+		await expect(history.getByText('1.35', { exact: true })).toBeVisible();
+		await expect(history.getByText('25.0 kg', { exact: true })).toBeVisible();
+	});
+
+	// The footer says why it has nothing to report rather than going quiet, in
+	// the same words the comparison panel uses for the same state.
+	test('says the overall change has no ratio to compare when one end lacks one', async ({
+		page
+	}) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({ id: 'record-early', session_id: 'session-early' }),
+				recordOn('2026-06-02', {
+					id: 'record-late',
+					assessment_id: 'assessment-hang',
+					label: 'Weighted hang 20mm',
+					unit: 'kilograms',
+					per_hand: false,
+					bodyweight_relative: true,
+					training_id: 'training-hang',
+					grip_position: null,
+					right_value: 28,
+					left_value: null,
+					bodyweight_kg: 71,
+					bodyweight_measured_at: '2026-06-01T08:00:00Z'
+				})
+			]
+		});
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('2 records')).toBeVisible();
+		await expect(results.getByText('no ratio to compare')).toBeVisible();
+	});
+
+	// Filtering every point out would leave an empty grid where the page used to
+	// draw the loads, which says less than the raw numbers did.
+	test('draws the chart in kilograms when no record in the history has a ratio', async ({
+		page
+	}) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({ id: 'record-early', session_id: 'session-early' }),
+				recordOn('2026-06-02', {
+					id: 'record-late',
+					assessment_id: 'assessment-hang',
+					label: 'Weighted hang 20mm',
+					unit: 'kilograms',
+					per_hand: false,
+					bodyweight_relative: true,
+					training_id: 'training-hang',
+					grip_position: null,
+					right_value: 28,
+					left_value: null
+				})
+			]
+		});
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+		await page.getByRole('button', { name: 'Show chart' }).click();
+
+		// The y axis name is what says which of the two the line is, and it is
+		// asserted positively: a "no ratio anywhere" assertion would also pass on a
+		// chart that had not finished rendering.
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
+		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toHaveCount(0);
+	});
+
+	// The two hands of one session are two different loads at the same instant,
+	// so a basis keyed by the instant alone prints one hand's load under the
+	// other's ratio, and the check the line exists for fails.
+	test('gives each hand its own load in the chart tooltip', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const perHand = (day: string, id: string, right: number, left: number) =>
+			recordOn(day, {
+				id,
+				session_id: `session-${id}`,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: true,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: right,
+				left_value: left,
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${day}T08:00:00Z`
+			});
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [perHand('2026-03-02', 'r1', 25, 20), perHand('2026-06-02', 'r2', 28, 22)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+		await page.getByRole('button', { name: 'Show chart' }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		const chart = results.locator('svg').first();
+		await expect(chart).toBeVisible();
+		const box = await chart.boundingBox();
+		if (!box) throw new Error('the chart has no box to hover');
+		await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.4);
+
+		// 28 kg right and 22 kg left at 71 kg: two ratios, two loads, and neither
+		// load may appear twice.
+		const tooltip = page
+			.locator('div')
+			.filter({ hasText: /28\.0 kg at 71\.0 kg/ })
+			.last();
+		await expect(tooltip).toContainText('22.0 kg at 71.0 kg');
+		await expect(tooltip).toContainText('1.39');
+		await expect(tooltip).toContainText('1.31');
+	});
+
+	// A per hand card is half a card wide per column, so a weigh-in date said
+	// under each hand wraps in the middle of itself, which is the one fact the
+	// issue comment asked the screen to carry. The session owns the weigh-in, so
+	// the card names it once below the two hands and keeps only the load above.
+	test('names the weigh-in once on a per hand card, without wrapping it', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn('2026-06-02', {
+					id: 'ph1',
+					assessment_id: 'assessment-hang',
+					label: 'Weighted hang 20mm',
+					unit: 'kilograms',
+					per_hand: true,
+					bodyweight_relative: true,
+					training_id: 'training-hang',
+					grip_position: null,
+					right_value: 25,
+					left_value: 22,
+					bodyweight_kg: 71,
+					bodyweight_measured_at: '2026-06-01T08:00:00Z'
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		// Two ratios and two loads, one weigh-in note.
+		await expect(results.getByText('1.35', { exact: true })).toBeVisible();
+		await expect(results.getByText('1.31', { exact: true })).toBeVisible();
+		await expect(results.getByText('25.0 kg', { exact: true })).toBeVisible();
+		await expect(results.getByText('22.0 kg', { exact: true })).toBeVisible();
+		const note = results.getByTestId('denominator-note');
+		await expect(note).toHaveCount(1);
+		await expect(note).toHaveText('ratio to 71.0 kg, weighed 1 Jun');
+		// And it fits the width it is given, rather than breaking the date across
+		// two lines.
+		const fits = await note.evaluate((el) => el.scrollWidth <= el.clientWidth);
+		expect(fits).toBe(true);
+	});
+
+	// A hand the athlete did not measure is a different absence from a
+	// denominator that is missing, and saying "no ratio to compare" for it would
+	// send the coach looking for a weigh-in that is not the reason.
+	test('stays quiet about the overall change when a hand was not measured', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const perHand = (day: string, id: string, right: number | null) =>
+			recordOn(day, {
+				id,
+				session_id: `session-${id}`,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: true,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: right,
+				left_value: 20,
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${day}T08:00:00Z`
+			});
+		// Both sessions have a fresh denominator, so nothing is stale. The later
+		// one simply carries no right hand, which is the hand the delta reads.
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [perHand('2026-03-02', 'h1', 25), perHand('2026-06-02', 'h2', null)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('2 records')).toBeVisible();
+		await expect(results.getByText('no ratio to compare')).toHaveCount(0);
+	});
+
+	// The echarts chunk is imported lazily, so a coach who opens the chart and
+	// closes it again before the chunk lands leaves an init with nothing to draw
+	// into: Svelte sets a bind:this back to null on destroy.
+	test('survives the chart being closed before its chunk has landed', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({ id: 'e1', session_id: 'session-e1' }),
+				recordOn('2026-06-02', {
+					id: 'e2',
+					session_id: 'session-e2',
+					assessment_id: 'assessment-hang',
+					label: 'Weighted hang 20mm',
+					unit: 'kilograms',
+					per_hand: false,
+					bodyweight_relative: true,
+					training_id: 'training-hang',
+					grip_position: null,
+					right_value: 28,
+					left_value: null
+				})
+			]
+		});
+
+		const crashes: string[] = [];
+		page.on('pageerror', (error) => crashes.push(error.message));
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		// Open and close inside the time the import takes.
+		await page.getByRole('button', { name: 'Show chart' }).click();
+		await page.getByRole('button', { name: 'Hide chart' }).click();
+		await page.waitForTimeout(1500);
+
+		expect(crashes).toEqual([]);
+
+		// And the chart still draws when it is opened for real afterwards.
+		await page.getByRole('button', { name: 'Show chart' }).click();
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
+		expect(crashes).toEqual([]);
+	});
+
+	// The chart is drawn from one effect, and that effect has to depend on the
+	// history it draws: the instance is created after an await, so a guard placed
+	// before the props would register no dependency and leave the first grip's
+	// line, and its unit, under a card showing the second grip's number.
+	test('redraws the chart when the coach switches grip', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const onGrip = (grip: number, id: string, value: number, weighed: boolean) =>
+			recordOn(grip === 0 ? '2026-03-02' : '2026-03-09', {
+				id,
+				session_id: `session-${id}`,
+				assessment_id: BUILTIN_MAX_FORCE,
+				label: 'Max Force',
+				unit: 'kilograms',
+				per_hand: false,
+				bodyweight_relative: true,
+				grip_position: grip,
+				right_value: value,
+				left_value: null,
+				bodyweight_kg: weighed ? 71 : null,
+				bodyweight_measured_at: weighed ? '2026-03-01T08:00:00Z' : null
+			});
+		// Half crimp has a fresh denominator and reads as a ratio; the other grip
+		// has none and reads as kilograms, so the axis has to change with the grip.
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				onGrip(0, 'g0a', 25, true),
+				onGrip(0, 'g0b', 27, true),
+				onGrip(1, 'g1a', 18, false),
+				onGrip(1, 'g1b', 19, false)
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+		await page.getByRole('button', { name: 'Show chart' }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toBeVisible();
+
+		await results.getByRole('button', { name: '3-Finger' }).click();
+
+		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
+		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toHaveCount(0);
+	});
+
+	// The summary beside the sessions draws the same component as the card on the
+	// tab, so a result cannot read one way in one place and another in the other.
+	test('reads the summary card beside the sessions as a ratio too', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({
+					bodyweight_kg: 71,
+					bodyweight_measured_at: `${hangDay}T08:00:00Z`
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('1.35', { exact: true })).toBeVisible();
+		await expect(page.getByText('25.0 kg', { exact: true })).toBeVisible();
+		await expect(page.getByText('ratio to 71.0 kg, weighed 2 Mar')).toBeVisible();
+		await expect(page.getByText('ratio to bodyweight')).toBeVisible();
 	});
 });
 

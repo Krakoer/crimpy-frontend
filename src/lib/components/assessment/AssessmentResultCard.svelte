@@ -7,6 +7,14 @@
 		unitLabel,
 		type RecordedAssessment
 	} from './assessment-records';
+	import {
+		denominatorNoteColor,
+		formatDenominatorNote,
+		formatRatio,
+		readRecordDenominator,
+		readRecordRatio
+	} from './bodyweight-ratio';
+	import LatestValue from './LatestValue.svelte';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -38,18 +46,61 @@
 		return formatRecordValue(value, assessment.unit);
 	}
 
+	let bodyweightRelative = $derived(assessment.bodyweightRelative);
+	// A ratio is not measured in kilograms, so the card says what it is reading
+	// rather than naming a unit the number does not carry.
+	let readingLabel = $derived(
+		bodyweightRelative ? 'ratio to bodyweight' : unitLabel(assessment.unit)
+	);
+
+	// The headline number is the ratio when the assessment reads as one and the
+	// weigh-in beside the result is near enough to divide by, the raw load
+	// otherwise. Every surface on this tab asks the same function, so a result
+	// cannot read one way here and another in the comparison below.
+	function reading(record: (typeof history)[number] | undefined, value: number | null | undefined) {
+		return record ? readRecordRatio(record, value) : null;
+	}
+
+	let latestLeft = $derived(reading(latest, latest?.left_value));
+	let latestRight = $derived(reading(latest, latest?.right_value));
+	let latestSingle = $derived(reading(latest, singleValue(latest)));
+	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+
 	// The progress across the whole history, on the hand that carries the result
 	// for a single value assessment and on the right hand otherwise, which is
 	// what the two big numbers above already lead with.
-	let delta = $derived.by(() => {
+	//
+	// A bodyweight relative assessment is compared as the ratios the card leads
+	// with, and only when both ends have one: a change in kilograms sitting under
+	// two ratios would be read as a change in them.
+	let ends = $derived.by(() => {
 		if (history.length < 2) return null;
-		const first = assessment.perHand ? history[0].right_value : singleValue(history[0]);
-		const last = assessment.perHand
-			? history[history.length - 1].right_value
-			: singleValue(history[history.length - 1]);
-		if (first === null || first === undefined || last === null || last === undefined) return null;
-		return last - first;
+		const firstRecord = history[0];
+		const lastRecord = history[history.length - 1];
+		const pick = (record: (typeof history)[number]) =>
+			assessment.perHand ? record.right_value : singleValue(record);
+		const first = reading(firstRecord, pick(firstRecord));
+		const last = reading(lastRecord, pick(lastRecord));
+		return first && last ? { first, last } : null;
 	});
+
+	let delta = $derived.by(() => {
+		if (!ends) return null;
+		if (bodyweightRelative) {
+			if (ends.first.ratio === undefined || ends.last.ratio === undefined) return null;
+			return ends.last.ratio - ends.first.ratio;
+		}
+		return ends.last.raw - ends.first.raw;
+	});
+
+	// Only when a denominator is what is missing. A hand the athlete did not
+	// measure that day is a different absence, and the footer stays quiet for it
+	// the way it already does on an assessment that is not read as a ratio.
+	let noRatioToCompare = $derived(
+		delta === null &&
+			ends !== null &&
+			(ends.first.missing !== undefined || ends.last.missing !== undefined)
+	);
 </script>
 
 <div
@@ -63,7 +114,7 @@
 			{assessment.label}
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
-			{unitLabel(assessment.unit)}
+			{readingLabel}
 		</div>
 	</div>
 
@@ -87,35 +138,44 @@
 		</div>
 	{/if}
 
-	<div style="display: flex; gap: 20px; margin-bottom: 14px;">
+	<div style="display: flex; gap: 20px; margin-bottom: 14px; align-items: flex-start;">
 		{#if assessment.perHand}
-			<div>
-				<div style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;">
-					LEFT
-				</div>
-				<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(latest?.left_value)}
-				</div>
-			</div>
-			<div>
-				<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">
-					RIGHT
-				</div>
-				<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(latest?.right_value)}
-				</div>
-			</div>
+			<LatestValue
+				label="LEFT"
+				labelColor="var(--gn)"
+				reading={latestLeft}
+				unit={assessment.unit}
+				size={26}
+			/>
+			<LatestValue
+				label="RIGHT"
+				labelColor="var(--pr)"
+				reading={latestRight}
+				unit={assessment.unit}
+				size={26}
+			/>
 		{:else}
-			<div>
-				<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">
-					LATEST
-				</div>
-				<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(singleValue(latest))}
-				</div>
-			</div>
+			<LatestValue
+				label="LATEST"
+				labelColor="var(--pr)"
+				reading={latestSingle}
+				unit={assessment.unit}
+				size={26}
+			/>
 		{/if}
 	</div>
+
+	{#if denominator}
+		<!-- Named once, because one session is one weigh-in: saying it under each
+		     hand repeats it and wraps mid date in a column half a card wide. The
+		     load itself stays per hand, above. -->
+		<div
+			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(denominator)};"
+			data-testid="denominator-note"
+		>
+			{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+		</div>
+	{/if}
 
 	{#if history.length >= 2}
 		<button
@@ -134,6 +194,7 @@
 					unit={unitLabel(assessment.unit)}
 					formatValue={(v) => formatRecordValue(v, assessment.unit)}
 					perHand={assessment.perHand}
+					{bodyweightRelative}
 				/>
 			</div>
 		{/if}
@@ -145,9 +206,17 @@
 			{#if delta !== null}
 				<span>·</span>
 				<span style="color: {delta >= 0 ? 'var(--gn)' : 'var(--rd)'}; font-weight: 600;">
-					{delta >= 0 ? '+' : ''}{format(delta)}
-					{unitLabel(assessment.unit)} overall
+					{delta >= 0 ? '+' : ''}{bodyweightRelative
+						? formatRatio(delta)
+						: `${format(delta)} ${unitLabel(assessment.unit)}`} overall
 				</span>
+			{:else if noRatioToCompare}
+				<!-- Said rather than left blank, in the same words the comparison
+				     panel uses for the same state, since one end of the history has
+				     no ratio and a change in kilograms under two ratios would be
+				     read as a change in them. -->
+				<span>·</span>
+				<span>no ratio to compare</span>
 			{/if}
 		</div>
 	{/if}

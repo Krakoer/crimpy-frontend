@@ -10,6 +10,10 @@ export interface RecordedAssessment {
 	// A grip only means something on a hangboard assessment, which is what the
 	// ones Crimpy ships are. A pull up count is not held on an edge.
 	hasGrips: boolean;
+	// Whether the results read as a ratio to the bodyweight they were pulled at
+	// rather than as a load in kilograms. It says how the number is read, so it
+	// has to reach every surface that draws one.
+	bodyweightRelative: boolean;
 	records: AssessmentResponse[];
 }
 
@@ -42,6 +46,7 @@ export function groupRecordedAssessments(assessments: AssessmentResponse[]): Rec
 			unit: record.unit,
 			perHand: record.per_hand,
 			hasGrips: !record.training_id,
+			bodyweightRelative: record.bodyweight_relative,
 			records: [record]
 		});
 	}

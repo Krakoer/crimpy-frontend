@@ -345,9 +345,18 @@ export interface AssessmentDefinitionRequest {
 }
 
 // The session-scoped assessment joined with the date of the session it was
-// recorded in, which only the per-user listing endpoint returns.
+// recorded in and the weigh-in a bodyweight relative score is divided by, which
+// only the per-user listing endpoints return.
+//
+// The denominator comes down with the row rather than being picked out of a
+// bodyweight series here, so a result reads the same on the cards, in the
+// history table and in the two date comparison: it is the last weigh-in at or
+// before the session, which is the rule the snapshot already answers by. Both
+// fields are absent together when no weigh-in qualifies.
 export interface AssessmentResponse extends SessionAssessment {
 	session_date: string;
+	bodyweight_kg?: number | null;
+	bodyweight_measured_at?: string | null;
 }
 
 // One assessment as it stood on a date: the last value measured for it at or
@@ -369,9 +378,14 @@ export interface AssessmentSnapshotResult {
 	// carried forward from an earlier session was pulled at the weight of that
 	// day. Absent when no weigh-in precedes the measurement.
 	right_bodyweight_kg?: number | null;
+	// When that weigh-in was taken. A weight alone cannot say how near it was to
+	// the result it divides, and the last one at or before a result can be the
+	// same morning or months earlier. Absent exactly when the weight is.
+	right_bodyweight_measured_at?: string | null;
 	left_value?: number | null;
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
+	left_bodyweight_measured_at?: string | null;
 }
 
 // What an athlete had measured as of a date. The bodyweight is what the athlete
