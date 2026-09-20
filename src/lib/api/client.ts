@@ -1372,8 +1372,21 @@ class ApiClient {
 		});
 	}
 
-	async getClientAvailability(userId: string): Promise<WeekAvailability[]> {
-		return this.requestList<WeekAvailability>(`/api/coach/clients/${userId}/availability`);
+	// The weeks a client declared. from and to are Mondays in YYYY-MM-DD and
+	// bound the answer to that range of calendar weeks, both ends included.
+	// Sending neither reads every week the athlete ever declared, which a week
+	// holding up to 140 activities makes far larger than any page needs.
+	async getClientAvailability(
+		userId: string,
+		params?: { from?: string; to?: string }
+	): Promise<WeekAvailability[]> {
+		const query = new URLSearchParams();
+		if (params?.from) query.set('from', params.from);
+		if (params?.to) query.set('to', params.to);
+		const qs = query.toString();
+		return this.requestList<WeekAvailability>(
+			`/api/coach/clients/${userId}/availability${qs ? '?' + qs : ''}`
+		);
 	}
 
 	// Answers 404 until the coach has configured one, which is a state rather

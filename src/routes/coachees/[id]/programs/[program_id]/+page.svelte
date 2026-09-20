@@ -59,7 +59,12 @@
 		type WeekDrafts
 	} from '$lib/program-draft';
 	import { rereadWeek, staleOverrides } from '$lib/program-overrides';
-	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
+	import {
+		programWeekRange,
+		sessionsByProgramSession,
+		sessionsOfWeek,
+		weekStart
+	} from '$lib/program-performance';
 	import { toDateOnly } from '$lib/date';
 	import { withCoachReply } from '$lib/sessions';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
@@ -234,6 +239,60 @@
 	const availabilityByWeekStart = $derived(
 		new Map(coacheeAvailability.map((week) => [week.week_start, week]))
 	);
+
+	// How many weeks this page draws a row for. A program with a duration draws
+	// exactly that many; one without draws one open week past the last it holds,
+	// which is the week the coach is about to write.
+	//
+	// The availability window below is built from this same count rather than
+	// from duration_weeks, because the two would drift: the window would stop one
+	// week short of the rows, and the row past it would read the athlete's silence
+	// as an answer they never gave.
+	const renderedWeekCount = $derived(
+		program?.duration_weeks
+			? program.duration_weeks
+			: (weeks.length ? Math.max(...weeks.map((w) => w.week_number)) : 0) + 1
+	);
+	// The two bounds as plain strings rather than one object, so the effect that
+	// reads them re-runs when the range really moves and not on every save that
+	// pushes a week onto the list.
+	const availabilityFrom = $derived(
+		program ? programWeekRange(program.start_date, renderedWeekCount).from : ''
+	);
+	const availabilityTo = $derived(
+		program ? programWeekRange(program.start_date, renderedWeekCount).to : ''
+	);
+	// Answers that arrived out of order are dropped rather than applied, since the
+	// range can move twice before the first read lands.
+	let availabilityRead = 0;
+
+	// Read whenever the range moves, not once on load: editing the duration or the
+	// start date moves every row's Monday, and saving the trailing week of a
+	// program with no duration opens another one past it. A row keyed outside the
+	// range last asked for would say the athlete declared nothing.
+	$effect(() => {
+		const from = availabilityFrom;
+		const to = availabilityTo;
+		if (!from || !to) return;
+		const read = ++availabilityRead;
+		apiClient
+			.getClientAvailability(userId, { from, to })
+			.then((declaredWeeks) => {
+				if (read !== availabilityRead) return;
+				coacheeAvailability = declaredWeeks ?? [];
+				coacheeAvailabilityFailed = false;
+			})
+			.catch(() => {
+				if (read !== availabilityRead) return;
+				// The weeks already held are dropped with the flag rather than kept
+				// beside it. WeekCoacheeAvailability reads "failed" as covering every
+				// row it draws, so weeks that did answer would show the red "could not
+				// be read" strip over data that is present and still right. The two
+				// have to describe the same read.
+				coacheeAvailability = [];
+				coacheeAvailabilityFailed = true;
+			});
+	});
 
 	// What a single week asks of the training it schedules. The training itself is
 	// read once per id and kept, since the same one is usually scheduled in
@@ -682,11 +741,7 @@
 	}
 
 	function weekNumbers(): number[] {
-		if (program?.duration_weeks) {
-			return Array.from({ length: program.duration_weeks }, (_, i) => i + 1);
-		}
-		const max = weeks.length ? Math.max(...weeks.map((w) => w.week_number)) : 0;
-		return Array.from({ length: max + 1 }, (_, i) => i + 1);
+		return Array.from({ length: renderedWeekCount }, (_, i) => i + 1);
 	}
 
 	function weekDateRange(weekNum: number): string {
@@ -844,10 +899,6 @@
 			.getClientSessions(userId)
 			.then((sessions) => (playedSessions = sessions ?? []))
 			.catch(() => (playedSessionsFailed = true));
-		apiClient
-			.getClientAvailability(userId)
-			.then((weeks) => (coacheeAvailability = weeks ?? []))
-			.catch(() => (coacheeAvailabilityFailed = true));
 		// The catalog names an assessment the coachee has never done, which has no
 		// result row to take a label from.
 		assessmentCatalog.load();

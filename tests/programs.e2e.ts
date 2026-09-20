@@ -48,6 +48,88 @@ test.beforeEach(async ({ page }) => {
 	await signIn(page, testUser());
 });
 
+// The endpoint answers every week ever declared when it is asked without a
+// window, and a week now carries up to 140 activities. This page shows one row
+// per program week, so those are the weeks it asks for.
+test('asks only for the availability of the weeks the program covers', async ({ page }) => {
+	const program = testProgram({ start_date: '2026-01-05', duration_weeks: 4 });
+	await stubProgram(page, program);
+	const reads = capture(page, 'GET', '/api/coach/clients/*/availability');
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByRole('button', { name: /Wk 4/ })).toBeVisible();
+	await expect.poll(() => reads.length).toBe(1);
+
+	const asked = new URL(reads[0].url);
+	expect(asked.searchParams.get('from')).toBe('2026-01-05');
+	expect(asked.searchParams.get('to')).toBe('2026-01-26');
+
+	// Counted again after a beat. expect.poll resolves on the first sample that
+	// matches, so on its own it says nothing about a second read landing behind
+	// the first, which is exactly what a range that moves during the load does.
+	await page.waitForTimeout(500);
+	expect(reads).toHaveLength(1);
+});
+
+// A program with no duration draws one open week past the last it holds, which
+// is the week the coach is about to write. The window has to reach it, or that
+// row reads the athlete's silence as an answer they never gave.
+test('asks for the open week a program with no duration draws', async ({ page }) => {
+	const program = testProgram({ start_date: '2026-01-05', duration_weeks: undefined });
+	await stubProgram(page, program);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' },
+			{ id: 'week-2', program_id: 'program-1', week_number: 2, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	const reads = capture(page, 'GET', '/api/coach/clients/*/availability');
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByRole('button', { name: /Wk 3/ })).toBeVisible();
+	await expect.poll(() => reads.length).toBe(1);
+
+	// Weeks 1 and 2 are saved, so the page draws three rows and the third keys on
+	// 2026-01-19.
+	const asked = new URL(reads[0].url);
+	expect(asked.searchParams.get('from')).toBe('2026-01-05');
+	expect(asked.searchParams.get('to')).toBe('2026-01-19');
+
+	// A no-duration program is where a second load-time read would appear, since
+	// the count moves as the saved weeks arrive. Counted after a beat rather than
+	// at the first sample that matched.
+	await page.waitForTimeout(500);
+	expect(reads).toHaveLength(1);
+});
+
+// The range moves when the coach edits the program, and the rows move with it.
+test('asks again for the weeks a lengthened program now covers', async ({ page }) => {
+	const program = testProgram({ start_date: '2026-01-05', duration_weeks: 4 });
+	await stubProgram(page, program);
+	await stub(page, 'PUT', '/api/coach/clients/*/programs/*', {
+		body: { ...program, duration_weeks: 6 }
+	});
+	const reads = capture(page, 'GET', '/api/coach/clients/*/availability');
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByRole('button', { name: /Wk 4/ })).toBeVisible();
+	await expect.poll(() => reads.length).toBe(1);
+
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await page.getByRole('button', { name: 'Edit details' }).click();
+	await page.getByLabel('Weeks').fill('6');
+	await page.getByRole('button', { name: 'Done' }).click();
+
+	await expect(page.getByRole('button', { name: /Wk 6/ })).toBeVisible();
+	await expect.poll(() => reads.length).toBe(2);
+	const asked = new URL(reads[1].url);
+	expect(asked.searchParams.get('from')).toBe('2026-01-05');
+	expect(asked.searchParams.get('to')).toBe('2026-02-09');
+});
+
 test('shows the program with a row per week', async ({ page }) => {
 	await stubProgram(page);
 
