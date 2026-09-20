@@ -31,7 +31,7 @@
 	} = $props();
 
 	let container: HTMLDivElement;
-	let chart: import('echarts').ECharts | null = null;
+	let chart = $state<import('echarts').ECharts | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 
 	// Echarts wants concrete colors, so the Alpine variables are read off the
@@ -191,6 +191,11 @@
 			yAxis: {
 				type: 'value',
 				name: axisName,
+				// A ratio has no meaningful zero: a weighted hang is always above 1,
+				// and an axis starting at 0 leaves a season of training as a flat line
+				// across the top fifth of the plot. Kilograms keep the zero, where the
+				// distance from it is the result.
+				scale: asRatios,
 				nameTextStyle: { ...baseText, fontSize: 10, color: theme.textFaint },
 				axisLabel: {
 					...baseText,
@@ -221,17 +226,22 @@
 
 	onMount(async () => {
 		const echarts = await import('echarts');
+		// The options are not set here: assigning the instance re-runs the effect
+		// below, which is the one place the chart is drawn from.
 		chart = echarts.init(container, null, { renderer: 'svg' });
-		chart.setOption(buildOptions(history));
 
 		resizeObserver = new ResizeObserver(() => chart?.resize());
 		resizeObserver.observe(container);
 	});
 
+	// The options are built before the instance is checked, so the props they read
+	// are dependencies of this effect on its very first run. Guarding first would
+	// register nothing at all: the instance is assigned after an await inside
+	// onMount, so it is still null the first time through, and the chart would
+	// then keep drawing whatever it was given at mount.
 	$effect(() => {
-		if (chart) {
-			chart.setOption(buildOptions(history), { notMerge: true });
-		}
+		const options = buildOptions(history);
+		chart?.setOption(options, { notMerge: true });
 	});
 
 	onDestroy(() => {

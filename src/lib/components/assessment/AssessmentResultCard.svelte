@@ -66,7 +66,7 @@
 	// A bodyweight relative assessment is compared as the ratios the card leads
 	// with, and only when both ends have one: a change in kilograms sitting under
 	// two ratios would be read as a change in them.
-	let delta = $derived.by(() => {
+	let ends = $derived.by(() => {
 		if (history.length < 2) return null;
 		const firstRecord = history[0];
 		const lastRecord = history[history.length - 1];
@@ -74,15 +74,26 @@
 			assessment.perHand ? record.right_value : singleValue(record);
 		const first = reading(firstRecord, pick(firstRecord));
 		const last = reading(lastRecord, pick(lastRecord));
-		if (!first || !last) return null;
-		if (bodyweightRelative) {
-			if (first.ratio === undefined || last.ratio === undefined) return null;
-			return last.ratio - first.ratio;
-		}
-		return last.raw - first.raw;
+		return first && last ? { first, last } : null;
 	});
 
-	let noRatioToCompare = $derived(delta === null && bodyweightRelative && history.length >= 2);
+	let delta = $derived.by(() => {
+		if (!ends) return null;
+		if (bodyweightRelative) {
+			if (ends.first.ratio === undefined || ends.last.ratio === undefined) return null;
+			return ends.last.ratio - ends.first.ratio;
+		}
+		return ends.last.raw - ends.first.raw;
+	});
+
+	// Only when a denominator is what is missing. A hand the athlete did not
+	// measure that day is a different absence, and the footer stays quiet for it
+	// the way it already does on an assessment that is not read as a ratio.
+	let noRatioToCompare = $derived(
+		delta === null &&
+			ends !== null &&
+			(ends.first.missing !== undefined || ends.last.missing !== undefined)
+	);
 </script>
 
 <div
@@ -128,7 +139,6 @@
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={26}
-				{format}
 			/>
 			<LatestValue
 				label="RIGHT"
@@ -136,7 +146,6 @@
 				reading={latestRight}
 				unit={assessment.unit}
 				size={26}
-				{format}
 			/>
 		{:else}
 			<LatestValue
@@ -145,7 +154,6 @@
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={26}
-				{format}
 			/>
 		{/if}
 	</div>

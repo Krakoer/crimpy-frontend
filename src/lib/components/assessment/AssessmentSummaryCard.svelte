@@ -1,11 +1,6 @@
 <script lang="ts">
 	import { gripLabel } from '$lib/sessions';
-	import {
-		formatRecordValue,
-		singleValue,
-		unitLabel,
-		type RecordedAssessment
-	} from './assessment-records';
+	import { singleValue, unitLabel, type RecordedAssessment } from './assessment-records';
 	import { readRecordRatio } from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
 
@@ -22,10 +17,6 @@
 			: assessment.records
 	);
 	let latest = $derived(history.at(-1));
-
-	function format(value: number | null | undefined): string {
-		return formatRecordValue(value, assessment.unit);
-	}
 
 	// Read by the one rule the whole tab reads a bodyweight relative result by,
 	// so the summary beside the sessions and the card on the assessments tab
@@ -69,7 +60,6 @@
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={22}
-				{format}
 			/>
 			<LatestValue
 				label="RIGHT"
@@ -77,7 +67,6 @@
 				reading={latestRight}
 				unit={assessment.unit}
 				size={22}
-				{format}
 			/>
 		{:else}
 			<LatestValue
@@ -86,7 +75,6 @@
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={22}
-				{format}
 			/>
 		{/if}
 	</div>

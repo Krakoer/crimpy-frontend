@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { unitLabel } from '$lib/assessments';
+	import { formatUnitValue, unitLabel } from '$lib/assessments';
 	import {
 		formatRatio,
 		formatRatioBasis,
@@ -20,16 +20,17 @@
 		// it differs between the results tab and the summary beside the sessions,
 		// and two copies of this markup would drift the moment one is fixed.
 		size: number;
-		// The value as its own unit prints it, for the case where there is no ratio
-		// to print instead.
-		format: (value: number | null | undefined) => string;
 	}
 
-	let { label, labelColor, reading, unit, size, format }: Props = $props();
+	let { label, labelColor, reading, unit, size }: Props = $props();
 
+	// The unit decides how the number prints, so it is not also asked for as a
+	// formatter: two props saying one thing are two props that can disagree.
 	let headline = $derived.by(() => {
-		if (!reading) return format(undefined);
-		return reading.ratio === undefined ? format(reading.raw) : formatRatio(reading.ratio);
+		if (!reading) return formatUnitValue(undefined, unit);
+		return reading.ratio === undefined
+			? formatUnitValue(reading.raw, unit)
+			: formatRatio(reading.ratio);
 	});
 </script>
 

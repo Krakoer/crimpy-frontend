@@ -7,6 +7,7 @@
 		missingRatioLabel,
 		readRecordDenominator,
 		readRecordRatio,
+		type BodyweightReading,
 		type DenominatorReading
 	} from './bodyweight-ratio';
 	import { formatDayMonth } from '$lib/date';
@@ -22,11 +23,14 @@
 
 	// The number the cell leads with: the ratio where there is one, the load the
 	// athlete pulled otherwise.
-	function cell(record: AssessmentResponse, value: number | null | undefined): string {
-		const reading = readRecordRatio(record, value);
-		if (!reading) return formatRecordValue(value, record.unit);
+	function cellValue(
+		reading: BodyweightReading | null,
+		value: number | null | undefined,
+		unit: string
+	): string {
+		if (!reading) return formatRecordValue(value, unit);
 		return reading.ratio === undefined
-			? formatRecordValue(reading.raw, record.unit)
+			? formatRecordValue(reading.raw, unit)
 			: formatRatio(reading.ratio);
 	}
 
@@ -34,10 +38,9 @@
 	// of one session are two different loads, so this cannot be folded into the
 	// row's note the way the weight and its day can. Empty where the cell already
 	// holds the load.
-	function cellLoad(record: AssessmentResponse, value: number | null | undefined): string {
-		const reading = readRecordRatio(record, value);
+	function cellLoad(reading: BodyweightReading | null, unit: string): string {
 		if (!reading || reading.ratio === undefined) return '';
-		return `${formatRecordValue(reading.raw, record.unit)} ${unitLabel(record.unit)}`;
+		return `${formatRecordValue(reading.raw, unit)} ${unitLabel(unit)}`;
 	}
 
 	// The denominator is named once per row rather than repeated under both hands:
@@ -119,10 +122,12 @@
 </div>
 
 {#snippet valueCell(record: AssessmentResponse, value: number | null | undefined, span: string)}
+	{@const reading = readRecordRatio(record, value)}
+	{@const load = cellLoad(reading, record.unit)}
 	<div style="{span} text-align: right;">
-		<div style="font-weight: 600;">{cell(record, value)}</div>
-		{#if cellLoad(record, value)}
-			<div style="font-size: 11px; color: var(--tx3);">{cellLoad(record, value)}</div>
+		<div style="font-weight: 600;">{cellValue(reading, value, record.unit)}</div>
+		{#if load}
+			<div style="font-size: 11px; color: var(--tx3);">{load}</div>
 		{/if}
 	</div>
 {/snippet}

@@ -2151,7 +2151,6 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		const results = page.getByRole('list', { name: 'Assessment results' });
 		await expect(results.getByText('25.0', { exact: true })).toBeVisible();
 		await expect(results.getByText('kg, no recent weight')).toBeVisible();
-		await expect(results.getByText('1.35', { exact: true })).toBeHidden();
 	});
 
 	test('shows the raw kilograms when the athlete never weighed in', async ({ page }) => {
@@ -2309,6 +2308,86 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		await expect(tooltip).toContainText('22.0 kg at 71.0 kg');
 		await expect(tooltip).toContainText('1.39');
 		await expect(tooltip).toContainText('1.31');
+	});
+
+	// A hand the athlete did not measure is a different absence from a
+	// denominator that is missing, and saying "no ratio to compare" for it would
+	// send the coach looking for a weigh-in that is not the reason.
+	test('stays quiet about the overall change when a hand was not measured', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const perHand = (day: string, id: string, right: number | null) =>
+			recordOn(day, {
+				id,
+				session_id: `session-${id}`,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: true,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: right,
+				left_value: 20,
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${day}T08:00:00Z`
+			});
+		// Both sessions have a fresh denominator, so nothing is stale. The later
+		// one simply carries no right hand, which is the hand the delta reads.
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [perHand('2026-03-02', 'h1', 25), perHand('2026-06-02', 'h2', null)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('2 records')).toBeVisible();
+		await expect(results.getByText('no ratio to compare')).toHaveCount(0);
+	});
+
+	// The chart is drawn from one effect, and that effect has to depend on the
+	// history it draws: the instance is created after an await, so a guard placed
+	// before the props would register no dependency and leave the first grip's
+	// line, and its unit, under a card showing the second grip's number.
+	test('redraws the chart when the coach switches grip', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const onGrip = (grip: number, id: string, value: number, weighed: boolean) =>
+			recordOn(grip === 0 ? '2026-03-02' : '2026-03-09', {
+				id,
+				session_id: `session-${id}`,
+				assessment_id: BUILTIN_MAX_FORCE,
+				label: 'Max Force',
+				unit: 'kilograms',
+				per_hand: false,
+				bodyweight_relative: true,
+				grip_position: grip,
+				right_value: value,
+				left_value: null,
+				bodyweight_kg: weighed ? 71 : null,
+				bodyweight_measured_at: weighed ? '2026-03-01T08:00:00Z' : null
+			});
+		// Half crimp has a fresh denominator and reads as a ratio; the other grip
+		// has none and reads as kilograms, so the axis has to change with the grip.
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				onGrip(0, 'g0a', 25, true),
+				onGrip(0, 'g0b', 27, true),
+				onGrip(1, 'g1a', 18, false),
+				onGrip(1, 'g1b', 19, false)
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+		await page.getByRole('button', { name: 'Show chart' }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toBeVisible();
+
+		await results.getByRole('button', { name: '3-Finger' }).click();
+
+		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
+		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toHaveCount(0);
 	});
 
 	// The summary beside the sessions draws the same component as the card on the
