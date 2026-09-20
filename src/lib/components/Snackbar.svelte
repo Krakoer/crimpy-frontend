@@ -2,9 +2,9 @@
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 
 	const TONES: Record<string, { background: string; color: string }> = {
-		success: { background: '#f3f8f4', color: 'var(--gn)' },
-		error: { background: '#fdf3f3', color: 'var(--rd)' },
-		warning: { background: '#fdf7ee', color: 'var(--gd)' }
+		success: { background: 'var(--gn-fog)', color: 'var(--gn-tx)' },
+		error: { background: 'var(--rd-lt)', color: 'var(--rd-tx)' },
+		warning: { background: 'var(--gd-fog)', color: 'var(--gd-tx)' }
 	};
 
 	let tone = $derived(TONES[snackbar.type] ?? TONES.success);

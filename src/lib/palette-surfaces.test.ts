@@ -33,17 +33,27 @@ const MARK_FIELDS = ['color'];
 // widening the window past that starts reporting siblings rather than children,
 // which is worse than missing one: a guard nobody believes gets switched off.
 //
-// Three shapes it therefore cannot see, named here so a reader does not take
-// its silence for proof:
+// The pass over whole style attributes below has no such limit, so this window
+// only decides how far a ground reaches into the elements nested after it.
 //
-//   - a ground and a colour further apart than this, which is the week grid
-//     cell whose empty-state hint sits eighty lines below its ground;
+// Three shapes the scan therefore cannot see, named here so a reader does not
+// take its silence for proof:
+//
+//   - a ground and a colour in different elements further apart than this,
+//     which is the week grid cell whose empty-state hint sits eighty lines
+//     below its ground;
 //   - a ground handed to a child component through a prop;
 //   - a colour dimmed by an `opacity` on an inner element, which composites to
 //     something lighter than the token it names. That one is why no badge in
 //     this repo carries an opacity on its own glyphs any more.
 //
-// Each of those was found by a reader rather than by this scan, and fixed.
+// A fourth used to be here and is closed: a ground written as a raw hex rather
+// than as a token. Those are gone from `src/` now, replaced by the tint tokens
+// they were copies of, which is what the design system asks for anyway. If one
+// comes back this scan will not see it, and neither will a reviewer reading a
+// diff, so the honest guard against that is the rule about hardcoded colours.
+//
+// Each of the three was found by a reader rather than by this scan, and fixed.
 const GROUND_REACH = 24;
 
 function scopeFrom(lines: string[], start: number): number[] {
@@ -84,10 +94,17 @@ function offencesIn(file: string): Offence[] {
 	// order. The line window below only looks forward, and several pills in this
 	// repo declare their colour above their background.
 	const source = lines.join('\n');
-	for (const attribute of source.match(/style="[^"]*"/gs) ?? []) {
-		const at = source.slice(0, source.indexOf(attribute)).split('\n').length;
-		const grounds = (attribute.match(/background(?:-color)?:[^;"]*/g) ?? []).join(' ');
-		const colours = (attribute.match(/(?<!-)\bcolor:\s*[^;"]*/g) ?? []).join(' ');
+	for (const match of source.matchAll(/style="[^"]*"/gs)) {
+		const attribute = match[0];
+		// The position of this attribute, not of the first one that looks like it:
+		// two byte-identical style attributes in one file would otherwise both
+		// report the line of the earlier one.
+		const at = source.slice(0, match.index).split('\n').length;
+		// Matched on the whole attribute rather than line by line, because
+		// Prettier wraps a long conditional across lines and a line-at-a-time
+		// match never sees the token on the continuation.
+		const grounds = (attribute.match(/background(?:-color)?:[^;"]*/gs) ?? []).join(' ');
+		const colours = (attribute.match(/(?<!-)\bcolor:\s*[^;"]*/gs) ?? []).join(' ');
 		if (!grounds || !colours) continue;
 		for (const [hue, { grounds: tints, unreadable }] of Object.entries(HUES)) {
 			const ground = tints.find((token) => namesToken(grounds, token));

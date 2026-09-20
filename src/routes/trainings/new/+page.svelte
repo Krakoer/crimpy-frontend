@@ -386,7 +386,7 @@
 
 					{#if saveError}
 						<div
-							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: var(--rd-lt); font-size: 13px; color: #c62828;"
 						>
 							{saveError}
 						</div>
@@ -657,7 +657,7 @@
 
 			{#if saveError}
 				<div
-					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: var(--rd-lt); font-size: 13px; color: #c62828;"
 				>
 					{saveError}
 				</div>

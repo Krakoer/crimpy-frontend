@@ -183,7 +183,7 @@
 	<div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px;">
 		{#if deleteError}
 			<div
-				style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+				style="border: 1px solid var(--rd); background: var(--rd-lt); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 			>
 				{deleteError}
 			</div>
@@ -355,8 +355,8 @@
 											disabled={deleting}
 											style="
 												padding: 4px 10px; border-radius: 6px;
-												border: 1px solid var(--rd); color: var(--rd);
-												background: #fff5f5; font-size: 11px; font-weight: 600;
+												border: 1px solid var(--rd); color: var(--rd-tx);
+												background: var(--rd-lt); font-size: 11px; font-weight: 600;
 												cursor: pointer; font-family: var(--font);
 											"
 										>
@@ -555,8 +555,8 @@
 										disabled={deleting}
 										style="
 											padding: 4px 10px; border-radius: 6px;
-											border: 1px solid var(--rd); color: var(--rd);
-											background: #fff5f5; font-size: 11px; font-weight: 600;
+											border: 1px solid var(--rd); color: var(--rd-tx);
+											background: var(--rd-lt); font-size: 11px; font-weight: 600;
 											cursor: pointer; font-family: var(--font);
 										"
 									>

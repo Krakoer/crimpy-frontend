@@ -290,7 +290,7 @@
 										disabled={editDeleting}
 										style="
 											padding: 3px 8px; border-radius: var(--rs);
-											border: 1px solid var(--rd); color: var(--rd); background: #fff5f5;
+											border: 1px solid var(--rd); color: var(--rd-tx); background: var(--rd-lt);
 											font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
 											opacity: {editDeleting ? 0.6 : 1};
 										">{editDeleting ? '...' : 'Confirm'}</button

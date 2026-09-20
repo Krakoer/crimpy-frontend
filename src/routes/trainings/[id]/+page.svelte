@@ -469,7 +469,7 @@
 						style="
 							display: inline-flex; align-items: center; gap: 7px;
 							padding: 8px 14px; border-radius: var(--rs);
-							background: #fdf3f3; color: var(--rd); border: 1px solid var(--rd);
+							background: var(--rd-lt); color: var(--rd-tx); border: 1px solid var(--rd);
 							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 							opacity: {deleting ? 0.6 : 1};
 						">{deleting ? 'Deleting...' : 'Confirm delete'}</button
@@ -669,7 +669,7 @@
 
 					{#if saveError}
 						<div
-							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: var(--rd-lt); font-size: 13px; color: #c62828;"
 						>
 							{saveError}
 						</div>
@@ -938,7 +938,7 @@
 
 			{#if saveError}
 				<div
-					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: var(--rd-lt); font-size: 13px; color: #c62828;"
 				>
 					{saveError}
 				</div>

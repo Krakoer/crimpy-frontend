@@ -1016,8 +1016,8 @@
 					disabled={deleting}
 					style="
 						padding: 6px 12px; border-radius: var(--rs);
-						border: 1px solid var(--rd); color: var(--rd);
-						background: #fff5f5; font-size: 12.5px; font-weight: 600;
+						border: 1px solid var(--rd); color: var(--rd-tx);
+						background: var(--rd-lt); font-size: 12.5px; font-weight: 600;
 						cursor: pointer; font-family: var(--font);
 					">{deleting ? '...' : 'Confirm delete'}</button
 				>
@@ -1066,7 +1066,7 @@
 	{#if error}
 		<div style="padding: 16px 24px;">
 			<div
-				style="padding: 14px 18px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
+				style="padding: 14px 18px; border-radius: var(--rs); background: var(--rd-lt); border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
 			>
 				{error}
 			</div>
@@ -1192,7 +1192,7 @@
 						<span
 							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
-							font-size: 11.5px; font-weight: 600; background: #e3ede4; color: var(--gn);
+							font-size: 11.5px; font-weight: 600; background: var(--gn-lt); color: var(--gn-tx);
 						">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span
 						>
 					{/if}
@@ -1337,13 +1337,13 @@
 													style="
 												display: inline-block; width: 12px;
 												transform: {expanded ? 'rotate(90deg)' : 'rotate(0)'};
-												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr)' : 'var(--tx3)'};
+												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr-tx)' : 'var(--tx3)'};
 												font-size: 10px;
 											">&#9654;</span
 												>
 												<span
 													style="font-size: 13px; font-weight: 700; color: {isCurrent
-														? 'var(--pr)'
+														? 'var(--pr-tx)'
 														: 'var(--tx)'};">Wk {wn}</span
 												>
 												{#if isCurrent}
@@ -1353,7 +1353,7 @@
 													>
 												{/if}
 												{#if isWeekDirty(draft)}
-													<span style="font-size: 9px; color: var(--pr);">*</span>
+													<span style="font-size: 9px; color: var(--pr-tx);">*</span>
 												{/if}
 											</div>
 											<WeekPhaseField weekNumber={wn} bind:name={draft.name} {editMode} />
@@ -1452,7 +1452,7 @@
 																clearWeek(wn);
 																draft.deleteConfirm = false;
 															}}
-															style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+															style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd-tx); background: var(--rd-lt); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 															>Confirm clear</button
 														>
 														<button

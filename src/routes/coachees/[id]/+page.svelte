@@ -366,7 +366,7 @@
 		{#if error}
 			<div
 				style="margin-bottom: 16px; padding: 14px 18px; border-radius: var(--rs);
-					background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c;
+					background: var(--rd-lt); border: 1px solid #fca5a5; color: #b91c1c;
 					font-size: 13px;"
 			>
 				{error}
@@ -551,7 +551,7 @@
 											style="font-size: 10px; color: {day.isSelected
 												? '#fff'
 												: day.isToday
-													? 'var(--pr)'
+													? 'var(--pr-tx)'
 													: 'var(--tx3)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
 										>
 											{day.dayLabel}
@@ -560,7 +560,7 @@
 											style="font-size: 16px; font-weight: 700; color: {day.isSelected
 												? '#fff'
 												: day.isToday
-													? 'var(--pr)'
+													? 'var(--pr-tx)'
 													: 'var(--tx)'}; margin-top: 2px;"
 										>
 											{day.day}
@@ -774,7 +774,7 @@
 											style="
 										display: inline-flex; padding: 2px 8px; border-radius: 999px;
 										font-size: 11px; font-weight: 600;
-										background: #e3ede4; color: var(--gn);
+										background: var(--gn-lt); color: var(--gn-tx);
 									">Week {ps.week}{totalWks ? ` / ${totalWks}` : ''}</span
 										>
 									{:else if ps.state === 'upcoming'}
@@ -865,7 +865,7 @@
 								</p>
 								{#if newProgramError}
 									<div
-										style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
+										style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); background: var(--rd-lt); border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
 									>
 										{newProgramError}
 									</div>
@@ -1034,7 +1034,7 @@
 												<span
 													style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
-												font-size: 11px; font-weight: 600; background: #e3ede4; color: var(--gn);
+												font-size: 11px; font-weight: 600; background: var(--gn-lt); color: var(--gn-tx);
 											">Active · Week {ps.week}</span
 												>
 											{:else if ps.state === 'upcoming'}
@@ -1094,7 +1094,7 @@
 											<button
 												onclick={() => handleDeleteProgram(program.id)}
 												disabled={deletingProgram}
-												style="padding: 6px 12px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+												style="padding: 6px 12px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd-tx); background: var(--rd-lt); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 												>{deletingProgram ? '...' : 'Confirm'}</button
 											>
 											<button

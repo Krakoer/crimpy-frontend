@@ -720,7 +720,7 @@
 			>
 				{#if saveError}
 					<div
-						style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+						style="border: 1px solid var(--rd); background: var(--rd-lt); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 					>
 						{saveError}
 					</div>
