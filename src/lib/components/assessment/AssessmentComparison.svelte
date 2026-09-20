@@ -2,6 +2,8 @@
 	import { apiClient, type AssessmentResponse, type AssessmentSnapshot } from '$lib/api/client';
 	import { gripLabel } from '$lib/sessions';
 	import { formatUnitValue, unitLabel } from '$lib/assessments';
+	import { formatRatio, missingRatioLabel, type MissingRatio } from './bodyweight-ratio';
+	import { formatDayMonth } from '$lib/date';
 	import {
 		compareSnapshots,
 		formatDay,
@@ -120,11 +122,20 @@
 		// values it sits between.
 		if (hand.delta !== undefined) {
 			const change = row.bodyweightRelative
-				? hand.delta.toFixed(2)
+				? formatRatio(hand.delta)
 				: `${formatUnitValue(hand.delta, row.unit)} ${unitLabel(row.unit)}`.trim();
 			return `${hand.delta > 0 ? '+' : ''}${change}`;
 		}
-		return 'no weight on file';
+		// One of the two sides has no ratio, so there is nothing to subtract. The
+		// value cell beside this one says which side and why, and a difference
+		// between a ratio and a load in kilograms would be neither.
+		return 'no ratio to compare';
+	}
+
+	// A weigh-in that went stale is a caution, and one that never happened is an
+	// absence: the athlete can fix the first by stepping on the scales.
+	function missingRatioColor(missing: MissingRatio): string {
+		return missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
 	}
 
 	function handLabel(hand: ComparedHand): string {
@@ -288,14 +299,26 @@
 					>
 				{/if}
 				{formatScore(value, row.unit)}
+				{#if value.missingRatio}
+					<!-- The row header calls this a ratio to bodyweight, so the unit has
+					     to be said on the number that is not one. -->
+					<span style="color: var(--tx3); font-weight: 600; font-size: 11px;"
+						>{unitLabel(row.unit)}</span
+					>
+				{/if}
 			</div>
-			{#if value.bodyweightKg !== undefined}
+			{#if value.bodyweightKg !== undefined && value.weighedAt !== undefined}
+				<!-- The weigh-in is dated, because the last one at or before a result
+				     can be the same morning or four weeks old, and a coach reading the
+				     ratio cannot tell the two apart from the weight alone. -->
 				<div style="font-size: 11px; color: var(--tx3);">
-					{value.raw.toFixed(1)} kg at {value.bodyweightKg.toFixed(1)} kg
+					{value.raw.toFixed(1)} kg at {value.bodyweightKg.toFixed(1)} kg, {formatDayMonth(
+						value.weighedAt
+					)}
 				</div>
-			{:else if row.bodyweightRelative}
-				<div style="font-size: 11px; color: var(--rd);">
-					{value.raw.toFixed(1)} kg, no weight on file
+			{:else if value.missingRatio}
+				<div style="font-size: 11px; color: {missingRatioColor(value.missingRatio)};">
+					{missingRatioLabel(value.missingRatio)}
 				</div>
 			{/if}
 			{#if carriedFrom(value, day)}

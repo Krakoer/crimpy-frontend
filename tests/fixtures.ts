@@ -76,6 +76,10 @@ export interface TestAssessmentRecord {
 	grip_position?: number | null;
 	updated_at: string;
 	session_date: string;
+	// The weigh-in the row divides by, as the listing endpoint now sends it, and
+	// the day it was taken. Absent together when no weigh-in qualifies.
+	bodyweight_kg?: number | null;
+	bodyweight_measured_at?: string | null;
 }
 
 export function testAssessmentRecord(
@@ -115,15 +119,17 @@ export interface TestAssessmentSnapshotResult {
 	right_value?: number | null;
 	right_measured_at?: string | null;
 	right_bodyweight_kg?: number | null;
+	right_bodyweight_measured_at?: string | null;
 	left_value?: number | null;
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
+	left_bodyweight_measured_at?: string | null;
 }
 
 export function testSnapshotResult(
 	overrides: Partial<TestAssessmentSnapshotResult> = {}
 ): TestAssessmentSnapshotResult {
-	return {
+	const result = {
 		assessment_id: BUILTIN_MAX_FORCE,
 		label: 'Max Force',
 		unit: 'kilograms',
@@ -134,6 +140,16 @@ export function testSnapshotResult(
 		right_measured_at: '2026-03-02T10:00:00Z',
 		...overrides
 	};
+	// A weight the caller did not date was taken the day the value was measured,
+	// which is the fresh case most tests mean. A test about a stale denominator
+	// says so by passing the day itself.
+	if (result.right_bodyweight_kg != null && result.right_bodyweight_measured_at === undefined) {
+		result.right_bodyweight_measured_at = result.right_measured_at;
+	}
+	if (result.left_bodyweight_kg != null && result.left_bodyweight_measured_at === undefined) {
+		result.left_bodyweight_measured_at = result.left_measured_at;
+	}
+	return result;
 }
 
 /** A whole snapshot, with the bodyweight in effect on that date. */

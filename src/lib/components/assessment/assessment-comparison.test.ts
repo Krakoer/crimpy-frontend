@@ -27,17 +27,20 @@ function result(overrides: Partial<AssessmentSnapshotResult> = {}): AssessmentSn
 	};
 }
 
-/** A result with the weight it was pulled at, as the snapshot returns it. */
+/** A result with the weight it was pulled at, as the snapshot returns it, weighed
+ *  the day the value was measured so the denominator is never the stale one. */
 function weighed(
 	overrides: Partial<AssessmentSnapshotResult>,
 	bodyweightKg: number
 ): AssessmentSnapshotResult {
-	return result({
-		bodyweight_relative: true,
+	const measured = result({ bodyweight_relative: true, ...overrides });
+	return {
+		...measured,
 		right_bodyweight_kg: bodyweightKg,
+		right_bodyweight_measured_at: measured.right_measured_at,
 		left_bodyweight_kg: bodyweightKg,
-		...overrides
-	});
+		left_bodyweight_measured_at: measured.left_measured_at ?? measured.right_measured_at
+	};
 }
 
 function snapshot(
@@ -296,9 +299,11 @@ describe('compareSnapshots', () => {
 					bodyweight_relative: true,
 					right_value: 20,
 					right_bodyweight_kg: 71,
+					right_bodyweight_measured_at: '2026-03-02T08:00:00Z',
 					left_value: 19,
 					left_measured_at: '2026-03-02T10:00:00Z',
-					left_bodyweight_kg: 71
+					left_bodyweight_kg: 71,
+					left_bodyweight_measured_at: '2026-03-02T08:00:00Z'
 				})
 			]),
 			snapshot('2026-06-02T23:59:59Z', [
@@ -308,9 +313,11 @@ describe('compareSnapshots', () => {
 					right_value: 22,
 					right_measured_at: '2026-06-02T10:00:00Z',
 					right_bodyweight_kg: 75,
+					right_bodyweight_measured_at: '2026-06-02T08:00:00Z',
 					left_value: 19,
 					left_measured_at: '2026-03-02T10:00:00Z',
-					left_bodyweight_kg: 71
+					left_bodyweight_kg: 71,
+					left_bodyweight_measured_at: '2026-03-02T08:00:00Z'
 				})
 			])
 		);
@@ -318,6 +325,56 @@ describe('compareSnapshots', () => {
 		expect(right.after?.bodyweightKg).toBe(75);
 		expect(left.after?.bodyweightKg).toBe(71);
 		expect(left.unchanged).toBe(true);
+	});
+
+	// The comparison panel reads a denominator by the same rule as the cards
+	// above it: past the staleness window, there is no ratio, and the panel says
+	// so rather than dividing by a weight from another month.
+	it('declines a ratio when the weigh-in is older than the staleness window', () => {
+		const stale = result({
+			bodyweight_relative: true,
+			right_value: 25,
+			right_measured_at: '2026-03-02T10:00:00Z',
+			right_bodyweight_kg: 71,
+			right_bodyweight_measured_at: '2026-01-20T08:00:00Z'
+		});
+		const rows = compareSnapshots(
+			snapshot('2026-03-02T23:59:59Z', [stale]),
+			snapshot('2026-06-02T23:59:59Z', [
+				weighed({ right_value: 28, right_measured_at: '2026-06-02T10:00:00Z' }, 71)
+			])
+		);
+		const hand = rows[0].hands[0];
+		expect(hand.before?.score).toBeUndefined();
+		expect(hand.before?.missingRatio).toBe('stale');
+		expect(hand.before?.raw).toBe(25);
+		expect(hand.after?.score).toBeCloseTo(1.394, 3);
+		expect(hand.delta).toBeUndefined();
+	});
+
+	it('names an absent weigh-in apart from a stale one', () => {
+		const rows = compareSnapshots(
+			snapshot('2026-03-02T23:59:59Z', [result({ bodyweight_relative: true })]),
+			snapshot('2026-06-02T23:59:59Z', [
+				weighed({ right_value: 28, right_measured_at: '2026-06-02T10:00:00Z' }, 71)
+			])
+		);
+		expect(rows[0].hands[0].before?.missingRatio).toBe('no-weigh-in');
+	});
+
+	// The weigh-in date travels with the weight so the panel can print it. A
+	// ratio a coach cannot date is one they cannot check.
+	it('carries the day the denominator was weighed', () => {
+		const rows = compareSnapshots(
+			snapshot('2026-03-02T23:59:59Z', [
+				weighed({ right_value: 25, right_measured_at: '2026-03-02T10:00:00Z' }, 71)
+			]),
+			snapshot('2026-06-02T23:59:59Z', [
+				weighed({ right_value: 28, right_measured_at: '2026-06-02T10:00:00Z' }, 71)
+			])
+		);
+		expect(rows[0].hands[0].before?.weighedAt).toBe('2026-03-02T10:00:00Z');
+		expect(rows[0].hands[0].after?.weighedAt).toBe('2026-06-02T10:00:00Z');
 	});
 });
 
@@ -328,7 +385,10 @@ describe('formatScore', () => {
 		).toBe('1.35');
 		expect(formatScore({ raw: 25, measuredAt: 'x', score: 25 }, 'kilograms')).toBe('25.0');
 		expect(formatScore({ raw: 17, measuredAt: 'x', score: 17 }, 'repetitions')).toBe('17');
-		expect(formatScore({ raw: 25, measuredAt: 'x' }, 'kilograms')).toBe('--');
+		// A ratio that had to be declined falls back to the load it was going to be
+		// built from, which is a number the athlete really pulled. A dash would
+		// hide it, and the cell beside it already says why there is no ratio.
+		expect(formatScore({ raw: 25, measuredAt: 'x' }, 'kilograms')).toBe('25.0');
 	});
 
 	// A half second is a real result, and rounding it away would print the same

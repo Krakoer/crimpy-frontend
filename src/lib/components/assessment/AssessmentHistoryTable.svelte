@@ -1,7 +1,15 @@
 <script lang="ts">
 	import type { AssessmentResponse } from '$lib/api/client';
 	import { gripLabel } from '$lib/sessions';
-	import { formatRecordValue, singleValue } from './assessment-records';
+	import { formatRecordValue, singleValue, unitLabel } from './assessment-records';
+	import {
+		formatRatio,
+		missingRatioLabel,
+		readRecordDenominator,
+		readRecordRatio,
+		type DenominatorReading
+	} from './bodyweight-ratio';
+	import { formatDayMonth } from '$lib/date';
 
 	interface Props {
 		records: AssessmentResponse[];
@@ -11,6 +19,28 @@
 	let { records, formatDate }: Props = $props();
 
 	const columns = 'display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;';
+
+	function cell(record: AssessmentResponse, value: number | null | undefined): string {
+		const reading = readRecordRatio(record, value);
+		if (!reading) return formatRecordValue(value, record.unit);
+		return reading.ratio === undefined
+			? formatRecordValue(reading.raw, record.unit)
+			: formatRatio(reading.ratio);
+	}
+
+	// The denominator is named once per row rather than repeated under both hands:
+	// a row is one session, and the two hands were pulled at the same weight.
+	function denominatorNote(reading: DenominatorReading, unit: string): string {
+		if (reading.bodyweightKg === undefined || reading.weighedAt === undefined) {
+			return reading.missing ? `${unitLabel(unit)}, ${missingRatioLabel(reading.missing)}` : '';
+		}
+		return `ratio to ${reading.bodyweightKg.toFixed(1)} kg, weighed ${formatDayMonth(reading.weighedAt)}`;
+	}
+
+	function denominatorColor(reading: DenominatorReading): string {
+		if (reading.bodyweightKg !== undefined) return 'var(--tx3)';
+		return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
+	}
 </script>
 
 <div
@@ -38,6 +68,7 @@
 			<div style="text-align: right;">Right</div>
 		</div>
 		{#each records as record, i (record.id)}
+			{@const basis = readRecordDenominator(record)}
 			<div
 				style="
 					{columns} min-width: 520px;
@@ -47,22 +78,33 @@
 				"
 			>
 				<div style="color: var(--tx2); font-size: 12px;">{formatDate(record.session_date)}</div>
-				<div style="font-weight: 600; color: var(--tx);">{record.label}</div>
+				<div style="min-width: 0;">
+					<div style="font-weight: 600; color: var(--tx);">{record.label}</div>
+					{#if basis}
+						<!-- The weigh-in the row divides by, with the day it was taken, so a
+						     coach can tell a denominator measured the same morning from one
+						     weeks old. Where there is none, the reason stands in its place
+						     and the numbers beside it are kilograms. -->
+						<div style="font-size: 11px; color: {denominatorColor(basis)};">
+							{denominatorNote(basis, record.unit)}
+						</div>
+					{/if}
+				</div>
 				<div style="color: var(--tx3); font-size: 12px;">
 					{record.training_id ? '' : gripLabel(record.grip_position ?? 0)}
 				</div>
 				{#if record.per_hand}
 					<div style="text-align: right; font-weight: 600;">
-						{formatRecordValue(record.left_value, record.unit)}
+						{cell(record, record.left_value)}
 					</div>
 					<div style="text-align: right; font-weight: 600;">
-						{formatRecordValue(record.right_value, record.unit)}
+						{cell(record, record.right_value)}
 					</div>
 				{:else}
 					<!-- A single value is not a hand, so it spans the two numeric columns
 					     rather than sitting under one of them. -->
 					<div style="grid-column: span 2; text-align: right; font-weight: 600;">
-						{formatRecordValue(singleValue(record), record.unit)}
+						{cell(record, singleValue(record))}
 					</div>
 				{/if}
 			</div>

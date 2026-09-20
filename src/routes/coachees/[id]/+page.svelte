@@ -1145,8 +1145,11 @@
 							<span style="font-weight: 600; color: var(--tx);">{totalAssessmentCount} records</span
 							>
 						</div>
-						<!-- The denominator, next to the numbers read against it: a finger
-						     score is a ratio to the bodyweight of the day, not an absolute. -->
+						<!-- Where the athlete's weight stands now, which is not what any
+						     result below is divided by: every row carries the weigh-in in
+						     effect when it was measured, and reads as a ratio against that
+						     one. This line is the context for the next weigh-in, not the
+						     denominator of the last. -->
 						<div style="font-size: 12.5px; color: var(--tx2);">
 							<!-- The same states the card tells apart, in the same order, because
 							     two copies of one state machine drift. Saying "none recorded" for a
@@ -1154,14 +1157,8 @@
 							     that the page has no basis for.
 
 							     "Latest" is load bearing: this is the weight in effect, and the
-							     table below holds records measured against earlier ones. Reading an
-							     old row against this number is wrong by whatever the athlete's
-							     weight did since, which is why the day is named too.
-
-							     The comparison panel below does read a denominator per date,
-							     because each snapshot carries the weight in effect then. The cards
-							     and the history table still show raw kilograms, since the list they
-							     are drawn from carries no weight at all: Krakoer/crimpy#116. -->
+							     table below holds records measured against earlier ones, each
+							     naming its own. -->
 							{#if loadingBodyweights}
 								<span style="color: var(--tx3);">Loading bodyweight...</span>
 							{:else if bodyweightsFailed}

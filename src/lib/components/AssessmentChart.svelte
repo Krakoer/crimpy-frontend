@@ -2,12 +2,18 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { AssessmentResponse } from '$lib/api/client';
 	import { measuredAt, singleValue } from '$lib/components/assessment/assessment-records';
+	import {
+		formatRatio,
+		formatRatioBasis,
+		readRecordRatio
+	} from '$lib/components/assessment/bodyweight-ratio';
 
 	let {
 		history,
 		unit,
 		formatValue,
-		perHand = true
+		perHand = true,
+		bodyweightRelative = false
 	}: {
 		history: AssessmentResponse[];
 		unit: string;
@@ -16,6 +22,12 @@
 		// measured as a single number draws one line, and calling it "right" would
 		// be a lie the legend then repeats.
 		perHand?: boolean;
+		// Whether the line is the ratio to the bodyweight each result was pulled
+		// at rather than the load itself. A season in which the athlete lost three
+		// kilos moves the two lines in opposite directions, so a chart drawn in
+		// kilograms under a card reading ratios tells a different story about the
+		// same records.
+		bodyweightRelative?: boolean;
 	} = $props();
 
 	let container: HTMLDivElement;
@@ -48,11 +60,26 @@
 		});
 	}
 
+	// The load a ratio was built from, keyed by the point it was drawn at, so the
+	// tooltip can show what produced the number without a second pass over the
+	// history. A ratio nobody can check against a weight and a day is a number
+	// the coach has to take on trust.
+	let ratioBasis = new Map<number, string>();
+
 	function buildOptions(data: AssessmentResponse[]) {
 		const theme = palette();
+		ratioBasis = new Map();
+		// A record whose ratio had to be declined leaves a gap rather than a point
+		// drawn in kilograms among ratios, which would read as a collapse.
 		const points = (pick: (a: AssessmentResponse) => number | null | undefined) =>
 			data
-				.map((a) => [measuredAt(a), pick(a)] as const)
+				.map((a) => {
+					const at = measuredAt(a);
+					if (!bodyweightRelative) return [at, pick(a)] as const;
+					const reading = readRecordRatio(a, pick(a));
+					if (reading?.ratio !== undefined) ratioBasis.set(at, formatRatioBasis(reading));
+					return [at, reading?.ratio] as const;
+				})
 				.filter(
 					(point): point is readonly [number, number] => point[1] !== null && point[1] !== undefined
 				)
@@ -91,6 +118,7 @@
 				];
 
 		const baseText = { fontFamily: theme.font, fontSize: 11 };
+		const axisName = bodyweightRelative ? 'ratio' : unit;
 
 		return {
 			textStyle: baseText,
@@ -110,7 +138,10 @@
 					});
 					const lines = params.map((p) => {
 						const color = p.seriesName === 'Left' ? theme.left : theme.right;
-						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${formatValue(p.value[1])} ${unit}`;
+						const reading = bodyweightRelative
+							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${ratioBasis.get(p.value[0]) ?? ''}</span>`
+							: `${formatValue(p.value[1])} ${unit}`;
+						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${reading}`;
 					});
 					return `<div style="font-family:${theme.font};font-size:11px;">${date}<br/>${lines.join('<br/>')}</div>`;
 				},
@@ -134,13 +165,13 @@
 			},
 			yAxis: {
 				type: 'value',
-				name: unit,
+				name: axisName,
 				nameTextStyle: { ...baseText, fontSize: 10, color: theme.textFaint },
 				axisLabel: {
 					...baseText,
 					fontSize: 10,
 					color: theme.textFaint,
-					formatter: (val: number) => formatValue(val)
+					formatter: (val: number) => (bodyweightRelative ? formatRatio(val) : formatValue(val))
 				},
 				axisLine: { show: false },
 				splitLine: { lineStyle: { color: theme.borderLight } }

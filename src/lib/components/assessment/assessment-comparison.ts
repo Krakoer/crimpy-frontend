@@ -4,6 +4,7 @@ import type {
 	AssessmentSnapshotResult
 } from '$lib/api/client';
 import { formatUnitValue } from '$lib/assessments';
+import { formatRatio, readBodyweightRatio, type MissingRatio } from './bodyweight-ratio';
 
 // The days an athlete actually tested on, newest first, as the API spells a day:
 // the UTC date of the session. Taken from the UTC instant rather than from a
@@ -37,11 +38,16 @@ export interface ComparedValue {
 	measuredAt: string;
 	// The number drawn and compared. The ratio to the bodyweight for an
 	// assessment that reads as one, the raw value otherwise. Absent when the
-	// assessment reads as a ratio and no weight was on file that day, which is a
-	// denominator a reader has to say out loud rather than invent.
+	// assessment reads as a ratio and no weigh-in near enough to the measurement
+	// was on file, which is a denominator a reader has to say out loud rather
+	// than invent.
 	score?: number;
-	// The weight the ratio was read against, set alongside a ratio score.
+	// The weight the ratio was read against and the day it was taken, set
+	// alongside a ratio score and absent with it.
 	bodyweightKg?: number;
+	weighedAt?: string;
+	// Why there is no ratio, on an assessment that reads as one.
+	missingRatio?: MissingRatio;
 }
 
 export type ComparisonHand = 'single' | 'right' | 'left';
@@ -71,25 +77,29 @@ export interface ComparisonRow {
 	hands: ComparedHand[];
 }
 
-// A weighted result read as a ratio: the whole load that hung off the fingers,
-// bodyweight included, over the bodyweight alone. 25kg added at 71kg is 1.35,
-// which is what makes two seasons comparable when the athlete's weight moved.
-export function bodyweightScore(raw: number, bodyweightKg: number): number {
-	return (bodyweightKg + raw) / bodyweightKg;
-}
+export { bodyweightScore } from './bodyweight-ratio';
 
+// Read by the one rule the whole tab reads a bodyweight relative result by, so
+// the panel and the cards above it cannot print two different numbers for the
+// same measurement.
 function comparedValue(
 	raw: number | null | undefined,
 	measuredAt: string | null | undefined,
 	bodyweightRelative: boolean,
-	bodyweightKg: number | null | undefined
+	bodyweightKg: number | null | undefined,
+	weighedAt: string | null | undefined
 ): ComparedValue | undefined {
 	if (raw === null || raw === undefined || !measuredAt) return undefined;
 	if (!bodyweightRelative) return { raw, measuredAt, score: raw };
-	if (bodyweightKg === null || bodyweightKg === undefined || bodyweightKg <= 0) {
-		return { raw, measuredAt };
-	}
-	return { raw, measuredAt, score: bodyweightScore(raw, bodyweightKg), bodyweightKg };
+	const reading = readBodyweightRatio(raw, measuredAt, true, bodyweightKg, weighedAt);
+	return {
+		raw,
+		measuredAt,
+		score: reading.ratio,
+		bodyweightKg: reading.bodyweightKg,
+		weighedAt: reading.weighedAt,
+		missingRatio: reading.missing
+	};
 }
 
 function comparedHand(
@@ -160,7 +170,8 @@ export function compareSnapshots(
 			side === 'right' ? result?.right_value : result?.left_value,
 			side === 'right' ? result?.right_measured_at : result?.left_measured_at,
 			bodyweightRelative,
-			side === 'right' ? result?.right_bodyweight_kg : result?.left_bodyweight_kg
+			side === 'right' ? result?.right_bodyweight_kg : result?.left_bodyweight_kg,
+			side === 'right' ? result?.right_bodyweight_measured_at : result?.left_bodyweight_measured_at
 		);
 	}
 
@@ -210,9 +221,13 @@ export function compareSnapshots(
 // season of finger training shows. A score that is not a ratio is the measurement
 // itself, so it is printed by the one rule the cards and the history table use,
 // or the same number reads differently in two panels of the same tab.
+//
+// A ratio that had to be declined falls back to the measurement it was going to
+// be built from, which is a real number the athlete pulled, rather than to a
+// dash that hides it. The cell beside it says why there is no ratio.
 export function formatScore(value: ComparedValue, unit: string): string {
-	if (value.score === undefined) return '--';
-	if (value.bodyweightKg !== undefined) return value.score.toFixed(2);
+	if (value.score === undefined) return formatUnitValue(value.raw, unit);
+	if (value.bodyweightKg !== undefined) return formatRatio(value.score);
 	return formatUnitValue(value.score, unit);
 }
 

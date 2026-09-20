@@ -7,6 +7,13 @@
 		unitLabel,
 		type RecordedAssessment
 	} from './assessment-records';
+	import {
+		formatRatio,
+		formatRatioBasis,
+		missingRatioLabel,
+		readRecordRatio,
+		type BodyweightReading
+	} from './bodyweight-ratio';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -38,17 +45,51 @@
 		return formatRecordValue(value, assessment.unit);
 	}
 
+	let bodyweightRelative = $derived(assessment.bodyweightRelative);
+	// A ratio is not measured in kilograms, so the card says what it is reading
+	// rather than naming a unit the number does not carry.
+	let readingLabel = $derived(
+		bodyweightRelative ? 'ratio to bodyweight' : unitLabel(assessment.unit)
+	);
+
+	// The headline number is the ratio when the assessment reads as one and the
+	// weigh-in beside the result is near enough to divide by, the raw load
+	// otherwise. Every surface on this tab asks the same function, so a result
+	// cannot read one way here and another in the comparison below.
+	function reading(record: (typeof history)[number] | undefined, value: number | null | undefined) {
+		return record ? readRecordRatio(record, value) : null;
+	}
+
+	let latestLeft = $derived(reading(latest, latest?.left_value));
+	let latestRight = $derived(reading(latest, latest?.right_value));
+	let latestSingle = $derived(reading(latest, singleValue(latest)));
+
+	function headline(value: BodyweightReading | null): string {
+		if (!value) return format(undefined);
+		return value.ratio === undefined ? format(value.raw) : formatRatio(value.ratio);
+	}
+
 	// The progress across the whole history, on the hand that carries the result
 	// for a single value assessment and on the right hand otherwise, which is
 	// what the two big numbers above already lead with.
+	//
+	// A bodyweight relative assessment is compared as the ratios the card leads
+	// with, and only when both ends have one: a change in kilograms sitting under
+	// two ratios would be read as a change in them.
 	let delta = $derived.by(() => {
 		if (history.length < 2) return null;
-		const first = assessment.perHand ? history[0].right_value : singleValue(history[0]);
-		const last = assessment.perHand
-			? history[history.length - 1].right_value
-			: singleValue(history[history.length - 1]);
-		if (first === null || first === undefined || last === null || last === undefined) return null;
-		return last - first;
+		const firstRecord = history[0];
+		const lastRecord = history[history.length - 1];
+		const pick = (record: (typeof history)[number]) =>
+			assessment.perHand ? record.right_value : singleValue(record);
+		const first = reading(firstRecord, pick(firstRecord));
+		const last = reading(lastRecord, pick(lastRecord));
+		if (!first || !last) return null;
+		if (bodyweightRelative) {
+			if (first.ratio === undefined || last.ratio === undefined) return null;
+			return last.ratio - first.ratio;
+		}
+		return last.raw - first.raw;
 	});
 </script>
 
@@ -63,7 +104,7 @@
 			{assessment.label}
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
-			{unitLabel(assessment.unit)}
+			{readingLabel}
 		</div>
 	</div>
 
@@ -89,31 +130,10 @@
 
 	<div style="display: flex; gap: 20px; margin-bottom: 14px;">
 		{#if assessment.perHand}
-			<div>
-				<div style="font-size: 10px; color: var(--gn); font-weight: 600; letter-spacing: 0.06em;">
-					LEFT
-				</div>
-				<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(latest?.left_value)}
-				</div>
-			</div>
-			<div>
-				<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">
-					RIGHT
-				</div>
-				<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(latest?.right_value)}
-				</div>
-			</div>
+			{@render latestValue('LEFT', 'var(--gn)', latestLeft)}
+			{@render latestValue('RIGHT', 'var(--pr)', latestRight)}
 		{:else}
-			<div>
-				<div style="font-size: 10px; color: var(--pr); font-weight: 600; letter-spacing: 0.06em;">
-					LATEST
-				</div>
-				<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-					{format(singleValue(latest))}
-				</div>
-			</div>
+			{@render latestValue('LATEST', 'var(--pr)', latestSingle)}
 		{/if}
 	</div>
 
@@ -134,6 +154,7 @@
 					unit={unitLabel(assessment.unit)}
 					formatValue={(v) => formatRecordValue(v, assessment.unit)}
 					perHand={assessment.perHand}
+					{bodyweightRelative}
 				/>
 			</div>
 		{/if}
@@ -145,10 +166,39 @@
 			{#if delta !== null}
 				<span>·</span>
 				<span style="color: {delta >= 0 ? 'var(--gn)' : 'var(--rd)'}; font-weight: 600;">
-					{delta >= 0 ? '+' : ''}{format(delta)}
-					{unitLabel(assessment.unit)} overall
+					{delta >= 0 ? '+' : ''}{bodyweightRelative
+						? formatRatio(delta)
+						: `${format(delta)} ${unitLabel(assessment.unit)}`} overall
 				</span>
 			{/if}
 		</div>
 	{/if}
 </div>
+
+<!-- The load that produced a ratio stays beside it, with the day the weigh-in
+     was taken: a ratio a coach cannot check against a weight and a date is a
+     number they have to take on trust. When there is no ratio the same line
+     says why, and the number above it is the load itself. -->
+{#snippet latestValue(label: string, color: string, value: BodyweightReading | null)}
+	<div style="min-width: 0;">
+		<div style="font-size: 10px; color: {color}; font-weight: 600; letter-spacing: 0.06em;">
+			{label}
+		</div>
+		<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
+			{headline(value)}
+		</div>
+		{#if value && value.ratio !== undefined}
+			<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">
+				{formatRatioBasis(value)}
+			</div>
+		{:else if value?.missing}
+			<div
+				style="font-size: 11px; margin-top: 4px; color: {value.missing === 'stale'
+					? 'var(--gd-tx)'
+					: 'var(--rd)'};"
+			>
+				{unitLabel(assessment.unit)}, {missingRatioLabel(value.missing)}
+			</div>
+		{/if}
+	</div>
+{/snippet}
