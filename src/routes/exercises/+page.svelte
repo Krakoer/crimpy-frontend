@@ -327,12 +327,12 @@
 						width: 100%; padding: 7px 10px; border-radius: 6px;
 						border: none; cursor: pointer; font-family: var(--font); font-size: 13px;
 						background: {favoritesOnly ? 'var(--pr-fog)' : 'transparent'};
-						color: {favoritesOnly ? 'var(--pr)' : 'var(--tx2)'};
+						color: {favoritesOnly ? 'var(--pr-tx)' : 'var(--tx2)'};
 						font-weight: {favoritesOnly ? 600 : 500};
 					"
 				>
 					<span>Favorites only</span>
-					{#if favoritesOnly}<Icon name="check" size={13} color="var(--pr)" />{/if}
+					{#if favoritesOnly}<Icon name="check" size={13} color="var(--pr-tx)" />{/if}
 				</button>
 			</div>
 
@@ -720,7 +720,7 @@
 			>
 				{#if saveError}
 					<div
-						style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+						style="border: 1px solid var(--rd); background: var(--rd-lt); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 					>
 						{saveError}
 					</div>

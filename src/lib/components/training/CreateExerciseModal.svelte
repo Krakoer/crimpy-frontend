@@ -108,7 +108,7 @@
 		<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;">
 			{#if error}
 				<div
-					style="border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+					style="border: 1px solid var(--rd); background: var(--rd-lt); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 				>
 					{error}
 				</div>

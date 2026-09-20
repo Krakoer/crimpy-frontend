@@ -36,7 +36,7 @@
 		data-testid="stale-week-{week}"
 		style="padding: 6px 12px; background: var(--gd-fog); color: var(--tx2); font-size: 11.5px; border-bottom: 1px solid var(--bd2); display: flex; align-items: center; gap: 6px;"
 	>
-		<Icon name="alert" size={11} color="var(--gd)" />
+		<Icon name="alert" size={11} color="var(--gd-tx)" />
 		{staleCount} The athlete is handed the training as it is written there, and the week cannot be saved
 		until that is cleared. {staleRemedy}
 	</div>

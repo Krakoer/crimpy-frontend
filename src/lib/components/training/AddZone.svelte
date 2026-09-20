@@ -41,7 +41,7 @@
 				padding: 10px 14px; border-radius: var(--rl);
 				border: 1.5px dashed {isDropTarget ? 'var(--pr)' : 'var(--bd)'};
 				display: flex; align-items: center; justify-content: center; gap: 6px;
-				color: {isDropTarget ? 'var(--pr)' : 'var(--tx3)'};
+				color: {isDropTarget ? 'var(--pr-tx)' : 'var(--tx3)'};
 				font-size: 12.5px; font-weight: 500; cursor: pointer;
 				background: {isDropTarget ? 'var(--pr-fog)' : 'transparent'};
 				font-family: var(--font); transition: border-color 0.15s, color 0.15s;

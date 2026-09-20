@@ -30,17 +30,15 @@
 		style="
 			display: inline-flex; align-items: baseline; gap: 5px; flex-shrink: 0;
 			padding: 2px 9px; border-radius: 999px;
-			background: var(--pr-fog); color: var(--pr);
+			background: var(--pr-fog); color: var(--pr-tx);
 			font-size: 11px; font-weight: 700; white-space: nowrap;
 		"
 	>
-		<span style="font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8;"
-			>Did</span
-		>
-		{shown}{#if hidden > 0}<span style="font-weight: 600; opacity: 0.75;">+{hidden}</span
-			>{/if}{#if prescribed !== undefined}<span style="font-weight: 600; opacity: 0.75;"
+		<span style="font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;">Did</span>
+		{shown}{#if hidden > 0}<span style="font-weight: 600;">+{hidden}</span
+			>{/if}{#if prescribed !== undefined}<span style="font-weight: 600;"
 				>/{prescribed}{#if values.length > 1}&nbsp;each{/if}</span
 			>{/if}
-		<span style="font-weight: 600; opacity: 0.75;">{unit}</span>
+		<span style="font-weight: 600;">{unit}</span>
 	</span>
 {/if}

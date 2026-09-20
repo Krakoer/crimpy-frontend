@@ -29,7 +29,7 @@
 	"
 >
 	{#if !compact}
-		<span style="opacity: 0.75;">RPE</span>
+		<span>RPE</span>
 	{/if}
 	{compact ? rpe.mark : rpe.short}
 </span>

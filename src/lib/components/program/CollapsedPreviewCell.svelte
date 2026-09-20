@@ -39,7 +39,7 @@
 			style="
 				padding: 2px 5px; border-radius: 4px;
 				background: {info.tint};
-				font-size: 9px; color: {info.color};
+				font-size: 9px; color: {info.text};
 				font-weight: 600; max-width: 100%;
 				overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 			"

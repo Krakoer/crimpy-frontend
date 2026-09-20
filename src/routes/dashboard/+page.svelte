@@ -355,7 +355,7 @@
 
 				{#if enrollmentError}
 					<div
-						style="margin-bottom: 12px; border: 1px solid var(--rd); background: #fff5f5; border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+						style="margin-bottom: 12px; border: 1px solid var(--rd); background: var(--rd-lt); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 					>
 						{enrollmentError}
 					</div>
@@ -392,7 +392,7 @@
 
 					{#if confirmLeave}
 						<div
-							style="margin-bottom: 12px; border: 1px solid var(--gd); background: #fffbf0; border-radius: var(--rs); padding: 16px; font-size: 13px;"
+							style="margin-bottom: 12px; border: 1px solid var(--gd); background: var(--gd-fog); border-radius: var(--rs); padding: 16px; font-size: 13px;"
 						>
 							<p style="font-weight: 600; color: var(--tx); margin-bottom: 12px;">
 								Are you sure you want to leave your current coach? This cannot be undone.

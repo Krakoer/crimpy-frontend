@@ -15,6 +15,11 @@ export interface SessionActivityInfo {
 	icon: string;
 	color: string;
 	tint: string;
+	// The same hue carried far enough down to be read as text on `tint`. The
+	// accent itself is a mark: every one of them is under the 4.5:1 floor on its
+	// own light ground, so a pill that writes its label in the accent is
+	// unreadable at the label sizes these surfaces use. See Krakoer/crimpy#119.
+	text: string;
 }
 
 // Activity discriminators shared with the app, stored on sessions.activity.
@@ -24,35 +29,40 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		short: 'HB',
 		icon: 'flame',
 		color: 'var(--pr)',
-		tint: 'var(--pr-lt)'
+		tint: 'var(--pr-lt)',
+		text: 'var(--pr-tx)'
 	},
 	1: {
 		label: 'Climbing',
 		short: 'CL',
 		icon: 'mountain',
 		color: 'var(--gd)',
-		tint: 'var(--gd-lt)'
+		tint: 'var(--gd-lt)',
+		text: 'var(--gd-tx)'
 	},
 	2: {
 		label: 'Stretching',
 		short: 'ST',
 		icon: 'figure',
 		color: 'var(--gn)',
-		tint: 'var(--gn-lt)'
+		tint: 'var(--gn-lt)',
+		text: 'var(--gn-tx)'
 	},
 	3: {
 		label: 'Workout',
 		short: 'WO',
 		icon: 'dumbbell',
 		color: 'var(--pl)',
-		tint: 'var(--pl-lt)'
+		tint: 'var(--pl-lt)',
+		text: 'var(--pl-tx)'
 	},
 	4: {
 		label: 'Other',
 		short: 'OT',
 		icon: 'clock',
 		color: 'var(--bl)',
-		tint: 'var(--bl-lt)'
+		tint: 'var(--bl-lt)',
+		text: 'var(--bl-tx)'
 	}
 };
 
@@ -61,7 +71,8 @@ const UNKNOWN_SESSION_ACTIVITY: SessionActivityInfo = {
 	short: '--',
 	icon: 'clock',
 	color: 'var(--tx2)',
-	tint: 'var(--panel2)'
+	tint: 'var(--panel2)',
+	text: 'var(--tx2)'
 };
 
 // An activity the app added before this portal knew about it degrades to a

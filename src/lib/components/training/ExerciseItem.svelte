@@ -246,7 +246,7 @@
 				{#if confirmDelete}
 					<button
 						onclick={onRemove}
-						style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--rd); background: #fff; color: var(--rd-tx); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 						>Delete</button
 					>
 					<button
@@ -393,7 +393,7 @@
 							style="padding: 4px 8px; border-radius: 5px; border: 1px solid {isAmrap
 								? 'var(--pr)'
 								: 'var(--bd)'}; background: {isAmrap ? 'var(--pr-fog)' : '#fff'}; color: {isAmrap
-								? 'var(--pr)'
+								? 'var(--pr-tx)'
 								: 'var(--tx3)'}; font-size: 11px; font-weight: 700; cursor: pointer; font-family: var(--font);"
 							>AMRAP</button
 						>
@@ -413,7 +413,7 @@
 								: 'var(--bd)'}; background: {variableTarget
 								? 'var(--pr-fog)'
 								: '#fff'}; color: {variableTarget
-								? 'var(--pr)'
+								? 'var(--pr-tx)'
 								: 'var(--tx3)'}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 							>%</button
 						>

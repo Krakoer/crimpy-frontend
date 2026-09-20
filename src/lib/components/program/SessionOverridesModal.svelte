@@ -294,11 +294,11 @@
 				class="flex items-center justify-center"
 				style="width: 40px; height: 40px; border-radius: var(--rs); background: var(--panel); flex-shrink: 0;"
 			>
-				<Icon name="settings" size={20} color={type.color} />
+				<Icon name="settings" size={20} color={type.text} />
 			</div>
 			<div style="min-width: 0; flex: 1;">
 				<div
-					style="font-size: 11px; font-weight: 700; color: {type.color}; letter-spacing: 0.06em; text-transform: uppercase;"
+					style="font-size: 11px; font-weight: 700; color: {type.text}; letter-spacing: 0.06em; text-transform: uppercase;"
 				>
 					Week {weekNumber} - {placement}
 				</div>
@@ -336,7 +336,7 @@
 					class="flex items-start gap-2"
 					style="border: 1px solid var(--gd); background: var(--gd-lt); border-radius: var(--rs); padding: 9px 11px;"
 				>
-					<div style="padding-top: 1px;"><Icon name="alert" size={14} color="var(--gd)" /></div>
+					<div style="padding-top: 1px;"><Icon name="alert" size={14} color="var(--gd-tx)" /></div>
 					<span style="font-size: 12px; color: var(--tx2);">
 						{markedBlocks === 1
 							? 'One block below asks for something the training no longer takes.'

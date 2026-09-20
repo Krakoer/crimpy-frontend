@@ -47,7 +47,7 @@
 	const formatDate = formatDayMonth;
 </script>
 
-{#snippet emptyWeekRow(week: EmptyProgramWeek, detail: string, color: string, tint: string)}
+{#snippet emptyWeekRow(week: EmptyProgramWeek, detail: string, text: string, tint: string)}
 	<button
 		onclick={() => goto(`/coachees/${week.user_id}/programs/${week.program_id}`)}
 		style="
@@ -64,7 +64,7 @@
 				flex-shrink: 0;
 			"
 		>
-			<Icon name="calendar" size={14} {color} />
+			<Icon name="calendar" size={14} color={text} />
 		</div>
 		<div style="flex: 1; min-width: 0;">
 			<div style="font-size: 12.5px; color: var(--tx); font-weight: 600;">
@@ -135,7 +135,7 @@
 							flex-shrink: 0; margin-top: 1px;
 						"
 					>
-						<Icon name="message" size={14} color={activity.color} />
+						<Icon name="message" size={14} color={activity.text} />
 					</div>
 					<div style="flex: 1; min-width: 0;">
 						<div style="font-size: 12.5px; color: var(--tx); font-weight: 600;">
@@ -173,7 +173,7 @@
 				{@render emptyWeekRow(
 					week,
 					`week ${week.week_number} started ${formatDate(`${week.week_start}T00:00:00`)}`,
-					'var(--pr)',
+					'var(--pr-tx)',
 					'var(--pr-lt)'
 				)}
 			{/each}
@@ -194,7 +194,7 @@
 				{@render emptyWeekRow(
 					week,
 					`week ${week.week_number} starts ${formatDate(`${week.week_start}T00:00:00`)}`,
-					'var(--gd)',
+					'var(--gd-tx)',
 					'var(--gd-lt)'
 				)}
 			{/each}

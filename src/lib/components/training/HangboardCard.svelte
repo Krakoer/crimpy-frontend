@@ -184,8 +184,8 @@
 	}
 
 	.hb-pill.hb-danger {
-		border-color: #e57373;
-		color: #e57373;
+		border-color: var(--rd);
+		color: var(--rd-tx);
 	}
 
 	.hb-act-btn {

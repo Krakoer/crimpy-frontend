@@ -366,7 +366,7 @@
 		{#if error}
 			<div
 				style="margin-bottom: 16px; padding: 14px 18px; border-radius: var(--rs);
-					background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c;
+					background: var(--rd-lt); border: 1px solid var(--rd); color: var(--rd-tx);
 					font-size: 13px;"
 			>
 				{error}
@@ -394,7 +394,7 @@
 				<div
 					style="
 				width: 64px; height: 64px; border-radius: 50%;
-				background: var(--pr-lt); color: var(--pr);
+				background: var(--pr-lt); color: var(--pr-tx);
 				display: flex; align-items: center; justify-content: center;
 				font-size: 22px; font-weight: 700; flex-shrink: 0;
 			"
@@ -413,7 +413,7 @@
 							style="
 						display: inline-flex; align-items: center; padding: 2px 8px;
 						border-radius: 999px; font-size: 11px; font-weight: 600;
-						background: var(--pr-fog); color: var(--pr);
+						background: var(--pr-fog); color: var(--pr-tx);
 					">Active</span
 						>
 					</div>
@@ -471,7 +471,7 @@
 								style="
 						font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
 						background: {activeTab === tab.id ? 'var(--pr-fog)' : 'var(--bd2)'};
-						color: {activeTab === tab.id ? 'var(--pr)' : 'var(--tx3)'};
+						color: {activeTab === tab.id ? 'var(--pr-tx)' : 'var(--tx3)'};
 					">{tab.n}</span
 							>
 						{/if}
@@ -551,7 +551,7 @@
 											style="font-size: 10px; color: {day.isSelected
 												? '#fff'
 												: day.isToday
-													? 'var(--pr)'
+													? 'var(--pr-tx)'
 													: 'var(--tx3)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
 										>
 											{day.dayLabel}
@@ -560,7 +560,7 @@
 											style="font-size: 16px; font-weight: 700; color: {day.isSelected
 												? '#fff'
 												: day.isToday
-													? 'var(--pr)'
+													? 'var(--pr-tx)'
 													: 'var(--tx)'}; margin-top: 2px;"
 										>
 											{day.day}
@@ -658,7 +658,7 @@
 												<div
 													style="
 												width: 44px; height: 44px; border-radius: var(--rs);
-												background: {type.tint}; color: {type.color};
+												background: {type.tint}; color: {type.text};
 												display: flex; align-items: center; justify-content: center;
 												font-size: 11px; font-weight: 700; flex-shrink: 0;
 											"
@@ -690,7 +690,7 @@
 														<span
 															style="
 														padding: 3px 8px; border-radius: 999px;
-														background: var(--pr-lt); color: var(--pr);
+														background: var(--pr-lt); color: var(--pr-tx);
 														font-size: 10.5px; font-weight: 700;
 														letter-spacing: 0.04em; text-transform: uppercase;
 													">Reply</span
@@ -774,7 +774,7 @@
 											style="
 										display: inline-flex; padding: 2px 8px; border-radius: 999px;
 										font-size: 11px; font-weight: 600;
-										background: #e3ede4; color: var(--gn);
+										background: var(--gn-lt); color: var(--gn-tx);
 									">Week {ps.week}{totalWks ? ` / ${totalWks}` : ''}</span
 										>
 									{:else if ps.state === 'upcoming'}
@@ -865,7 +865,7 @@
 								</p>
 								{#if newProgramError}
 									<div
-										style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
+										style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); background: var(--rd-lt); border: 1px solid var(--rd); color: var(--rd-tx); font-size: 13px;"
 									>
 										{newProgramError}
 									</div>
@@ -1034,14 +1034,14 @@
 												<span
 													style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
-												font-size: 11px; font-weight: 600; background: #e3ede4; color: var(--gn);
+												font-size: 11px; font-weight: 600; background: var(--gn-lt); color: var(--gn-tx);
 											">Active · Week {ps.week}</span
 												>
 											{:else if ps.state === 'upcoming'}
 												<span
 													style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
-												font-size: 11px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
+												font-size: 11px; font-weight: 600; background: var(--pr-fog); color: var(--pr-tx);
 											">Upcoming</span
 												>
 											{:else}
@@ -1094,7 +1094,7 @@
 											<button
 												onclick={() => handleDeleteProgram(program.id)}
 												disabled={deletingProgram}
-												style="padding: 6px 12px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+												style="padding: 6px 12px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd-tx); background: var(--rd-lt); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 												>{deletingProgram ? '...' : 'Confirm'}</button
 											>
 											<button

@@ -43,7 +43,7 @@
 					border: 1px solid var(--gd); background: var(--gd-lt);
 				"
 			>
-				<div style="padding-top: 1px;"><Icon name="alert" size={13} color="var(--gd)" /></div>
+				<div style="padding-top: 1px;"><Icon name="alert" size={13} color="var(--gd-tx)" /></div>
 				<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
 					<span style="font-size: 11.5px; color: var(--tx2);">{staleNotice.lead}</span>
 					<!-- One line per reason, naming the values of this week the check
@@ -136,7 +136,7 @@
 							color: {entry.summary ? 'var(--tx2)' : 'var(--tx3)'};
 						"
 					>
-						<span style="font-weight: 700; color: {entry.current ? 'var(--pr)' : 'var(--tx3)'};"
+						<span style="font-weight: 700; color: {entry.current ? 'var(--pr-tx)' : 'var(--tx3)'};"
 							>{entry.label}</span
 						>
 						{entry.summary || 'as written'}

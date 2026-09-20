@@ -121,11 +121,11 @@
 				class="flex items-center justify-center"
 				style="width: 40px; height: 40px; border-radius: var(--rs); background: var(--panel); flex-shrink: 0;"
 			>
-				<Icon name={type.icon} size={20} color={type.color} />
+				<Icon name={type.icon} size={20} color={type.text} />
 			</div>
 			<div style="min-width: 0; flex: 1;">
 				<div
-					style="font-size: 11px; font-weight: 700; color: {type.color}; letter-spacing: 0.06em; text-transform: uppercase;"
+					style="font-size: 11px; font-weight: 700; color: {type.text}; letter-spacing: 0.06em; text-transform: uppercase;"
 				>
 					{type.label}{detail.is_assessment ? ' - Assessment' : ''}
 				</div>

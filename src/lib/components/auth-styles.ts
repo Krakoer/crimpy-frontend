@@ -11,8 +11,8 @@ export const authSecondaryButton =
 	'padding: 9px 16px; border-radius: var(--rs); background: #fff; color: var(--tx); border: 1px solid var(--bd); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);';
 
 const bannerTones = {
-	error: 'border-color: var(--rd); background: #fdf3f3; color: var(--rd);',
-	success: 'border-color: var(--gn); background: #f3f8f4; color: var(--gn);',
+	error: 'border-color: var(--rd); background: var(--rd-lt); color: var(--rd-tx);',
+	success: 'border-color: var(--gn); background: var(--gn-fog); color: var(--gn-tx);',
 	notice: 'border-color: var(--bd); background: var(--panel2); color: var(--tx2);'
 };
 
@@ -24,9 +24,9 @@ export function authBanner(tone: AuthBannerTone): string {
 
 const badgeTones = {
 	primary: 'background: var(--pr-fog); border-color: var(--pr-lt);',
-	success: 'background: #f3f8f4; border-color: #d8e5da;',
-	error: 'background: #fdf3f3; border-color: #f0dada;',
-	gold: 'background: #fdf7ee; border-color: #f0e3cd;'
+	success: 'background: var(--gn-fog); border-color: #d8e5da;',
+	error: 'background: var(--rd-lt); border-color: #f0dada;',
+	gold: 'background: var(--gd-fog); border-color: #f0e3cd;'
 };
 
 export type AuthBadgeTone = keyof typeof badgeTones;

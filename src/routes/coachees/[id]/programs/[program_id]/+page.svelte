@@ -732,6 +732,10 @@
 		return trainingTypeInfo(trainingById(id)?.training_type).tint;
 	}
 
+	function trainingText(id: string): string {
+		return trainingTypeInfo(trainingById(id)?.training_type).text;
+	}
+
 	function formatDate(d: string): string {
 		return new Date(d).toLocaleDateString('en-GB', {
 			year: 'numeric',
@@ -1012,8 +1016,8 @@
 					disabled={deleting}
 					style="
 						padding: 6px 12px; border-radius: var(--rs);
-						border: 1px solid var(--rd); color: var(--rd);
-						background: #fff5f5; font-size: 12.5px; font-weight: 600;
+						border: 1px solid var(--rd); color: var(--rd-tx);
+						background: var(--rd-lt); font-size: 12.5px; font-weight: 600;
 						cursor: pointer; font-family: var(--font);
 					">{deleting ? '...' : 'Confirm delete'}</button
 				>
@@ -1062,7 +1066,7 @@
 	{#if error}
 		<div style="padding: 16px 24px;">
 			<div
-				style="padding: 14px 18px; border-radius: var(--rs); background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
+				style="padding: 14px 18px; border-radius: var(--rs); background: var(--rd-lt); border: 1px solid var(--rd); color: var(--rd-tx); font-size: 13px;"
 			>
 				{error}
 			</div>
@@ -1174,7 +1178,7 @@
 						<span
 							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
-							font-size: 11.5px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
+							font-size: 11.5px; font-weight: 600; background: var(--pr-fog); color: var(--pr-tx);
 						">Upcoming</span
 						>
 					{:else if isProgramCompleted}
@@ -1188,7 +1192,7 @@
 						<span
 							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
-							font-size: 11.5px; font-weight: 600; background: #e3ede4; color: var(--gn);
+							font-size: 11.5px; font-weight: 600; background: var(--gn-lt); color: var(--gn-tx);
 						">Week {computedCurrentWeek}{program.duration_weeks ? ` of ${program.duration_weeks}` : ''}</span
 						>
 					{/if}
@@ -1333,13 +1337,13 @@
 													style="
 												display: inline-block; width: 12px;
 												transform: {expanded ? 'rotate(90deg)' : 'rotate(0)'};
-												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr)' : 'var(--tx3)'};
+												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr-tx)' : 'var(--tx3)'};
 												font-size: 10px;
 											">&#9654;</span
 												>
 												<span
 													style="font-size: 13px; font-weight: 700; color: {isCurrent
-														? 'var(--pr)'
+														? 'var(--pr-tx)'
 														: 'var(--tx)'};">Wk {wn}</span
 												>
 												{#if isCurrent}
@@ -1349,7 +1353,7 @@
 													>
 												{/if}
 												{#if isWeekDirty(draft)}
-													<span style="font-size: 9px; color: var(--pr);">*</span>
+													<span style="font-size: 9px; color: var(--pr-tx);">*</span>
 												{/if}
 											</div>
 											<WeekPhaseField weekNumber={wn} bind:name={draft.name} {editMode} />
@@ -1448,7 +1452,7 @@
 																clearWeek(wn);
 																draft.deleteConfirm = false;
 															}}
-															style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd); background: #fff5f5; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+															style="padding: 4px 10px; border-radius: var(--rs); border: 1px solid var(--rd); color: var(--rd-tx); background: var(--rd-lt); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 															>Confirm clear</button
 														>
 														<button
@@ -1483,7 +1487,7 @@
 										{#if saveRefusalLine(draft)}
 											<div
 												data-testid="week-refusal-{wn}"
-												style="padding: 6px 12px; background: var(--rd-lt); color: var(--rd); font-size: 12px; border-bottom: 1px solid var(--rd);"
+												style="padding: 6px 12px; background: var(--rd-lt); color: var(--rd-tx); font-size: 12px; border-bottom: 1px solid var(--rd);"
 											>
 												{saveRefusalLine(draft)}
 											</div>
@@ -1639,6 +1643,7 @@
 													{#each draft.freqSessions as session, sessionIndex (session._id)}
 														{@const color = trainingColor(session.training_id)}
 														{@const tint = trainingTint(session.training_id)}
+														{@const text = trainingText(session.training_id)}
 														{@const played = playedFor(session)}
 														<SortableSession
 															id={session._id}
@@ -1683,9 +1688,9 @@
 																				parseInt(e.currentTarget.value) || 1)}
 																		min="1"
 																		max="14"
-																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {color}; font-weight: 700; position: relative;"
+																		style="width: 30px; border: none; border-bottom: 1px solid var(--bd); text-align: center; padding: 0 2px; outline: none; background: transparent; font-family: var(--font); font-size: 11px; color: {text}; font-weight: 700; position: relative;"
 																	/>
-																	<span style="font-size: 10px; color: {color}; font-weight: 600;"
+																	<span style="font-size: 10px; color: {text}; font-weight: 600;"
 																		>x/wk</span
 																	>
 																	<div style="flex: 1;"></div>
@@ -1812,14 +1817,14 @@
 															style="
 														flex: 1; display: flex; align-items: center; justify-content: center;
 														border-radius: 5px; border: 1px dashed rgba(144,123,153,0.4);
-														color: var(--pl); margin: 2px; min-height: 40px; opacity: 0.6;
-														transition: opacity 0.15s;
+														color: var(--pl-tx); margin: 2px; min-height: 40px;
+														transition: border-color 0.15s;
 													"
 															onmouseenter={(e) => {
-																e.currentTarget.style.opacity = '1';
+																e.currentTarget.style.borderColor = 'var(--pl)';
 															}}
 															onmouseleave={(e) => {
-																e.currentTarget.style.opacity = '0.6';
+																e.currentTarget.style.borderColor = 'rgba(144,123,153,0.4)';
 															}}
 														>
 															<Icon name="plus" size={14} color="currentColor" />
@@ -1917,7 +1922,7 @@
 									padding: 3px 9px; font-size: 10.5px; font-weight: 600;
 									border-radius: 999px; border: none; cursor: pointer;
 									background: {trainingTypeFilter === f.id ? 'var(--pr-fog)' : 'transparent'};
-									color: {trainingTypeFilter === f.id ? 'var(--pr)' : 'var(--tx3)'};
+									color: {trainingTypeFilter === f.id ? 'var(--pr-tx)' : 'var(--tx3)'};
 									font-family: var(--font);
 								">{f.label}</button
 									>
@@ -1937,7 +1942,7 @@
 									<div
 										style="
 								width: 24px; height: 24px; border-radius: 5px;
-								background: {info.tint}; color: {info.color};
+								background: {info.tint}; color: {info.text};
 								display: flex; align-items: center; justify-content: center;
 								font-size: 8.5px; font-weight: 700; flex-shrink: 0;
 							"

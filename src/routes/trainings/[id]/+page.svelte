@@ -469,7 +469,7 @@
 						style="
 							display: inline-flex; align-items: center; gap: 7px;
 							padding: 8px 14px; border-radius: var(--rs);
-							background: #fdf3f3; color: var(--rd); border: 1px solid var(--rd);
+							background: var(--rd-lt); color: var(--rd-tx); border: 1px solid var(--rd);
 							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 							opacity: {deleting ? 0.6 : 1};
 						">{deleting ? 'Deleting...' : 'Confirm delete'}</button
@@ -669,7 +669,7 @@
 
 					{#if saveError}
 						<div
-							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+							style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid var(--rd); background: var(--rd-lt); font-size: 13px; color: var(--rd-tx);"
 						>
 							{saveError}
 						</div>
@@ -733,7 +733,7 @@
 										padding: 3px 8px; border-radius: var(--rs); font-size: 11px; font-weight: 600;
 										border: 1px solid {favoritesOnlyExercises ? 'var(--pr)' : 'var(--bd)'};
 										background: {favoritesOnlyExercises ? 'var(--pr-lt)' : '#fff'};
-										color: {favoritesOnlyExercises ? 'var(--pr)' : 'var(--tx3)'};
+										color: {favoritesOnlyExercises ? 'var(--pr-tx)' : 'var(--tx3)'};
 										cursor: pointer; font-family: var(--font);
 									">Fav</button
 								>
@@ -807,7 +807,7 @@
 									<div
 										style="
 										width: 22px; height: 22px; border-radius: 5px;
-										background: var(--pr-fog); color: var(--pr);
+										background: var(--pr-fog); color: var(--pr-tx);
 										display: flex; align-items: center; justify-content: center;
 										font-size: 8px; font-weight: 700; flex-shrink: 0;
 									"
@@ -938,7 +938,7 @@
 
 			{#if saveError}
 				<div
-					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid #e57373; background: #fff5f5; font-size: 13px; color: #c62828;"
+					style="margin-bottom: 12px; padding: 10px 14px; border-radius: var(--rs); border: 1px solid var(--rd); background: var(--rd-lt); font-size: 13px; color: var(--rd-tx);"
 				>
 					{saveError}
 				</div>

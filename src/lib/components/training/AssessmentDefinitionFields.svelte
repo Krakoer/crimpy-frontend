@@ -69,7 +69,7 @@
 								? 'var(--pl)'
 								: 'var(--bd)'}; background: {draft.unit === unit.value
 								? 'var(--pl-lt)'
-								: '#fff'}; color: {draft.unit === unit.value ? 'var(--pl)' : 'var(--tx2)'};"
+								: '#fff'}; color: {draft.unit === unit.value ? 'var(--pl-tx)' : 'var(--tx2)'};"
 						>
 							{unit.label}
 						</button>
