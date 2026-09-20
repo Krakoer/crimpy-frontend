@@ -10,7 +10,8 @@
 		AssessmentResponse,
 		Bodyweight,
 		Program,
-		ProgramRequest
+		ProgramRequest,
+		WeeklyTrainingLoad
 	} from '$lib/api/client';
 	import AssessmentSummaryCard from '$lib/components/assessment/AssessmentSummaryCard.svelte';
 	import BodyweightCard from '$lib/components/BodyweightCard.svelte';
@@ -34,6 +35,8 @@
 	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
 	import { sessionRpe, sessionRpeTitle } from '$lib/rpe';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
+	import TrainingLoadPanel from '$lib/components/load/TrainingLoadPanel.svelte';
+	import { TRAINING_LOAD_WEEKS } from '$lib/training-load';
 
 	let { data } = $props();
 
@@ -48,7 +51,13 @@
 	let loading = $state(false);
 	let error = $state('');
 
-	let activeTab = $state<'sessions' | 'programs' | 'assess' | 'notes'>('sessions');
+	let activeTab = $state<'sessions' | 'programs' | 'load' | 'assess' | 'notes'>('sessions');
+
+	let trainingLoad = $state<WeeklyTrainingLoad[]>([]);
+	let loadingTrainingLoad = $state(false);
+	// A series nobody could read is not an athlete who trained nothing, and the
+	// panel has to tell the two apart.
+	let trainingLoadFailed = $state(false);
 
 	let programs = $state<Program[]>([]);
 	let programsLoading = $state(false);
@@ -272,7 +281,24 @@
 		}
 		loadPrograms();
 		loadBodyweights();
+		loadTrainingLoad();
 	});
+
+	// Read on its own for the reason the bodyweight series is: it is one tab of a
+	// page about sessions, programs and assessments, so a series that cannot be
+	// fetched should cost the coach that tab rather than the page.
+	async function loadTrainingLoad() {
+		loadingTrainingLoad = true;
+		try {
+			const series = await apiClient.getClientTrainingLoad(data.id!, TRAINING_LOAD_WEEKS);
+			trainingLoad = series.weeks ?? [];
+			trainingLoadFailed = false;
+		} catch {
+			trainingLoadFailed = true;
+		} finally {
+			loadingTrainingLoad = false;
+		}
+	}
 
 	// Read on its own rather than with the three above, because it is one card on
 	// a page about sessions, programs and assessments: a series that cannot be
@@ -424,7 +450,7 @@
 			<div
 				style="display: flex; gap: 4px; border-bottom: 1px solid var(--bd); padding: 0 4px; margin-bottom: 20px;"
 			>
-				{#each [{ id: 'sessions', label: 'Sessions', n: sessions.length }, { id: 'programs', label: 'Programs', n: programs.length }, { id: 'assess', label: 'Assessments', n: totalAssessmentCount }, { id: 'notes', label: 'Notes', n: 0 }] as tab (tab.id)}
+				{#each [{ id: 'sessions', label: 'Sessions', n: sessions.length }, { id: 'programs', label: 'Programs', n: programs.length }, { id: 'load', label: 'Load', n: trainingLoad.length }, { id: 'assess', label: 'Assessments', n: totalAssessmentCount }, { id: 'notes', label: 'Notes', n: 0 }] as tab (tab.id)}
 					<button
 						onclick={() => (activeTab = tab.id as typeof activeTab)}
 						style="
@@ -1095,6 +1121,14 @@
 						{/each}
 					{/if}
 				</div>
+
+				<!-- Assessments tab -->
+			{:else if activeTab === 'load'}
+				<TrainingLoadPanel
+					weeks={trainingLoad}
+					loading={loadingTrainingLoad}
+					failed={trainingLoadFailed}
+				/>
 
 				<!-- Assessments tab -->
 			{:else if activeTab === 'assess'}

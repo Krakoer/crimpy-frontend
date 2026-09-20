@@ -233,6 +233,40 @@ export interface AssessmentDefinitionSnapshot {
 // One dated bodyweight measurement. measured_at is when the athlete weighed
 // themselves rather than when the row reached the server, so a measurement
 // taken offline keeps the day it belongs to.
+// One calendar week of the coach's training load view, cut on Monday in the
+// caller's own time. A week the athlete trained nothing is still present, with
+// zeros, because the chronic mean has to count it.
+//
+// The nullable figures are absences rather than zeros. mean_rpe is null when no
+// session that week was rated; acute_load is zero for a week with no session at
+// all and null for a week that holds sessions but no rating, since the effort
+// is then simply not recorded. A session marked ECHEC is outside mean_rpe
+// altogether and is reported as failed_sessions: it names an outcome, not a
+// point on the 5 to 10 scale.
+export interface WeeklyTrainingLoad {
+	week_start: string;
+	week_number: number | null;
+	program_name: string | null;
+	session_count: number;
+	total_minutes: number;
+	climbing_minutes: number;
+	strength_minutes: number;
+	rated_sessions: number;
+	failed_sessions: number;
+	mean_rpe: number | null;
+	acute_load: number | null;
+	chronic_load: number | null;
+	// How many weeks the chronic mean rested on, at most three and never
+	// reaching before the athlete's first recorded session.
+	chronic_weeks: number;
+	acute_chronic_ratio: number | null;
+	load_change_percent: number | null;
+}
+
+export interface TrainingLoadSeries {
+	weeks: WeeklyTrainingLoad[];
+}
+
 export interface Bodyweight {
 	id: string;
 	user_id: string;
@@ -1068,6 +1102,17 @@ class ApiClient {
 				method: 'PUT',
 				body: JSON.stringify({ reply })
 			}
+		);
+	}
+
+	// The athlete's weekly training load, oldest week first and ending with the
+	// week being trained now. The offset is sent because the week boundary is
+	// the coach's own Monday, the way it is for the TODO list, and a server
+	// reading its own clock would cut the week somewhere else entirely.
+	async getClientTrainingLoad(userId: string, weeks: number): Promise<TrainingLoadSeries> {
+		const tzOffsetMinutes = -new Date().getTimezoneOffset();
+		return this.request<TrainingLoadSeries>(
+			`/api/coach/clients/${userId}/training-load?weeks=${weeks}&tz_offset_minutes=${tzOffsetMinutes}`
 		);
 	}
 

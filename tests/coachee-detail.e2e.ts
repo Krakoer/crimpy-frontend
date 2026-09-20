@@ -33,6 +33,7 @@ async function stubCoacheeDetail(page: Page): Promise<void> {
 	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs', { body: [] });
 	await stub(page, 'GET', '/api/coach/clients/*/bodyweights', { body: [] });
+	await stub(page, 'GET', '/api/coach/clients/*/training-load', { body: { weeks: [] } });
 }
 
 /** A result recorded on one day, which is also a day the comparison offers. */
