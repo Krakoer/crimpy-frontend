@@ -48,6 +48,23 @@ test.beforeEach(async ({ page }) => {
 	await signIn(page, testUser());
 });
 
+// The endpoint answers every week ever declared when it is asked without a
+// window, and a week now carries up to 140 activities. This page shows one row
+// per program week, so those are the weeks it asks for.
+test('asks only for the availability of the weeks the program covers', async ({ page }) => {
+	const program = testProgram({ start_date: '2026-01-05', duration_weeks: 4 });
+	await stubProgram(page, program);
+	const reads = capture(page, 'GET', '/api/coach/clients/*/availability');
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByRole('button', { name: /Wk 4/ })).toBeVisible();
+	await expect.poll(() => reads.length).toBe(1);
+
+	const asked = new URL(reads[0].url);
+	expect(asked.searchParams.get('from')).toBe('2026-01-05');
+	expect(asked.searchParams.get('to')).toBe('2026-01-26');
+});
+
 test('shows the program with a row per week', async ({ page }) => {
 	await stubProgram(page);
 

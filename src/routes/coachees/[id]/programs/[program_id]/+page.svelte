@@ -59,7 +59,12 @@
 		type WeekDrafts
 	} from '$lib/program-draft';
 	import { rereadWeek, staleOverrides } from '$lib/program-overrides';
-	import { sessionsByProgramSession, sessionsOfWeek, weekStart } from '$lib/program-performance';
+	import {
+		programWeekRange,
+		sessionsByProgramSession,
+		sessionsOfWeek,
+		weekStart
+	} from '$lib/program-performance';
 	import { toDateOnly } from '$lib/date';
 	import { withCoachReply } from '$lib/sessions';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
@@ -844,10 +849,6 @@
 			.getClientSessions(userId)
 			.then((sessions) => (playedSessions = sessions ?? []))
 			.catch(() => (playedSessionsFailed = true));
-		apiClient
-			.getClientAvailability(userId)
-			.then((weeks) => (coacheeAvailability = weeks ?? []))
-			.catch(() => (coacheeAvailabilityFailed = true));
 		// The catalog names an assessment the coachee has never done, which has no
 		// result row to take a label from.
 		assessmentCatalog.load();
@@ -863,6 +864,15 @@
 			trainings = t;
 
 			const maxWn = p.duration_weeks ?? (w.length ? Math.max(...w.map((ws) => ws.week_number)) : 0);
+
+			// Asked for once the program is known, because the weeks worth asking
+			// about are the ones it covers. Unbounded, this reads every week the
+			// athlete ever declared, each carrying up to 140 activities, for a page
+			// that shows one row per program week.
+			apiClient
+				.getClientAvailability(userId, programWeekRange(p.start_date, maxWn))
+				.then((declaredWeeks) => (coacheeAvailability = declaredWeeks ?? []))
+				.catch(() => (coacheeAvailabilityFailed = true));
 			const allDrafts: WeekDrafts = {};
 			for (let n = 1; n <= maxWn; n++) allDrafts[n] = emptyDraft();
 

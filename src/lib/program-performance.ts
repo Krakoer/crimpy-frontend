@@ -1,4 +1,5 @@
 import type { SessionResponse } from '$lib/api/client';
+import { mondayOf, toDateOnly } from '$lib/date';
 
 // What the athlete actually did, read against the program that asked for it. A
 // coach editing next week needs last week's runs next to the prescription: the
@@ -13,6 +14,24 @@ export function weekStart(programStartDate: string, weekNumber: number): Date {
 	const start = new Date(`${programStartDate.slice(0, 10)}T00:00:00`);
 	start.setDate(start.getDate() + (weekNumber - 1) * 7);
 	return start;
+}
+
+// The calendar weeks a program covers, as the Mondays an availability request
+// is bounded by: the first week of the program and its last, both included.
+//
+// The availability endpoint keys a week on its Monday and refuses a bound that
+// is not one, so a legacy program whose start date was stored off a Monday is
+// snapped here rather than turned into a rejected request. Its weeks would not
+// line up with a declaration either way.
+export function programWeekRange(
+	programStartDate: string,
+	weekCount: number
+): { from: string; to: string } {
+	const lastWeek = Math.max(weekCount, 1);
+	return {
+		from: mondayOf(toDateOnly(weekStart(programStartDate, 1))),
+		to: mondayOf(toDateOnly(weekStart(programStartDate, lastWeek)))
+	};
 }
 
 // The sessions played in one program week, oldest first. Driven by the date the
