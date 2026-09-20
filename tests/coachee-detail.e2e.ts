@@ -2175,6 +2175,161 @@ test.describe('bodyweight relative results outside the comparison', () => {
 
 		await expect(page.getByText('ratio to 71.0 kg, weighed 2 Mar')).toBeVisible();
 	});
+
+	// The measurement is never replaced by what was derived from it, on any
+	// surface: a ratio a coach cannot check against the load is one they have to
+	// take on trust, and the two hands of a session are two different loads so
+	// the row note cannot carry them.
+	test('keeps the load the athlete pulled in the history cell, under the ratio', async ({
+		page
+	}) => {
+		await openAssessments(
+			page,
+			weightedHang({
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${hangDay}T08:00:00Z`
+			})
+		);
+
+		const history = page.getByText('Assessment history').locator('../..');
+		await expect(history.getByText('1.35', { exact: true })).toBeVisible();
+		await expect(history.getByText('25.0 kg', { exact: true })).toBeVisible();
+	});
+
+	// The footer says why it has nothing to report rather than going quiet, in
+	// the same words the comparison panel uses for the same state.
+	test('says the overall change has no ratio to compare when one end lacks one', async ({
+		page
+	}) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({ id: 'record-early', session_id: 'session-early' }),
+				recordOn('2026-06-02', {
+					id: 'record-late',
+					assessment_id: 'assessment-hang',
+					label: 'Weighted hang 20mm',
+					unit: 'kilograms',
+					per_hand: false,
+					bodyweight_relative: true,
+					training_id: 'training-hang',
+					grip_position: null,
+					right_value: 28,
+					left_value: null,
+					bodyweight_kg: 71,
+					bodyweight_measured_at: '2026-06-01T08:00:00Z'
+				})
+			]
+		});
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.getByText('2 records')).toBeVisible();
+		await expect(results.getByText('no ratio to compare')).toBeVisible();
+	});
+
+	// Filtering every point out would leave an empty grid where the page used to
+	// draw the loads, which says less than the raw numbers did.
+	test('draws the chart in kilograms when no record in the history has a ratio', async ({
+		page
+	}) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({ id: 'record-early', session_id: 'session-early' }),
+				recordOn('2026-06-02', {
+					id: 'record-late',
+					assessment_id: 'assessment-hang',
+					label: 'Weighted hang 20mm',
+					unit: 'kilograms',
+					per_hand: false,
+					bodyweight_relative: true,
+					training_id: 'training-hang',
+					grip_position: null,
+					right_value: 28,
+					left_value: null
+				})
+			]
+		});
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+		await page.getByRole('button', { name: 'Show chart' }).click();
+
+		// The y axis name is what says which of the two the line is, and it is
+		// asserted positively: a "no ratio anywhere" assertion would also pass on a
+		// chart that had not finished rendering.
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
+		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toHaveCount(0);
+	});
+
+	// The two hands of one session are two different loads at the same instant,
+	// so a basis keyed by the instant alone prints one hand's load under the
+	// other's ratio, and the check the line exists for fails.
+	test('gives each hand its own load in the chart tooltip', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		const perHand = (day: string, id: string, right: number, left: number) =>
+			recordOn(day, {
+				id,
+				session_id: `session-${id}`,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: true,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: right,
+				left_value: left,
+				bodyweight_kg: 71,
+				bodyweight_measured_at: `${day}T08:00:00Z`
+			});
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [perHand('2026-03-02', 'r1', 25, 20), perHand('2026-06-02', 'r2', 28, 22)]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+		await page.getByRole('button', { name: 'Show chart' }).click();
+
+		const results = page.getByRole('list', { name: 'Assessment results' });
+		const chart = results.locator('svg').first();
+		await expect(chart).toBeVisible();
+		const box = await chart.boundingBox();
+		if (!box) throw new Error('the chart has no box to hover');
+		await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.4);
+
+		// 28 kg right and 22 kg left at 71 kg: two ratios, two loads, and neither
+		// load may appear twice.
+		const tooltip = page
+			.locator('div')
+			.filter({ hasText: /28\.0 kg at 71\.0 kg/ })
+			.last();
+		await expect(tooltip).toContainText('22.0 kg at 71.0 kg');
+		await expect(tooltip).toContainText('1.39');
+		await expect(tooltip).toContainText('1.31');
+	});
+
+	// The summary beside the sessions draws the same component as the card on the
+	// tab, so a result cannot read one way in one place and another in the other.
+	test('reads the summary card beside the sessions as a ratio too', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				weightedHang({
+					bodyweight_kg: 71,
+					bodyweight_measured_at: `${hangDay}T08:00:00Z`
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('1.35', { exact: true })).toBeVisible();
+		await expect(page.getByText('25.0 kg at 71.0 kg, 2 Mar')).toBeVisible();
+		await expect(page.getByText('ratio to bodyweight')).toBeVisible();
+	});
 });
 
 test.describe('session feedback', () => {

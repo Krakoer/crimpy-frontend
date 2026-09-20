@@ -60,24 +60,49 @@
 		});
 	}
 
-	// The load a ratio was built from, keyed by the point it was drawn at, so the
-	// tooltip can show what produced the number without a second pass over the
-	// history. A ratio nobody can check against a weight and a day is a number
-	// the coach has to take on trust.
-	let ratioBasis = new Map<number, string>();
+	// The load a ratio was built from, keyed by the line it belongs to and the
+	// point it was drawn at, so the tooltip can show what produced the number
+	// without a second pass over the history. A ratio nobody can check against a
+	// weight and a day is a number the coach has to take on trust, and the two
+	// hands of one session are two different loads at the same instant, so the
+	// timestamp alone does not name one of them.
+	let ratioBasis = new Map<string, string>();
+
+	function basisKey(seriesName: string, at: number): string {
+		return `${seriesName}:${at}`;
+	}
+
+	// Whether the lines are ratios. An assessment that reads as one still draws
+	// kilograms while nothing in the history has a denominator to divide by:
+	// filtering every point out would leave an empty grid where the page used to
+	// show the loads, which says less than the raw numbers did.
+	function drawsRatios(data: AssessmentResponse[]): boolean {
+		if (!bodyweightRelative) return false;
+		return data.some(
+			(a) =>
+				readRecordRatio(a, a.right_value)?.ratio !== undefined ||
+				readRecordRatio(a, a.left_value)?.ratio !== undefined
+		);
+	}
 
 	function buildOptions(data: AssessmentResponse[]) {
 		const theme = palette();
 		ratioBasis = new Map();
+		const asRatios = drawsRatios(data);
 		// A record whose ratio had to be declined leaves a gap rather than a point
 		// drawn in kilograms among ratios, which would read as a collapse.
-		const points = (pick: (a: AssessmentResponse) => number | null | undefined) =>
+		const points = (
+			seriesName: string,
+			pick: (a: AssessmentResponse) => number | null | undefined
+		) =>
 			data
 				.map((a) => {
 					const at = measuredAt(a);
-					if (!bodyweightRelative) return [at, pick(a)] as const;
+					if (!asRatios) return [at, pick(a)] as const;
 					const reading = readRecordRatio(a, pick(a));
-					if (reading?.ratio !== undefined) ratioBasis.set(at, formatRatioBasis(reading));
+					if (reading?.ratio !== undefined) {
+						ratioBasis.set(basisKey(seriesName, at), formatRatioBasis(reading));
+					}
 					return [at, reading?.ratio] as const;
 				})
 				.filter(
@@ -101,24 +126,24 @@
 					line(
 						'Left',
 						theme.left,
-						points((a) => a.left_value)
+						points('Left', (a) => a.left_value)
 					),
 					line(
 						'Right',
 						theme.right,
-						points((a) => a.right_value)
+						points('Right', (a) => a.right_value)
 					)
 				]
 			: [
 					line(
 						'Result',
 						theme.right,
-						points((a) => singleValue(a))
+						points('Result', (a) => singleValue(a))
 					)
 				];
 
 		const baseText = { fontFamily: theme.font, fontSize: 11 };
-		const axisName = bodyweightRelative ? 'ratio' : unit;
+		const axisName = asRatios ? 'ratio' : unit;
 
 		return {
 			textStyle: baseText,
@@ -138,8 +163,8 @@
 					});
 					const lines = params.map((p) => {
 						const color = p.seriesName === 'Left' ? theme.left : theme.right;
-						const reading = bodyweightRelative
-							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${ratioBasis.get(p.value[0]) ?? ''}</span>`
+						const reading = asRatios
+							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${ratioBasis.get(basisKey(p.seriesName, p.value[0])) ?? ''}</span>`
 							: `${formatValue(p.value[1])} ${unit}`;
 						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${reading}`;
 					});
@@ -171,7 +196,7 @@
 					...baseText,
 					fontSize: 10,
 					color: theme.textFaint,
-					formatter: (val: number) => (bodyweightRelative ? formatRatio(val) : formatValue(val))
+					formatter: (val: number) => (asRatios ? formatRatio(val) : formatValue(val))
 				},
 				axisLine: { show: false },
 				splitLine: { lineStyle: { color: theme.borderLight } }

@@ -20,12 +20,24 @@
 
 	const columns = 'display: grid; grid-template-columns: 90px 1.4fr 1fr 0.7fr 0.7fr;';
 
+	// The number the cell leads with: the ratio where there is one, the load the
+	// athlete pulled otherwise.
 	function cell(record: AssessmentResponse, value: number | null | undefined): string {
 		const reading = readRecordRatio(record, value);
 		if (!reading) return formatRecordValue(value, record.unit);
 		return reading.ratio === undefined
 			? formatRecordValue(reading.raw, record.unit)
 			: formatRatio(reading.ratio);
+	}
+
+	// The load a ratio was built from, under the ratio and per hand: the two hands
+	// of one session are two different loads, so this cannot be folded into the
+	// row's note the way the weight and its day can. Empty where the cell already
+	// holds the load.
+	function cellLoad(record: AssessmentResponse, value: number | null | undefined): string {
+		const reading = readRecordRatio(record, value);
+		if (!reading || reading.ratio === undefined) return '';
+		return `${formatRecordValue(reading.raw, record.unit)} ${unitLabel(record.unit)}`;
 	}
 
 	// The denominator is named once per row rather than repeated under both hands:
@@ -94,20 +106,23 @@
 					{record.training_id ? '' : gripLabel(record.grip_position ?? 0)}
 				</div>
 				{#if record.per_hand}
-					<div style="text-align: right; font-weight: 600;">
-						{cell(record, record.left_value)}
-					</div>
-					<div style="text-align: right; font-weight: 600;">
-						{cell(record, record.right_value)}
-					</div>
+					{@render valueCell(record, record.left_value, '')}
+					{@render valueCell(record, record.right_value, '')}
 				{:else}
 					<!-- A single value is not a hand, so it spans the two numeric columns
 					     rather than sitting under one of them. -->
-					<div style="grid-column: span 2; text-align: right; font-weight: 600;">
-						{cell(record, singleValue(record))}
-					</div>
+					{@render valueCell(record, singleValue(record), 'grid-column: span 2;')}
 				{/if}
 			</div>
 		{/each}
 	</div>
 </div>
+
+{#snippet valueCell(record: AssessmentResponse, value: number | null | undefined, span: string)}
+	<div style="{span} text-align: right;">
+		<div style="font-weight: 600;">{cell(record, value)}</div>
+		{#if cellLoad(record, value)}
+			<div style="font-size: 11px; color: var(--tx3);">{cellLoad(record, value)}</div>
+		{/if}
+	</div>
+{/snippet}

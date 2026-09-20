@@ -5,13 +5,7 @@ import type {
 	AssessmentSnapshotResult
 } from '$lib/api/client';
 import { formatUnitValue } from '$lib/assessments';
-import {
-	bodyweightScore,
-	compareSnapshots,
-	formatPercent,
-	formatScore,
-	testedDays
-} from './assessment-comparison';
+import { compareSnapshots, formatPercent, formatScore, testedDays } from './assessment-comparison';
 
 function result(overrides: Partial<AssessmentSnapshotResult> = {}): AssessmentSnapshotResult {
 	return {
@@ -80,13 +74,6 @@ describe('testedDays', () => {
 
 	it('answers nothing for an athlete with no results', () => {
 		expect(testedDays([])).toEqual([]);
-	});
-});
-
-describe('bodyweightScore', () => {
-	it('is the whole load over the bodyweight', () => {
-		expect(bodyweightScore(25, 71)).toBeCloseTo(1.3521, 4);
-		expect(bodyweightScore(0, 71)).toBe(1);
 	});
 });
 

@@ -77,8 +77,6 @@ export interface ComparisonRow {
 	hands: ComparedHand[];
 }
 
-export { bodyweightScore } from './bodyweight-ratio';
-
 // Read by the one rule the whole tab reads a bodyweight relative result by, so
 // the panel and the cards above it cannot print two different numbers for the
 // same measurement.

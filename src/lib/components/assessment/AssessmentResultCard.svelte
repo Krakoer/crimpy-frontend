@@ -7,13 +7,8 @@
 		unitLabel,
 		type RecordedAssessment
 	} from './assessment-records';
-	import {
-		formatRatio,
-		formatRatioBasis,
-		missingRatioLabel,
-		readRecordRatio,
-		type BodyweightReading
-	} from './bodyweight-ratio';
+	import { formatRatio, readRecordRatio } from './bodyweight-ratio';
+	import LatestValue from './LatestValue.svelte';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -64,11 +59,6 @@
 	let latestRight = $derived(reading(latest, latest?.right_value));
 	let latestSingle = $derived(reading(latest, singleValue(latest)));
 
-	function headline(value: BodyweightReading | null): string {
-		if (!value) return format(undefined);
-		return value.ratio === undefined ? format(value.raw) : formatRatio(value.ratio);
-	}
-
 	// The progress across the whole history, on the hand that carries the result
 	// for a single value assessment and on the right hand otherwise, which is
 	// what the two big numbers above already lead with.
@@ -91,6 +81,8 @@
 		}
 		return last.raw - first.raw;
 	});
+
+	let noRatioToCompare = $derived(delta === null && bodyweightRelative && history.length >= 2);
 </script>
 
 <div
@@ -128,12 +120,33 @@
 		</div>
 	{/if}
 
-	<div style="display: flex; gap: 20px; margin-bottom: 14px;">
+	<div style="display: flex; gap: 20px; margin-bottom: 14px; align-items: flex-start;">
 		{#if assessment.perHand}
-			{@render latestValue('LEFT', 'var(--gn)', latestLeft)}
-			{@render latestValue('RIGHT', 'var(--pr)', latestRight)}
+			<LatestValue
+				label="LEFT"
+				labelColor="var(--gn)"
+				reading={latestLeft}
+				unit={assessment.unit}
+				size={26}
+				{format}
+			/>
+			<LatestValue
+				label="RIGHT"
+				labelColor="var(--pr)"
+				reading={latestRight}
+				unit={assessment.unit}
+				size={26}
+				{format}
+			/>
 		{:else}
-			{@render latestValue('LATEST', 'var(--pr)', latestSingle)}
+			<LatestValue
+				label="LATEST"
+				labelColor="var(--pr)"
+				reading={latestSingle}
+				unit={assessment.unit}
+				size={26}
+				{format}
+			/>
 		{/if}
 	</div>
 
@@ -170,35 +183,14 @@
 						? formatRatio(delta)
 						: `${format(delta)} ${unitLabel(assessment.unit)}`} overall
 				</span>
+			{:else if noRatioToCompare}
+				<!-- Said rather than left blank, in the same words the comparison
+				     panel uses for the same state, since one end of the history has
+				     no ratio and a change in kilograms under two ratios would be
+				     read as a change in them. -->
+				<span>·</span>
+				<span>no ratio to compare</span>
 			{/if}
 		</div>
 	{/if}
 </div>
-
-<!-- The load that produced a ratio stays beside it, with the day the weigh-in
-     was taken: a ratio a coach cannot check against a weight and a date is a
-     number they have to take on trust. When there is no ratio the same line
-     says why, and the number above it is the load itself. -->
-{#snippet latestValue(label: string, color: string, value: BodyweightReading | null)}
-	<div style="min-width: 0;">
-		<div style="font-size: 10px; color: {color}; font-weight: 600; letter-spacing: 0.06em;">
-			{label}
-		</div>
-		<div style="font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1;">
-			{headline(value)}
-		</div>
-		{#if value && value.ratio !== undefined}
-			<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">
-				{formatRatioBasis(value)}
-			</div>
-		{:else if value?.missing}
-			<div
-				style="font-size: 11px; margin-top: 4px; color: {value.missing === 'stale'
-					? 'var(--gd-tx)'
-					: 'var(--rd)'};"
-			>
-				{unitLabel(assessment.unit)}, {missingRatioLabel(value.missing)}
-			</div>
-		{/if}
-	</div>
-{/snippet}

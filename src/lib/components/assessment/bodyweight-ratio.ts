@@ -13,9 +13,10 @@ import { formatDayMonth } from '$lib/date';
 // and what the screen says when it is not.
 
 // Past this, a weigh-in says what the athlete weighed some other month, and a
-// ratio built on it reads as a strength change the athlete never made. Matched
-// to the bodyweight card's own trend window, which is the span a coach already
-// reads a weight over.
+// ratio built on it reads as a strength change the athlete never made. A month
+// is the span a coach already reads a weight over, which is its own decision and
+// not TREND_WINDOW_DAYS: that one says how far back the bodyweight card looks for
+// something to compare against, and moving one should not move the other.
 export const STALE_DENOMINATOR_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
