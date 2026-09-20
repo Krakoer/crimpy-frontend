@@ -72,19 +72,26 @@ export function bandRangeLabel(band: Band): string {
 // colours: gold for under, sage for on target, terracotta for over, and the
 // muted text colour for the range the sheet never named. Plum is the crimpy
 // accent and is deliberately not used, so nothing here reads as a brand mark.
-export function toneColor(tone: BandTone): string {
+// The one map, as an Alpine variable name, so the chart can resolve it off the
+// document the way it resolves the rest of its palette and the legend swatch
+// cannot end up a different colour from the bar it keys.
+export function toneVariable(tone: BandTone): string {
 	switch (tone) {
 		case 'low':
-			return 'var(--gd)';
+			return '--gd';
 		case 'good':
-			return 'var(--gn)';
+			return '--gn';
 		case 'high':
-			return 'var(--pr)';
+			return '--pr';
 		case 'unlabelled':
 			// Muted rather than faint: the band is deliberately neutral, but a
 			// coach still has to be able to read the number it colours.
-			return 'var(--tx2)';
+			return '--tx2';
 	}
+}
+
+export function toneColor(tone: BandTone): string {
+	return `var(${toneVariable(tone)})`;
 }
 
 export function formatWeekLabel(weekStart: string): string {
@@ -97,12 +104,30 @@ export function formatWeekLabel(weekStart: string): string {
 // trained at zero effort.
 export const NO_VALUE = '--';
 
+// The figures are banded at the precision they are printed at, not at full
+// precision. An acute load of 1999.6 prints as "2,000", and banding the raw
+// value would caption that "Undertraining" while the legend directly below says
+// 2000 to 4000 is optimal. The band is a reading of what the coach can see.
+export function displayedLoad(value: number | null): number | null {
+	return value === null ? null : Math.round(value);
+}
+
+export function displayedRatio(value: number | null): number | null {
+	return value === null ? null : Number(value.toFixed(2));
+}
+
+export function displayedPercent(value: number | null): number | null {
+	return value === null ? null : Math.round(value);
+}
+
 export function formatLoad(value: number | null): string {
-	return value === null ? NO_VALUE : Math.round(value).toLocaleString('en-GB');
+	const displayed = displayedLoad(value);
+	return displayed === null ? NO_VALUE : displayed.toLocaleString('en-GB');
 }
 
 export function formatRatio(value: number | null): string {
-	return value === null ? NO_VALUE : value.toFixed(2);
+	const displayed = displayedRatio(value);
+	return displayed === null ? NO_VALUE : displayed.toFixed(2);
 }
 
 export function formatRpe(value: number | null): string {
@@ -110,7 +135,8 @@ export function formatRpe(value: number | null): string {
 }
 
 export function formatPercent(value: number | null): string {
-	return value === null ? NO_VALUE : `${Math.round(value)}%`;
+	const displayed = displayedPercent(value);
+	return displayed === null ? NO_VALUE : `${displayed}%`;
 }
 
 export function formatMinutes(minutes: number): string {
@@ -146,24 +172,42 @@ export function ratingCoverage(week: WeeklyTrainingLoad): string {
 	return parts.join(' - ');
 }
 
-// What to say under an AL:CL that has no value. The ratio is missing for two
-// quite different reasons and they must not share a caption: either there is no
-// baseline to divide by, or the baseline is there and it is this week's own load
-// that was never rated.
+// Why this week's own load is not known. The backend leaves acute_load null for
+// two different reasons and they must not share a caption: nobody rated the
+// sessions, or they were rated and none of them recorded a duration, which is
+// the case a coach would otherwise read as "you did not rate this" while the
+// mean RPE sits in the tile beside it.
+export function unknownLoadNote(week: WeeklyTrainingLoad): string {
+	if (week.rated_sessions > 0) return 'No session this week recorded a duration';
+	return 'Not rated, so not known';
+}
+
+// What to say under an AL:CL that has no value. The ratio is missing for three
+// quite different reasons: there is no baseline to divide by, the baseline is a
+// real zero because nothing was trained, or the baseline is there and it is this
+// week's own load that is not known.
 export function missingRatioNote(week: WeeklyTrainingLoad): string {
 	if (week.chronic_load === null) return 'No history behind this week yet';
 	if (week.chronic_load === 0) return 'Nothing trained in the last three weeks';
-	return 'This week is not rated, so there is nothing to compare';
+	return week.rated_sessions > 0
+		? 'No session this week recorded a duration, so there is nothing to compare'
+		: 'This week is not rated, so there is nothing to compare';
 }
 
-// Why a chronic load is not yet the three week mean it will become. The coach
-// needs this beside the ratio: a first week always divides by itself and lands
-// on exactly 1.00, which is arithmetic rather than a reading of their training.
+// Why a chronic load is not yet the three week mean it will become.
+//
+// chronic_weeks counts the weeks the mean actually rested on, and the backend
+// skips any week whose own load is unknown, the current one included. So a 1
+// means "this week alone" only when this week's load is known; otherwise it
+// means the baseline is one earlier week and the ratio is not 1.00 at all, it
+// is missing. Saying "1.00 by construction" there would be wrong twice over.
 export function chronicBaselineNote(week: WeeklyTrainingLoad): string | null {
 	if (week.chronic_load === null) return 'No history behind this week yet.';
 	if (week.chronic_weeks >= 3) return null;
 	if (week.chronic_weeks === 1) {
-		return 'Baseline is this week alone, so the ratio is 1.00 by construction.';
+		return week.acute_load === null
+			? 'Baseline rests on a single earlier week.'
+			: 'Baseline is this week alone, so the ratio is 1.00 by construction.';
 	}
 	return `Baseline is ${week.chronic_weeks} weeks rather than 3.`;
 }

@@ -11,7 +11,11 @@
 		bandFor,
 		bandRangeLabel,
 		chronicBaselineNote,
+		displayedLoad,
+		displayedPercent,
+		displayedRatio,
 		missingRatioNote,
+		unknownLoadNote,
 		climbingShare,
 		formatLoad,
 		formatMinutes,
@@ -34,9 +38,13 @@
 	let { weeks, loading = false, failed = false }: Props = $props();
 
 	const current = $derived(weeks.length > 0 ? weeks[weeks.length - 1] : null);
-	const ratioBand = $derived(bandFor(RATIO_BANDS, current?.acute_chronic_ratio ?? null));
-	const loadBand = $derived(bandFor(ACUTE_LOAD_BANDS, current?.acute_load ?? null));
-	const changeBand = $derived(bandFor(LOAD_CHANGE_BANDS, current?.load_change_percent ?? null));
+	const ratioBand = $derived(
+		bandFor(RATIO_BANDS, displayedRatio(current?.acute_chronic_ratio ?? null))
+	);
+	const loadBand = $derived(bandFor(ACUTE_LOAD_BANDS, displayedLoad(current?.acute_load ?? null)));
+	const changeBand = $derived(
+		bandFor(LOAD_CHANGE_BANDS, displayedPercent(current?.load_change_percent ?? null))
+	);
 	const baselineNote = $derived(current ? chronicBaselineNote(current) : null);
 	// The series always ends on the Monday of the week being trained now, so the
 	// tiles are a week that has not finished. Said out loud, because otherwise
@@ -45,7 +53,10 @@
 	const currentWeekLabel = $derived(current ? formatWeekLabel(current.week_start) : '');
 	const anyFailed = $derived(weeks.some((week) => week.failed_sessions > 0));
 	const anyUnlabelled = $derived(
-		weeks.some((week) => bandFor(RATIO_BANDS, week.acute_chronic_ratio)?.tone === 'unlabelled')
+		weeks.some(
+			(week) =>
+				bandFor(RATIO_BANDS, displayedRatio(week.acute_chronic_ratio))?.tone === 'unlabelled'
+		)
 	);
 
 	const cardStyle =
@@ -82,7 +93,7 @@
 			</div>
 		</div>
 		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? 'Not rated, so not known', c: loadBand ? toneColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
+			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
 				<div style="{cardStyle} padding: 14px 16px;">
 					<div style={captionStyle}>{tile.k}</div>
 					<div
@@ -184,8 +195,11 @@
 				</thead>
 				<tbody>
 					{#each [...weeks].reverse() as week (week.week_start)}
-						{@const rowRatioBand = bandFor(RATIO_BANDS, week.acute_chronic_ratio)}
-						{@const rowChangeBand = bandFor(LOAD_CHANGE_BANDS, week.load_change_percent)}
+						{@const rowRatioBand = bandFor(RATIO_BANDS, displayedRatio(week.acute_chronic_ratio))}
+						{@const rowChangeBand = bandFor(
+							LOAD_CHANGE_BANDS,
+							displayedPercent(week.load_change_percent)
+						)}
 						{@const rowShare = climbingShare(week)}
 						<tr>
 							<td

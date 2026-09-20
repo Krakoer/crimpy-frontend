@@ -9,11 +9,17 @@ import {
 	chronicBaselineNote,
 	climbingShare,
 	missingRatioNote,
+	toneColor,
+	toneVariable,
+	unknownLoadNote,
 	formatLoad,
 	formatMinutes,
 	formatPercent,
 	formatRatio,
 	formatRpe,
+	displayedLoad,
+	displayedPercent,
+	displayedRatio,
 	ratingCoverage
 } from './training-load';
 
@@ -94,6 +100,18 @@ describe('formatting', () => {
 		expect(formatRatio(0)).toBe('0.00');
 	});
 
+	it('bands the figure it prints, not the one behind it', () => {
+		// 1999.6 prints as "2,000", and the legend under it says 2000 to 4000 is
+		// optimal, so captioning it "Undertraining" would contradict the number
+		// the coach can see.
+		expect(formatLoad(1999.6)).toBe('2,000');
+		expect(bandFor(ACUTE_LOAD_BANDS, displayedLoad(1999.6))?.label).toBe('Optimal');
+		expect(formatPercent(89.6)).toBe('90%');
+		expect(bandFor(LOAD_CHANGE_BANDS, displayedPercent(89.6))?.label).toBe('Maintaining');
+		expect(formatRatio(1.297)).toBe('1.30');
+		expect(bandFor(RATIO_BANDS, displayedRatio(1.297))?.label).toBe('Not labelled by the sheet');
+	});
+
 	it('renders loads, ratios and durations the way the coach reads them', () => {
 		expect(formatLoad(2047.5)).toBe('2,048');
 		expect(formatRatio(1.3421)).toBe('1.34');
@@ -152,10 +170,52 @@ describe('missingRatioNote', () => {
 	});
 });
 
+describe('unknownLoadNote', () => {
+	it('does not call a rated week unrated when the duration is what is missing', () => {
+		// duration is NOT NULL DEFAULT 0 on the backend, so a rated week whose
+		// sessions carry no duration comes back with a null acute load. Saying
+		// "not rated" there contradicts the mean RPE in the tile beside it.
+		expect(unknownLoadNote(week({ session_count: 3, rated_sessions: 3, mean_rpe: 6 }))).toBe(
+			'No session this week recorded a duration'
+		);
+		expect(unknownLoadNote(week({ session_count: 3, rated_sessions: 0 }))).toBe(
+			'Not rated, so not known'
+		);
+	});
+
+	it('carries the same cause into the ratio caption', () => {
+		expect(
+			missingRatioNote(
+				week({ session_count: 3, rated_sessions: 3, chronic_load: 900, chronic_weeks: 2 })
+			)
+		).toBe('No session this week recorded a duration, so there is nothing to compare');
+	});
+});
+
+describe('toneColor', () => {
+	it('is the one tone map, so the chart and the legend cannot drift', () => {
+		expect(toneColor('good')).toBe(`var(${toneVariable('good')})`);
+		expect(toneVariable('low')).toBe('--gd');
+		expect(toneVariable('unlabelled')).toBe('--tx2');
+	});
+});
+
 describe('chronicBaselineNote', () => {
 	it('warns that a first week divides by itself', () => {
-		const note = chronicBaselineNote(week({ chronic_load: 900, chronic_weeks: 1 }));
+		const note = chronicBaselineNote(
+			week({ chronic_load: 900, acute_load: 900, chronic_weeks: 1 })
+		);
 		expect(note).toContain('1.00 by construction');
+	});
+
+	it('does not claim a ratio of 1.00 when the baseline is an earlier week', () => {
+		// The backend skips a week whose own load is unknown, the current one
+		// included, so chronic_weeks can be 1 while the week counted is the one
+		// before. The ratio is then missing, not 1.00.
+		const note = chronicBaselineNote(
+			week({ chronic_load: 1000, chronic_weeks: 1, acute_load: null })
+		);
+		expect(note).toBe('Baseline rests on a single earlier week.');
 	});
 
 	it('names a short baseline', () => {

@@ -5,10 +5,13 @@
 		ACUTE_LOAD_BANDS,
 		RATIO_BANDS,
 		bandFor,
+		displayedLoad,
+		displayedRatio,
 		formatLoad,
 		formatRatio,
 		formatRpe,
 		formatWeekLabel,
+		toneVariable,
 		type Band
 	} from '$lib/training-load';
 
@@ -33,25 +36,16 @@
 			text: value('--tx', '#2d241d'),
 			textSoft: value('--tx2', '#7a6e62'),
 			textFaint: value('--tx3', '#b0a496'),
-			terracotta: value('--pr', '#c2714f'),
-			sage: value('--gn', '#6b8f71'),
-			gold: value('--gd', '#d4a15e')
+			tone: (variable: string) => value(variable, '#b0a496')
 		};
 	}
 
 	type Theme = ReturnType<typeof palette>;
 
+	// Resolved through the shared tone map rather than a second copy of it, so a
+	// tone cannot end up one colour in the legend and another on the bar it keys.
 	function bandColor(band: Band, theme: Theme): string {
-		switch (band.tone) {
-			case 'low':
-				return theme.gold;
-			case 'good':
-				return theme.sage;
-			case 'high':
-				return theme.terracotta;
-			case 'unlabelled':
-				return theme.textSoft;
-		}
+		return theme.tone(toneVariable(band.tone));
 	}
 
 	// The band grounds have to sit well behind the line, which is why they are
@@ -138,9 +132,11 @@
 				borderWidth: 1,
 				textStyle: { ...baseText, color: theme.text },
 				formatter: (params: Array<{ dataIndex: number }>) => {
-					const week = data[params[0]?.dataIndex ?? 0];
+					const index = params[0]?.dataIndex;
+					if (index === undefined) return '';
+					const week = data[index];
 					if (!week) return '';
-					const ratioBand = bandFor(RATIO_BANDS, week.acute_chronic_ratio);
+					const ratioBand = bandFor(RATIO_BANDS, displayedRatio(week.acute_chronic_ratio));
 					const rows = [
 						`Week of ${formatWeekLabel(week.week_start)}${week.week_number === null ? '' : `, week ${week.week_number}${week.program_name === null ? '' : ` of ${week.program_name}`}`}`,
 						`Sessions ${week.session_count}, ${week.total_minutes} min`,
@@ -210,7 +206,10 @@
 						value,
 						itemStyle: {
 							color: (() => {
-								const band = bandFor(ACUTE_LOAD_BANDS, data[index]?.acute_load ?? null);
+								const band = bandFor(
+									ACUTE_LOAD_BANDS,
+									displayedLoad(data[index]?.acute_load ?? null)
+								);
 								return band ? bandColor(band, theme) : theme.textFaint;
 							})()
 						}
@@ -245,7 +244,10 @@
 						value,
 						itemStyle: {
 							color: (() => {
-								const band = bandFor(RATIO_BANDS, data[index]?.acute_chronic_ratio ?? null);
+								const band = bandFor(
+									RATIO_BANDS,
+									displayedRatio(data[index]?.acute_chronic_ratio ?? null)
+								);
 								return band ? bandColor(band, theme) : theme.textFaint;
 							})()
 						}
@@ -256,6 +258,7 @@
 					symbolSize: 6,
 					lineStyle: { color: theme.textSoft, width: 2 },
 					markArea: {
+						z: 6,
 						silent: true,
 						data: bandAreas(RATIO_BANDS, theme, 0, ratioMax, false)
 					},
