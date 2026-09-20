@@ -16,6 +16,7 @@
 	import { createPrescription, initialBoxes } from './exercise-prescription';
 	import ItemComment from './ItemComment.svelte';
 	import ItemGoal from './ItemGoal.svelte';
+	import ItemProtocol from './ItemProtocol.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -517,6 +518,7 @@
 			</div>
 
 			<ItemGoal {item} {overriding} />
+			<ItemProtocol {item} {overriding} />
 			<ItemComment {item} {overriding} />
 		</div>
 	{/if}

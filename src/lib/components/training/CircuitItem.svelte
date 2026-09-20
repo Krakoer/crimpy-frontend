@@ -10,6 +10,7 @@
 	import { containerChildTypes } from './container-rules';
 	import ItemComment from './ItemComment.svelte';
 	import ItemGoal from './ItemGoal.svelte';
+	import ItemProtocol from './ItemProtocol.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -183,6 +184,10 @@
 
 			<div style="margin-bottom: {overriding && !item.goal?.trim() ? '0' : '14px'};">
 				<ItemGoal {item} {overriding} />
+			</div>
+
+			<div style="margin-bottom: {overriding && !item.protocol?.trim() ? '0' : '14px'};">
+				<ItemProtocol {item} {overriding} />
 			</div>
 
 			<div style="margin-bottom: {overriding && !item.comment?.trim() ? '0' : '14px'};">

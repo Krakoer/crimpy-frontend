@@ -23,6 +23,15 @@
 	--gn-tx: #4e7154;
 	--gd: #d4a15e;
 	--gd-lt: #faf0dc;
+	/* The gold ground and gold text a protocol is set on, beside --gn-fog for a
+	   goal and --pr-fog for a comment. --gd-lt is the tint the climbing type
+	   chip uses and is dark enough to put the band prose at 4.38:1, under the
+	   floor, so the notes get their own fog: --tx2 reads 4.69:1 on this and the
+	   label 5.16:1. --gd itself is about 2.3:1 on white, far under the 4.5:1
+	   floor for type that small, so the text token is carried further down; it
+	   is protocolColor in crimpy-app/lib/theme/crimpy_theme.dart. */
+	--gd-fog: #fdf8ef;
+	--gd-tx: #8a6220;
 	--pl: #907b99;
 	--pl-lt: #ede8f0;
 	--pl-fog: #faf7fe;
