@@ -1066,7 +1066,7 @@
 	{#if error}
 		<div style="padding: 16px 24px;">
 			<div
-				style="padding: 14px 18px; border-radius: var(--rs); background: var(--rd-lt); border: 1px solid #fca5a5; color: #b91c1c; font-size: 13px;"
+				style="padding: 14px 18px; border-radius: var(--rs); background: var(--rd-lt); border: 1px solid var(--rd); color: var(--rd-tx); font-size: 13px;"
 			>
 				{error}
 			</div>

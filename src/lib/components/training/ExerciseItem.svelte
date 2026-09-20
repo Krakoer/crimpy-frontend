@@ -246,7 +246,7 @@
 				{#if confirmDelete}
 					<button
 						onclick={onRemove}
-						style="padding: 3px 8px; border-radius: 4px; border: 1px solid #e57373; background: #fff; color: #e57373; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--rd); background: #fff; color: var(--rd-tx); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 						>Delete</button
 					>
 					<button

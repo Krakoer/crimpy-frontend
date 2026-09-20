@@ -40,7 +40,7 @@
 	<div style="padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;">
 		<div style="text-align: center;">
 			<div style={authBadge('gold')}>
-				<Icon name="clock" size={24} color="var(--gd)" />
+				<Icon name="clock" size={24} color="var(--gd-tx)" />
 			</div>
 			<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
 				Pending validation

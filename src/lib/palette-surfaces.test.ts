@@ -47,13 +47,19 @@ const MARK_FIELDS = ['color'];
 //     something lighter than the token it names. That one is why no badge in
 //     this repo carries an opacity on its own glyphs any more.
 //
-// A fourth used to be here and is closed: a ground written as a raw hex rather
-// than as a token. Those are gone from `src/` now, replaced by the tint tokens
-// they were copies of, which is what the design system asks for anyway. If one
-// comes back this scan will not see it, and neither will a reviewer reading a
-// diff, so the honest guard against that is the rule about hardcoded colours.
+// Two more were found and closed rather than lived with, and are recorded
+// because how they were closed differs:
 //
-// Each of the three was found by a reader rather than by this scan, and fixed.
+//   - a ground written as a raw hex rather than as a token. Closed by removal,
+//     not by detection: there are no raw hex backgrounds in `src/` any more. If
+//     one comes back this scan will not see it, and the rule about hardcoded
+//     colours is what has to catch it.
+//   - a colour written as a quoted attribute value, `color="var(--gd)"` on an
+//     `<Icon>`. Closed by detection: COLOUR_VALUE reads it now.
+//
+// This list is what is known, not what exists. Every entry on it was found by
+// a reader rather than by this scan, which is the honest summary of how much
+// the scan is worth on its own.
 const GROUND_REACH = 24;
 
 function scopeFrom(lines: string[], start: number): number[] {
@@ -61,12 +67,16 @@ function scopeFrom(lines: string[], start: number): number[] {
 	return Array.from({ length: last - start }, (_, offset) => start + offset);
 }
 
+// `.ts` as well as `.svelte`: `auth-styles.ts` builds grounds and colours in a
+// table and hands them over as a `style` attribute, so a defect written there
+// never appears in any component's own markup.
 function sourceFiles(dir: string): string[] {
 	const found: string[] = [];
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
 		const path = join(dir, entry.name);
 		if (entry.isDirectory()) found.push(...sourceFiles(path));
 		else if (entry.name.endsWith('.svelte')) found.push(path);
+		else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) found.push(path);
 	}
 	return found;
 }
@@ -79,6 +89,12 @@ interface Offence {
 	ground: string;
 	colour: string;
 }
+
+// A colour, however it is spelled: a `color:` declaration, a `color={expr}`
+// prop, or a `color="var(--x)"` prop. The last one used to fall out of the
+// scan, because a class that stops at the first quote matches only `color=`,
+// and that is how a gold icon sat on a gold fog ground for three rounds.
+const COLOUR_VALUE = /(?<!-)\bcolor[:=]\s*(?:"[^"]*"|\{[^}]*\}|[^;"]*)/g;
 
 function namesToken(text: string, token: string): boolean {
 	return new RegExp(`var\\(--${token}\\)`).test(text);
@@ -105,6 +121,9 @@ function offencesIn(file: string): Offence[] {
 		// match never sees the token on the continuation.
 		const grounds = (attribute.match(/background(?:-color)?:[^;"]*/gs) ?? []).join(' ');
 		const colours = (attribute.match(/(?<!-)\bcolor:\s*[^;"]*/gs) ?? []).join(' ');
+		// `style="..."` cannot hold a nested quote, so the attribute pass keeps the
+		// declaration form; the line pass below also has to read `color="var(--x)"`
+		// on an `<Icon>`, which is what COLOUR_VALUE adds.
 		if (!grounds || !colours) continue;
 		for (const [hue, { grounds: tints, unreadable }] of Object.entries(HUES)) {
 			const ground = tints.find((token) => namesToken(grounds, token));
@@ -132,7 +151,7 @@ function offencesIn(file: string): Offence[] {
 			const ground = grounds.find((token) => namesToken(declaration, token));
 			if (!ground) continue;
 			for (const ahead of scopeFrom(lines, index)) {
-				const colours = (lines[ahead].match(/(?<!-)\bcolor[:=]\s*[^;"]*/g) ?? []).join(' ');
+				const colours = (lines[ahead].match(COLOUR_VALUE) ?? []).join(' ');
 				if (!colours) continue;
 				const mark = unreadable.find((token) => namesToken(colours, token));
 				if (mark) {

@@ -332,7 +332,7 @@
 					"
 				>
 					<span>Favorites only</span>
-					{#if favoritesOnly}<Icon name="check" size={13} color="var(--pr)" />{/if}
+					{#if favoritesOnly}<Icon name="check" size={13} color="var(--pr-tx)" />{/if}
 				</button>
 			</div>
 
