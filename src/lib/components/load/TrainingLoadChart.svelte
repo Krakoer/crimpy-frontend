@@ -50,7 +50,7 @@
 			case 'high':
 				return theme.terracotta;
 			case 'unlabelled':
-				return theme.textFaint;
+				return theme.textSoft;
 		}
 	}
 
@@ -66,14 +66,23 @@
 	// One markArea per band, spanning the whole width of its grid. The top and
 	// bottom bands are open ended in the reference sheet, so they are closed off
 	// against the axis the chart is actually drawn to.
-	function bandAreas(bands: Band[], theme: Theme, axisMin: number, axisMax: number) {
+	// The AL:CL bands are thin enough that their names would sit on top of one
+	// another, so only the load panel names them in place; the legend under the
+	// chart names all four with their ranges either way.
+	function bandAreas(
+		bands: Band[],
+		theme: Theme,
+		axisMin: number,
+		axisMax: number,
+		showLabels: boolean
+	) {
 		return bands.map((band) => [
 			{
 				yAxis: band.from ?? axisMin,
 				itemStyle: { color: wash(bandColor(band, theme), band.tone === 'unlabelled' ? 0.1 : 0.12) },
 				label: {
-					show: true,
-					position: 'insideEndTop' as const,
+					show: showLabels,
+					position: 'insideTopRight' as const,
 					color: theme.textFaint,
 					fontFamily: theme.font,
 					fontSize: 9,
@@ -84,9 +93,13 @@
 		]);
 	}
 
-	function niceMax(values: number[], floor: number, headroom: number): number {
+	// The axis has to leave the top band visible even when nothing reaches it,
+	// which is what the floor is for, and has to clear the tallest bar, which is
+	// what the headroom is for. Rounded up to a round hundred so the labels read.
+	function niceMax(values: number[], floor: number, headroomPercent: number): number {
 		const peak = values.length === 0 ? 0 : Math.max(...values);
-		return Math.max(floor, Math.ceil((peak * headroom) / 100) * 100);
+		const withHeadroom = (peak * headroomPercent) / 100;
+		return Math.max(floor, Math.ceil(withHeadroom / 100) * 100);
 	}
 
 	function buildOptions(data: WeeklyTrainingLoad[]) {
@@ -135,17 +148,9 @@
 					return `<div style="font-family:${theme.font};font-size:11px;line-height:1.6;">${rows.join('<br/>')}</div>`;
 				}
 			},
-			legend: {
-				data: ['Acute load', 'Chronic load'],
-				right: 0,
-				top: 0,
-				itemWidth: 14,
-				itemHeight: 8,
-				textStyle: { ...baseText, color: theme.textSoft }
-			},
 			grid: [
-				{ left: 52, right: 16, top: 26, height: 168 },
-				{ left: 52, right: 16, top: 232, height: 92 }
+				{ left: 52, right: 16, top: 16, height: 178 },
+				{ left: 52, right: 16, top: 236, height: 118 }
 			],
 			xAxis: [
 				{
@@ -195,18 +200,20 @@
 					type: 'bar',
 					xAxisIndex: 0,
 					yAxisIndex: 0,
-					data: acute,
+					data: acute.map((value, index) => ({
+						value,
+						itemStyle: {
+							color: (() => {
+								const band = bandFor(ACUTE_LOAD_BANDS, data[index]?.acute_load ?? null);
+								return band ? bandColor(band, theme) : theme.textFaint;
+							})()
+						}
+					})),
 					barMaxWidth: 26,
-					itemStyle: {
-						color: (params: { dataIndex: number }) => {
-							const band = bandFor(ACUTE_LOAD_BANDS, data[params.dataIndex]?.acute_load ?? null);
-							return band ? bandColor(band, theme) : theme.textFaint;
-						},
-						borderRadius: [3, 3, 0, 0]
-					},
+					itemStyle: { borderRadius: [3, 3, 0, 0] },
 					markArea: {
 						silent: true,
-						data: bandAreas(ACUTE_LOAD_BANDS, theme, 0, loadMax)
+						data: bandAreas(ACUTE_LOAD_BANDS, theme, 0, loadMax, true)
 					}
 				},
 				{
@@ -228,24 +235,23 @@
 					type: 'line',
 					xAxisIndex: 1,
 					yAxisIndex: 1,
-					data: ratios,
+					data: ratios.map((value, index) => ({
+						value,
+						itemStyle: {
+							color: (() => {
+								const band = bandFor(RATIO_BANDS, data[index]?.acute_chronic_ratio ?? null);
+								return band ? bandColor(band, theme) : theme.textFaint;
+							})()
+						}
+					})),
 					smooth: false,
 					connectNulls: false,
 					symbol: 'circle',
 					symbolSize: 6,
 					lineStyle: { color: theme.textSoft, width: 2 },
-					itemStyle: {
-						color: (params: { dataIndex: number }) => {
-							const band = bandFor(
-								RATIO_BANDS,
-								data[params.dataIndex]?.acute_chronic_ratio ?? null
-							);
-							return band ? bandColor(band, theme) : theme.textFaint;
-						}
-					},
 					markArea: {
 						silent: true,
-						data: bandAreas(RATIO_BANDS, theme, 0, ratioMax)
+						data: bandAreas(RATIO_BANDS, theme, 0, ratioMax, false)
 					},
 					z: 5
 				}
@@ -274,4 +280,4 @@
 	});
 </script>
 
-<div bind:this={container} style="width: 100%; height: 348px;"></div>
+<div bind:this={container} style="width: 100%; height: 382px;"></div>

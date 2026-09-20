@@ -81,7 +81,9 @@ export function toneColor(tone: BandTone): string {
 		case 'high':
 			return 'var(--pr)';
 		case 'unlabelled':
-			return 'var(--tx3)';
+			// Muted rather than faint: the band is deliberately neutral, but a
+			// coach still has to be able to read the number it colours.
+			return 'var(--tx2)';
 	}
 }
 

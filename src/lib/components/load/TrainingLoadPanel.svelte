@@ -95,6 +95,12 @@
 					{weeks.length} weeks, Monday to Sunday in your own time
 				</div>
 			</div>
+			<!-- Said here rather than in a chart legend: the bars take the colour of
+			     the band they land in, so a single swatch could not stand for them. -->
+			<div style="font-size: 11px; color: var(--tx2); margin-bottom: 6px;">
+				Bars are the week's acute load, coloured by the band it falls in. The dashed line is the
+				chronic load, the mean of the last three weeks. The panel below is the ratio of the two.
+			</div>
 			<TrainingLoadChart {weeks} />
 
 			<!-- Band legend. The bands are the coach's reference and are named as
