@@ -240,6 +240,53 @@
 		new Map(coacheeAvailability.map((week) => [week.week_start, week]))
 	);
 
+	// How many weeks this page draws a row for. A program with a duration draws
+	// exactly that many; one without draws one open week past the last it holds,
+	// which is the week the coach is about to write.
+	//
+	// The availability window below is built from this same count rather than
+	// from duration_weeks, because the two would drift: the window would stop one
+	// week short of the rows, and the row past it would read the athlete's silence
+	// as an answer they never gave.
+	const renderedWeekCount = $derived(
+		program?.duration_weeks
+			? program.duration_weeks
+			: (weeks.length ? Math.max(...weeks.map((w) => w.week_number)) : 0) + 1
+	);
+	// The two bounds as plain strings rather than one object, so the effect that
+	// reads them re-runs when the range really moves and not on every save that
+	// pushes a week onto the list.
+	const availabilityFrom = $derived(
+		program ? programWeekRange(program.start_date, renderedWeekCount).from : ''
+	);
+	const availabilityTo = $derived(
+		program ? programWeekRange(program.start_date, renderedWeekCount).to : ''
+	);
+	// Answers that arrived out of order are dropped rather than applied, since the
+	// range can move twice before the first read lands.
+	let availabilityRead = 0;
+
+	// Read whenever the range moves, not once on load: editing the duration or the
+	// start date moves every row's Monday, and saving the trailing week of a
+	// program with no duration opens another one past it. A row keyed outside the
+	// range last asked for would say the athlete declared nothing.
+	$effect(() => {
+		const from = availabilityFrom;
+		const to = availabilityTo;
+		if (!from || !to) return;
+		const read = ++availabilityRead;
+		apiClient
+			.getClientAvailability(userId, { from, to })
+			.then((declaredWeeks) => {
+				if (read !== availabilityRead) return;
+				coacheeAvailability = declaredWeeks ?? [];
+				coacheeAvailabilityFailed = false;
+			})
+			.catch(() => {
+				if (read === availabilityRead) coacheeAvailabilityFailed = true;
+			});
+	});
+
 	// What a single week asks of the training it schedules. The training itself is
 	// read once per id and kept, since the same one is usually scheduled in
 	// several weeks and the strip under each block reads all of them.
@@ -687,11 +734,7 @@
 	}
 
 	function weekNumbers(): number[] {
-		if (program?.duration_weeks) {
-			return Array.from({ length: program.duration_weeks }, (_, i) => i + 1);
-		}
-		const max = weeks.length ? Math.max(...weeks.map((w) => w.week_number)) : 0;
-		return Array.from({ length: max + 1 }, (_, i) => i + 1);
+		return Array.from({ length: renderedWeekCount }, (_, i) => i + 1);
 	}
 
 	function weekDateRange(weekNum: number): string {
@@ -865,14 +908,6 @@
 
 			const maxWn = p.duration_weeks ?? (w.length ? Math.max(...w.map((ws) => ws.week_number)) : 0);
 
-			// Asked for once the program is known, because the weeks worth asking
-			// about are the ones it covers. Unbounded, this reads every week the
-			// athlete ever declared, each carrying up to 140 activities, for a page
-			// that shows one row per program week.
-			apiClient
-				.getClientAvailability(userId, programWeekRange(p.start_date, maxWn))
-				.then((declaredWeeks) => (coacheeAvailability = declaredWeeks ?? []))
-				.catch(() => (coacheeAvailabilityFailed = true));
 			const allDrafts: WeekDrafts = {};
 			for (let n = 1; n <= maxWn; n++) allDrafts[n] = emptyDraft();
 
