@@ -53,7 +53,7 @@
 				</p>
 			{:else if success}
 				<div style={authBadge('success')}>
-					<Icon name="check" size={24} color="var(--gn)" />
+					<Icon name="check" size={24} color="var(--gn-tx)" />
 				</div>
 				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
 					Email verified
@@ -65,7 +65,7 @@
 				</p>
 			{:else}
 				<div style={authBadge('error')}>
-					<Icon name="x" size={24} color="var(--rd)" />
+					<Icon name="x" size={24} color="var(--rd-tx)" />
 				</div>
 				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
 					Verification failed

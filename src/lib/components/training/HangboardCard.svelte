@@ -184,7 +184,7 @@
 	}
 
 	.hb-pill.hb-danger {
-		border-color: var(--rd-tx);
+		border-color: var(--rd);
 		color: var(--rd-tx);
 	}
 

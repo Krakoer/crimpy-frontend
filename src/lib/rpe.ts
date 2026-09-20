@@ -69,7 +69,7 @@ export function sessionRpe(session: SessionResponse): SessionRpe | null {
 // text at label size on the matching light ground, 10.5px bold on a session row
 // and 9px bold in the week grid. Both are far under the 18.66px bold threshold
 // that would earn the 3:1 large text exemption, so every band is held to 4.5:1:
-// sage 4.59, gold 4.82, terracotta 4.75 and red 4.92 on their own tints.
+// sage 4.59, gold 4.82, terracotta 4.75 and red 5.22 on their own tints.
 export function sessionRpeColor(rpe: SessionRpe): string {
 	if (rpe.failed) return 'var(--rd-tx)';
 	if (rpe.value !== null && rpe.value >= 9) return 'var(--pr-tx)';

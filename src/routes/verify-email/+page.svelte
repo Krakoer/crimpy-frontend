@@ -121,7 +121,7 @@
 		<div style="text-align: center;">
 			{#if verifying}
 				<div style={authBadge('primary')}>
-					<Icon name="clock" size={24} color="var(--pr)" />
+					<Icon name="clock" size={24} color="var(--pr-tx)" />
 				</div>
 				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
 					Verifying your email
@@ -131,7 +131,7 @@
 				</p>
 			{:else if verified}
 				<div style={authBadge('success')}>
-					<Icon name="check" size={24} color="var(--gn)" />
+					<Icon name="check" size={24} color="var(--gn-tx)" />
 				</div>
 				<h1 style="font-size: 17px; font-weight: 700; color: var(--tx); margin-top: 14px;">
 					Email verified

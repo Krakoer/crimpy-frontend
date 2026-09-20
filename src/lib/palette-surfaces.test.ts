@@ -44,18 +44,23 @@ const MARK_FIELDS = ['color'];
 //     below its ground;
 //   - a ground handed to a child component through a prop;
 //   - a colour dimmed by an `opacity` on an inner element, which composites to
-//     something lighter than the token it names. That one is why no badge in
-//     this repo carries an opacity on its own glyphs any more.
+//     something lighter than the token it names. No badge or hint in this repo
+//     carries an opacity over an accent token any more, which is why the shape
+//     is listed as unseen rather than as present.
 //
-// Two more were found and closed rather than lived with, and are recorded
+// Three more were found and closed rather than lived with, and are recorded
 // because how they were closed differs:
 //
-//   - a ground written as a raw hex rather than as a token. Closed by removal,
-//     not by detection: there are no raw hex backgrounds in `src/` any more. If
-//     one comes back this scan will not see it, and the rule about hardcoded
-//     colours is what has to catch it.
+//   - a ground written as a raw hex rather than as a token. Dormant, not
+//     closed. Every raw hex ground that was a light tint of an accent is gone
+//     and no survivor is one today, but `src/` still holds around 180 raw hex
+//     backgrounds, nearly all `#fff`. A new `#f5e2d7` would be invisible here,
+//     and the rule about hardcoded colours is what has to catch it.
 //   - a colour written as a quoted attribute value, `color="var(--gd)"` on an
 //     `<Icon>`. Closed by detection: COLOUR_VALUE reads it now.
+//   - a ground handed over by a helper, `style={authBadge('gold')}`. Closed by
+//     detection: AUTH_HELPER_STYLES resolves the call to the literal it returns
+//     before anything is scanned.
 //
 // This list is what is known, not what exists. Every entry on it was found by
 // a reader rather than by this scan, which is the honest summary of how much
@@ -81,6 +86,39 @@ function sourceFiles(dir: string): string[] {
 	return found;
 }
 
+// `auth-styles.ts` hands a whole style attribute over as a helper call, so the
+// ground of an auth badge never appears in the markup that carries the colour on
+// it. The gold badge glyph read 2.19:1 for three rounds, and putting that defect
+// back left this scan green, because `style={authBadge('gold')}` is not a
+// background declaration to anything reading the file. Resolving each call to the
+// string it returns is what makes the pairing visible at all.
+const AUTH_STYLES_SOURCE = fileURLToPath(new URL('./components/auth-styles.ts', import.meta.url));
+
+function authHelperStyles(): Record<string, string> {
+	const source = readFileSync(AUTH_STYLES_SOURCE, 'utf8');
+	const resolved: Record<string, string> = {};
+	for (const [helper, table] of [
+		['authBadge', 'badgeTones'],
+		['authBanner', 'bannerTones']
+	]) {
+		const block = new RegExp(`const ${table} = \\{([^}]*)\\}`).exec(source);
+		if (!block) throw new Error(`${table} is no longer a literal table in auth-styles.ts`);
+		for (const [, tone, declarations] of block[1].matchAll(/(\w+):\s*'([^']*)'/g)) {
+			resolved[`style={${helper}('${tone}')}`] = `style="${declarations}"`;
+		}
+	}
+	return resolved;
+}
+
+const AUTH_HELPER_STYLES = authHelperStyles();
+
+function readResolved(file: string): string {
+	return Object.entries(AUTH_HELPER_STYLES).reduce(
+		(text, [call, literal]) => text.split(call).join(literal),
+		readFileSync(file, 'utf8')
+	);
+}
+
 interface Offence {
 	file: string;
 	groundLine: number;
@@ -103,7 +141,7 @@ function namesToken(text: string, token: string): boolean {
 // A `background` naming a light ground of one hue, with a `color` naming that
 // hue's mark form close enough after it to be sitting on it.
 function offencesIn(file: string): Offence[] {
-	const lines = readFileSync(file, 'utf8').split('\n');
+	const lines = readResolved(file).split('\n');
 	const offences: Offence[] = [];
 
 	// A ground and a colour written in the same style attribute, in either
@@ -213,6 +251,18 @@ describe('no surface writes a bare accent on a light ground of its own hue', () 
 		for (const shape of KNOWN_SHAPES) {
 			expect(files.some((file) => file.endsWith(shape))).toBe(true);
 		}
+	});
+
+	it('resolves every auth style helper tone, since a ground can hide behind one', () => {
+		expect(Object.keys(AUTH_HELPER_STYLES).sort()).toEqual([
+			"style={authBadge('error')}",
+			"style={authBadge('gold')}",
+			"style={authBadge('primary')}",
+			"style={authBadge('success')}",
+			"style={authBanner('error')}",
+			"style={authBanner('notice')}",
+			"style={authBanner('success')}"
+		]);
 	});
 
 	it('finds no accent written as text on its own tint or fog', () => {
