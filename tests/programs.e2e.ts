@@ -38,7 +38,7 @@ async function stubProgram(page: Page, program = testProgram()): Promise<void> {
 	// The editor reads what the athlete played beside the program. A test that
 	// cares about those rows registers its own stub on top of this one.
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [] });
-	// The editor also reads when the athlete said they can train. A test that
+	// The editor also reads what the athlete said their week holds. A test that
 	// cares about that row registers its own stub on top of this one.
 	await stub(page, 'GET', '/api/coach/clients/*/availability', { body: [] });
 }
@@ -68,7 +68,7 @@ test('lays the week grid out on one row, with the columns the day header names',
 	// The availability row is one of the grids checked below, and a week that is
 	// over only carries it once the athlete has declared something.
 	await stub(page, 'GET', '/api/coach/clients/*/availability', {
-		body: [testWeekAvailability(program.start_date, { 1: { is_available: true } })]
+		body: [testWeekAvailability(program.start_date, { 1: [{ label: 'Bouldering' }] })]
 	});
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
 		body: [
@@ -125,7 +125,7 @@ test('lays the week grid out on one row, with the columns the day header names',
 	}
 });
 
-test('shows what the athlete said they can train, under the days it is about', async ({ page }) => {
+test('lists the activities the athlete planned, under the days they are on', async ({ page }) => {
 	const program = testProgram();
 	await stubProgram(page, program);
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
@@ -140,8 +140,11 @@ test('shows what the athlete said they can train, under the days it is about', a
 	await stub(page, 'GET', '/api/coach/clients/*/availability', {
 		body: [
 			testWeekAvailability(program.start_date, {
-				1: { is_available: true, duration_minutes: 90, note: 'gym after work' },
-				4: { is_available: true }
+				1: [
+					{ label: 'Bouldering', duration_minutes: 90, when: 'after work', where: 'Arkose' },
+					{ label: 'Stretching', duration_minutes: 20 }
+				],
+				4: [{ label: 'Long run' }]
 			})
 		]
 	});
@@ -149,12 +152,36 @@ test('shows what the athlete said they can train, under the days it is about', a
 	await page.goto(PROGRAM_URL);
 	await page.getByRole('button', { name: /Wk 1/ }).click();
 
+	// The row says what it is counting. Under the new model there is no
+	// is_available to read, so a header still saying "Available" would be
+	// claiming something the API stopped sending.
+	await expect(page.getByTestId('availability:1')).toContainText('Planned');
+	await expect(page.getByTestId('availability:1')).not.toContainText('Available');
 	await expect(page.getByTestId('availability:1')).toContainText('2 days');
+	// Two activities on one day is what the old one-row-per-day shape could not
+	// hold, so both have to be on the column.
+	await expect(page.getByTestId('availability:1:1')).toContainText('Bouldering');
 	await expect(page.getByTestId('availability:1:1')).toContainText('1h 30m');
-	await expect(page.getByTestId('availability:1:1')).toContainText('gym after work');
-	// A day with no duration is still available, and says so without a number.
-	await expect(page.getByTestId('availability:1:4')).toContainText('Free');
-	await expect(page.getByTestId('availability:1:0')).not.toContainText('Free');
+	await expect(page.getByTestId('availability:1:1')).toContainText('after work - Arkose');
+	await expect(page.getByTestId('availability:1:1')).toContainText('Stretching');
+	// The order the athlete entered them in is the order the coach reads them.
+	await expect(page.getByTestId('availability:1:1')).toHaveText(/Bouldering[\s\S]*Stretching/);
+	// An activity with no duration still shows, and says so without a number.
+	await expect(page.getByTestId('availability:1:4')).toContainText('Long run');
+	await expect(page.getByTestId('availability:1:0')).not.toContainText('Long run');
+	// A day that came back with an empty list is the athlete saying nothing is
+	// on. The tooltip is the only place that difference is visible, and the
+	// degraded case below asserts the other side of it.
+	await expect(
+		page.locator('[data-testid="availability:1:0"] [title="Nothing planned"]')
+	).toHaveCount(1);
+	// The column truncates, so the tooltip is the only place a coach reads the
+	// whole of an activity.
+	await expect(
+		page.locator(
+			'[data-testid="availability:1:1"] [title="Bouldering - 1h 30m - after work - Arkose"]'
+		)
+	).toHaveCount(1);
 });
 
 test('a week the athlete never declared says so, and a failed read says something else', async ({
@@ -175,7 +202,7 @@ test('a week the athlete never declared says so, and a failed read says somethin
 
 	await page.goto(PROGRAM_URL);
 	await expect(page.getByTestId('availability:1')).toContainText(
-		'has not said when they can train'
+		'has not said what their week looks like'
 	);
 
 	// A read that failed is not a coachee who declared nothing: a coach about to
@@ -185,11 +212,74 @@ test('a week the athlete never declared says so, and a failed read says somethin
 	await expect(page.getByTestId('availability:1')).toContainText('could not be loaded');
 });
 
+test('a week declared with nothing on it does not read as never declared', async ({ page }) => {
+	// Under a list of activities per day, a week the athlete declares entirely
+	// free carries no activity at all. The declaration is a fact of its own on
+	// the API, and the coach has to be told the difference between "clear week"
+	// and "has not answered", since only one of them means waiting.
+	const program = testProgram({ start_date: mondayDaysAgo(0) });
+	await stubProgram(page, program);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/availability', {
+		body: [testWeekAvailability(program.start_date)]
+	});
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByTestId('availability:1')).toContainText('has nothing on it');
+	await expect(page.getByTestId('availability:1')).not.toContainText('has not said');
+});
+
+test('does not call a week clear on the strength of a missing activities list', async ({
+	page
+}) => {
+	// "Declared and clear" is a statement about the athlete's answer. A day that
+	// came back without an activities list at all, which is what a portal
+	// deployed ahead of the API would see, says nothing about their week, and
+	// reading it as an empty list would put words in their mouth.
+	const program = testProgram({ start_date: mondayDaysAgo(0) });
+	await stubProgram(page, program);
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
+		body: [
+			{ id: 'week-1', program_id: 'program-1', week_number: 1, created_at: '', updated_at: '' }
+		]
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks/*', {
+		body: weekOneWithTwoSessionsOnMonday()
+	});
+	await stub(page, 'GET', '/api/coach/clients/*/availability', {
+		body: [
+			{
+				user_id: 'coachee-1',
+				week_start: program.start_date,
+				updated_at: isoDaysAgo(1),
+				days: Array.from({ length: 7 }, (_unused, day) => ({ day_of_week: day }))
+			}
+		]
+	});
+
+	await page.goto(PROGRAM_URL);
+	await expect(page.getByTestId('availability:1')).not.toContainText('has nothing on it');
+	// What it shows instead: the day grid, with nothing claimed about any day
+	// and no count of days the athlete never gave.
+	await expect(page.getByTestId('availability:1:0')).toContainText('-');
+	await expect(
+		page.locator('[data-testid="availability:1:0"] [title="Nothing planned"]')
+	).toHaveCount(0);
+	await expect(page.getByTestId('availability:1')).not.toContainText('0 days');
+});
+
 test('drops the availability row on a week that is over and was never declared', async ({
 	page
 }) => {
 	// An athlete only ever declares the week ahead, so a program's whole
-	// scroll-back would otherwise carry "has not said when they can train".
+	// scroll-back would otherwise carry "has not said what their week looks like".
 	await stubProgram(page, testProgram({ start_date: mondayDaysAgo(14) }));
 	await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', {
 		body: [

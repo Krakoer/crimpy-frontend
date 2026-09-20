@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WeekAvailability } from '$lib/api/client';
+	import type { DayActivity, WeekAvailability } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
 	import { WEEK_GRID_COLUMNS } from '$lib/components/program/weekGrid';
 	import { formatDuration } from '$lib/sessions';
@@ -16,33 +16,64 @@
 
 	let { weekNumber, availability, failed }: Props = $props();
 
-	// The API sends the days it holds; a week is always written whole, but the
-	// row must not assume that when reading one back.
+	// The API sends all seven days, each with a list. A day that came back
+	// without one is left undefined rather than read as an empty list: the two
+	// look the same in a grid of dashes, but only one of them licenses the
+	// sentence below, and an API that is not sending lists is not an athlete
+	// saying their week is clear.
 	const daysByIndex = $derived.by(() => {
-		const days: (WeekAvailability['days'][number] | undefined)[] = Array.from(
-			{ length: 7 },
-			() => undefined
-		);
+		const days: (DayActivity[] | undefined)[] = Array.from({ length: 7 }, () => undefined);
 		for (const day of availability?.days ?? []) {
-			if (day.day_of_week >= 0 && day.day_of_week <= 6) days[day.day_of_week] = day;
+			if (day.day_of_week >= 0 && day.day_of_week <= 6 && Array.isArray(day.activities))
+				days[day.day_of_week] = day.activities;
 		}
 		return days;
 	});
 
-	const availableCount = $derived(
-		(availability?.days ?? []).filter((day) => day.is_available).length
+	const plannedDayCount = $derived(
+		daysByIndex.filter((activities) => activities !== undefined && activities.length > 0).length
+	);
+
+	// Every day came back with a list, so what is shown is the whole of what the
+	// athlete said. Without it the row can show a day, but cannot count them or
+	// call any of them empty.
+	const wholeWeekRead = $derived(daysByIndex.every((activities) => activities !== undefined));
+
+	// A week is in the list only because the athlete declared it, so one holding
+	// nothing is them saying their week is clear, not them staying silent. The
+	// two read differently to a coach about to write the week, which is why this
+	// is only claimed when all seven days actually came back with a list.
+	const declaredEmpty = $derived(
+		Boolean(availability) && !failed && wholeWeekRead && plannedDayCount === 0
 	);
 
 	// The same reading as the duration of a run played that day, so the two rows
 	// of the same column are compared rather than converted.
-	function label(day: WeekAvailability['days'][number]): string {
-		return day.duration_minutes ? formatDuration(day.duration_minutes * 60) : 'Free';
+	function durationLabel(activity: DayActivity): string {
+		return activity.duration_minutes ? formatDuration(activity.duration_minutes * 60) : '';
+	}
+
+	// The "when" and the "where" are too long for the column, so they ride in the
+	// tooltip with the label rather than being dropped.
+	function activityTitle(activity: DayActivity): string {
+		const parts = [activity.label];
+		const duration = durationLabel(activity);
+		if (duration) parts.push(duration);
+		if (activity.when?.trim()) parts.push(activity.when.trim());
+		if (activity.where?.trim()) parts.push(activity.where.trim());
+		return parts.join(' - ');
+	}
+
+	function contextLabel(activity: DayActivity): string {
+		return [activity.when?.trim(), activity.where?.trim()].filter(Boolean).join(' - ');
 	}
 
 	const emptyMessage = $derived(
 		failed
 			? 'What the athlete declared could not be loaded, so this week says nothing about it.'
-			: 'The athlete has not said when they can train this week.'
+			: declaredEmpty
+				? 'The athlete declared this week and has nothing on it.'
+				: 'The athlete has not said what their week looks like.'
 	);
 </script>
 
@@ -62,17 +93,22 @@
 			<span
 				style="font-size: 10.5px; font-weight: 700; color: var(--tx2); letter-spacing: 0.06em; text-transform: uppercase;"
 			>
-				Available
+				Planned
 			</span>
 		</div>
-		{#if availability && !failed}
+		<!-- Hidden on a week declared empty the way it is on a failed read: the
+			sentence beside it already says the count, and "0 days" only ever meant
+			a grid of dashes before. Hidden too when a day did not come back with a
+			list, since "0 days" would then be a claim about the athlete made out of
+			a gap in the response. -->
+		{#if availability && !failed && !declaredEmpty && wholeWeekRead}
 			<div style="font-size: 10px; color: var(--tx3); padding-left: 17px;">
-				{availableCount} day{availableCount === 1 ? '' : 's'}
+				{plannedDayCount} day{plannedDayCount === 1 ? '' : 's'}
 			</div>
 		{/if}
 	</div>
 
-	{#if !availability || failed}
+	{#if !availability || failed || declaredEmpty}
 		<div
 			style="
 				grid-column: span 9; display: flex; align-items: center;
@@ -83,50 +119,58 @@
 			{emptyMessage}
 		</div>
 	{:else}
-		{#each daysByIndex as day, dayIndex (dayIndex)}
+		{#each daysByIndex as dayActivities, dayIndex (dayIndex)}
+			{@const activities = dayActivities ?? []}
 			<div
 				data-testid="availability:{weekNumber}:{dayIndex}"
 				style="
 					padding: 5px 3px; min-height: 40px;
-					display: flex; flex-direction: column; gap: 2px; justify-content: center;
+					display: flex; flex-direction: column; gap: 3px; justify-content: center;
 					border-left: 1px solid var(--bd2);
 				"
 			>
-				{#if day?.is_available}
-					<div class="flex items-center gap-1" style="padding: 0 2px;">
-						<div
-							style="width: 5px; height: 5px; border-radius: 50%; background: var(--gn); flex-shrink: 0;"
-						></div>
-						<span style="font-size: 10.5px; font-weight: 600; color: var(--tx);">
-							{label(day)}
-						</span>
-					</div>
-					{#if day.note?.trim()}
-						<span
-							class="truncate"
-							title={day.note}
-							style="font-size: 10px; color: var(--tx2); padding-left: 8px;"
-						>
-							{day.note}
-						</span>
-					{/if}
-				{:else}
+				{#if activities.length === 0}
+					<!-- The dash says the same thing either way, but the tooltip must
+						not: a day that came back with an empty list is the athlete
+						saying nothing is on, and a day that came back without one says
+						nothing at all. -->
 					<div
 						class="flex items-center justify-center"
-						title={day?.note?.trim() ? `Not available - ${day.note}` : 'Not available'}
+						title={dayActivities === undefined ? undefined : 'Nothing planned'}
 						style="flex: 1; color: var(--bd); font-size: 14px;"
 					>
-						{#if day?.note?.trim()}
-							<span
-								class="truncate"
-								style="color: var(--tx3); font-size: 10px; font-style: italic;"
-							>
-								{day.note}
-							</span>
-						{:else}
-							-
-						{/if}
+						-
 					</div>
+				{:else}
+					{#each activities as activity, activityIndex (activityIndex)}
+						{@const context = contextLabel(activity)}
+						<div title={activityTitle(activity)} style="padding: 0 2px; min-width: 0;">
+							<div class="flex items-center gap-1" style="min-width: 0;">
+								<div
+									style="width: 5px; height: 5px; border-radius: 50%; background: var(--gn); flex-shrink: 0;"
+								></div>
+								<span
+									class="truncate"
+									style="font-size: 10.5px; font-weight: 600; color: var(--tx);"
+								>
+									{activity.label}
+								</span>
+								{#if activity.duration_minutes}
+									<span style="font-size: 10px; color: var(--tx2); flex-shrink: 0;">
+										{durationLabel(activity)}
+									</span>
+								{/if}
+							</div>
+							{#if context}
+								<span
+									class="block truncate"
+									style="font-size: 10px; color: var(--tx2); padding-left: 8px;"
+								>
+									{context}
+								</span>
+							{/if}
+						</div>
+					{/each}
 				{/if}
 			</div>
 		{/each}
