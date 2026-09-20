@@ -63,6 +63,12 @@ test('asks only for the availability of the weeks the program covers', async ({ 
 	const asked = new URL(reads[0].url);
 	expect(asked.searchParams.get('from')).toBe('2026-01-05');
 	expect(asked.searchParams.get('to')).toBe('2026-01-26');
+
+	// Counted again after a beat. expect.poll resolves on the first sample that
+	// matches, so on its own it says nothing about a second read landing behind
+	// the first, which is exactly what a range that moves during the load does.
+	await page.waitForTimeout(500);
+	expect(reads).toHaveLength(1);
 });
 
 // A program with no duration draws one open week past the last it holds, which
@@ -91,6 +97,12 @@ test('asks for the open week a program with no duration draws', async ({ page })
 	const asked = new URL(reads[0].url);
 	expect(asked.searchParams.get('from')).toBe('2026-01-05');
 	expect(asked.searchParams.get('to')).toBe('2026-01-19');
+
+	// A no-duration program is where a second load-time read would appear, since
+	// the count moves as the saved weeks arrive. Counted after a beat rather than
+	// at the first sample that matched.
+	await page.waitForTimeout(500);
+	expect(reads).toHaveLength(1);
 });
 
 // The range moves when the coach edits the program, and the rows move with it.

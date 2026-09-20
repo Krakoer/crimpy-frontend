@@ -283,7 +283,14 @@
 				coacheeAvailabilityFailed = false;
 			})
 			.catch(() => {
-				if (read === availabilityRead) coacheeAvailabilityFailed = true;
+				if (read !== availabilityRead) return;
+				// The weeks already held are dropped with the flag rather than kept
+				// beside it. WeekCoacheeAvailability reads "failed" as covering every
+				// row it draws, so weeks that did answer would show the red "could not
+				// be read" strip over data that is present and still right. The two
+				// have to describe the same read.
+				coacheeAvailability = [];
+				coacheeAvailabilityFailed = true;
 			});
 	});
 
@@ -907,7 +914,6 @@
 			trainings = t;
 
 			const maxWn = p.duration_weeks ?? (w.length ? Math.max(...w.map((ws) => ws.week_number)) : 0);
-
 			const allDrafts: WeekDrafts = {};
 			for (let n = 1; n <= maxWn; n++) allDrafts[n] = emptyDraft();
 
