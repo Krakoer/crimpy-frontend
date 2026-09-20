@@ -1,3 +1,4 @@
+import { callerOffsetMinutes, callerTimeZone } from '$lib/caller-clock';
 import { getApiBaseUrl } from '$lib/config';
 
 export interface LoginRequest {
@@ -926,6 +927,39 @@ class ApiClient {
 		return (await this.request<T[] | null>(endpoint, options)) ?? [];
 	}
 
+	/** Reads an endpoint that cuts its weeks on the caller's own calendar,
+	 *  sending the browser's zone name and its offset together.
+	 *
+	 *  The server prefers the zone, which is what makes a week boundary on the
+	 *  far side of a daylight saving change land where the athlete lived it, and
+	 *  it answers 400 for a zone name it will not resolve rather than quietly
+	 *  ignoring it. Sending the offset alongside does not rescue that by itself,
+	 *  since both parameters ride the same request, so a refused zone is retried
+	 *  once without it and the coach reads the slightly coarser answer instead of
+	 *  an error. The shape the server accepts is deliberately narrower than the
+	 *  zone names that exist and it can also turn away a zone its own database
+	 *  does not carry yet, so the portal asks rather than restating that rule
+	 *  here, where the two copies would drift.
+	 *
+	 *  A 400 raised by something other than the zone costs one extra request and
+	 *  then surfaces as itself, since the retry fails the same way. */
+	private async requestOnCallerClock<T>(endpoint: string, params: URLSearchParams): Promise<T> {
+		params.set('tz_offset_minutes', String(callerOffsetMinutes()));
+		const zone = callerTimeZone();
+		if (!zone) return this.request<T>(`${endpoint}?${params}`);
+
+		const withZone = new URLSearchParams(params);
+		withZone.set('timezone', zone);
+		try {
+			return await this.request<T>(`${endpoint}?${withZone}`);
+		} catch (e) {
+			if (e instanceof ApiError && e.status === 400) {
+				return this.request<T>(`${endpoint}?${params}`);
+			}
+			throw e;
+		}
+	}
+
 	private refreshAccessToken(): Promise<boolean> {
 		if (!this.inFlightRefresh) {
 			this.inFlightRefresh = this.rotateTokens().finally(() => {
@@ -1120,13 +1154,13 @@ class ApiClient {
 	}
 
 	// The athlete's weekly training load, oldest week first and ending with the
-	// week being trained now. The offset is sent because the week boundary is
-	// the coach's own Monday, the way it is for the TODO list, and a server
-	// reading its own clock would cut the week somewhere else entirely.
+	// week being trained now. The caller's clock is sent because the week
+	// boundary is the coach's own Monday, the way it is for the TODO list, and a
+	// server reading its own clock would cut the week somewhere else entirely.
 	async getClientTrainingLoad(userId: string, weeks: number): Promise<TrainingLoadSeries> {
-		const tzOffsetMinutes = -new Date().getTimezoneOffset();
-		return this.request<TrainingLoadSeries>(
-			`/api/coach/clients/${userId}/training-load?weeks=${weeks}&tz_offset_minutes=${tzOffsetMinutes}`
+		return this.requestOnCallerClock<TrainingLoadSeries>(
+			`/api/coach/clients/${userId}/training-load`,
+			new URLSearchParams({ weeks: String(weeks) })
 		);
 	}
 
@@ -1355,10 +1389,9 @@ class ApiClient {
 
 	// The moment a coach picked for their empty week check is a wall clock time
 	// in their own week, which the server cannot place without being told the
-	// offset the browser is on.
+	// clock the browser is on.
 	async getCoachTodo(): Promise<CoachTodo> {
-		const offset = -new Date().getTimezoneOffset();
-		return this.request<CoachTodo>(`/api/coach/todo?tz_offset_minutes=${offset}`);
+		return this.requestOnCallerClock<CoachTodo>('/api/coach/todo', new URLSearchParams());
 	}
 
 	async getCoachTodoSettings(): Promise<CoachTodoSettings> {
