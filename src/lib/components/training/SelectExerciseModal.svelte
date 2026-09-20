@@ -180,8 +180,8 @@
 				<Icon
 					name="star"
 					size={15}
-					color={favoritesOnly ? 'var(--pr)' : 'var(--tx3)'}
-					fill={favoritesOnly ? 'var(--pr)' : 'none'}
+					color={favoritesOnly ? 'var(--pr-tx)' : 'var(--tx3)'}
+					fill={favoritesOnly ? 'var(--pr-tx)' : 'none'}
 				/>
 			</button>
 		</div>

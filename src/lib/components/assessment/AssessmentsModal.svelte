@@ -46,7 +46,7 @@
 			</div>
 			<div style="min-width: 0; flex: 1;">
 				<div
-					style="font-size: 11px; font-weight: 700; color: var(--pr); letter-spacing: 0.06em; text-transform: uppercase;"
+					style="font-size: 11px; font-weight: 700; color: var(--pr-tx); letter-spacing: 0.06em; text-transform: uppercase;"
 				>
 					Assessments
 				</div>

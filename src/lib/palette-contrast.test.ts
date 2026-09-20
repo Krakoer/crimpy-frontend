@@ -38,7 +38,7 @@ function luminance(hex: string): number {
 }
 
 // WCAG 2.1 relative luminance contrast, (L1 + 0.05) / (L2 + 0.05).
-export function contrastRatio(foreground: string, background: string): number {
+function contrastRatio(foreground: string, background: string): number {
 	const a = luminance(foreground);
 	const b = luminance(background);
 	return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);

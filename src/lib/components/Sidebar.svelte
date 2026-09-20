@@ -125,7 +125,7 @@
 					border-radius: var(--rs);
 					background: {active ? 'var(--pr-fog)' : 'transparent'};
 					border: none; cursor: pointer;
-					font-size: 13.5px; color: {active ? 'var(--pr)' : 'var(--tx2)'};
+					font-size: 13.5px; color: {active ? 'var(--pr-tx)' : 'var(--tx2)'};
 					font-weight: {active ? '600' : '500'};
 					font-family: var(--font);
 					position: relative;
@@ -141,7 +141,7 @@
 						"
 					></div>
 				{/if}
-				<Icon name={item.icon} size={17} color={active ? 'var(--pr)' : 'var(--tx2)'} />
+				<Icon name={item.icon} size={17} color={active ? 'var(--pr-tx)' : 'var(--tx2)'} />
 				<span style="flex: 1;">{item.label}</span>
 			</button>
 		{/each}
@@ -160,13 +160,13 @@
 					padding: 8px 12px; border-radius: var(--rs);
 					background: {active ? 'var(--pr-fog)' : 'transparent'};
 					border: none; cursor: pointer;
-					font-size: 13.5px; color: {active ? 'var(--pr)' : 'var(--tx2)'};
+					font-size: 13.5px; color: {active ? 'var(--pr-tx)' : 'var(--tx2)'};
 					font-weight: {active ? '600' : '500'};
 					font-family: var(--font);
 					position: relative; text-align: left; width: 100%;
 				"
 			>
-				<Icon name="shield" size={17} color={active ? 'var(--pr)' : 'var(--tx2)'} />
+				<Icon name="shield" size={17} color={active ? 'var(--pr-tx)' : 'var(--tx2)'} />
 				<span>Admin</span>
 			</button>
 		{/if}
@@ -179,13 +179,13 @@
 					padding: 8px 12px; border-radius: var(--rs);
 					background: {active ? 'var(--pr-fog)' : 'transparent'};
 					border: none; cursor: pointer;
-					font-size: 13.5px; color: {active ? 'var(--pr)' : 'var(--tx2)'};
+					font-size: 13.5px; color: {active ? 'var(--pr-tx)' : 'var(--tx2)'};
 					font-weight: {active ? '600' : '500'};
 					font-family: var(--font);
 					position: relative; text-align: left; width: 100%;
 				"
 			>
-				<Icon name={item.icon} size={17} color={active ? 'var(--pr)' : 'var(--tx2)'} />
+				<Icon name={item.icon} size={17} color={active ? 'var(--pr-tx)' : 'var(--tx2)'} />
 				<span>{item.label}</span>
 			</button>
 		{/each}

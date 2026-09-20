@@ -1178,7 +1178,7 @@
 						<span
 							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
-							font-size: 11.5px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
+							font-size: 11.5px; font-weight: 600; background: var(--pr-fog); color: var(--pr-tx);
 						">Upcoming</span
 						>
 					{:else if isProgramCompleted}
@@ -1922,7 +1922,7 @@
 									padding: 3px 9px; font-size: 10.5px; font-weight: 600;
 									border-radius: 999px; border: none; cursor: pointer;
 									background: {trainingTypeFilter === f.id ? 'var(--pr-fog)' : 'transparent'};
-									color: {trainingTypeFilter === f.id ? 'var(--pr)' : 'var(--tx3)'};
+									color: {trainingTypeFilter === f.id ? 'var(--pr-tx)' : 'var(--tx3)'};
 									font-family: var(--font);
 								">{f.label}</button
 									>

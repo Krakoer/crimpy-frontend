@@ -200,7 +200,7 @@
 						padding: 7px 14px; font-size: 12.5px; font-weight: 600;
 						border-radius: 6px; border: none; cursor: pointer;
 						background: {typeFilter === null ? 'var(--pr-fog)' : 'transparent'};
-						color: {typeFilter === null ? 'var(--pr)' : 'var(--tx2)'};
+						color: {typeFilter === null ? 'var(--pr-tx)' : 'var(--tx2)'};
 						font-family: var(--font);
 					"
 				>
@@ -213,7 +213,7 @@
 							padding: 7px 14px; font-size: 12.5px; font-weight: 600;
 							border-radius: 6px; border: none; cursor: pointer;
 							background: {typeFilter === t ? 'var(--pr-fog)' : 'transparent'};
-							color: {typeFilter === t ? 'var(--pr)' : 'var(--tx2)'};
+							color: {typeFilter === t ? 'var(--pr-tx)' : 'var(--tx2)'};
 							font-family: var(--font);
 						"
 					>
@@ -257,7 +257,7 @@
 						display: flex; align-items: center; justify-content: center;
 					"
 				>
-					<Icon name="grip" size={14} color={view === 'grid' ? 'var(--pr)' : 'var(--tx3)'} />
+					<Icon name="grip" size={14} color={view === 'grid' ? 'var(--pr-tx)' : 'var(--tx3)'} />
 				</button>
 				<button
 					onclick={() => (view = 'list')}
@@ -268,7 +268,7 @@
 						display: flex; align-items: center; justify-content: center;
 					"
 				>
-					<Icon name="filter" size={14} color={view === 'list' ? 'var(--pr)' : 'var(--tx3)'} />
+					<Icon name="filter" size={14} color={view === 'list' ? 'var(--pr-tx)' : 'var(--tx3)'} />
 				</button>
 			</div>
 		</div>
@@ -288,7 +288,7 @@
 				style="
 					background: var(--pr-fog); border-radius: var(--rl); border: 1.5px dashed var(--pr-lt);
 					padding: 48px; text-align: center; cursor: pointer; font-family: var(--font);
-					display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--pr);
+					display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--pr-tx);
 				"
 			>
 				<div
@@ -298,10 +298,10 @@
 						display: flex; align-items: center; justify-content: center;
 					"
 				>
-					<Icon name="plus" size={20} color="var(--pr)" />
+					<Icon name="plus" size={20} color="var(--pr-tx)" />
 				</div>
 				<div style="font-size: 13.5px; font-weight: 600;">No trainings yet</div>
-				<div style="font-size: 12px; color: var(--pr); opacity: 0.7;">
+				<div style="font-size: 12px; color: var(--pr-tx);">
 					Create your first training to get started.
 				</div>
 			</button>
@@ -453,7 +453,7 @@
 						border: 1.5px dashed var(--pr-lt);
 						padding: 18px; cursor: pointer;
 						display: flex; flex-direction: column; align-items: center; justify-content: center;
-						min-height: 200px; gap: 10px; color: var(--pr);
+						min-height: 200px; gap: 10px; color: var(--pr-tx);
 						font-family: var(--font);
 					"
 				>
@@ -464,11 +464,11 @@
 							display: flex; align-items: center; justify-content: center;
 						"
 					>
-						<Icon name="plus" size={20} color="var(--pr)" />
+						<Icon name="plus" size={20} color="var(--pr-tx)" />
 					</div>
 					<div style="font-size: 13.5px; font-weight: 600;">Create a training</div>
 					<div
-						style="font-size: 11.5px; color: var(--pr); opacity: 0.7; text-align: center; max-width: 180px;"
+						style="font-size: 11.5px; color: var(--pr-tx); text-align: center; max-width: 180px;"
 					>
 						Build from scratch or start from a template.
 					</div>

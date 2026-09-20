@@ -807,7 +807,7 @@
 									<div
 										style="
 										width: 22px; height: 22px; border-radius: 5px;
-										background: var(--pr-fog); color: var(--pr);
+										background: var(--pr-fog); color: var(--pr-tx);
 										display: flex; align-items: center; justify-content: center;
 										font-size: 8px; font-weight: 700; flex-shrink: 0;
 									"

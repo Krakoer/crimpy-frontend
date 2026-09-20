@@ -30,7 +30,7 @@
 		style="
 			display: inline-flex; align-items: baseline; gap: 5px; flex-shrink: 0;
 			padding: 2px 9px; border-radius: 999px;
-			background: var(--pr-fog); color: var(--pr);
+			background: var(--pr-fog); color: var(--pr-tx);
 			font-size: 11px; font-weight: 700; white-space: nowrap;
 		"
 	>

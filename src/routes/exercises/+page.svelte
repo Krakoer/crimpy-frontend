@@ -327,7 +327,7 @@
 						width: 100%; padding: 7px 10px; border-radius: 6px;
 						border: none; cursor: pointer; font-family: var(--font); font-size: 13px;
 						background: {favoritesOnly ? 'var(--pr-fog)' : 'transparent'};
-						color: {favoritesOnly ? 'var(--pr)' : 'var(--tx2)'};
+						color: {favoritesOnly ? 'var(--pr-tx)' : 'var(--tx2)'};
 						font-weight: {favoritesOnly ? 600 : 500};
 					"
 				>

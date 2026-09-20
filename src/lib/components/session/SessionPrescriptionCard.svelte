@@ -71,7 +71,7 @@
 			<span
 				style="
 					font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
-					color: var(--pr); background: var(--pr-fog); flex-shrink: 0;
+					color: var(--pr-tx); background: var(--pr-fog); flex-shrink: 0;
 				">From the program</span
 			>
 		{/if}

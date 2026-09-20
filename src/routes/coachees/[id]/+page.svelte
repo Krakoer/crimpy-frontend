@@ -413,7 +413,7 @@
 							style="
 						display: inline-flex; align-items: center; padding: 2px 8px;
 						border-radius: 999px; font-size: 11px; font-weight: 600;
-						background: var(--pr-fog); color: var(--pr);
+						background: var(--pr-fog); color: var(--pr-tx);
 					">Active</span
 						>
 					</div>
@@ -471,7 +471,7 @@
 								style="
 						font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
 						background: {activeTab === tab.id ? 'var(--pr-fog)' : 'var(--bd2)'};
-						color: {activeTab === tab.id ? 'var(--pr)' : 'var(--tx3)'};
+						color: {activeTab === tab.id ? 'var(--pr-tx)' : 'var(--tx3)'};
 					">{tab.n}</span
 							>
 						{/if}
@@ -1041,7 +1041,7 @@
 												<span
 													style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
-												font-size: 11px; font-weight: 600; background: var(--pr-fog); color: var(--pr);
+												font-size: 11px; font-weight: 600; background: var(--pr-fog); color: var(--pr-tx);
 											">Upcoming</span
 												>
 											{:else}
