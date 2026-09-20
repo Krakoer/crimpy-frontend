@@ -28,10 +28,28 @@ const HUES: Record<string, { grounds: string[]; unreadable: string[] }> = {
 // property access.
 const MARK_FIELDS = ['color'];
 
-// How far a ground reaches. A tinted header and the label inside it are within
-// a handful of lines of each other in every component of this repo; beyond
-// that the ground has almost always closed.
+// How far a ground reaches. A tinted card and the label inside it are within a
+// couple of dozen lines of each other in every component of this repo, and
+// widening the window past that starts reporting siblings rather than children,
+// which is worse than missing one: a guard nobody believes gets switched off.
+//
+// Three shapes it therefore cannot see, named here so a reader does not take
+// its silence for proof:
+//
+//   - a ground and a colour further apart than this, which is the week grid
+//     cell whose empty-state hint sits eighty lines below its ground;
+//   - a ground handed to a child component through a prop;
+//   - a colour dimmed by an `opacity` on an inner element, which composites to
+//     something lighter than the token it names. That one is why no badge in
+//     this repo carries an opacity on its own glyphs any more.
+//
+// Each of those was found by a reader rather than by this scan, and fixed.
 const GROUND_REACH = 24;
+
+function scopeFrom(lines: string[], start: number): number[] {
+	const last = Math.min(lines.length, start + GROUND_REACH);
+	return Array.from({ length: last - start }, (_, offset) => start + offset);
+}
 
 function sourceFiles(dir: string): string[] {
 	const found: string[] = [];
@@ -62,6 +80,31 @@ function offencesIn(file: string): Offence[] {
 	const lines = readFileSync(file, 'utf8').split('\n');
 	const offences: Offence[] = [];
 
+	// A ground and a colour written in the same style attribute, in either
+	// order. The line window below only looks forward, and several pills in this
+	// repo declare their colour above their background.
+	const source = lines.join('\n');
+	for (const attribute of source.match(/style="[^"]*"/gs) ?? []) {
+		const at = source.slice(0, source.indexOf(attribute)).split('\n').length;
+		const grounds = (attribute.match(/background(?:-color)?:[^;"]*/g) ?? []).join(' ');
+		const colours = (attribute.match(/(?<!-)\bcolor:\s*[^;"]*/g) ?? []).join(' ');
+		if (!grounds || !colours) continue;
+		for (const [hue, { grounds: tints, unreadable }] of Object.entries(HUES)) {
+			const ground = tints.find((token) => namesToken(grounds, token));
+			const mark = ground && unreadable.find((token) => namesToken(colours, token));
+			if (ground && mark) {
+				offences.push({
+					file,
+					groundLine: at,
+					colourLine: at,
+					hue,
+					ground: `--${ground}`,
+					colour: `--${mark}`
+				});
+			}
+		}
+	}
+
 	for (let index = 0; index < lines.length; index++) {
 		const line = lines[index];
 		const backgrounds = line.match(/background(?:-color)?:[^;"]*/g) ?? [];
@@ -71,7 +114,7 @@ function offencesIn(file: string): Offence[] {
 		for (const [hue, { grounds, unreadable }] of Object.entries(HUES)) {
 			const ground = grounds.find((token) => namesToken(declaration, token));
 			if (!ground) continue;
-			for (let ahead = index; ahead < Math.min(lines.length, index + GROUND_REACH); ahead++) {
+			for (const ahead of scopeFrom(lines, index)) {
 				const colours = (lines[ahead].match(/(?<!-)\bcolor[:=]\s*[^;"]*/g) ?? []).join(' ');
 				if (!colours) continue;
 				const mark = unreadable.find((token) => namesToken(colours, token));
@@ -92,7 +135,7 @@ function offencesIn(file: string): Offence[] {
 		// with `{x.color}` inside it, where `x.text` is the readable form.
 		const tintMatch = /background(?:-color)?:\s*\{([A-Za-z0-9_.?[\] ]*?)\.tint\}/.exec(declaration);
 		if (!tintMatch) continue;
-		for (let ahead = index; ahead < Math.min(lines.length, index + GROUND_REACH); ahead++) {
+		for (const ahead of scopeFrom(lines, index)) {
 			for (const field of MARK_FIELDS) {
 				const spelled = new RegExp(`\\bcolor[:=]\\s*\\{[^}]*\\.${field}\\}`);
 				if (spelled.test(lines[ahead])) {
@@ -109,7 +152,13 @@ function offencesIn(file: string): Offence[] {
 		}
 	}
 
-	return offences;
+	const seen = new Set<string>();
+	return offences.filter((offence) => {
+		const key = `${offence.colourLine}:${offence.colour}:${offence.ground}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
 }
 
 describe('no surface writes a bare accent on a light ground of its own hue', () => {

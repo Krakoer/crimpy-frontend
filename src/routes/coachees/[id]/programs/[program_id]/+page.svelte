@@ -1817,14 +1817,14 @@
 															style="
 														flex: 1; display: flex; align-items: center; justify-content: center;
 														border-radius: 5px; border: 1px dashed rgba(144,123,153,0.4);
-														color: var(--pl); margin: 2px; min-height: 40px; opacity: 0.6;
+														color: var(--pl-tx); margin: 2px; min-height: 40px; opacity: 0.8;
 														transition: opacity 0.15s;
 													"
 															onmouseenter={(e) => {
 																e.currentTarget.style.opacity = '1';
 															}}
 															onmouseleave={(e) => {
-																e.currentTarget.style.opacity = '0.6';
+																e.currentTarget.style.opacity = '0.8';
 															}}
 														>
 															<Icon name="plus" size={14} color="currentColor" />

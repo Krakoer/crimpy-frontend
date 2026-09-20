@@ -620,8 +620,10 @@ test('colours the everyday preview pill by training type, like the day columns',
 		return [pillOf(1), pillOf(9)];
 	});
 	expect(everydayPill).toEqual(dayPill);
-	// Climbing is gold, not the workout plum the hardcoded pill drew.
-	expect(everydayPill.color).toBe('rgb(212, 161, 94)');
+	// Climbing is gold, not the workout plum the hardcoded pill drew. The pill
+	// writes the gold text token rather than the accent, because the accent
+	// reads 2.05:1 on its own tint at this size. See Krakoer/crimpy#119.
+	expect(everydayPill.color).toBe('rgb(138, 98, 32)');
 });
 
 test('sends existing sessions back with their id so the server keeps the row', async ({ page }) => {
