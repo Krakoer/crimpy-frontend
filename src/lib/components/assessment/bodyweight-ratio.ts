@@ -132,6 +132,31 @@ export function missingRatioLabel(missing: MissingRatio): string {
 	return missing === 'stale' ? 'no recent weight' : 'no weight on file';
 }
 
+// The denominator a surface divides by, named once for everything that shares
+// it: "ratio to 71.0 kg, weighed 10 Mar", or why there is none. One session is
+// one weigh-in, so a card with two hands and a history row with two hands both
+// say this once rather than under each hand.
+export function formatDenominatorNote(
+	reading: DenominatorReading,
+	unitName: string,
+	now: Date = new Date()
+): string {
+	if (reading.bodyweightKg === undefined || reading.weighedAt === undefined) {
+		return reading.missing ? `${unitName}, ${missingRatioLabel(reading.missing)}` : '';
+	}
+	return `ratio to ${reading.bodyweightKg.toFixed(1)} kg, weighed ${formatDayMonth(
+		reading.weighedAt,
+		now
+	)}`;
+}
+
+// A weigh-in that went stale is a caution the athlete can fix by stepping on the
+// scales; one that never happened is an absence.
+export function denominatorNoteColor(reading: DenominatorReading): string {
+	if (reading.bodyweightKg !== undefined) return 'var(--tx3)';
+	return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
+}
+
 // What the ratio was built from, so a coach can check it and can tell a
 // denominator weighed the same morning from one weeks old: "25.0 kg at 71.0 kg,
 // 10 Mar".

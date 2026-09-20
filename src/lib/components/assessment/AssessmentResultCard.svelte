@@ -7,7 +7,13 @@
 		unitLabel,
 		type RecordedAssessment
 	} from './assessment-records';
-	import { formatRatio, readRecordRatio } from './bodyweight-ratio';
+	import {
+		denominatorNoteColor,
+		formatDenominatorNote,
+		formatRatio,
+		readRecordDenominator,
+		readRecordRatio
+	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
 
 	interface Props {
@@ -58,6 +64,7 @@
 	let latestLeft = $derived(reading(latest, latest?.left_value));
 	let latestRight = $derived(reading(latest, latest?.right_value));
 	let latestSingle = $derived(reading(latest, singleValue(latest)));
+	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
 
 	// The progress across the whole history, on the hand that carries the result
 	// for a single value assessment and on the right hand otherwise, which is
@@ -157,6 +164,18 @@
 			/>
 		{/if}
 	</div>
+
+	{#if denominator}
+		<!-- Named once, because one session is one weigh-in: saying it under each
+		     hand repeats it and wraps mid date in a column half a card wide. The
+		     load itself stays per hand, above. -->
+		<div
+			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(denominator)};"
+			data-testid="denominator-note"
+		>
+			{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+		</div>
+	{/if}
 
 	{#if history.length >= 2}
 		<button

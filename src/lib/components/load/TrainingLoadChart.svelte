@@ -270,6 +270,9 @@
 
 	onMount(async () => {
 		const echarts = await import('echarts');
+		// The component can be gone by the time the chunk lands, and Svelte sets a
+		// bind:this back to null on destroy, so init would be handed nothing.
+		if (!container) return;
 		// The options are not set here: assigning the instance re-runs the effect
 		// below, which is the one place the chart is drawn from.
 		chart = echarts.init(container, null, { renderer: 'svg' });

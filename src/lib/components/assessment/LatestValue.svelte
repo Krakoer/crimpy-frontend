@@ -1,11 +1,6 @@
 <script lang="ts">
 	import { formatUnitValue, unitLabel } from '$lib/assessments';
-	import {
-		formatRatio,
-		formatRatioBasis,
-		missingRatioLabel,
-		type BodyweightReading
-	} from './bodyweight-ratio';
+	import { formatRatio, type BodyweightReading } from './bodyweight-ratio';
 
 	interface Props {
 		// LEFT, RIGHT or LATEST: which of the measurement's numbers this is.
@@ -32,6 +27,16 @@
 			? formatUnitValue(reading.raw, unit)
 			: formatRatio(reading.ratio);
 	});
+
+	// Only the load, which is the part that differs between the two hands. The
+	// weight it was divided by and the day it was taken belong to the session, so
+	// the card names them once underneath rather than under each hand, where they
+	// would be said twice and wrap mid date in a column half a card wide.
+	let load = $derived(
+		reading && reading.ratio !== undefined
+			? `${formatUnitValue(reading.raw, unit)} ${unitLabel(unit)}`
+			: ''
+	);
 </script>
 
 <div style="min-width: 0;">
@@ -41,24 +46,7 @@
 	<div style="font-size: {size}px; font-weight: 700; color: var(--tx); line-height: 1;">
 		{headline}
 	</div>
-	{#if reading && reading.ratio !== undefined}
-		<!-- The load that produced the ratio stays beside it, with the day the
-		     weigh-in was taken: a ratio a coach cannot check against a weight and a
-		     date is a number they have to take on trust. -->
-		<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">
-			{formatRatioBasis(reading)}
-		</div>
-	{:else if reading?.missing}
-		<!-- The number above is the load itself, so the line says its unit and why
-		     there is no ratio. A weigh-in that went stale is a caution the athlete
-		     can fix by stepping on the scales; one that never happened is an
-		     absence. -->
-		<div
-			style="font-size: 11px; margin-top: 4px; color: {reading.missing === 'stale'
-				? 'var(--gd-tx)'
-				: 'var(--rd)'};"
-		>
-			{unitLabel(unit)}, {missingRatioLabel(reading.missing)}
-		</div>
+	{#if load}
+		<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">{load}</div>
 	{/if}
 </div>

@@ -3,14 +3,13 @@
 	import { gripLabel } from '$lib/sessions';
 	import { formatRecordValue, singleValue, unitLabel } from './assessment-records';
 	import {
+		denominatorNoteColor,
+		formatDenominatorNote,
 		formatRatio,
-		missingRatioLabel,
 		readRecordDenominator,
 		readRecordRatio,
-		type BodyweightReading,
-		type DenominatorReading
+		type BodyweightReading
 	} from './bodyweight-ratio';
-	import { formatDayMonth } from '$lib/date';
 
 	interface Props {
 		records: AssessmentResponse[];
@@ -41,20 +40,6 @@
 	function cellLoad(reading: BodyweightReading | null, unit: string): string {
 		if (!reading || reading.ratio === undefined) return '';
 		return `${formatRecordValue(reading.raw, unit)} ${unitLabel(unit)}`;
-	}
-
-	// The denominator is named once per row rather than repeated under both hands:
-	// a row is one session, and the two hands were pulled at the same weight.
-	function denominatorNote(reading: DenominatorReading, unit: string): string {
-		if (reading.bodyweightKg === undefined || reading.weighedAt === undefined) {
-			return reading.missing ? `${unitLabel(unit)}, ${missingRatioLabel(reading.missing)}` : '';
-		}
-		return `ratio to ${reading.bodyweightKg.toFixed(1)} kg, weighed ${formatDayMonth(reading.weighedAt)}`;
-	}
-
-	function denominatorColor(reading: DenominatorReading): string {
-		if (reading.bodyweightKg !== undefined) return 'var(--tx3)';
-		return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
 	}
 </script>
 
@@ -100,8 +85,8 @@
 						     coach can tell a denominator measured the same morning from one
 						     weeks old. Where there is none, the reason stands in its place
 						     and the numbers beside it are kilograms. -->
-						<div style="font-size: 11px; color: {denominatorColor(basis)};">
-							{denominatorNote(basis, record.unit)}
+						<div style="font-size: 11px; color: {denominatorNoteColor(basis)};">
+							{formatDenominatorNote(basis, unitLabel(record.unit))}
 						</div>
 					{/if}
 				</div>
