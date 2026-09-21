@@ -954,6 +954,33 @@ test('warns when a dropped training needs an assessment the coachee has not done
 	await expect(page.getByText(/has not done Max Force yet/)).toBeVisible();
 });
 
+// dnd-kit's autoscroll band is narrowed for every editor in $lib/dnd-plugins,
+// this calendar included, because a block card in the training editor was tall
+// enough to put its drag handle inside the default one. A coach dragging a
+// training from the rail down to a week past the fold still has to be carried
+// there, and nothing else in this file says so.
+test('still scrolls the program when a drag is held against the bottom edge', async ({ page }) => {
+	await stubProgram(page, testProgram({ duration_weeks: 12, start_date: mondayDaysAgo(0) }));
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await expect(page.getByRole('button', { name: /Wk 12/ })).toBeVisible();
+
+	const scrolled = () => page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0);
+	expect(await scrolled()).toBe(0);
+
+	const source = await page.getByText('Power endurance block').first().boundingBox();
+	if (!source) throw new Error('The training rail item is not laid out');
+	const viewport = page.viewportSize();
+	if (!viewport) throw new Error('The page has no viewport');
+
+	await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(source.x + source.width / 2, viewport.height - 6, { steps: 10 });
+	await expect.poll(scrolled).toBeGreaterThan(0);
+	await page.mouse.up();
+});
+
 /** A week whose only session is the row a played session would point at. */
 function weekOneWithSession() {
 	return {

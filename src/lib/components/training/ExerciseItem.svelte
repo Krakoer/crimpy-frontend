@@ -14,6 +14,7 @@
 		type AssessmentCatalog
 	} from '$lib/assessments';
 	import { createPrescription, initialBoxes } from './exercise-prescription';
+	import GhostAddButton from './GhostAddButton.svelte';
 	import ItemNotes from './ItemNotes.svelte';
 
 	interface Props {
@@ -473,16 +474,7 @@
 						/>
 					{/if}
 				{:else}
-					<button
-						onclick={(e) => {
-							e.stopPropagation();
-							addLoad();
-						}}
-						style="display: flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 5px; border: 1px dashed var(--bd); background: #fff; color: var(--tx3); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font);"
-					>
-						<Icon name="plus" size={11} color="var(--tx3)" />
-						Add
-					</button>
+					<GhostAddButton label="Add" onAdd={addLoad} />
 				{/if}
 			</div>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { TrainingItem } from '$lib/api/client';
-	import Icon from '$lib/components/Icon.svelte';
+	import GhostAddButton from './GhostAddButton.svelte';
 	import ItemComment from './ItemComment.svelte';
 	import ItemGoal from './ItemGoal.svelte';
 	import ItemProtocol from './ItemProtocol.svelte';
@@ -12,27 +13,47 @@
 
 	let { item, overriding }: Props = $props();
 
+	type NoteField = 'goal' | 'protocol' | 'comment';
+
 	// Three always-open prose fields added about 260px to every card, most of it
-	// empty on most blocks, which is what pushed the drag handles off the screen.
-	// A field the coach has written in is always open, so nothing a block carries
-	// can hide behind the affordance; an empty one is a button until it is asked
-	// for.
-	let opened = $state({ goal: false, protocol: false, comment: false });
+	// empty on most blocks, which is what pushed the drag handles into dnd-kit's
+	// autoscroll band. An empty one is a button until it is asked for.
+	//
+	// A field opens because the block already carries text in it or because the
+	// coach pressed its button, and then it stays open for as long as the card
+	// is. Reading the text instead would take the field away mid edit, the moment
+	// a coach rewriting a note deletes its last character.
+	let opened = $state(
+		untrack(() => ({
+			goal: !!item.goal?.trim(),
+			protocol: !!item.protocol?.trim(),
+			comment: !!item.comment?.trim()
+		}))
+	);
 
-	const showsGoal = $derived(opened.goal || !!item.goal?.trim());
-	const showsProtocol = $derived(opened.protocol || !!item.protocol?.trim());
-	const showsComment = $derived(opened.comment || !!item.comment?.trim());
+	// The field the coach has just asked for, which is the one the caret belongs
+	// in. A field opened because the block came with text takes no focus.
+	let asked = $state<NoteField | null>(null);
 
-	// A program week reads the notes rather than edits them, so a block with no
-	// prose has nothing to render there and takes no room in the card.
+	function open(field: NoteField) {
+		opened[field] = true;
+		asked = field;
+	}
+
+	// A program week reads the notes rather than edits them, so there is nothing
+	// to open there: the fields carrying text are drawn, the rest are not, and a
+	// block with no prose at all renders nothing and takes no room in the card.
+	const showsGoal = $derived(overriding ? !!item.goal?.trim() : opened.goal);
+	const showsProtocol = $derived(overriding ? !!item.protocol?.trim() : opened.protocol);
+	const showsComment = $derived(overriding ? !!item.comment?.trim() : opened.comment);
 	const showsSomething = $derived(!overriding || showsGoal || showsProtocol || showsComment);
 
 	const offers = $derived(
 		[
-			{ field: 'goal' as const, label: 'Add a goal', hidden: showsGoal },
-			{ field: 'protocol' as const, label: 'Add a protocol', hidden: showsProtocol },
-			{ field: 'comment' as const, label: 'Add a comment', hidden: showsComment }
-		].filter((offer) => !offer.hidden)
+			{ field: 'goal' as const, label: 'Add a goal', shown: showsGoal },
+			{ field: 'protocol' as const, label: 'Add a protocol', shown: showsProtocol },
+			{ field: 'comment' as const, label: 'Add a comment', shown: showsComment }
+		].filter((offer) => !offer.shown)
 	);
 </script>
 
@@ -41,36 +62,21 @@
 		style="flex-basis: 100%; width: 100%; display: flex; flex-direction: column; gap: 14px; min-width: 0;"
 	>
 		{#if showsGoal}
-			<ItemGoal {item} {overriding} focusOnMount={opened.goal} />
+			<ItemGoal {item} {overriding} focusOnMount={asked === 'goal'} />
 		{/if}
 
 		{#if showsProtocol}
-			<ItemProtocol {item} {overriding} focusOnMount={opened.protocol} />
+			<ItemProtocol {item} {overriding} focusOnMount={asked === 'protocol'} />
 		{/if}
 
 		{#if showsComment}
-			<ItemComment {item} {overriding} focusOnMount={opened.comment} />
+			<ItemComment {item} {overriding} focusOnMount={asked === 'comment'} />
 		{/if}
 
 		{#if !overriding && offers.length > 0}
 			<div style="display: flex; flex-wrap: wrap; gap: 6px;">
 				{#each offers as offer (offer.field)}
-					<button
-						onclick={(e) => {
-							e.stopPropagation();
-							opened[offer.field] = true;
-						}}
-						style="
-						display: flex; align-items: center; gap: 5px;
-						padding: 5px 10px; border-radius: var(--rs);
-						border: 1px dashed var(--bd); background: transparent;
-						color: var(--tx3); cursor: pointer;
-						font-family: var(--font); font-size: 11px; font-weight: 600;
-					"
-					>
-						<Icon name="plus" size={11} color="currentColor" />
-						{offer.label}
-					</button>
+					<GhostAddButton label={offer.label} onAdd={() => open(offer.field)} />
 				{/each}
 			</div>
 		{/if}

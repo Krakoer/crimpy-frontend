@@ -2971,6 +2971,22 @@ test.describe('collapsed note fields', () => {
 		await expect(page.getByRole('button', { name: 'Add a comment' })).toHaveCount(0);
 	});
 
+	// A coach clearing a note to rewrite it must not have the field pulled out
+	// from under the caret. The field is open because the block carried text, and
+	// it stays open whatever the coach then does to that text.
+	test('keeps a field open while the coach clears it to rewrite it', async ({ page }) => {
+		await openHangboardEditor(page, { ...exerciseBlock, goal: 'resi' });
+
+		const goal = page.getByPlaceholder(NOTE_PLACEHOLDER.goal);
+		await goal.click();
+		for (let stroke = 0; stroke < 4; stroke++) await page.keyboard.press('Backspace');
+
+		await expect(goal).toHaveValue('');
+		await expect(goal).toBeFocused();
+		await page.keyboard.type('force max');
+		await expect(goal).toHaveValue('force max');
+	});
+
 	// A block whose only prose is whitespace has nothing to show, so it goes back
 	// to offering the button rather than keeping a field open on nothing.
 	test('offers the button again for prose that is only whitespace', async ({ page }) => {
