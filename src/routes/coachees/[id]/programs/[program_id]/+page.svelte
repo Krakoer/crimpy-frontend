@@ -1551,7 +1551,7 @@
 																position: relative;
 																display: flex; align-items: center; gap: 4px;
 																padding: 4px 5px; border-radius: 5px;
-																background: {tint}; border: 1px solid {color}30;
+																background: {tint}; border: 1px solid var(--bd);
 																cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
 															"
 																>
@@ -1663,7 +1663,7 @@
 																style="
 															position: relative;
 															padding: 4px 5px; border-radius: 5px;
-															background: {tint}; border: 1px solid {color}30;
+															background: {tint}; border: 1px solid var(--bd);
 														"
 															>
 																<div
@@ -1765,7 +1765,7 @@
 															position: relative;
 															display: flex; align-items: center; gap: 4px;
 															padding: 4px 5px; border-radius: 5px;
-															background: {tint}; border: 1px solid {color}30;
+															background: {tint}; border: 1px solid var(--bd);
 															cursor: {editMode ? 'grab' : 'default'}; font-size: 10.5px;
 														"
 															>

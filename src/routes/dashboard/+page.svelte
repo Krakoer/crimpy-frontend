@@ -122,7 +122,8 @@
 			label: 'Active coachees',
 			value: coacheesCount,
 			icon: 'users',
-			color: 'var(--pr)',
+			tint: 'var(--pr-lt)',
+			text: 'var(--pr-tx)',
 			href: '/coachees'
 		},
 		{
@@ -130,7 +131,8 @@
 			label: 'Trainings built',
 			value: trainingsCount,
 			icon: 'calendar',
-			color: 'var(--gd)',
+			tint: 'var(--gd-lt)',
+			text: 'var(--gd-tx)',
 			href: '/trainings'
 		},
 		{
@@ -138,7 +140,8 @@
 			label: 'Exercise library',
 			value: exercisesCount,
 			icon: 'dumbbell',
-			color: 'var(--gn)',
+			tint: 'var(--gn-lt)',
+			text: 'var(--gn-tx)',
 			href: '/exercises'
 		}
 	]);
@@ -224,11 +227,11 @@
 							<div
 								style="
 									width: 32px; height: 32px; border-radius: var(--rs);
-									background: {s.color}18; color: {s.color};
+									background: {s.tint}; color: {s.text};
 									display: flex; align-items: center; justify-content: center;
 								"
 							>
-								<Icon name={s.icon} size={16} color={s.color} />
+								<Icon name={s.icon} size={16} color={s.text} />
 							</div>
 						</div>
 						<div

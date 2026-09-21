@@ -3052,10 +3052,15 @@ test('opens a week that schedules the same training twice', async ({ page }) => 
 	await page.goto(PROGRAM_URL);
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
 	await openWeek(page, 1);
+	// Near the top left of the cover rather than at its centre. The badges and
+	// the remove button are positioned, so they are painted over the cover and
+	// keep their own clicks, and a Thursday chip carries no override badge to
+	// push the remove button clear of the middle. The centre of a chip that
+	// narrow lands on the remove button's edge.
 	await page
 		.getByTestId('cell:1:3')
 		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
-		.click();
+		.click({ position: { x: 6, y: 6 } });
 
 	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
 	// The two rows of week 1 are told apart by their day rather than folded into
