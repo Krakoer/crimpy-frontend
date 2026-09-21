@@ -4,6 +4,7 @@
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
+		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from './bodyweight-ratio';
@@ -31,9 +32,6 @@
 	}
 
 	let bodyweightRelative = $derived(assessment.bodyweightRelative);
-	let readingLabel = $derived(
-		bodyweightRelative ? 'ratio to bodyweight' : unitLabel(assessment.unit)
-	);
 	let latestLeft = $derived(reading(latest?.left_value));
 	let latestRight = $derived(reading(latest?.right_value));
 	let latestSingle = $derived(reading(singleValue(latest)));
@@ -50,7 +48,7 @@
 			{assessment.label}
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
-			{readingLabel}
+			{readingLabel(bodyweightRelative, assessment.unit)}
 		</div>
 	</div>
 	{#if assessment.hasGrips}

@@ -1545,15 +1545,28 @@ test.describe('session details', () => {
 	// itself, and the modal reads it through the rule the tab reads it by, so the
 	// staleness window and the wording are the same in both places.
 	test.describe('a bodyweight relative result', () => {
+		// Dated off today rather than pinned to a calendar year: formatDayMonth
+		// appends the year to a date outside the one being read from, so a fixture
+		// frozen in 2026 starts printing a year the assertions do not expect the
+		// moment the year turns.
+		const SESSION_DAY = isoDaysAgo(3);
+
 		const assessmentSession = testSession({
 			id: 'session-assessed',
 			name: 'Max hangs',
-			date: '2026-03-02T10:00:00Z',
+			date: SESSION_DAY,
 			is_assessment: true
 		});
 
-		function weightedHang(overrides: Partial<TestAssessmentRecord> = {}): TestAssessmentRecord {
-			return testAssessmentRecord({
+		// The session read carries the weigh-in on each result and names the day
+		// once, on the session: an assessment on a session detail has no
+		// session_date of its own. Dropping it here is what makes these tests fail
+		// if the modal ever stops supplying the session's own date, since the
+		// staleness would then be measured against nothing.
+		function weightedHang(
+			overrides: Partial<TestAssessmentRecord> = {}
+		): Omit<TestAssessmentRecord, 'session_date'> {
+			const { session_date: _measuredOnTheSession, ...assessment } = testAssessmentRecord({
 				id: 'assessment-weighted',
 				label: 'Weighted hang',
 				session_id: 'session-assessed',
@@ -1562,12 +1575,14 @@ test.describe('session details', () => {
 				right_value: 25,
 				left_value: 24,
 				grip_position: 0,
-				session_date: '2026-03-02T10:00:00Z',
-				updated_at: '2026-03-02T10:00:00Z',
+				updated_at: SESSION_DAY,
 				bodyweight_kg: 71,
-				bodyweight_measured_at: '2026-03-02T07:00:00Z',
+				// Two days before the session, which is well inside the thirty day
+				// window the ratio is allowed to be read over.
+				bodyweight_measured_at: isoDaysAgo(5),
 				...overrides
 			});
+			return assessment;
 		}
 
 		async function openAssessedSession(page: Page, assessments: unknown[]): Promise<void> {
@@ -1592,9 +1607,11 @@ test.describe('session details', () => {
 			// coach can check the number rather than take it on trust.
 			await expect(dialog.getByText('25.0 kg', { exact: true })).toBeVisible();
 			await expect(dialog.getByText('24.0 kg', { exact: true })).toBeVisible();
-			// And the denominator, named once for the row.
+			// And the denominator, named once for the row. The day is left to a regex
+			// because these dates move with the clock; the exact wording is pinned
+			// where it is written, on formatDenominatorNote's own unit test.
 			await expect(dialog.getByTestId('session-denominator-note')).toHaveText(
-				'ratio to 71.0 kg, weighed 2 Mar'
+				/^ratio to 71\.0 kg, weighed \d{1,2} \w+( \d{4})?$/
 			);
 			await expect(dialog.getByText('Half Crimp, ratio to bodyweight')).toBeVisible();
 		});
@@ -1603,9 +1620,8 @@ test.describe('session details', () => {
 		// function: a weigh-in a month old says what the athlete weighed some other
 		// month, and a ratio built on it reads as a change they never made.
 		test('declines the ratio when the weigh-in went stale', async ({ page }) => {
-			await openAssessedSession(page, [
-				weightedHang({ bodyweight_measured_at: '2026-01-20T07:00:00Z' })
-			]);
+			// Forty days before the session, which is past the thirty day window.
+			await openAssessedSession(page, [weightedHang({ bodyweight_measured_at: isoDaysAgo(43) })]);
 
 			const dialog = page.getByRole('dialog');
 			await expect(dialog.getByTestId('session-denominator-note')).toHaveText(
@@ -1638,6 +1654,20 @@ test.describe('session details', () => {
 			await expect(dialog.getByTestId('session-denominator-note')).toBeHidden();
 			await expect(dialog.getByText('Half Crimp, kg')).toBeVisible();
 			await expect(dialog.getByText('25.0', { exact: true })).toBeVisible();
+		});
+
+		// An assessment measured on one hand is one number, not a hand, and the
+		// ratio is read for it the same way.
+		test('reads a single handed result as one ratio', async ({ page }) => {
+			await openAssessedSession(page, [
+				weightedHang({ per_hand: false, left_value: null, right_value: 25 })
+			]);
+
+			const dialog = page.getByRole('dialog');
+			await expect(dialog.getByText('RESULT', { exact: true })).toBeVisible();
+			await expect(dialog.getByText('1.35', { exact: true })).toBeVisible();
+			await expect(dialog.getByText('25.0 kg', { exact: true })).toBeVisible();
+			await expect(dialog.getByText('LEFT', { exact: true })).toBeHidden();
 		});
 	});
 });

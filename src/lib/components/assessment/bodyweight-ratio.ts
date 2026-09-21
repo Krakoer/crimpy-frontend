@@ -1,4 +1,5 @@
 import type { AssessmentResponse } from '$lib/api/client';
+import { unitLabel } from '$lib/assessments';
 import { formatDayMonth } from '$lib/date';
 
 // How a bodyweight relative result is read, in one place, because the cards, the
@@ -118,6 +119,16 @@ export function readRecordRatio(
 		record.bodyweight_kg,
 		record.bodyweight_measured_at
 	);
+}
+
+// What the number under a hand actually is: a ratio where the result reads as
+// one, the unit it was measured in otherwise. A ratio is not measured in
+// kilograms, so a surface says what it is reading rather than naming a unit the
+// number does not carry. Said here because the cards, the summary beside the
+// sessions and the session detail all head their numbers with it, and a copy per
+// surface would let one of them say something else.
+export function readingLabel(bodyweightRelative: boolean, unit: string): string {
+	return bodyweightRelative ? 'ratio to bodyweight' : unitLabel(unit);
 }
 
 // A ratio as every surface prints it: two decimals, since that is where a season

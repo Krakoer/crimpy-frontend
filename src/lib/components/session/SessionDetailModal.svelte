@@ -15,6 +15,7 @@
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
+		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from '$lib/components/assessment/bodyweight-ratio';
@@ -110,13 +111,7 @@
 	}
 
 	// The result rows carry their own definition, so a value is formatted from the
-	// unit it was measured in without a catalog to look anything up in. What the
-	// number under a hand actually is, said once per row: a ratio where the result
-	// reads as one, the unit it was measured in otherwise. The same wording the
-	// assessments tab heads its cards with.
-	function readingLabel(assessment: SessionAssessment): string {
-		return assessment.bodyweight_relative ? 'ratio to bodyweight' : unitLabel(assessment.unit);
-	}
+	// unit it was measured in without a catalog to look anything up in.
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -306,6 +301,7 @@
 						</div>
 						{#each records as assessment (assessment.id)}
 							{@const denominator = readRecordDenominator(assessment)}
+							{@const reading = readingLabel(assessment.bodyweight_relative, assessment.unit)}
 							<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
 								<div class="flex items-center justify-between">
 									<div style="min-width: 0;">
@@ -319,8 +315,8 @@
 										     ratio having none to carry. -->
 										<div style="font-size: 11.5px; color: var(--tx3);">
 											{assessment.training_id
-												? readingLabel(assessment)
-												: `${gripLabel(assessment.grip_position ?? 0)}, ${readingLabel(assessment)}`}
+												? reading
+												: `${gripLabel(assessment.grip_position ?? 0)}, ${reading}`}
 										</div>
 									</div>
 									<div class="flex gap-6" style="flex-shrink: 0; text-align: right;">

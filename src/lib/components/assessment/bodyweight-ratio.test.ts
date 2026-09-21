@@ -5,6 +5,8 @@ import {
 	formatRatio,
 	formatRatioBasis,
 	missingRatioLabel,
+	formatDenominatorNote,
+	readingLabel,
 	readBodyweightRatio,
 	readDenominator,
 	readRecordDenominator,
@@ -201,6 +203,35 @@ describe('formatting', () => {
 	it('has nothing to print about a ratio that was declined', () => {
 		const reading = readBodyweightRatio(25, MEASURED, true, null, null);
 		expect(formatRatioBasis(reading)).toBe('');
+	});
+
+	// The denominator a whole row is read against, spelled out here because it is
+	// the one place the wording is written and every surface prints it: the cards,
+	// the history table and the session detail modal.
+	it('names the weight and the day the row divides by', () => {
+		const reading = readDenominator(MEASURED, 71, '2026-03-02T08:00:00Z');
+		expect(formatDenominatorNote(reading, 'kg', new Date('2026-06-01T00:00:00Z'))).toBe(
+			'ratio to 71.0 kg, weighed 2 Mar'
+		);
+	});
+
+	it('says why there is no ratio, in the unit the numbers are left in', () => {
+		expect(formatDenominatorNote(readDenominator(MEASURED, null, null), 'kg')).toBe(
+			'kg, no weight on file'
+		);
+		expect(
+			formatDenominatorNote(readDenominator(MEASURED, 71, daysBefore(MEASURED, 31)), 'kg')
+		).toBe('kg, no recent weight');
+	});
+
+	// What a surface heads its numbers with, which is not a unit once the number
+	// is a ratio. Shared, because the cards, the summary beside the sessions and
+	// the session detail all say it.
+	it('heads a bodyweight relative result with what it is reading', () => {
+		expect(readingLabel(true, 'kilograms')).toBe('ratio to bodyweight');
+		expect(readingLabel(false, 'kilograms')).toBe('kg');
+		expect(readingLabel(false, 'seconds')).toBe('s');
+		expect(readingLabel(false, 'repetitions')).toBe('reps');
 	});
 
 	it('tells a weigh-in that went stale apart from one that never happened', () => {
