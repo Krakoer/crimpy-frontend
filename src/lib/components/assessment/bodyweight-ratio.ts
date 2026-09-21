@@ -1,4 +1,5 @@
 import type { AssessmentResponse } from '$lib/api/client';
+import { unitLabel } from '$lib/assessments';
 import { formatDayMonth } from '$lib/date';
 
 // How a bodyweight relative result is read, in one place, because the cards, the
@@ -120,6 +121,16 @@ export function readRecordRatio(
 	);
 }
 
+// What the number under a hand actually is: a ratio where the result reads as
+// one, the unit it was measured in otherwise. A ratio is not measured in
+// kilograms, so a surface says what it is reading rather than naming a unit the
+// number does not carry. Said here because the cards, the summary beside the
+// sessions and the session detail all head their numbers with it, and a copy per
+// surface would let one of them say something else.
+export function readingLabel(bodyweightRelative: boolean, unit: string): string {
+	return bodyweightRelative ? 'ratio to bodyweight' : unitLabel(unit);
+}
+
 // A ratio as every surface prints it: two decimals, since that is where a season
 // of finger training shows.
 export function formatRatio(ratio: number): string {
@@ -152,9 +163,13 @@ export function formatDenominatorNote(
 
 // A weigh-in that went stale is a caution the athlete can fix by stepping on the
 // scales; one that never happened is an absence.
+//
+// Both are the text tokens rather than the base ones: this is an eleven pixel
+// line of writing on a panel, and layout.css says there that --rd and --gd read
+// under the contrast floor at that size while --rd-tx and --gd-tx clear it.
 export function denominatorNoteColor(reading: DenominatorReading): string {
 	if (reading.bodyweightKg !== undefined) return 'var(--tx3)';
-	return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
+	return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd-tx)';
 }
 
 // What the ratio was built from, so a coach can check it and can tell a

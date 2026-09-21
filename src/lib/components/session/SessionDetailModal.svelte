@@ -2,14 +2,23 @@
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type {
+		AssessmentResponse,
 		RepData,
 		SessionAssessment,
 		SessionDetail,
 		SessionItemResult,
 		SessionResponse
 	} from '$lib/api/client';
-	import { formatUnitValue, unitLabel } from '$lib/assessments';
+	import { unitLabel } from '$lib/assessments';
 	import Icon from '$lib/components/Icon.svelte';
+	import LatestValue from '$lib/components/assessment/LatestValue.svelte';
+	import {
+		denominatorNoteColor,
+		formatDenominatorNote,
+		readingLabel,
+		readRecordDenominator,
+		readRecordRatio
+	} from '$lib/components/assessment/bodyweight-ratio';
 	import SessionRepsCard from '$lib/components/session/SessionRepsCard.svelte';
 	import SessionPrescriptionCard from '$lib/components/session/SessionPrescriptionCard.svelte';
 	import SessionFeedbackCard from '$lib/components/session/SessionFeedbackCard.svelte';
@@ -49,6 +58,14 @@
 	// say so rather than the session looking like a hand-written log.
 	const hasRepData = $derived(reps.length > 0 || detail.origin === 'played');
 	const assessments = $derived<SessionAssessment[]>(loaded?.assessments ?? []);
+	// The results of this session, each carrying the day it was measured on, which
+	// is the session's own. The session read names that day once rather than on
+	// every row, and restating it here is what lets these go through the rule the
+	// assessments tab reads a bodyweight relative result by instead of a second
+	// copy of it: same weigh-in, same staleness window, same wording.
+	const records = $derived<AssessmentResponse[]>(
+		assessments.map((assessment) => ({ ...assessment, session_date: detail.date }))
+	);
 	// The counts the run resolved for the items the prescription left open, shown
 	// against those items rather than in a list of their own: a bare number is
 	// only readable next to what it was answering.
@@ -282,55 +299,73 @@
 								Assessment results
 							</h3>
 						</div>
-						{#each assessments as assessment (assessment.id)}
-							{@const suffix = unitLabel(assessment.unit)}
-							<div
-								class="flex items-center justify-between"
-								style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);"
-							>
-								<div style="min-width: 0;">
-									<div style="font-size: 13px; font-weight: 600; color: var(--tx);">
-										{assessment.label}
-									</div>
-									<!-- A grip only means something on a hangboard assessment, which is
-									     what the builtins are. A pull up count has no grip. -->
-									{#if !assessment.training_id}
+						{#each records as assessment (assessment.id)}
+							{@const denominator = readRecordDenominator(assessment)}
+							{@const readsAs = readingLabel(assessment.bodyweight_relative, assessment.unit)}
+							<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
+								<div class="flex items-center justify-between">
+									<div style="min-width: 0;">
+										<div style="font-size: 13px; font-weight: 600; color: var(--tx);">
+											{assessment.label}
+										</div>
+										<!-- The grip and how the number reads, on one line. A grip only
+										     means something on a hangboard assessment, which is what the
+										     builtins are: a pull up count has no grip. The unit is named
+										     here because the numbers beside it no longer carry it, a
+										     ratio having none to carry. -->
 										<div style="font-size: 11.5px; color: var(--tx3);">
-											{gripLabel(assessment.grip_position ?? 0)}
+											{assessment.training_id
+												? readsAs
+												: `${gripLabel(assessment.grip_position ?? 0)}, ${readsAs}`}
 										</div>
-									{/if}
-								</div>
-								<div class="flex gap-6" style="flex-shrink: 0;">
-									{#if assessment.per_hand}
-										{#each [{ hand: 'Left', value: assessment.left_value, color: 'var(--gn)' }, { hand: 'Right', value: assessment.right_value, color: 'var(--pl)' }] as side (side.hand)}
-											<div style="text-align: right;">
-												<div
-													style="font-size: 10px; font-weight: 700; color: {side.color}; letter-spacing: 0.06em; text-transform: uppercase;"
-												>
-													{side.hand}
-												</div>
-												<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
-													{formatUnitValue(side.value, assessment.unit)}
-													<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
-														>{suffix}</span
-													>
-												</div>
-											</div>
-										{/each}
-									{:else}
-										<div style="text-align: right;">
-											<div style="font-size: 15px; font-weight: 700; color: var(--tx);">
-												{formatUnitValue(
-													assessment.right_value ?? assessment.left_value,
-													assessment.unit
+									</div>
+									<div class="flex gap-6" style="flex-shrink: 0; text-align: right;">
+										{#if assessment.per_hand}
+											<LatestValue
+												label="LEFT"
+												labelColor="var(--gn)"
+												reading={readRecordRatio(assessment, assessment.left_value)}
+												unit={assessment.unit}
+												size={15}
+											/>
+											<LatestValue
+												label="RIGHT"
+												labelColor="var(--pl)"
+												reading={readRecordRatio(assessment, assessment.right_value)}
+												unit={assessment.unit}
+												size={15}
+											/>
+										{:else}
+											<!-- The same colour the cards give their single value, which is
+											     the one this PR introduces rather than carries forward. The
+											     word differs on purpose: this is the result of this session,
+											     not the athlete's latest. -->
+											<LatestValue
+												label="RESULT"
+												labelColor="var(--pr)"
+												reading={readRecordRatio(
+													assessment,
+													assessment.right_value ?? assessment.left_value
 												)}
-												<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
-													>{suffix}</span
-												>
-											</div>
-										</div>
-									{/if}
+												unit={assessment.unit}
+												size={15}
+											/>
+										{/if}
+									</div>
 								</div>
+								{#if denominator}
+									<!-- Named once under the row, because one session is one weigh-in:
+									     saying it under each hand repeats it and wraps mid date. The
+									     load itself stays per hand, above. -->
+									<div
+										style="font-size: 11px; margin-top: 6px; text-align: right; color: {denominatorNoteColor(
+											denominator
+										)};"
+										data-testid="session-denominator-note"
+									>
+										{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+									</div>
+								{/if}
 							</div>
 						{/each}
 					</div>

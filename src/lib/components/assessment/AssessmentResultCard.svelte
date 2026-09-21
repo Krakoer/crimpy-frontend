@@ -11,6 +11,7 @@
 		denominatorNoteColor,
 		formatDenominatorNote,
 		formatRatio,
+		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from './bodyweight-ratio';
@@ -47,11 +48,6 @@
 	}
 
 	let bodyweightRelative = $derived(assessment.bodyweightRelative);
-	// A ratio is not measured in kilograms, so the card says what it is reading
-	// rather than naming a unit the number does not carry.
-	let readingLabel = $derived(
-		bodyweightRelative ? 'ratio to bodyweight' : unitLabel(assessment.unit)
-	);
 
 	// The headline number is the ratio when the assessment reads as one and the
 	// weigh-in beside the result is near enough to divide by, the raw load
@@ -114,7 +110,7 @@
 			{assessment.label}
 		</div>
 		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
-			{readingLabel}
+			{readingLabel(bodyweightRelative, assessment.unit)}
 		</div>
 	</div>
 

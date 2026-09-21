@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { SESSION_ACTIVITIES } from '$lib/sessions';
 import { TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 import { sessionRpe, sessionRpeColor, sessionRpeTint } from '$lib/rpe';
+import { denominatorNoteColor } from '$lib/components/assessment/bodyweight-ratio';
 import type { SessionResponse } from '$lib/api/client';
 
 // The floor for text below the 18.66px bold threshold, which every pill and
@@ -146,5 +147,25 @@ describe('surfaces that write an accent as text on its own tint', () => {
 
 	it.each(Object.entries(SESSION_ACTIVITIES))('holds the session activity %s pill', (key, info) => {
 		expectClearsFloor(info.label, info.text, info.tint, tokens);
+	});
+
+	// Why there is no ratio, written under an assessment result on the cards, the
+	// history table and the session detail modal. Every one of those grounds is
+	// var(--panel), a plain white panel rather than a hue's own light tint, which
+	// is the shape neither guard #119 shipped was built to see: the token table
+	// only pairs an accent with its own -lt ground, and the source scan only
+	// recognises a ground from HUES.grounds and only a colour written as a literal
+	// token, not one returned by a function the way denominatorNoteColor is. It
+	// went unmeasured until a reader found it, so it is enumerated here.
+	//
+	// Only the two accent states. The third returns var(--tx3), the muted body
+	// token this portal writes all its secondary text in, which is a typographic
+	// choice across every surface rather than an accent used as text, and not
+	// something to settle inside an assessment test.
+	it.each([
+		['a weigh-in that went stale', { missing: 'stale' as const }],
+		['a weigh-in that never happened', { missing: 'no-weigh-in' as const }]
+	])('holds the denominator note for %s', (label, reading) => {
+		expectClearsFloor(label, denominatorNoteColor(reading), 'var(--panel)', tokens);
 	});
 });

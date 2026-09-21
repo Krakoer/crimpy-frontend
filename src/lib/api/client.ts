@@ -307,6 +307,17 @@ export interface SessionAssessment {
 	// (bodyweight + result) / bodyweight, rather than as an absolute load. The
 	// value beside it is always the raw measurement.
 	bodyweight_relative: boolean;
+	// The weigh-in a bodyweight relative result is divided by: the last one taken
+	// at or before the session that measured it, with the day it was taken. The
+	// denominator travels on the result rather than being picked out of a
+	// bodyweight series here, so the session detail, the cards, the history table
+	// and the two date comparison all read one result against one weight.
+	//
+	// Absent together when no weigh-in qualifies, which is a ratio a reader
+	// declines rather than invents. That is also what POST /api/assessments
+	// answers with for an athlete who has never weighed in.
+	bodyweight_kg?: number | null;
+	bodyweight_measured_at?: string | null;
 	// The training the assessment is run from, absent on the ones Crimpy ships.
 	training_id?: string | null;
 	right_value: number | null;
@@ -346,18 +357,11 @@ export interface AssessmentDefinitionRequest {
 }
 
 // The session-scoped assessment joined with the date of the session it was
-// recorded in and the weigh-in a bodyweight relative score is divided by, which
-// only the per-user listing endpoints return.
-//
-// The denominator comes down with the row rather than being picked out of a
-// bodyweight series here, so a result reads the same on the cards, in the
-// history table and in the two date comparison: it is the last weigh-in at or
-// before the session, which is the rule the snapshot already answers by. Both
-// fields are absent together when no weigh-in qualifies.
+// recorded in, which only the per-user listing endpoints return: a session read
+// names that date once, on the session, so only a listing has to carry it per
+// row. The denominator is on the result itself, see SessionAssessment.
 export interface AssessmentResponse extends SessionAssessment {
 	session_date: string;
-	bodyweight_kg?: number | null;
-	bodyweight_measured_at?: string | null;
 }
 
 // One assessment as it stood on a date: the last value measured for it at or
