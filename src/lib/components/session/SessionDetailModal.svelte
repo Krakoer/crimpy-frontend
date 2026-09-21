@@ -301,7 +301,7 @@
 						</div>
 						{#each records as assessment (assessment.id)}
 							{@const denominator = readRecordDenominator(assessment)}
-							{@const reading = readingLabel(assessment.bodyweight_relative, assessment.unit)}
+							{@const readsAs = readingLabel(assessment.bodyweight_relative, assessment.unit)}
 							<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
 								<div class="flex items-center justify-between">
 									<div style="min-width: 0;">
@@ -315,8 +315,8 @@
 										     ratio having none to carry. -->
 										<div style="font-size: 11.5px; color: var(--tx3);">
 											{assessment.training_id
-												? reading
-												: `${gripLabel(assessment.grip_position ?? 0)}, ${reading}`}
+												? readsAs
+												: `${gripLabel(assessment.grip_position ?? 0)}, ${readsAs}`}
 										</div>
 									</div>
 									<div class="flex gap-6" style="flex-shrink: 0; text-align: right;">
@@ -336,9 +336,13 @@
 												size={15}
 											/>
 										{:else}
+											<!-- The same colour the cards give their single value, which is
+											     the one this PR introduces rather than carries forward. The
+											     word differs on purpose: this is the result of this session,
+											     not the athlete's latest. -->
 											<LatestValue
 												label="RESULT"
-												labelColor="var(--pl)"
+												labelColor="var(--pr)"
 												reading={readRecordRatio(
 													assessment,
 													assessment.right_value ?? assessment.left_value

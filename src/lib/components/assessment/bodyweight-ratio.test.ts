@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { AssessmentResponse } from '$lib/api/client';
 import {
 	bodyweightScore,
+	formatDenominatorNote,
 	formatRatio,
 	formatRatioBasis,
 	missingRatioLabel,
-	formatDenominatorNote,
-	readingLabel,
 	readBodyweightRatio,
 	readDenominator,
+	readingLabel,
 	readRecordDenominator,
 	readRecordRatio,
 	STALE_DENOMINATOR_DAYS

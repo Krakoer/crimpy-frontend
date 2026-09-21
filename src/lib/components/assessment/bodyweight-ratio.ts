@@ -163,9 +163,13 @@ export function formatDenominatorNote(
 
 // A weigh-in that went stale is a caution the athlete can fix by stepping on the
 // scales; one that never happened is an absence.
+//
+// Both are the text tokens rather than the base ones: this is an eleven pixel
+// line of writing on a panel, and layout.css says there that --rd and --gd read
+// under the contrast floor at that size while --rd-tx and --gd-tx clear it.
 export function denominatorNoteColor(reading: DenominatorReading): string {
 	if (reading.bodyweightKg !== undefined) return 'var(--tx3)';
-	return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
+	return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd-tx)';
 }
 
 // What the ratio was built from, so a coach can check it and can tell a

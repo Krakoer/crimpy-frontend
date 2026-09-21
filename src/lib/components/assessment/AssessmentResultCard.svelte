@@ -10,8 +10,8 @@
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
-		readingLabel,
 		formatRatio,
+		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from './bodyweight-ratio';
