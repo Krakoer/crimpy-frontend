@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	API_URL,
 	mockApi,
 	signIn,
 	stub,
@@ -244,5 +245,68 @@ test.describe('weekly training load', () => {
 		await openLoadTab(page);
 
 		await expect(page.getByText(/could not be read/)).toBeVisible();
+	});
+
+	test('still draws the chart when the server refuses the browser zone', async ({ page }) => {
+		// A few host zones resolve to a name the API will not take, since it holds
+		// a zone to the shape Area/Location and answers 400 otherwise. The coach
+		// must still get their chart, cut on the offset the request carries
+		// alongside the zone, rather than an error.
+		await page.addInitScript(() => {
+			const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+			Intl.DateTimeFormat.prototype.resolvedOptions = function () {
+				return { ...resolved.call(this), timeZone: 'CET' };
+			};
+		});
+		await stubCoacheePage(page, []);
+
+		const asked: string[] = [];
+		await page.route(`${API_URL}/**`, async (route) => {
+			const url = new URL(route.request().url());
+			if (!url.pathname.endsWith('/training-load')) return route.fallback();
+			asked.push(url.search);
+			if (url.searchParams.has('timezone')) {
+				return route.fulfill({
+					status: 400,
+					contentType: 'application/json',
+					body: JSON.stringify({
+						error: 'timezone must be an IANA zone name of the form Area/Location'
+					})
+				});
+			}
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					weeks: [
+						testWeek('2026-09-07', {
+							session_count: 4,
+							total_minutes: 375,
+							climbing_minutes: 270,
+							strength_minutes: 105,
+							rated_sessions: 4,
+							mean_rpe: 8,
+							acute_load: 3000,
+							chronic_load: 1300,
+							chronic_weeks: 3,
+							acute_chronic_ratio: 2.31,
+							load_change_percent: 333
+						})
+					]
+				})
+			});
+		});
+
+		await openLoadTab(page);
+
+		await expect(page.getByText('3,000').first()).toBeVisible();
+		await expect(page.getByText(/could not be read/)).toBeHidden();
+
+		// The zone was tried first and the offset carried the retry, so the week
+		// is still cut on the coach calendar rather than on the server clock.
+		expect(asked).toHaveLength(2);
+		expect(new URLSearchParams(asked[0]).get('timezone')).toBe('CET');
+		expect(new URLSearchParams(asked[1]).has('timezone')).toBe(false);
+		expect(new URLSearchParams(asked[1]).get('tz_offset_minutes')).not.toBeNull();
 	});
 });
