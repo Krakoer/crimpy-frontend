@@ -77,13 +77,18 @@ Rules to enforce in review:
 Used by the training editor and program calendar. Check new DnD code follows the
 established pattern rather than reinventing it:
 
-- `<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>`,
-  with `dndSensors` imported from `$lib/dnd-sensors`. A route that builds its own
-  sensor list is a finding, on the grounds of three copies drifting apart, not on
-  correctness: `DragDropProvider` constructs its manager with dnd-kit's defaults
+- `<DragDropProvider sensors={dndSensors} plugins={dndPlugins} ...>`, with
+  `dndSensors` imported from `$lib/dnd-sensors` and `dndPlugins` from
+  `$lib/dnd-plugins`. A route that builds its own sensor list is a finding, on
+  the grounds of three copies drifting apart, not on correctness: `DragDropProvider` constructs its manager with dnd-kit's defaults
   before assigning the prop, so the keyboard sensor is bound either way. Do not
   report a missing `KeyboardSensor` as switching keyboard dragging off. It does
   not.
+- A provider with no `plugins` is a finding on correctness: `dndPlugins` narrows
+  dnd-kit's autoscroll band from a fifth of the scroll container to a twentieth,
+  and the default band is wide enough that a block card's drag handle sits in it
+  on a 1280x720 screen, so the press scrolls the list instead of picking the
+  block up.
 - Source items: `createDraggable({ id })` with `{@attach draggable.attach}`; ids
   built with `newItemId()` from `$lib/dnd-new-item` mean "create new" on drop. A
   hand written `'__new__:'` literal or a `slice(8)` is a finding.

@@ -1,14 +1,18 @@
 <script lang="ts">
 	import type { TrainingItem } from '$lib/api/client';
+	import { focusWhen } from '$lib/focus-when';
 
 	interface Props {
 		item: TrainingItem;
 		// A program week reads the comment rather than edits it: a note to the
 		// athlete is written once, on the training.
 		overriding: boolean;
+		// Set when the field was just opened from its affordance, so the caret
+		// lands in it rather than on the button that has gone.
+		focusOnMount?: boolean;
 	}
 
-	let { item, overriding }: Props = $props();
+	let { item, overriding, focusOnMount = false }: Props = $props();
 
 	const MAX_COMMENT_LENGTH = 2000;
 </script>
@@ -33,6 +37,7 @@
 		>
 		<textarea
 			aria-label="Comment"
+			{@attach focusWhen(focusOnMount)}
 			bind:value={item.comment}
 			maxlength={MAX_COMMENT_LENGTH}
 			rows="2"

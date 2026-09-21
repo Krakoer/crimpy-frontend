@@ -92,7 +92,14 @@ Navigation uses `goto()` from `$app/navigation`. Protected pages wrap their cont
 
 Used by the training editor and the program week calendar. Key patterns:
 
-- Wrap the interactive area in `<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>`.
+- Wrap the interactive area in `<DragDropProvider sensors={dndSensors} plugins={dndPlugins} {onDragStart} {onDragOver} {onDragEnd}>`.
+- `dndPlugins` comes from `$lib/dnd-plugins` and is dnd-kit's own plugin preset
+  with the autoscroller reconfigured. Its default turns the outer fifth of the
+  scroll container into the band where a drag starts scrolling the page, which
+  on a 720px editor is 144px at each edge, and a block card is tall enough to
+  put its drag handle in there on an ordinary coach screen. The share is a
+  twentieth here, about 36px. An editor that leaves the plugins out gets the
+  default band back and the drag races the scroll again.
 - `dndSensors` comes from `$lib/dnd-sensors` and is shared by every editor. It
   holds the pointer sensor with an 8px activation distance, so a click is not a
   drag, and the keyboard sensor, which is what answers Space, Enter and the

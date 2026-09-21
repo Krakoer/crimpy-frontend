@@ -28,6 +28,7 @@
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
 	import { DragDropProvider } from '@dnd-kit/svelte';
+	import { dndPlugins } from '$lib/dnd-plugins';
 	import { dndSensors } from '$lib/dnd-sensors';
 	import { createTrainingDragHandlers } from '$lib/training-drag-handlers.svelte';
 	import { newBlockId } from '$lib/training-drag';
@@ -589,7 +590,13 @@
 			{/if}
 		</div>
 	{:else if !logOnly}
-		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
+		<DragDropProvider
+			sensors={dndSensors}
+			plugins={dndPlugins}
+			{onDragStart}
+			{onDragOver}
+			{onDragEnd}
+		>
 			<div class="flex items-start">
 				<!-- Main content -->
 				<div class="flex-1" style="padding: 20px 28px 40px; min-width: 0;">

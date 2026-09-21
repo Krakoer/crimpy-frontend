@@ -14,9 +14,7 @@
 		type AssessmentCatalog
 	} from '$lib/assessments';
 	import { createPrescription, initialBoxes } from './exercise-prescription';
-	import ItemComment from './ItemComment.svelte';
-	import ItemGoal from './ItemGoal.svelte';
-	import ItemProtocol from './ItemProtocol.svelte';
+	import ItemNotes from './ItemNotes.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -517,9 +515,7 @@
 				</div>
 			</div>
 
-			<ItemGoal {item} {overriding} />
-			<ItemProtocol {item} {overriding} />
-			<ItemComment {item} {overriding} />
+			<ItemNotes {item} {overriding} />
 		</div>
 	{/if}
 </div>

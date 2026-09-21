@@ -783,6 +783,28 @@ async function saveTraining(page: Page) {
 	await expect(page.getByText('Training saved')).toBeVisible();
 }
 
+type ItemNote = 'goal' | 'protocol' | 'comment';
+
+const NOTE_PLACEHOLDER: Record<ItemNote, string> = {
+	goal: 'What this block trains (e.g. finger endurance)',
+	protocol:
+		'The rule the athlete resolves (e.g. to failure or 40s; past 40s add 5kg, short of it put your feet on the ground)',
+	comment: 'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)'
+};
+
+/**
+ * Writes one of a block's three prose fields. An empty field is collapsed
+ * behind its own affordance, so the coach asks for it before typing; a field the
+ * block already carries is open and takes the text straight away.
+ */
+async function writeNote(page: Page, note: ItemNote, text: string) {
+	const field = page.getByPlaceholder(NOTE_PLACEHOLDER[note]);
+	if ((await field.count()) === 0) {
+		await page.getByRole('button', { name: `Add a ${note}` }).click();
+	}
+	await field.fill(text);
+}
+
 function savedHangboardItem(updates: ReturnType<typeof capture>) {
 	expect(updates).toHaveLength(1);
 	return (updates[0].body as { items: Record<string, unknown>[] }).items[0];
@@ -1446,13 +1468,10 @@ test.describe('hang rep items', () => {
 });
 
 test.describe('item comments', () => {
-	const COMMENT_PLACEHOLDER =
-		'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)';
-
 	test('saves a comment typed on a repeater', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangboardItem());
 
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Ramp the hand spacing down.');
+		await writeNote(page, 'comment', 'Ramp the hand spacing down.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1463,7 +1482,7 @@ test.describe('item comments', () => {
 	test('saves a comment typed on a hang rep', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangRepItem());
 
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Max speed intent on the way up.');
+		await writeNote(page, 'comment', 'Max speed intent on the way up.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1480,7 +1499,7 @@ test.describe('item comments', () => {
 			rest_seconds: 0
 		});
 
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('First rep in pronation.');
+		await writeNote(page, 'comment', 'First rep in pronation.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1498,7 +1517,7 @@ test.describe('item comments', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Shoulders engaged, full apnea.');
+		await writeNote(page, 'comment', 'Shoulders engaged, full apnea.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1515,7 +1534,7 @@ test.describe('item comments', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('No rest between exercises.');
+		await writeNote(page, 'comment', 'No rest between exercises.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1532,7 +1551,7 @@ test.describe('item comments', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('Intensity 6 or 7 out of 10 maximum.');
+		await writeNote(page, 'comment', 'Intensity 6 or 7 out of 10 maximum.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1615,14 +1634,10 @@ test.describe('item comments', () => {
  * goal holds across the weeks that retune it.
  */
 test.describe('item goals', () => {
-	const GOAL_PLACEHOLDER = 'What this block trains (e.g. finger endurance)';
-	const COMMENT_PLACEHOLDER =
-		'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)';
-
 	test('saves a goal typed on a repeater', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangboardItem());
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('resi doigts');
+		await writeNote(page, 'goal', 'resi doigts');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'resi doigts' });
@@ -1631,7 +1646,7 @@ test.describe('item goals', () => {
 	test('saves a goal typed on a hang rep', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangRepItem());
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('force max doigts');
+		await writeNote(page, 'goal', 'force max doigts');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'force max doigts' });
@@ -1646,7 +1661,7 @@ test.describe('item goals', () => {
 			rest_seconds: 0
 		});
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('explo jambes');
+		await writeNote(page, 'goal', 'explo jambes');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'explo jambes' });
@@ -1662,7 +1677,7 @@ test.describe('item goals', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('capacite/endurance doigts');
+		await writeNote(page, 'goal', 'capacite/endurance doigts');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'capacite/endurance doigts' });
@@ -1677,7 +1692,7 @@ test.describe('item goals', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('garder du plaisir dans la pratique');
+		await writeNote(page, 'goal', 'garder du plaisir dans la pratique');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1694,7 +1709,7 @@ test.describe('item goals', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('force/hypertrophie des muscles de poussee');
+		await writeNote(page, 'goal', 'force/hypertrophie des muscles de poussee');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1713,8 +1728,8 @@ test.describe('item goals', () => {
 			rest_seconds: 0
 		});
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('resi doigts');
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('First rep in pronation.');
+		await writeNote(page, 'goal', 'resi doigts');
+		await writeNote(page, 'comment', 'First rep in pronation.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1802,12 +1817,6 @@ test.describe('item goals', () => {
  * of them whole.
  */
 test.describe('item protocols', () => {
-	const PROTOCOL_PLACEHOLDER =
-		'The rule the athlete resolves (e.g. to failure or 40s; past 40s add 5kg, short of it put your feet on the ground)';
-	const GOAL_PLACEHOLDER = 'What this block trains (e.g. finger endurance)';
-	const COMMENT_PLACEHOLDER =
-		'Optional note for the athlete (e.g. 3 sec pause at the bottom of each rep)';
-
 	const branchOnTheResult =
 		'Hang on 20mm, 3 fingers extended, to failure or 40s, 3 sets, 2 min rest. If you go past 40s add 5kg; if you fall short, put your feet on the ground.';
 	const deriveLaterSets =
@@ -1820,7 +1829,7 @@ test.describe('item protocols', () => {
 	test('saves the branch on the result written on a repeater', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangboardItem());
 
-		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(branchOnTheResult);
+		await writeNote(page, 'protocol', branchOnTheResult);
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ protocol: branchOnTheResult });
@@ -1829,7 +1838,7 @@ test.describe('item protocols', () => {
 	test('saves the derived sets rule written on a hang rep', async ({ page }) => {
 		const updates = await openHangboardEditor(page, hangRepItem());
 
-		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(deriveLaterSets);
+		await writeNote(page, 'protocol', deriveLaterSets);
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ protocol: deriveLaterSets });
@@ -1844,7 +1853,7 @@ test.describe('item protocols', () => {
 			rest_seconds: 0
 		});
 
-		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(rampToALimit);
+		await writeNote(page, 'protocol', rampToALimit);
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ protocol: rampToALimit });
@@ -1859,7 +1868,7 @@ test.describe('item protocols', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(stopRuleOnATest);
+		await writeNote(page, 'protocol', stopRuleOnATest);
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({ protocol: stopRuleOnATest });
@@ -1875,7 +1884,7 @@ test.describe('item protocols', () => {
 			items: []
 		});
 
-		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill('Drop out when you miss a round.');
+		await writeNote(page, 'protocol', 'Drop out when you miss a round.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1892,9 +1901,7 @@ test.describe('item protocols', () => {
 			items: []
 		});
 
-		await page
-			.getByPlaceholder(PROTOCOL_PLACEHOLDER)
-			.fill('Skip the last block if the fingers feel cold.');
+		await writeNote(page, 'protocol', 'Skip the last block if the fingers feel cold.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -1915,9 +1922,9 @@ test.describe('item protocols', () => {
 			rest_seconds: 0
 		});
 
-		await page.getByPlaceholder(GOAL_PLACEHOLDER).fill('resi doigts');
-		await page.getByPlaceholder(PROTOCOL_PLACEHOLDER).fill(stopRuleOnATest);
-		await page.getByPlaceholder(COMMENT_PLACEHOLDER).fill('First rep in pronation.');
+		await writeNote(page, 'goal', 'resi doigts');
+		await writeNote(page, 'protocol', stopRuleOnATest);
+		await writeNote(page, 'comment', 'First rep in pronation.');
 		await saveTraining(page);
 
 		expect(savedHangboardItem(updates)).toMatchObject({
@@ -2919,11 +2926,111 @@ test.describe('percentage prescriptions', () => {
 	});
 });
 
-test.describe('reordering root blocks', () => {
-	// A circuit holding a block is taller than the default window, and a drag
-	// that reaches past the fold scrolls the page out from under itself.
-	test.use({ viewport: { width: 1280, height: 1000 } });
+/**
+ * The three prose fields were always open, which added about 260px to every
+ * block whether or not the coach had written anything, and twice pushed a drag
+ * handle into dnd-kit's autoscroll margin. An empty one is a button now. What
+ * these specs pin is that nothing a block carries hides behind it: a coach who
+ * cannot see their own text has lost it as far as they know.
+ */
+test.describe('collapsed note fields', () => {
+	const exerciseBlock = {
+		id: 'item-1',
+		type: 'exercise',
+		position: 0,
+		reps: 5,
+		rest_seconds: 0
+	};
 
+	test('offers a button instead of an empty field on a block with no prose', async ({ page }) => {
+		await openHangboardEditor(page, exerciseBlock);
+
+		await expect(page.getByRole('button', { name: 'Add a goal' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Add a protocol' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Add a comment' })).toBeVisible();
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.goal)).toHaveCount(0);
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.protocol)).toHaveCount(0);
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.comment)).toHaveCount(0);
+	});
+
+	test('shows the prose a block already carries without being asked', async ({ page }) => {
+		await openHangboardEditor(page, {
+			...exerciseBlock,
+			goal: 'resi doigts',
+			protocol: 'Stop at 24 reps.',
+			comment: 'First rep in pronation.'
+		});
+
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.goal)).toHaveValue('resi doigts');
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.protocol)).toHaveValue('Stop at 24 reps.');
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.comment)).toHaveValue(
+			'First rep in pronation.'
+		);
+		await expect(page.getByRole('button', { name: 'Add a goal' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Add a protocol' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Add a comment' })).toHaveCount(0);
+	});
+
+	// A block whose only prose is whitespace has nothing to show, so it goes back
+	// to offering the button rather than keeping a field open on nothing.
+	test('offers the button again for prose that is only whitespace', async ({ page }) => {
+		await openHangboardEditor(page, { ...exerciseBlock, comment: '   ' });
+
+		await expect(page.getByRole('button', { name: 'Add a comment' })).toBeVisible();
+	});
+
+	test('puts the caret in the field the coach just asked for', async ({ page }) => {
+		await openHangboardEditor(page, exerciseBlock);
+
+		await page.getByRole('button', { name: 'Add a protocol' }).click();
+
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.protocol)).toBeFocused();
+	});
+
+	// Only the field that was asked for opens. The other two stay collapsed, or
+	// the affordance would be a way of expanding the card rather than of writing
+	// one note.
+	test('opens only the field whose button was pressed', async ({ page }) => {
+		await openHangboardEditor(page, exerciseBlock);
+
+		await page.getByRole('button', { name: 'Add a goal' }).click();
+
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.goal)).toBeVisible();
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.protocol)).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Add a protocol' })).toBeVisible();
+	});
+
+	test('shows a goal written on an empty block again after a reload', async ({ page }) => {
+		const training = testTraining({ items: [exerciseBlock] });
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stub(page, 'PUT', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+		const updates = capture(page, 'PUT', '/api/trainings/*');
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await writeNote(page, 'goal', 'resi doigts');
+		await saveTraining(page);
+
+		expect(savedHangboardItem(updates)).toMatchObject({ goal: 'resi doigts' });
+
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ items: [{ ...exerciseBlock, goal: 'resi doigts' }] })
+		});
+		await page.reload();
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		await expect(page.getByPlaceholder(NOTE_PLACEHOLDER.goal)).toHaveValue('resi doigts');
+	});
+});
+
+// Every spec here runs at Playwright's default 1280x720, which is an ordinary
+// coach viewport. Three prose fields per block had grown the cards past dnd-kit's
+// autoscroll margin twice, and each time the viewport was raised instead, which
+// is what stopped CI seeing the next one. The margin is set on the drag setup
+// now, in $lib/dnd-plugins, and the empty note fields are collapsed, so the
+// handles fit back on a real screen.
+test.describe('reordering root blocks', () => {
 	function dragHandles(page: Page) {
 		return page.getByRole('button', { name: 'Drag to reorder' });
 	}
@@ -2939,6 +3046,40 @@ test.describe('reordering root blocks', () => {
 		group_title: 'Cooldown',
 		items: []
 	};
+
+	// The margin was narrowed rather than switched off. A drag really held against
+	// the bottom edge still has to carry the list up, or a coach could not move a
+	// block past the fold at all.
+	test('still scrolls the editor when a drag is held against the bottom edge', async ({ page }) => {
+		const training = testTraining({
+			items: Array.from({ length: 8 }, (_, position) => ({
+				id: `item-${position}`,
+				type: 'group',
+				position,
+				group_title: `Block ${position}`,
+				items: []
+			}))
+		});
+		await stub(page, 'GET', '/api/trainings/*', { body: training });
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+
+		const scrolled = () => page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0);
+		expect(await scrolled()).toBe(0);
+
+		const handle = await dragHandles(page).nth(0).boundingBox();
+		if (!handle) throw new Error('The drag handle is not laid out');
+		const viewport = page.viewportSize();
+		if (!viewport) throw new Error('The page has no viewport');
+
+		await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(handle.x + handle.width / 2, viewport.height - 6, { steps: 10 });
+		await expect.poll(scrolled).toBeGreaterThan(0);
+		await page.mouse.up();
+	});
 
 	test('moves a block down when it is dropped onto the one below it', async ({ page }) => {
 		const training = testTraining({ items: [warmupGroup, cooldownGroup] });
@@ -3008,12 +3149,6 @@ test.describe('reordering root blocks', () => {
 	});
 
 	test('moves a block up when it is dropped onto the one above it', async ({ page }) => {
-		// Two group cards each carry a goal, a protocol and a comment field, so
-		// the second handle sits near the default viewport's bottom edge, inside
-		// dnd-kit's own autoscroll zone, and the drag races it. Same fix as the
-		// empty circuit case below: a taller viewport keeps the handle clear of
-		// that edge.
-		await page.setViewportSize({ width: 1280, height: 1400 });
 		const training = testTraining({ items: [warmupGroup, cooldownGroup] });
 		await stub(page, 'GET', '/api/trainings/*', { body: training });
 		await stub(page, 'PUT', '/api/trainings/*', { body: training });
@@ -3032,11 +3167,6 @@ test.describe('reordering root blocks', () => {
 	});
 
 	test('drops a block into an empty circuit when it is dragged over its body', async ({ page }) => {
-		// An empty circuit's add zone now sits below the comment field added for
-		// Krakoer/crimpy#66, close enough to the default viewport's bottom edge to
-		// fall inside dnd-kit's own autoscroll zone and race the drag. A taller
-		// viewport keeps the drop target away from that edge.
-		await page.setViewportSize({ width: 1280, height: 1400 });
 		await stubEditorPalette(page);
 		await stub(page, 'POST', '/api/trainings', { body: testTraining({ id: 'training-9' }) });
 		await stub(page, 'GET', '/api/trainings/*', { body: testTraining({ id: 'training-9' }) });

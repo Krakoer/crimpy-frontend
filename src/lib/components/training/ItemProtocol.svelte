@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { TrainingItem } from '$lib/api/client';
+	import { focusWhen } from '$lib/focus-when';
 
 	interface Props {
 		item: TrainingItem;
@@ -7,9 +8,12 @@
 		// what the block is, and a week that resolves differently is retuning the
 		// numbers the rule reads rather than the rule.
 		overriding: boolean;
+		// Set when the field was just opened from its affordance, so the caret
+		// lands in it rather than on the button that has gone.
+		focusOnMount?: boolean;
 	}
 
-	let { item, overriding }: Props = $props();
+	let { item, overriding, focusOnMount = false }: Props = $props();
 
 	// Matches maxItemProtocolLen in crimpy-backend. A protocol is prose with a
 	// condition in it rather than a label, so it gets the comment's room.
@@ -36,6 +40,7 @@
 		>
 		<textarea
 			aria-label="Protocol"
+			{@attach focusWhen(focusOnMount)}
 			bind:value={item.protocol}
 			maxlength={MAX_PROTOCOL_LENGTH}
 			rows="2"

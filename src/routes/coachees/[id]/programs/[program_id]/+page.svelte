@@ -6,6 +6,7 @@
 	import { mondayOf } from '$lib/date';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { DragDropProvider } from '@dnd-kit/svelte';
+	import { dndPlugins } from '$lib/dnd-plugins';
 	import { dndSensors } from '$lib/dnd-sensors';
 	import { newItemId } from '$lib/dnd-new-item';
 	import { createProgramDragHandlers } from '$lib/program-drag-handlers.svelte';
@@ -1216,7 +1217,13 @@
 		</div>
 
 		<!-- DragDropProvider wraps week grid + right rail so SidePanelDraggable has context -->
-		<DragDropProvider sensors={dndSensors} {onDragStart} {onDragOver} {onDragEnd}>
+		<DragDropProvider
+			sensors={dndSensors}
+			plugins={dndPlugins}
+			{onDragStart}
+			{onDragOver}
+			{onDragEnd}
+		>
 			<div style="display: flex; align-items: flex-start;">
 				<div style="flex: 1; min-width: 0; padding: 16px 24px 40px;">
 					<div style="display: flex; flex-direction: column; gap: 6px;">
