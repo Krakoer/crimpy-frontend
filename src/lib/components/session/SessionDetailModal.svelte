@@ -138,9 +138,9 @@
 {#snippet unavailable(what: string)}
 	<div
 		data-testid="session-collection-unavailable"
-		style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--rd);"
+		style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--rd-tx);"
 	>
-		<Icon name="alert" size={16} color="var(--rd)" />
+		<Icon name="alert" size={16} color="var(--rd-tx)" />
 		<span>{what} could not be loaded, so nothing here says what it held.</span>
 	</div>
 {/snippet}
@@ -198,7 +198,7 @@
 		<div class="space-y-3 overflow-y-auto" style="padding: 18px 20px; background: var(--bg);">
 			{#if error}
 				<div
-					style="border: 1px solid var(--rd); background: var(--panel); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+					style="border: 1px solid var(--rd); background: var(--panel); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 				>
 					{error}
 				</div>
@@ -325,7 +325,7 @@
 				     them when this read failed, so the notice sits under it rather than
 				     replacing it: the prescription itself was read fine. -->
 				{#if itemResultsUnavailable}
-					{@render unavailable('What the athlete reported about this session')}
+					{@render unavailable("The counts the athlete reported against this session's items")}
 				{/if}
 
 				{#if assessmentsUnavailable}

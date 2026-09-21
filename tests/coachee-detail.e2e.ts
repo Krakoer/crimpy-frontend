@@ -2915,7 +2915,8 @@ test.describe('a session detail read that partly failed', () => {
 		await expect(
 			dialog.getByText('The assessment results of this session could not be loaded')
 		).toBeVisible();
-		await expect(dialog.getByText('Assessment results', { exact: true })).toBeHidden();
+		// One notice, for the one read that failed: the other two came back.
+		await expect(dialog.getByTestId('session-collection-unavailable')).toHaveCount(1);
 		// The count is drawn from the reps and the reported items, neither of which
 		// failed here, so it is still a number rather than a dash.
 		await expect(dialog.getByTestId('session-stat-reps')).toContainText('1');
@@ -2929,9 +2930,41 @@ test.describe('a session detail read that partly failed', () => {
 
 		const dialog = page.getByRole('dialog');
 		await expect(
-			dialog.getByText('What the athlete reported about this session could not be loaded')
+			dialog.getByText(
+				"The counts the athlete reported against this session's items could not be loaded"
+			)
 		).toBeVisible();
 		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeHidden();
+	});
+
+	// A logged session is the case the reps clause of hasRepData exists for. Without
+	// it the modal falls to the duration layout, whose line claims the session
+	// carries no sensor measurements, which is the class of sentence this ticket
+	// exists to stop a failed read from producing.
+	test('does not call a logged session unmeasured when its reps failed', async ({ page }) => {
+		const logged = testSession({
+			id: 'session-partial',
+			name: 'Repeaters 20mm',
+			activity: 0,
+			origin: 'logged',
+			date: isoDaysAgo(1)
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [logged] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetailMissing(testSessionDetail(logged, someReps), 'rep_datas')
+		});
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(
+			dialog.getByText('The rep data for this session could not be loaded')
+		).toBeVisible();
+		await expect(
+			dialog.getByText('Logged by the athlete, so it carries no sensor measurements.')
+		).toBeHidden();
+		await expect(dialog.getByTestId('session-stat-reps')).toContainText('--');
 	});
 
 	// The other half of the contract, and the one that keeps the notice honest: a
