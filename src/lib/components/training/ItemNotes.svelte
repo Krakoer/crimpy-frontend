@@ -23,6 +23,13 @@
 	// coach pressed its button, and then it stays open for as long as the card
 	// is. Reading the text instead would take the field away mid edit, the moment
 	// a coach rewriting a note deletes its last character.
+	//
+	// Read once, at mount, which holds because nothing gives an item prose it did
+	// not have while its card stays up: every path that reloads the tree mints
+	// fresh `_id`s and so remounts the keyed card, and the drag cancel path puts
+	// back a snapshot carrying the same prose it took. Anything later that
+	// restores saved text into a live item has to reopen the field with it, or a
+	// coach's own goal ends up behind an Add a goal button.
 	let opened = $state(
 		untrack(() => ({
 			goal: !!item.goal?.trim(),

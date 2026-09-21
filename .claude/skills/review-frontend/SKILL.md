@@ -80,10 +80,10 @@ established pattern rather than reinventing it:
 - `<DragDropProvider sensors={dndSensors} plugins={dndPlugins} ...>`, with
   `dndSensors` imported from `$lib/dnd-sensors` and `dndPlugins` from
   `$lib/dnd-plugins`. A route that builds its own sensor list is a finding, on
-  the grounds of three copies drifting apart, not on correctness: `DragDropProvider` constructs its manager with dnd-kit's defaults
-  before assigning the prop, so the keyboard sensor is bound either way. Do not
-  report a missing `KeyboardSensor` as switching keyboard dragging off. It does
-  not.
+  the grounds of three copies drifting apart, not on correctness:
+  `DragDropProvider` constructs its manager with dnd-kit's defaults before
+  assigning the prop, so the keyboard sensor is bound either way. Do not report a
+  missing `KeyboardSensor` as switching keyboard dragging off. It does not.
 - A provider with no `plugins` is a finding on correctness: `dndPlugins` narrows
   dnd-kit's autoscroll band from a fifth of the scroll container to a twentieth,
   and the default band is wide enough that a block card's drag handle sits in it

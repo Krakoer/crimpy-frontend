@@ -2410,6 +2410,28 @@ test('shows a training item protocol in the week editor, read only', async ({ pa
 	await expect(modal.getByPlaceholder(/The rule the athlete resolves/)).toHaveCount(0);
 });
 
+// The three prose fields are collapsed behind their own buttons in the training
+// editor now. Those buttons must not follow them into the week editor: the three
+// specs above only say the inputs are absent, and a block with no prose has no
+// text for them to read out, so nothing else would notice the affordance being
+// offered here. A coach who took it would be typing into a field diffOverrides
+// does not emit, and the save would drop it without saying so.
+test('offers no way to add prose in the week editor', async ({ page }) => {
+	await stubTwoWeekProgram(page, [], openBlocksTraining());
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await expect(modal).toBeVisible();
+	await expect(modal.getByRole('button', { name: /^Add a / })).toHaveCount(0);
+});
+
 // A note is prose for the athlete, and a week may change what a training asks
 // for rather than what it says, so the week editor reads the note out and says
 // that it is the training that holds it.
