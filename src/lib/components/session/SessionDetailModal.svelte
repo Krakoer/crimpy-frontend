@@ -50,13 +50,24 @@
 	let error = $state('');
 
 	const detail = $derived<SessionResponse>(loaded?.session ?? session);
+	// A collection the server left out of its answer could not be read, which is
+	// a different thing from a session that holds none of it. Only a detail that
+	// arrived can be missing one: before it lands there is nothing to miss, and
+	// the loading state below already says so.
+	// Compared with == null rather than === undefined, so a collection sent as
+	// null reads as unanswered too. The API omits the key, but absent and null
+	// are the same statement and only one of them should have to be spelled out
+	// here.
+	const repsUnavailable = $derived(loaded !== null && loaded.rep_datas == null);
+	const assessmentsUnavailable = $derived(loaded !== null && loaded.assessments == null);
+	const itemResultsUnavailable = $derived(loaded !== null && loaded.item_results == null);
 	const reps = $derived<RepData[]>(loaded?.rep_datas ?? []);
 	// Whether there are measurements to show is decided by the reps the session
 	// carries, not by what it was labelled: a hangboard block a coach filed under
 	// any activity still comes back with every rep the sensor recorded. Played
 	// sessions with no reps yet still get the layout, so the empty state below can
 	// say so rather than the session looking like a hand-written log.
-	const hasRepData = $derived(reps.length > 0 || detail.origin === 'played');
+	const hasRepData = $derived(repsUnavailable || reps.length > 0 || detail.origin === 'played');
 	const assessments = $derived<SessionAssessment[]>(loaded?.assessments ?? []);
 	// The results of this session, each carrying the day it was measured on, which
 	// is the session's own. The session read names that day once rather than on
@@ -90,6 +101,10 @@
 		itemResults.reduce((total, result) => total + (result.reps ?? 0), 0)
 	);
 	const totalReps = $derived(timedReps + reportedReps);
+	// Both halves of the count come from a collection of their own, so either one
+	// failing leaves the total unknowable rather than lower. A number short by
+	// whatever could not be read is worse than no number.
+	const repsUnknown = $derived(repsUnavailable || itemResultsUnavailable);
 	const type = $derived(sessionActivityInfo(detail.activity));
 	// What the session cost the athlete. Null when they reported nothing, which
 	// the card below still says out loud: an unanswered prompt is a thing a coach
@@ -115,6 +130,20 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
+
+<!-- What a collection the server could not read looks like. Said out loud rather
+     than drawn as nothing: an empty card reads as a session the athlete recorded
+     nothing in, which is the wrong thing to tell a coach about a read that
+     failed. One snippet so the three of them cannot word it differently. -->
+{#snippet unavailable(what: string)}
+	<div
+		data-testid="session-collection-unavailable"
+		style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--rd-tx);"
+	>
+		<Icon name="alert" size={16} color="var(--rd-tx)" />
+		<span>{what} could not be loaded, so nothing here says what it held.</span>
+	</div>
+{/snippet}
 
 <div
 	style="position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(45,36,29,0.4);"
@@ -169,7 +198,7 @@
 		<div class="space-y-3 overflow-y-auto" style="padding: 18px 20px; background: var(--bg);">
 			{#if error}
 				<div
-					style="border: 1px solid var(--rd); background: var(--panel); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd);"
+					style="border: 1px solid var(--rd); background: var(--panel); border-radius: var(--rs); padding: 12px; font-size: 12.5px; color: var(--rd-tx);"
 				>
 					{error}
 				</div>
@@ -180,7 +209,7 @@
 					class="grid grid-cols-4"
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
 				>
-					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading ? '--' : String(totalReps) }] as stat (stat.k)}
+					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading || repsUnknown ? '--' : String(totalReps) }] as stat (stat.k)}
 						<div data-testid="session-stat-{stat.k.toLowerCase()}" style="padding: 14px 16px;">
 							<div
 								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
@@ -271,7 +300,9 @@
 					Loading session details...
 				</div>
 			{:else}
-				{#if hasRepData}
+				{#if repsUnavailable}
+					{@render unavailable('The rep data for this session')}
+				{:else if hasRepData}
 					<SessionRepsCard session={detail} {reps} accent={type.color} />
 				{/if}
 
@@ -290,7 +321,16 @@
 					</div>
 				{/if}
 
-				{#if assessments.length > 0}
+				<!-- The prescription card above draws the items with no answer against
+				     them when this read failed, so the notice sits under it rather than
+				     replacing it: the prescription itself was read fine. -->
+				{#if itemResultsUnavailable}
+					{@render unavailable("The counts the athlete reported against this session's items")}
+				{/if}
+
+				{#if assessmentsUnavailable}
+					{@render unavailable('The assessment results of this session')}
+				{:else if assessments.length > 0}
 					<div
 						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); overflow: hidden;"
 					>
@@ -374,7 +414,7 @@
 				<!-- A played session that recorded only open counts measured no rep and
 				     is still not empty, so the notice belongs to a run that recorded
 				     nothing at all. -->
-				{#if hasRepData && reps.length === 0 && itemResults.length === 0 && !error}
+				{#if hasRepData && reps.length === 0 && itemResults.length === 0 && !repsUnknown && !error}
 					<div
 						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3);"
 					>

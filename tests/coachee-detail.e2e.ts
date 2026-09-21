@@ -18,6 +18,8 @@ import {
 	testRepData,
 	testSession,
 	testSessionDetail,
+	testSessionDetailMissing,
+	type TestSessionDetail,
 	testSessionItemResult,
 	testUser
 } from './fixtures';
@@ -2852,5 +2854,127 @@ test.describe('session RPE', () => {
 		await row.click();
 		const card = page.getByRole('dialog').getByTestId('session-rpe-card');
 		await expect(card).toContainText('Not reported by the athlete.');
+	});
+});
+
+// Krakoer/crimpy#130. A session detail is drawn from three reads on the server,
+// and one of them failing leaves its collection out of the answer rather than
+// sending an empty array. The modal has to tell the two apart: an empty array is
+// a session that recorded none of that collection, and an absent one is a
+// collection nobody could read. Drawing the second as the first is how a coach
+// gets told the sensor measured nothing during a partial deploy.
+test.describe('a session detail read that partly failed', () => {
+	const played = testSession({
+		id: 'session-partial',
+		name: 'Repeaters 20mm',
+		activity: 0,
+		origin: 'played',
+		date: isoDaysAgo(1)
+	});
+	const someReps = [
+		testRepData({ id: 'rep-a', index: 0, average_weight: 31, target_weight: 30, hand: 'right' })
+	];
+
+	async function openPartialSession(page: Page, detail: TestSessionDetail): Promise<void> {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [played] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', { body: detail });
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+	}
+
+	test('says the rep data could not be loaded when the server left it out', async ({ page }) => {
+		await openPartialSession(
+			page,
+			testSessionDetailMissing(testSessionDetail(played, someReps), 'rep_datas')
+		);
+
+		const dialog = page.getByRole('dialog');
+		await expect(
+			dialog.getByText('The rep data for this session could not be loaded, so nothing here says')
+		).toBeVisible();
+		// The two answers a coach must not be given for a read that failed: the
+		// measurements drawn as none, and the session called one that recorded
+		// nothing.
+		await expect(dialog.getByText('Performance')).toBeHidden();
+		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeHidden();
+		// The count is drawn from the reps and the reported items together, so a
+		// read that failed leaves it unknowable rather than short by what it held.
+		await expect(dialog.getByTestId('session-stat-reps')).toContainText('--');
+		// The rest of the session is still on screen.
+		await expect(dialog.getByText('Repeaters 20mm')).toBeVisible();
+	});
+
+	test('says the assessment results could not be loaded', async ({ page }) => {
+		await openPartialSession(
+			page,
+			testSessionDetailMissing(testSessionDetail(played, someReps), 'assessments')
+		);
+
+		const dialog = page.getByRole('dialog');
+		await expect(
+			dialog.getByText('The assessment results of this session could not be loaded')
+		).toBeVisible();
+		// One notice, for the one read that failed: the other two came back.
+		await expect(dialog.getByTestId('session-collection-unavailable')).toHaveCount(1);
+		// The count is drawn from the reps and the reported items, neither of which
+		// failed here, so it is still a number rather than a dash.
+		await expect(dialog.getByTestId('session-stat-reps')).toContainText('1');
+	});
+
+	test('says what the athlete reported could not be loaded', async ({ page }) => {
+		await openPartialSession(
+			page,
+			testSessionDetailMissing(testSessionDetail(played, someReps), 'item_results')
+		);
+
+		const dialog = page.getByRole('dialog');
+		await expect(
+			dialog.getByText(
+				"The counts the athlete reported against this session's items could not be loaded"
+			)
+		).toBeVisible();
+		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeHidden();
+	});
+
+	// A logged session is the case the reps clause of hasRepData exists for. Without
+	// it the modal falls to the duration layout, whose line claims the session
+	// carries no sensor measurements, which is the class of sentence this ticket
+	// exists to stop a failed read from producing.
+	test('does not call a logged session unmeasured when its reps failed', async ({ page }) => {
+		const logged = testSession({
+			id: 'session-partial',
+			name: 'Repeaters 20mm',
+			activity: 0,
+			origin: 'logged',
+			date: isoDaysAgo(1)
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [logged] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetailMissing(testSessionDetail(logged, someReps), 'rep_datas')
+		});
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(
+			dialog.getByText('The rep data for this session could not be loaded')
+		).toBeVisible();
+		await expect(
+			dialog.getByText('Logged by the athlete, so it carries no sensor measurements.')
+		).toBeHidden();
+		await expect(dialog.getByTestId('session-stat-reps')).toContainText('--');
+	});
+
+	// The other half of the contract, and the one that keeps the notice honest: a
+	// session that genuinely holds none of the three still answers with empty
+	// arrays, and an empty array is not a failure to report.
+	test('draws a session that recorded nothing as empty, not as unloadable', async ({ page }) => {
+		await openPartialSession(page, testSessionDetail(played));
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByTestId('session-collection-unavailable')).toHaveCount(0);
+		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeVisible();
 	});
 });

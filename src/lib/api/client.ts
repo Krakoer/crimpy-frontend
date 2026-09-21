@@ -170,10 +170,19 @@ export interface SessionItemResult {
 	updated_at: string;
 }
 
+// What a session read answers with: the session and the three collections
+// recorded against it.
+//
+// Each collection is drawn by a read of its own on the server, and a read that
+// fails leaves its collection out of the object rather than sending an empty
+// array. So absent and empty are different answers and have to be drawn
+// differently: absent is a collection that could not be loaded, [] is a session
+// that holds none of it. Reading an absent one as empty is what used to make the
+// modal say the sensor recorded nothing during a partial deploy.
 export interface SessionDetail {
 	session: SessionResponse;
-	rep_datas: RepData[];
-	assessments: SessionAssessment[];
+	rep_datas?: RepData[];
+	assessments?: SessionAssessment[];
 	item_results?: SessionItemResult[];
 }
 
