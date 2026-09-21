@@ -2,7 +2,8 @@
 	import { apiClient, type AssessmentResponse, type AssessmentSnapshot } from '$lib/api/client';
 	import { gripLabel } from '$lib/sessions';
 	import { formatUnitValue, unitLabel } from '$lib/assessments';
-	import { formatRatio, missingRatioLabel, type MissingRatio } from './bodyweight-ratio';
+	import { formatRatio, missingRatioLabel } from './bodyweight-ratio';
+	import { missingRatioColor, progressionColor } from './comparison-colors';
 	import { formatDayMonth } from '$lib/date';
 	import {
 		compareSnapshots,
@@ -102,15 +103,6 @@
 		return value.measuredAt.slice(0, 10) === day ? '' : formatDay(value.measuredAt.slice(0, 10));
 	}
 
-	function progressionColor(hand: ComparedHand): string {
-		if (hand.delta === undefined) return 'var(--tx3)';
-		// A result that did not move is not a loss, including the one the
-		// percentage cannot answer for because it started at zero.
-		if (hand.delta === 0) return 'var(--tx2)';
-		if (hand.percent !== undefined && Math.abs(hand.percent) < 0.05) return 'var(--tx2)';
-		return hand.delta > 0 ? 'var(--gn-tx)' : 'var(--rd)';
-	}
-
 	function progressionLabel(hand: ComparedHand, row: ComparisonRow): string {
 		if (hand.unchanged) return 'not retested';
 		if (!hand.before && !hand.after) return '--';
@@ -130,12 +122,6 @@
 		// value cell beside this one says which side and why, and a difference
 		// between a ratio and a load in kilograms would be neither.
 		return 'no ratio to compare';
-	}
-
-	// A weigh-in that went stale is a caution, and one that never happened is an
-	// absence: the athlete can fix the first by stepping on the scales.
-	function missingRatioColor(missing: MissingRatio): string {
-		return missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd)';
 	}
 
 	function handLabel(hand: ComparedHand): string {

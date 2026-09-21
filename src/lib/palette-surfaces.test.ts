@@ -588,12 +588,34 @@ interface AccentUse {
 // is rooted in, or from the file's own literals when it is rooted in none. An
 // expression that resolves to nothing is a blind spot rather than a pass, and
 // is listed with the other blind spots at the top of this file.
+//
+// Two of those blind spots live here rather than in the ground logic:
+//
+//   - a colour returned by a function, `toneColor(band.tone)`. Nothing is
+//     resolved, and nothing is a pass. Three live defects hid behind this shape
+//     through the whole of #128's first pass: the training load panel, and both
+//     helpers of AssessmentComparison. The answer is not to resolve calls, which
+//     would mean following `toneColor` into another module, but to name each
+//     such helper as a pairing in palette-contrast.test.ts. `toneTextColor`,
+//     `toneMarkColor`, `progressionColor`, `missingRatioColor` and
+//     `denominatorNoteColor` are all measured there for that reason.
+//   - the file-local fallback puts every `field: 'var(--x)'` literal in a file
+//     into one namespace. Two record shapes in one file that both carry a
+//     `color` would be merged, and a `.color` rooted in the safe one measured
+//     against the union. It is the defect COLOUR_TABLES exists to prevent,
+//     which the fallback does not get, and it errs towards reporting rather
+//     than towards silence.
 function accentsIn(
 	expression: string,
 	bound: Record<string, string>,
 	local: Record<string, string[]>
 ): AccentUse[] {
-	const value = expression.replace(/^[^:=]*[:=]\s*/, '');
+	// The property is dropped before the root identifier is read, and a Svelte
+	// style directive carries two separators rather than one: `style:color=`. A
+	// strip that stopped at the first of them left `color` as the root, so the
+	// binding walk looked up the CSS property and every field access written
+	// through a directive resolved to nothing.
+	const value = expression.replace(/^\s*(?:style:)?[\w-]*\s*[:=]\s*/, '');
 	const found: AccentUse[] = [];
 	for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
 		if (NEUTRAL_ACCENTS.includes(token)) found.push({ token, through: `var(--${token})` });
@@ -768,6 +790,11 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		expect(
 			accentsIn("color: {failed ? 'var(--rd)' : 'var(--tx3)'};", {}, {}).map((one) => one.token)
 		).toEqual(['rd']);
+		// A directive carries `style:` as well as the property, and the root of the
+		// binding walk has to be the expression rather than the word `color`.
+		expect(accentsIn('style:color={type.color}', activity, {}).map((one) => one.token)).toContain(
+			'gd'
+		);
 		expect(accentsIn('style:color={accent}', {}, {}).map((one) => one.token)).toEqual([]);
 		expect(accentsIn('color: {type.color};', activity, {}).map((one) => one.token)).toContain('gd');
 		expect(accentsIn('color: {type.text};', activity, {}).map((one) => one.token)).toEqual([]);

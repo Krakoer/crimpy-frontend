@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MARK_CONTRAST_FLOOR, TEXT_CONTRAST_FLOOR, contrastRatio } from '$lib/contrast';
 import { BLOCK_PRESENTATION } from '$lib/block-presentation';
+import { missingRatioColor, progressionColor } from '$lib/components/assessment/comparison-colors';
+import { toneColor, toneMarkColor, toneTextColor } from '$lib/training-load';
+import type { BandTone } from '$lib/training-load';
 import { SESSION_ACTIVITIES } from '$lib/sessions';
 import { TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 import { sessionRpe, sessionRpeColor, sessionRpeTint } from '$lib/rpe';
@@ -76,6 +79,8 @@ const MIRRORED_IN_CRIMPY_APP: Record<string, string> = {
 	'rd-tx': '#ac4747',
 	'bl-tx': '#4b698a'
 };
+
+const BAND_TONES: BandTone[] = ['low', 'good', 'high', 'unlabelled'];
 
 const session = (overrides: Partial<SessionResponse>): SessionResponse =>
 	({ id: 'x', rpe: null, rpe_failed: false, ...overrides }) as SessionResponse;
@@ -194,6 +199,53 @@ describe('surfaces that write an accent on a neutral ground', () => {
 	it.each(Object.entries(BLOCK_PRESENTATION))('holds the %s block button label', (type, block) => {
 		expectClearsFloor(block.label, block.text, 'var(--panel)', tokens);
 	});
+
+	// Colours a source scan will never see, because they come out of a function
+	// rather than a token. Each one is named here instead, which is the price of
+	// the guard not resolving calls.
+	it.each(BAND_TONES)('holds the %s load band as a table cell', (tone) => {
+		expectClearsFloor(`${tone} load cell`, toneTextColor(tone), 'var(--panel)', tokens);
+	});
+
+	it.each(BAND_TONES)('holds the %s load band as a headline figure', (tone) => {
+		const ratio = contrastRatio(
+			resolve(toneMarkColor(tone), tokens),
+			resolve('var(--panel)', tokens)
+		);
+		expect(
+			ratio,
+			`${tone} load figure: ${toneMarkColor(tone)} reads ${ratio.toFixed(2)}:1 on --panel, under the ${MARK_CONTRAST_FLOOR}:1 mark floor`
+		).toBeGreaterThanOrEqual(MARK_CONTRAST_FLOOR);
+	});
+
+	// The load figures are 26px bold, so large text, and keep their accent
+	// wherever the accent clears 3:1. Only gold moves, exactly as the session
+	// activity marks do.
+	it.each(BAND_TONES)('keeps the %s load figure on its accent unless it fails', (tone) => {
+		const accentClears =
+			contrastRatio(resolve(toneColor(tone), tokens), resolve('var(--panel)', tokens)) >=
+			MARK_CONTRAST_FLOOR;
+		expect(toneMarkColor(tone)).toBe(accentClears ? toneColor(tone) : toneTextColor(tone));
+	});
+
+	it.each([
+		['a result that went backwards', -1],
+		['a result that went forwards', 1]
+	])('holds the assessment progression note for %s', (label, delta) => {
+		expectClearsFloor(
+			label,
+			progressionColor({ hand: 'single', delta, percent: delta, unchanged: false }),
+			'var(--panel)',
+			tokens
+		);
+	});
+
+	it.each([['stale'], ['no-weigh-in']] as const)(
+		'holds the missing ratio note for a %s weigh-in',
+		(missing) => {
+			expectClearsFloor(missing, missingRatioColor(missing), 'var(--panel)', tokens);
+		}
+	);
 
 	it.each(Object.entries(BLOCK_PRESENTATION))('holds the %s block button icon', (type, block) => {
 		const ratio = contrastRatio(resolve(block.color, tokens), resolve('var(--panel)', tokens));

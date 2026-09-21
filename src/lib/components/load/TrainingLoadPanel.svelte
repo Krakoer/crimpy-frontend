@@ -24,7 +24,9 @@
 		formatRpe,
 		formatWeekLabel,
 		ratingCoverage,
-		toneColor
+		toneColor,
+		toneMarkColor,
+		toneTextColor
 	} from '$lib/training-load';
 
 	interface Props {
@@ -93,7 +95,7 @@
 			</div>
 		</div>
 		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
+			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneMarkColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneMarkColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneMarkColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
 				<div style="{cardStyle} padding: 14px 16px;">
 					<div style={captionStyle}>{tile.k}</div>
 					<div
@@ -268,7 +270,7 @@
 							>
 								<span
 									style="font-weight: 700; color: {rowRatioBand
-										? toneColor(rowRatioBand.tone)
+										? toneTextColor(rowRatioBand.tone)
 										: 'var(--tx3)'};"
 									title={rowRatioBand?.label ?? missingRatioNote(week)}
 								>
@@ -277,7 +279,7 @@
 							</td>
 							<td style="padding: 7px 10px 7px 0; border-bottom: 1px solid var(--bd2);">
 								<span
-									style="color: {rowChangeBand ? toneColor(rowChangeBand.tone) : 'var(--tx3)'};"
+									style="color: {rowChangeBand ? toneTextColor(rowChangeBand.tone) : 'var(--tx3)'};"
 								>
 									{formatPercent(week.load_change_percent)}
 								</span>

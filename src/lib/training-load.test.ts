@@ -10,6 +10,10 @@ import {
 	climbingShare,
 	missingRatioNote,
 	toneColor,
+	toneMarkColor,
+	toneMarkVariable,
+	toneTextColor,
+	toneTextVariable,
 	toneVariable,
 	unknownLoadNote,
 	formatLoad,
@@ -197,6 +201,26 @@ describe('toneColor', () => {
 		expect(toneColor('good')).toBe(`var(${toneVariable('good')})`);
 		expect(toneVariable('low')).toBe('--gd');
 		expect(toneVariable('unlabelled')).toBe('--tx2');
+	});
+
+	// The three forms of a band, which is the two-floor rule of Krakoer/crimpy#128
+	// written as three functions. The readable form is always the text token; the
+	// mark form is the accent unless the accent is gold, which is the only one
+	// under 3:1 on white. palette-contrast.test.ts measures them.
+	it('writes a band as text in the text token, whatever the band', () => {
+		expect(toneTextVariable('low')).toBe('--gd-tx');
+		expect(toneTextVariable('good')).toBe('--gn-tx');
+		expect(toneTextVariable('high')).toBe('--pr-tx');
+		expect(toneTextVariable('unlabelled')).toBe('--tx2');
+		expect(toneTextColor('high')).toBe('var(--pr-tx)');
+	});
+
+	it('keeps a band mark on its accent unless the accent is gold', () => {
+		expect(toneMarkVariable('good')).toBe(toneVariable('good'));
+		expect(toneMarkVariable('high')).toBe(toneVariable('high'));
+		expect(toneMarkVariable('unlabelled')).toBe(toneVariable('unlabelled'));
+		expect(toneMarkVariable('low')).toBe('--gd-tx');
+		expect(toneMarkColor('low')).toBe('var(--gd-tx)');
 	});
 });
 
