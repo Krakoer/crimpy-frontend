@@ -468,7 +468,6 @@
 								style="
 									border-left: 1px solid var(--bd2); padding: 0 16px;
 									background: none; cursor: pointer;
-									color: {exercise.is_favorite ? 'var(--pr)' : 'var(--tx3)'};
 									font-size: 12px; font-family: var(--font); font-weight: 600;
 								"
 							>
@@ -626,7 +625,7 @@
 								href={viewExerciseVideoHref}
 								target="_blank"
 								rel="noopener noreferrer"
-								style="font-size: 13px; color: var(--pr); text-decoration: underline; overflow-wrap: anywhere;"
+								style="font-size: 13px; color: var(--pr-tx); text-decoration: underline; overflow-wrap: anywhere;"
 							>
 								{viewVideoLink}
 							</a>
@@ -847,7 +846,7 @@
 					<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bd2);">
 						<button
 							onclick={() => (deleteTarget = editedExercise)}
-							style="font-size: 12.5px; color: var(--rd); background: none; border: none; cursor: pointer; font-family: var(--font);"
+							style="font-size: 12.5px; color: var(--rd-tx); background: none; border: none; cursor: pointer; font-family: var(--font);"
 						>
 							Delete exercise
 						</button>

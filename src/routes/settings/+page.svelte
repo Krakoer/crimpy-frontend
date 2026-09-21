@@ -208,7 +208,7 @@
 					<div style="height: 3px; background: linear-gradient(90deg, var(--gd), var(--pl));"></div>
 					<div style="padding: 22px 24px;">
 						<div class="flex items-center gap-2" style="margin-bottom: 4px;">
-							<Icon name="calendar" size={16} color="var(--gd)" />
+							<Icon name="calendar" size={16} color="var(--gd-tx)" />
 							<h3 style="font-size: 16px; font-weight: 700; color: var(--tx);">
 								Unprogrammed week check
 							</h3>

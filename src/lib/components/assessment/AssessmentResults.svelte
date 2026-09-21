@@ -50,7 +50,7 @@
 	<div
 		style="
 			background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-			padding: 40px 24px; text-align: center; color: var(--rd); font-size: 13px;
+			padding: 40px 24px; text-align: center; color: var(--rd-tx); font-size: 13px;
 		"
 	>
 		The assessment results could not be loaded, so nothing here says what the athlete has measured.

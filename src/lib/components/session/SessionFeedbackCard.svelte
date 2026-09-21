@@ -107,8 +107,8 @@
 				<div class="flex items-center gap-3">
 					<span
 						style="font-size: 11.5px; color: {current.coach_reply_read
-							? 'var(--gn)'
-							: 'var(--gd)'};"
+							? 'var(--gn-tx)'
+							: 'var(--gd-tx)'};"
 					>
 						{current.coach_reply_read ? 'Read by the athlete' : 'Not read yet'}
 					</span>

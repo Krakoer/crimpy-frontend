@@ -295,7 +295,7 @@
 							style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {!isDuration
 								? '#fff'
 								: 'transparent'}; color: {!isDuration
-								? 'var(--pr)'
+								? 'var(--pr-tx)'
 								: 'var(--tx3)'}; font-family: var(--font); box-shadow: {!isDuration
 								? 'var(--sh)'
 								: 'none'};">Reps</button
@@ -305,7 +305,7 @@
 							style="padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; background: {isDuration
 								? '#fff'
 								: 'transparent'}; color: {isDuration
-								? 'var(--pr)'
+								? 'var(--pr-tx)'
 								: 'var(--tx3)'}; font-family: var(--font); box-shadow: {isDuration
 								? 'var(--sh)'
 								: 'none'};">Duration</button
@@ -366,7 +366,7 @@
 						</div>
 					{:else if isAmrap}
 						<span
-							style="font-size: 13px; font-weight: 700; color: var(--pr); padding: 5px 4px; white-space: nowrap;"
+							style="font-size: 13px; font-weight: 700; color: var(--pr-tx); padding: 5px 4px; white-space: nowrap;"
 							>As many as possible</span
 						>
 					{:else}

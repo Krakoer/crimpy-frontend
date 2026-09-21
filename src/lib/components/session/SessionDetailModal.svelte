@@ -232,7 +232,7 @@
 					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); box-shadow: var(--sh); padding: 20px;"
 				>
 					<div style="flex-shrink: 0;">
-						<div style="font-size: 32px; font-weight: 700; color: {type.color}; line-height: 1;">
+						<div style="font-size: 32px; font-weight: 700; color: {type.mark}; line-height: 1;">
 							{formatDuration(detail.duration)}
 						</div>
 						<div
@@ -303,7 +303,7 @@
 				{#if repsUnavailable}
 					{@render unavailable('The rep data for this session')}
 				{:else if hasRepData}
-					<SessionRepsCard session={detail} {reps} accent={type.color} />
+					<SessionRepsCard session={detail} {reps} accent={type.text} />
 				{/if}
 
 				<!-- Next to the measurements rather than paired rep by rep: a

@@ -148,7 +148,7 @@
 				onclick={() => {
 					collapseSignals.expand++;
 				}}
-				style="font-size: 12px; color: var(--pr); font-weight: 600; cursor: pointer;"
+				style="font-size: 12px; color: var(--pr-tx); font-weight: 600; cursor: pointer;"
 				role="button"
 				tabindex="0"
 				onkeydown={(e) => e.key === 'Enter' && collapseSignals.expand++}>Expand all</span
@@ -199,7 +199,7 @@
 							padding: 5px 11px; border-radius: var(--rs);
 							border: 1px solid var(--bd); background: #fff;
 							font-family: var(--font); font-size: 12px; font-weight: 600;
-							color: {block.color}; cursor: pointer;
+							color: {block.text}; cursor: pointer;
 							opacity: {issue ? 0.55 : 1};
 						"
 					>

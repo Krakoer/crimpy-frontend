@@ -229,7 +229,7 @@
 				{#if cappedBlocks}
 					<button
 						onclick={() => (expanded = !expanded)}
-						style="margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--pr); background: none; border: none; cursor: pointer; font-family: var(--font); padding: 0;"
+						style="margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--pr-tx); background: none; border: none; cursor: pointer; font-family: var(--font); padding: 0;"
 					>
 						{expanded ? 'Show less' : `Show all ${workReps.length} reps`}
 					</button>
@@ -250,7 +250,7 @@
 				{#if workReps.length > INDIVIDUAL_REPS_PREVIEW}
 					<button
 						onclick={() => (expanded = !expanded)}
-						style="margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--pr); background: none; border: none; cursor: pointer; font-family: var(--font); padding: 0;"
+						style="margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--pr-tx); background: none; border: none; cursor: pointer; font-family: var(--font); padding: 0;"
 					>
 						{expanded ? 'Show less' : `Show all ${workReps.length} reps`}
 					</button>

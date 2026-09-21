@@ -418,7 +418,7 @@
 								<div style="display: flex; align-items: center; gap: 4px;">
 									<Icon name="spark" size={11} color="var(--pl)" />
 									<span
-										style="font-size: 10px; font-weight: 700; color: var(--pl); letter-spacing: 0.05em;"
+										style="font-size: 10px; font-weight: 700; color: var(--pl-tx); letter-spacing: 0.05em;"
 										>ASSESSMENT</span
 									>
 								</div>
@@ -519,7 +519,7 @@
 								{training.title}
 								{#if training.assessment}
 									<span
-										style="font-size: 9.5px; font-weight: 700; color: var(--pl); letter-spacing: 0.05em;"
+										style="font-size: 9.5px; font-weight: 700; color: var(--pl-tx); letter-spacing: 0.05em;"
 										>ASSESSMENT</span
 									>
 								{/if}

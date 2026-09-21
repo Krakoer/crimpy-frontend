@@ -68,7 +68,7 @@
 						padding: 6px 12px; border-radius: var(--rs);
 						border: 1px solid var(--bd); background: #fff;
 						cursor: pointer; font-family: var(--font); font-size: 12px; font-weight: 600;
-						color: {block.color};
+						color: {block.text};
 					"
 				>
 					<Icon name={block.icon} size={12} color={block.color} />

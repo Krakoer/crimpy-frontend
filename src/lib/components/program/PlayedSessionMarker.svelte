@@ -46,7 +46,7 @@
 		position: relative;
 		padding: 0 3px; height: 16px; border-radius: 3px;
 		border: none; background: none; cursor: pointer; font-family: var(--font);
-		font-size: 9px; font-weight: 700; color: {needsReply ? 'var(--pr)' : 'var(--gn)'};
+		font-size: 9px; font-weight: 700; color: {needsReply ? 'var(--pr-tx)' : 'var(--gn-tx)'};
 	"
 	onmouseenter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
 	onmouseleave={(e) => (e.currentTarget.style.background = 'none')}

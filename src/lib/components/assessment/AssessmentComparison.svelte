@@ -200,7 +200,7 @@
 			{days.length === 1 ? 'one day' : 'none'} so far.
 		</div>
 	{:else if failed}
-		<div style="padding: 28px 20px; text-align: center; color: var(--rd); font-size: 13px;">
+		<div style="padding: 28px 20px; text-align: center; color: var(--rd-tx); font-size: 13px;">
 			The comparison could not be loaded, so nothing here says how the athlete moved.
 		</div>
 	{:else if loading}

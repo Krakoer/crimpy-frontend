@@ -246,7 +246,7 @@
 						target="_blank"
 						rel="noopener noreferrer"
 						aria-label={`Watch demo for ${exerciseName}`}
-						style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--pr); text-decoration: none;"
+						style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--pr-tx); text-decoration: none;"
 					>
 						<Icon name="play" size={12} color="var(--pr)" />
 						Watch demo

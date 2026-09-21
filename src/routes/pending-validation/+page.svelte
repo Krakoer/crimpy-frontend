@@ -72,7 +72,7 @@
 					<span style="color: var(--tx2);">
 						{authStore.user?.email}
 						{#if authStore.user?.email_verified}
-							<span style="color: var(--gn); font-weight: 600;">(verified)</span>
+							<span style="color: var(--gn-tx); font-weight: 600;">(verified)</span>
 						{/if}
 					</span>
 				</div>

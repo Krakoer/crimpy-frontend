@@ -1004,7 +1004,7 @@
 					style="
 						display: inline-flex; align-items: center; gap: 6px;
 						padding: 6px 12px; border-radius: var(--rs);
-						background: #fff; color: var(--rd); border: 1px solid rgba(194,107,107,0.3);
+						background: #fff; color: var(--rd-tx); border: 1px solid rgba(194,107,107,0.3);
 						font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 					"
 				>
@@ -1208,7 +1208,7 @@
 					{#if editMode}
 						<button
 							onclick={startEdit}
-							style="font-size: 12px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
+							style="font-size: 12px; color: var(--pr-tx); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
 							>Edit details</button
 						>
 					{/if}
@@ -1245,7 +1245,7 @@
 									<button
 										onclick={expandAll}
 										title="Expand all"
-										style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--pr); padding: 0;"
+										style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--pr-tx); padding: 0;"
 										>+</button
 									>
 									<button
@@ -1270,7 +1270,7 @@
 								/WK
 							</div>
 							<div
-								style="font-size: 10.5px; color: var(--pl); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
+								style="font-size: 10.5px; color: var(--pl-tx); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
 								title="Every day of the week"
 							>
 								DAILY
@@ -1964,7 +1964,7 @@
 										</div>
 										{#if t.assessment}
 											<div
-												style="font-size: 10px; font-weight: 700; color: var(--pl); letter-spacing: 0.04em;"
+												style="font-size: 10px; font-weight: 700; color: var(--pl-tx); letter-spacing: 0.04em;"
 											>
 												ASSESSMENT
 											</div>
@@ -2078,7 +2078,7 @@
 							{:else if isPlayed}
 								<span style="font-size: 8px; color: var(--tx3);">played</span>
 							{:else if hasDraft}
-								<span style="font-size: 8px; color: var(--gd); font-weight: 600;">data</span>
+								<span style="font-size: 8px; color: var(--gd-tx); font-weight: 600;">data</span>
 							{/if}
 						</button>
 					{/each}

@@ -91,7 +91,7 @@
 	<div
 		style="padding: 16px 20px 12px; border-bottom: 1px solid var(--bd2); display: flex; align-items: center; gap: 8px;"
 	>
-		<Icon name="spark" size={16} color="var(--gd)" />
+		<Icon name="spark" size={16} color="var(--gd-tx)" />
 		<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">Activity</h3>
 	</div>
 

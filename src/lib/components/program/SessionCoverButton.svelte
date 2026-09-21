@@ -59,7 +59,7 @@
 		carries no tooltip of its own. -->
 	<div style="display: flex; flex-shrink: 0; position: relative; pointer-events: none;">
 		{#if stale}
-			<Icon name="alert" size={10} color="var(--gd)" />
+			<Icon name="alert" size={10} color="var(--gd-tx)" />
 		{:else}
 			<Icon name="settings" size={9} color="var(--pr)" />
 		{/if}
