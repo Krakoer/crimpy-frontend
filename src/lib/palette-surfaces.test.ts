@@ -48,7 +48,7 @@ const MARK_FIELDS = ['color'];
 //     carries an opacity over an accent token any more, which is why the shape
 //     is listed as unseen rather than as present.
 //
-// Three more were found and closed rather than lived with, and are recorded
+// Four more were found and closed rather than lived with, and are recorded
 // because how they were closed differs:
 //
 //   - a ground written as a raw hex rather than as a token. Dormant, not
@@ -61,6 +61,22 @@ const MARK_FIELDS = ['color'];
 //   - a ground handed over by a helper, `style={authBadge('gold')}`. Closed by
 //     detection: AUTH_HELPER_STYLES resolves the call to the literal it returns
 //     before anything is scanned.
+//   - a tint built by appending a hex alpha pair to a colour that is a token
+//     rather than a hex literal, `background: {s.color}18`. It is not a colour
+//     at all, so the browser drops the declaration and the surface renders with
+//     no tint, or with nothing at all when the token sits inside a `border`
+//     shorthand. Closed by detection: CONCATENATED_ALPHA below, which is a
+//     check of its own rather than part of the ground-and-colour sweep, since
+//     the defect is a colour that never arrives rather than two that clash.
+//     It reads the whole file rather than a line at a time, and TOKEN_ALPHA and
+//     APPENDED_ALPHA beside it cover the same defect with no property in front
+//     of it and the `tint + '30'` helper form. What it still cannot see is an
+//     alpha pair held in a variable, `{color}{alpha}`, one handed to a child
+//     through a prop, and a declaration built as an object literal value in a
+//     `.ts` file, `{ border: `1px solid ${color}30` }`, where the backtick that
+//     bounds the value segment sits between the property and the pair. The
+//     template literal body form, `` `background: ${tint}18;` ``, is seen.
+//     See Krakoer/crimpy#129.
 //
 // This list is what is known, not what exists. Every entry on it was found by
 // a reader rather than by this scan, which is the honest summary of how much
@@ -273,5 +289,178 @@ describe('no surface writes a bare accent on a light ground of its own hue', () 
 				`on the ${offence.ground} ground opened at line ${offence.groundLine}`
 		);
 		expect(stated, `accent as text on its own ground:\n${stated.join('\n')}`).toEqual([]);
+	});
+});
+
+// A colour token with two hex digits welded onto it. `var(--pr)18` and
+// `{s.color}18` are both a string that is not a colour: the browser parses the
+// declaration, fails, and drops it, so the surface renders with no tint. Inside
+// a `border` shorthand it takes the whole shorthand down with it and the
+// element gets no border either, which is how three session chips in the
+// program week grid went their whole life with no edge. The trick only ever
+// worked while the palette was hex literals, and it has been `var()` tokens for
+// longer than these lines existed.
+//
+// Spelled with the colon so `border` cannot match `border-radius`, and with the
+// property required so a `{count}12` in prose is not read as one. The trailing
+// guard keeps `{gap}10px` out.
+//
+// Matched over the whole file rather than line by line. Every style attribute
+// on the program page is already wrapped across a dozen lines by Prettier, so a
+// `border: 1px solid` whose `{color}30` sits on the next line is the same
+// defect, and a line-at-a-time scan never sees it. The value segment therefore
+// allows newlines and is bounded by the things that really end a declaration, a
+// `;` or the attribute's own quote, plus a length cap so a stray `color:` in a
+// comment cannot reach across half a file to find a hex pair.
+const COLOUR_PROPERTY = [
+	'background',
+	'background-color',
+	'border',
+	'border-top',
+	'border-right',
+	'border-bottom',
+	'border-left',
+	'border-color',
+	'outline',
+	'outline-color',
+	'color',
+	'fill',
+	'stroke',
+	'box-shadow',
+	'text-shadow',
+	'column-rule',
+	'caret-color',
+	'accent-color',
+	'text-decoration-color'
+].join('|');
+
+// `[:=]`, not just `:`. A Svelte style directive spells the same declaration
+// `style:background="{color}18"`, with an `=` and an opening quote where a
+// declaration has a colon, and this repo really does reach for directives:
+// DroppableCell writes `style:outline=` and `style:background-color=`, DropZone
+// writes `style:background=`. Consuming the opening quote is what lets the
+// value segment, which cannot contain a quote, start after it.
+const CONCATENATED_ALPHA = new RegExp(
+	`(?<![\\w-])(?:${COLOUR_PROPERTY})\\s*[:=]\\s*["'\`]?[^;"\`]{0,200}?` +
+		`(?:\\{[^{}]*\\}|var\\(--[\\w-]+\\))[0-9a-fA-F]{2}(?![\\w(-])`,
+	'gs'
+);
+
+// The same defect with no property in front of it, which is how it would be
+// written in a `.ts` helper that returns a colour. Unambiguous on its own: a
+// `var()` reference is never followed by two hex digits in anything valid.
+const TOKEN_ALPHA = /var\(--[\w-]+\)[0-9a-fA-F]{2}(?![\w(-])/g;
+
+// The same defect spelled as string concatenation rather than interpolation,
+// which is the form a `.ts` helper that returns a colour would reach for. Only
+// identifiers that name a colour: a bare `n + '30'` is arithmetic somewhere
+// else and none of this scan's business.
+const APPENDED_ALPHA =
+	/(?:var\(--[\w-]+\)['"`]|[\w.]*(?:olou?r|[Tt]int|[Aa]ccent|[Hh]ue|[Ss]hade))\s*\+\s*['"`][0-9a-fA-F]{2}['"`]/g;
+
+interface Concatenation {
+	file: string;
+	line: number;
+	text: string;
+	// Where the hex pair ends, which is the one thing every pattern that can see
+	// the same defect agrees on. `background: var(--pr)18` is matched by both
+	// CONCATENATED_ALPHA and TOKEN_ALPHA, with different text, and without this
+	// one defect would be reported as two lines.
+	endsAt: number;
+}
+
+const ALPHA_PATTERNS = [CONCATENATED_ALPHA, TOKEN_ALPHA, APPENDED_ALPHA];
+
+function concatenationsIn(file: string): Concatenation[] {
+	const source = readFileSync(file, 'utf8');
+	const found: Concatenation[] = [];
+	for (const pattern of ALPHA_PATTERNS) {
+		for (const match of source.matchAll(pattern)) {
+			const endsAt = (match.index ?? 0) + match[0].length;
+			found.push({
+				file,
+				// The line the hex pair sits on rather than the line the property
+				// opened on, since the pair is what has to be deleted.
+				line: source.slice(0, endsAt).split('\n').length,
+				text: match[0].replace(/\s+/g, ' ').trim(),
+				endsAt
+			});
+		}
+	}
+	// One entry per defect, keeping the fullest description of it.
+	const byEnd = new Map<number, Concatenation>();
+	for (const one of found) {
+		const kept = byEnd.get(one.endsAt);
+		if (!kept || kept.text.length < one.text.length) byEnd.set(one.endsAt, one);
+	}
+	return [...byEnd.values()].sort((a, b) => a.endsAt - b.endsAt);
+}
+
+describe('no surface builds a colour by concatenating a hex alpha pair onto a token', () => {
+	// Written out so the scan is checked against the four shapes it exists for,
+	// all of them live in `dev` when this was added. A guard that only ever
+	// returns an empty list proves nothing about what it can see.
+	const CAUGHT = [
+		'background: {s.color}18;',
+		'border: 1px solid {color}30;',
+		'background: var(--pr)18;',
+		'background-color: {info.tint}80',
+		// Prettier wraps every long style attribute in this repo, so the property
+		// and the hex pair routinely end up on different lines.
+		'border: 1px solid\n\t\t\t\t{color}30;',
+		// The helper form: built in a `.ts` file and handed to the markup whole.
+		"const chipBorder = tint + '30';",
+		// The style directive form, which is how DroppableCell and DropZone write
+		// a conditional ground today.
+		'<div style:background="{c}18"></div>',
+		'style:border="1px solid {color}30"'
+	];
+
+	// Shapes that look like the defect and are not. A hex literal really can
+	// carry an alpha pair, `border-radius` is not a colour, and a token with no
+	// alpha after it is the correct spelling.
+	const ALLOWED = [
+		'background: #c2714f18;',
+		'background: {s.tint};',
+		'border: 1px solid var(--bd2);',
+		'border-radius: {radius}10px;',
+		'padding: {gap}12px;',
+		'grid-template-columns: repeat(3, 1fr);',
+		"const total = weekCount + '12';",
+		// The value segment is capped, so a `color:` cannot reach across a file to
+		// find a hex pair that has nothing to do with it.
+		`color: var(--tx)\n${'x'.repeat(400)}\n{s.tint}18`,
+		// Accepting `=` for the directive form must not make every colour prop a
+		// candidate.
+		'<Icon name="x" size={10} color="var(--tx3)" />',
+		"style:background-color={isTarget ? 'var(--pr-fog)' : undefined}"
+	];
+
+	function hitsIn(shape: string): string[] {
+		return ALPHA_PATTERNS.flatMap((pattern) => [...shape.matchAll(pattern)].map((hit) => hit[0]));
+	}
+
+	it('flags every shape it was written for', () => {
+		for (const shape of CAUGHT) {
+			expect(hitsIn(shape).length, `not detected: ${shape}`).toBeGreaterThan(0);
+		}
+	});
+
+	it('leaves the shapes that are not the defect alone', () => {
+		for (const shape of ALLOWED) {
+			expect(hitsIn(shape), `false positive on: ${shape}`).toEqual([]);
+		}
+	});
+
+	it('finds none in src', () => {
+		const found = sourceFiles(SOURCE_ROOT).flatMap(concatenationsIn);
+		const stated = found.map(
+			(one) =>
+				`${one.file.slice(SOURCE_ROOT.length)}:${one.line} builds a colour by concatenation: ${one.text}`
+		);
+		expect(
+			stated,
+			`a hex alpha pair appended to a colour token is not a colour, so the declaration is dropped:\n${stated.join('\n')}`
+		).toEqual([]);
 	});
 });
