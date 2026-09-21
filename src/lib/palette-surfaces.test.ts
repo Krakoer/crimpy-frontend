@@ -68,7 +68,11 @@ const MARK_FIELDS = ['color'];
 //     shorthand. Closed by detection: CONCATENATED_ALPHA below, which is a
 //     check of its own rather than part of the ground-and-colour sweep, since
 //     the defect is a colour that never arrives rather than two that clash.
-//     See Krakoer/crimpy#129.
+//     It reads the whole file rather than a line at a time, and TOKEN_ALPHA and
+//     APPENDED_ALPHA beside it cover the same defect with no property in front
+//     of it and the `tint + '30'` helper form. What it still cannot see is an
+//     alpha pair held in a variable, `{color}{alpha}`, or one handed to a child
+//     through a prop. See Krakoer/crimpy#129.
 //
 // This list is what is known, not what exists. Every entry on it was found by
 // a reader rather than by this scan, which is the honest summary of how much
@@ -296,6 +300,14 @@ describe('no surface writes a bare accent on a light ground of its own hue', () 
 // Spelled with the colon so `border` cannot match `border-radius`, and with the
 // property required so a `{count}12` in prose is not read as one. The trailing
 // guard keeps `{gap}10px` out.
+//
+// Matched over the whole file rather than line by line. Every style attribute
+// on the program page is already wrapped across a dozen lines by Prettier, so a
+// `border: 1px solid` whose `{color}30` sits on the next line is the same
+// defect, and a line-at-a-time scan never sees it. The value segment therefore
+// allows newlines and is bounded by the things that really end a declaration, a
+// `;` or the attribute's own quote, plus a length cap so a stray `color:` in a
+// comment cannot reach across half a file to find a hex pair.
 const COLOUR_PROPERTY = [
 	'background',
 	'background-color',
@@ -319,9 +331,9 @@ const COLOUR_PROPERTY = [
 ].join('|');
 
 const CONCATENATED_ALPHA = new RegExp(
-	`(?<![\\w-])(?:${COLOUR_PROPERTY})\\s*:[^;"\`\\n]*?` +
+	`(?<![\\w-])(?:${COLOUR_PROPERTY})\\s*:[^;"\`]{0,200}?` +
 		`(?:\\{[^{}]*\\}|var\\(--[\\w-]+\\))[0-9a-fA-F]{2}(?![\\w(-])`,
-	'g'
+	'gs'
 );
 
 // The same defect with no property in front of it, which is how it would be
@@ -329,20 +341,37 @@ const CONCATENATED_ALPHA = new RegExp(
 // `var()` reference is never followed by two hex digits in anything valid.
 const TOKEN_ALPHA = /var\(--[\w-]+\)[0-9a-fA-F]{2}(?![\w(-])/g;
 
+// The same defect spelled as string concatenation rather than interpolation,
+// which is the form a `.ts` helper that returns a colour would reach for. Only
+// identifiers that name a colour: a bare `n + '30'` is arithmetic somewhere
+// else and none of this scan's business.
+const APPENDED_ALPHA =
+	/(?:var\(--[\w-]+\)['"`]|[\w.]*(?:olou?r|[Tt]int|[Aa]ccent|[Hh]ue|[Ss]hade))\s*\+\s*['"`][0-9a-fA-F]{2}['"`]/g;
+
 interface Concatenation {
 	file: string;
 	line: number;
 	text: string;
 }
 
+const ALPHA_PATTERNS = [CONCATENATED_ALPHA, TOKEN_ALPHA, APPENDED_ALPHA];
+
+// The line the hex pair sits on rather than the line the property opened on,
+// since the pair is what has to be deleted.
+function lineOfEnd(source: string, match: RegExpMatchArray): number {
+	return source.slice(0, (match.index ?? 0) + match[0].length).split('\n').length;
+}
+
 function concatenationsIn(file: string): Concatenation[] {
+	const source = readFileSync(file, 'utf8');
 	const found: Concatenation[] = [];
-	const lines = readFileSync(file, 'utf8').split('\n');
-	for (let index = 0; index < lines.length; index++) {
-		for (const pattern of [CONCATENATED_ALPHA, TOKEN_ALPHA]) {
-			for (const match of lines[index].matchAll(pattern)) {
-				found.push({ file, line: index + 1, text: match[0].trim() });
-			}
+	for (const pattern of ALPHA_PATTERNS) {
+		for (const match of source.matchAll(pattern)) {
+			found.push({
+				file,
+				line: lineOfEnd(source, match),
+				text: match[0].replace(/\s+/g, ' ').trim()
+			});
 		}
 	}
 	const seen = new Set<string>();
@@ -362,7 +391,12 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 		'background: {s.color}18;',
 		'border: 1px solid {color}30;',
 		'background: var(--pr)18;',
-		'background-color: {info.tint}80'
+		'background-color: {info.tint}80',
+		// Prettier wraps every long style attribute in this repo, so the property
+		// and the hex pair routinely end up on different lines.
+		'border: 1px solid\n\t\t\t\t{color}30;',
+		// The helper form: built in a `.ts` file and handed to the markup whole.
+		"const chipBorder = tint + '30';"
 	];
 
 	// Shapes that look like the defect and are not. A hex literal really can
@@ -374,23 +408,26 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 		'border: 1px solid var(--bd2);',
 		'border-radius: {radius}10px;',
 		'padding: {gap}12px;',
-		'grid-template-columns: repeat(3, 1fr);'
+		'grid-template-columns: repeat(3, 1fr);',
+		"const total = weekCount + '12';",
+		// The value segment is capped, so a `color:` cannot reach across a file to
+		// find a hex pair that has nothing to do with it.
+		`color: var(--tx)\n${'x'.repeat(400)}\n{s.tint}18`
 	];
+
+	function hitsIn(shape: string): string[] {
+		return ALPHA_PATTERNS.flatMap((pattern) => [...shape.matchAll(pattern)].map((hit) => hit[0]));
+	}
 
 	it('flags every shape it was written for', () => {
 		for (const shape of CAUGHT) {
-			const hits = [...shape.matchAll(CONCATENATED_ALPHA), ...shape.matchAll(TOKEN_ALPHA)];
-			expect(hits.length, `not detected: ${shape}`).toBeGreaterThan(0);
+			expect(hitsIn(shape).length, `not detected: ${shape}`).toBeGreaterThan(0);
 		}
 	});
 
 	it('leaves the shapes that are not the defect alone', () => {
 		for (const shape of ALLOWED) {
-			const hits = [...shape.matchAll(CONCATENATED_ALPHA), ...shape.matchAll(TOKEN_ALPHA)];
-			expect(
-				hits.map((hit) => hit[0]),
-				`false positive on: ${shape}`
-			).toEqual([]);
+			expect(hitsIn(shape), `false positive on: ${shape}`).toEqual([]);
 		}
 	});
 
