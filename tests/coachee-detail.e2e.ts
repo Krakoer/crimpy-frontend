@@ -1539,6 +1539,107 @@ test.describe('session details', () => {
 		// The summary from the listing still stands in for the detail.
 		await expect(page.getByRole('dialog').getByText('Repeaters 20mm')).toBeVisible();
 	});
+
+	// A weighted hang has to read as the same ratio here as it does on the
+	// assessments tab two clicks away. The denominator comes down on the result
+	// itself, and the modal reads it through the rule the tab reads it by, so the
+	// staleness window and the wording are the same in both places.
+	test.describe('a bodyweight relative result', () => {
+		const assessmentSession = testSession({
+			id: 'session-assessed',
+			name: 'Max hangs',
+			date: '2026-03-02T10:00:00Z',
+			is_assessment: true
+		});
+
+		function weightedHang(overrides: Partial<TestAssessmentRecord> = {}): TestAssessmentRecord {
+			return testAssessmentRecord({
+				id: 'assessment-weighted',
+				label: 'Weighted hang',
+				session_id: 'session-assessed',
+				bodyweight_relative: true,
+				per_hand: true,
+				right_value: 25,
+				left_value: 24,
+				grip_position: 0,
+				session_date: '2026-03-02T10:00:00Z',
+				updated_at: '2026-03-02T10:00:00Z',
+				bodyweight_kg: 71,
+				bodyweight_measured_at: '2026-03-02T07:00:00Z',
+				...overrides
+			});
+		}
+
+		async function openAssessedSession(page: Page, assessments: unknown[]): Promise<void> {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [assessmentSession] });
+			await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+				body: testSessionDetail(assessmentSession, [], assessments)
+			});
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: 'Open Max hangs' }).click();
+		}
+
+		test('reads as a ratio, over the weigh-in the server sent with it', async ({ page }) => {
+			await openAssessedSession(page, [weightedHang()]);
+
+			const dialog = page.getByRole('dialog');
+			// 25 kg hung at 71 kg is 1.35, and 24 kg is 1.34. Kilograms would read
+			// 25.0 and 24.0, which is the split this closes.
+			await expect(dialog.getByText('1.35', { exact: true })).toBeVisible();
+			await expect(dialog.getByText('1.34', { exact: true })).toBeVisible();
+			// The load the ratio was built from stays on the row, per hand, so the
+			// coach can check the number rather than take it on trust.
+			await expect(dialog.getByText('25.0 kg', { exact: true })).toBeVisible();
+			await expect(dialog.getByText('24.0 kg', { exact: true })).toBeVisible();
+			// And the denominator, named once for the row.
+			await expect(dialog.getByTestId('session-denominator-note')).toHaveText(
+				'ratio to 71.0 kg, weighed 2 Mar'
+			);
+			await expect(dialog.getByText('Half Crimp, ratio to bodyweight')).toBeVisible();
+		});
+
+		// The same wording the assessments tab uses, because it is the same
+		// function: a weigh-in a month old says what the athlete weighed some other
+		// month, and a ratio built on it reads as a change they never made.
+		test('declines the ratio when the weigh-in went stale', async ({ page }) => {
+			await openAssessedSession(page, [
+				weightedHang({ bodyweight_measured_at: '2026-01-20T07:00:00Z' })
+			]);
+
+			const dialog = page.getByRole('dialog');
+			await expect(dialog.getByTestId('session-denominator-note')).toHaveText(
+				'kg, no recent weight'
+			);
+			await expect(dialog.getByText('25.0', { exact: true })).toBeVisible();
+			await expect(dialog.getByText('1.35', { exact: true })).toBeHidden();
+		});
+
+		test('says there is no weight on file when none was sent', async ({ page }) => {
+			await openAssessedSession(page, [
+				weightedHang({ bodyweight_kg: null, bodyweight_measured_at: null })
+			]);
+
+			const dialog = page.getByRole('dialog');
+			await expect(dialog.getByTestId('session-denominator-note')).toHaveText(
+				'kg, no weight on file'
+			);
+			await expect(dialog.getByText('25.0', { exact: true })).toBeVisible();
+		});
+
+		// An assessment that is not read as a ratio has no denominator to name, and
+		// still says what unit its numbers are in.
+		test('leaves an absolute result as its own number', async ({ page }) => {
+			await openAssessedSession(page, [
+				weightedHang({ bodyweight_relative: false, label: 'Max force' })
+			]);
+
+			const dialog = page.getByRole('dialog');
+			await expect(dialog.getByTestId('session-denominator-note')).toBeHidden();
+			await expect(dialog.getByText('Half Crimp, kg')).toBeVisible();
+			await expect(dialog.getByText('25.0', { exact: true })).toBeVisible();
+		});
+	});
 });
 
 test.describe('programs tab', () => {
