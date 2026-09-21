@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { TrainingItem } from '$lib/api/client';
+	import { focusWhen } from '$lib/focus-when';
 
 	interface Props {
 		item: TrainingItem;
@@ -7,9 +8,12 @@
 		// holds across the weeks that retune its numbers, so it is written once,
 		// on the training. This is what keeps it apart from the comment beside it.
 		overriding: boolean;
+		// Set when the field was just opened from its affordance, so the caret
+		// lands in it rather than on the button that has gone.
+		focusOnMount?: boolean;
 	}
 
-	let { item, overriding }: Props = $props();
+	let { item, overriding, focusOnMount = false }: Props = $props();
 
 	// Matches maxItemGoalLen in crimpy-backend. A goal names what the block
 	// trains rather than explaining it, so it is a line and not a paragraph.
@@ -37,6 +41,7 @@
 		<input
 			type="text"
 			aria-label="Goal"
+			{@attach focusWhen(focusOnMount)}
 			bind:value={item.goal}
 			maxlength={MAX_GOAL_LENGTH}
 			placeholder="What this block trains (e.g. finger endurance)"

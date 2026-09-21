@@ -8,9 +8,7 @@
 	import { OVERRIDE_KEY, type OverrideMode } from './override-context';
 	import Icon from '$lib/components/Icon.svelte';
 	import { containerChildTypes } from './container-rules';
-	import ItemComment from './ItemComment.svelte';
-	import ItemGoal from './ItemGoal.svelte';
-	import ItemProtocol from './ItemProtocol.svelte';
+	import ItemNotes from './ItemNotes.svelte';
 
 	interface Props {
 		item: TrainingItem;
@@ -138,10 +136,10 @@
 	</div>
 
 	{#if !collapsed}
-		<div style="border-top: 1px solid var(--bd2); padding: 12px 14px;">
-			<div
-				style="display: flex; gap: 16px; margin-bottom: 14px; align-items: flex-end; flex-wrap: wrap;"
-			>
+		<div
+			style="border-top: 1px solid var(--bd2); padding: 12px 14px; display: flex; flex-direction: column; gap: 14px;"
+		>
+			<div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span
 						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
@@ -182,17 +180,7 @@
 				</div>
 			</div>
 
-			<div style="margin-bottom: {overriding && !item.goal?.trim() ? '0' : '14px'};">
-				<ItemGoal {item} {overriding} />
-			</div>
-
-			<div style="margin-bottom: {overriding && !item.protocol?.trim() ? '0' : '14px'};">
-				<ItemProtocol {item} {overriding} />
-			</div>
-
-			<div style="margin-bottom: {overriding && !item.comment?.trim() ? '0' : '14px'};">
-				<ItemComment {item} {overriding} />
-			</div>
+			<ItemNotes {item} {overriding} />
 
 			<div
 				style="padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--pr) 20%, transparent);"

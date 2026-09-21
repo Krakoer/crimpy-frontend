@@ -954,6 +954,33 @@ test('warns when a dropped training needs an assessment the coachee has not done
 	await expect(page.getByText(/has not done Max Force yet/)).toBeVisible();
 });
 
+// dnd-kit's autoscroll band is narrowed for every editor in $lib/dnd-plugins,
+// this calendar included, because a block card in the training editor was tall
+// enough to put its drag handle inside the default one. A coach dragging a
+// training from the rail down to a week past the fold still has to be carried
+// there, and nothing else in this file says so.
+test('still scrolls the program when a drag is held against the bottom edge', async ({ page }) => {
+	await stubProgram(page, testProgram({ duration_weeks: 12, start_date: mondayDaysAgo(0) }));
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await expect(page.getByRole('button', { name: /Wk 12/ })).toBeVisible();
+
+	const scrolled = () => page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0);
+	expect(await scrolled()).toBe(0);
+
+	const source = await page.getByText('Power endurance block').first().boundingBox();
+	if (!source) throw new Error('The training rail item is not laid out');
+	const viewport = page.viewportSize();
+	if (!viewport) throw new Error('The page has no viewport');
+
+	await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(source.x + source.width / 2, viewport.height - 6, { steps: 10 });
+	await expect.poll(scrolled).toBeGreaterThan(0);
+	await page.mouse.up();
+});
+
 /** A week whose only session is the row a played session would point at. */
 function weekOneWithSession() {
 	return {
@@ -2381,6 +2408,28 @@ test('shows a training item protocol in the week editor, read only', async ({ pa
 		)
 	).toBeVisible();
 	await expect(modal.getByPlaceholder(/The rule the athlete resolves/)).toHaveCount(0);
+});
+
+// The three prose fields are collapsed behind their own buttons in the training
+// editor now. Those buttons must not follow them into the week editor: the three
+// specs above only say the inputs are absent, and a block with no prose has no
+// text for them to read out, so nothing else would notice the affordance being
+// offered here. A coach who took it would be typing into a field diffOverrides
+// does not emit, and the save would drop it without saying so.
+test('offers no way to add prose in the week editor', async ({ page }) => {
+	await stubTwoWeekProgram(page, [], openBlocksTraining());
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await openWeek(page, 1);
+	await page
+		.getByTestId('cell:1:1')
+		.getByRole('button', { name: 'Training parameters, week 1', exact: true })
+		.click();
+
+	const modal = page.getByRole('dialog', { name: 'Week 1 training parameters' });
+	await expect(modal).toBeVisible();
+	await expect(modal.getByRole('button', { name: /^Add a / })).toHaveCount(0);
 });
 
 // A note is prose for the athlete, and a week may change what a training asks
