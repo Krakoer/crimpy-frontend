@@ -54,9 +54,13 @@
 	// a different thing from a session that holds none of it. Only a detail that
 	// arrived can be missing one: before it lands there is nothing to miss, and
 	// the loading state below already says so.
-	const repsUnavailable = $derived(loaded !== null && loaded.rep_datas === undefined);
-	const assessmentsUnavailable = $derived(loaded !== null && loaded.assessments === undefined);
-	const itemResultsUnavailable = $derived(loaded !== null && loaded.item_results === undefined);
+	// Compared with == null rather than === undefined, so a collection sent as
+	// null reads as unanswered too. The API omits the key, but absent and null
+	// are the same statement and only one of them should have to be spelled out
+	// here.
+	const repsUnavailable = $derived(loaded !== null && loaded.rep_datas == null);
+	const assessmentsUnavailable = $derived(loaded !== null && loaded.assessments == null);
+	const itemResultsUnavailable = $derived(loaded !== null && loaded.item_results == null);
 	const reps = $derived<RepData[]>(loaded?.rep_datas ?? []);
 	// Whether there are measurements to show is decided by the reps the session
 	// carries, not by what it was labelled: a hangboard block a coach filed under
@@ -134,9 +138,9 @@
 {#snippet unavailable(what: string)}
 	<div
 		data-testid="session-collection-unavailable"
-		style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--tx2);"
+		style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--rd);"
 	>
-		<Icon name="alert" size={16} color="var(--gd)" />
+		<Icon name="alert" size={16} color="var(--rd)" />
 		<span>{what} could not be loaded, so nothing here says what it held.</span>
 	</div>
 {/snippet}
@@ -321,7 +325,7 @@
 				     them when this read failed, so the notice sits under it rather than
 				     replacing it: the prescription itself was read fine. -->
 				{#if itemResultsUnavailable}
-					{@render unavailable('What the athlete reported about the prescribed items')}
+					{@render unavailable('What the athlete reported about this session')}
 				{/if}
 
 				{#if assessmentsUnavailable}

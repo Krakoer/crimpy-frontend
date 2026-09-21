@@ -2916,6 +2916,9 @@ test.describe('a session detail read that partly failed', () => {
 			dialog.getByText('The assessment results of this session could not be loaded')
 		).toBeVisible();
 		await expect(dialog.getByText('Assessment results', { exact: true })).toBeHidden();
+		// The count is drawn from the reps and the reported items, neither of which
+		// failed here, so it is still a number rather than a dash.
+		await expect(dialog.getByTestId('session-stat-reps')).toContainText('1');
 	});
 
 	test('says what the athlete reported could not be loaded', async ({ page }) => {
@@ -2926,7 +2929,7 @@ test.describe('a session detail read that partly failed', () => {
 
 		const dialog = page.getByRole('dialog');
 		await expect(
-			dialog.getByText('What the athlete reported about the prescribed items could not be loaded')
+			dialog.getByText('What the athlete reported about this session could not be loaded')
 		).toBeVisible();
 		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeHidden();
 	});
