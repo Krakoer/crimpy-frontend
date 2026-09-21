@@ -704,9 +704,11 @@ export function testRepData(overrides: Partial<TestRepData> = {}): TestRepData {
 
 export interface TestSessionDetail {
 	session: TestSession;
-	rep_datas: TestRepData[];
-	assessments: unknown[];
-	item_results: TestSessionItemResult[];
+	// Optional because the API leaves a collection out of the object when the
+	// read behind it failed, which is a different answer from an empty array.
+	rep_datas?: TestRepData[];
+	assessments?: unknown[];
+	item_results?: TestSessionItemResult[];
 }
 
 /** What the athlete reported about one pass through a prescribed item. */
@@ -747,6 +749,23 @@ export function testSessionDetail(
 	item_results: TestSessionItemResult[] = []
 ): TestSessionDetail {
 	return { session, rep_datas, assessments, item_results };
+}
+
+/**
+ * A session read with a collection left out, the way the API answers when the
+ * read behind it failed. Absent is not empty: the modal has to say the
+ * collection could not be loaded rather than draw the session as one that holds
+ * none of it.
+ */
+export function testSessionDetailMissing(
+	detail: TestSessionDetail,
+	...missing: Array<'rep_datas' | 'assessments' | 'item_results'>
+): TestSessionDetail {
+	const partial: TestSessionDetail = { ...detail };
+	for (const key of missing) {
+		delete partial[key];
+	}
+	return partial;
 }
 
 export interface TestEnrollmentTokenInfo {
