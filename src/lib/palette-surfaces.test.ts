@@ -71,8 +71,12 @@ const MARK_FIELDS = ['color'];
 //     It reads the whole file rather than a line at a time, and TOKEN_ALPHA and
 //     APPENDED_ALPHA beside it cover the same defect with no property in front
 //     of it and the `tint + '30'` helper form. What it still cannot see is an
-//     alpha pair held in a variable, `{color}{alpha}`, or one handed to a child
-//     through a prop. See Krakoer/crimpy#129.
+//     alpha pair held in a variable, `{color}{alpha}`, one handed to a child
+//     through a prop, and a declaration built as an object literal value in a
+//     `.ts` file, `{ border: `1px solid ${color}30` }`, where the backtick that
+//     bounds the value segment sits between the property and the pair. The
+//     template literal body form, `` `background: ${tint}18;` ``, is seen.
+//     See Krakoer/crimpy#129.
 //
 // This list is what is known, not what exists. Every entry on it was found by
 // a reader rather than by this scan, which is the honest summary of how much
@@ -330,8 +334,14 @@ const COLOUR_PROPERTY = [
 	'text-decoration-color'
 ].join('|');
 
+// `[:=]`, not just `:`. A Svelte style directive spells the same declaration
+// `style:background="{color}18"`, with an `=` and an opening quote where a
+// declaration has a colon, and this repo really does reach for directives:
+// DroppableCell writes `style:outline=` and `style:background-color=`, DropZone
+// writes `style:background=`. Consuming the opening quote is what lets the
+// value segment, which cannot contain a quote, start after it.
 const CONCATENATED_ALPHA = new RegExp(
-	`(?<![\\w-])(?:${COLOUR_PROPERTY})\\s*:[^;"\`]{0,200}?` +
+	`(?<![\\w-])(?:${COLOUR_PROPERTY})\\s*[:=]\\s*["'\`]?[^;"\`]{0,200}?` +
 		`(?:\\{[^{}]*\\}|var\\(--[\\w-]+\\))[0-9a-fA-F]{2}(?![\\w(-])`,
 	'gs'
 );
@@ -352,35 +362,38 @@ interface Concatenation {
 	file: string;
 	line: number;
 	text: string;
+	// Where the hex pair ends, which is the one thing every pattern that can see
+	// the same defect agrees on. `background: var(--pr)18` is matched by both
+	// CONCATENATED_ALPHA and TOKEN_ALPHA, with different text, and without this
+	// one defect would be reported as two lines.
+	endsAt: number;
 }
 
 const ALPHA_PATTERNS = [CONCATENATED_ALPHA, TOKEN_ALPHA, APPENDED_ALPHA];
-
-// The line the hex pair sits on rather than the line the property opened on,
-// since the pair is what has to be deleted.
-function lineOfEnd(source: string, match: RegExpMatchArray): number {
-	return source.slice(0, (match.index ?? 0) + match[0].length).split('\n').length;
-}
 
 function concatenationsIn(file: string): Concatenation[] {
 	const source = readFileSync(file, 'utf8');
 	const found: Concatenation[] = [];
 	for (const pattern of ALPHA_PATTERNS) {
 		for (const match of source.matchAll(pattern)) {
+			const endsAt = (match.index ?? 0) + match[0].length;
 			found.push({
 				file,
-				line: lineOfEnd(source, match),
-				text: match[0].replace(/\s+/g, ' ').trim()
+				// The line the hex pair sits on rather than the line the property
+				// opened on, since the pair is what has to be deleted.
+				line: source.slice(0, endsAt).split('\n').length,
+				text: match[0].replace(/\s+/g, ' ').trim(),
+				endsAt
 			});
 		}
 	}
-	const seen = new Set<string>();
-	return found.filter((one) => {
-		const key = `${one.line}:${one.text}`;
-		if (seen.has(key)) return false;
-		seen.add(key);
-		return true;
-	});
+	// One entry per defect, keeping the fullest description of it.
+	const byEnd = new Map<number, Concatenation>();
+	for (const one of found) {
+		const kept = byEnd.get(one.endsAt);
+		if (!kept || kept.text.length < one.text.length) byEnd.set(one.endsAt, one);
+	}
+	return [...byEnd.values()].sort((a, b) => a.endsAt - b.endsAt);
 }
 
 describe('no surface builds a colour by concatenating a hex alpha pair onto a token', () => {
@@ -396,7 +409,11 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 		// and the hex pair routinely end up on different lines.
 		'border: 1px solid\n\t\t\t\t{color}30;',
 		// The helper form: built in a `.ts` file and handed to the markup whole.
-		"const chipBorder = tint + '30';"
+		"const chipBorder = tint + '30';",
+		// The style directive form, which is how DroppableCell and DropZone write
+		// a conditional ground today.
+		'<div style:background="{c}18"></div>',
+		'style:border="1px solid {color}30"'
 	];
 
 	// Shapes that look like the defect and are not. A hex literal really can
@@ -412,7 +429,11 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 		"const total = weekCount + '12';",
 		// The value segment is capped, so a `color:` cannot reach across a file to
 		// find a hex pair that has nothing to do with it.
-		`color: var(--tx)\n${'x'.repeat(400)}\n{s.tint}18`
+		`color: var(--tx)\n${'x'.repeat(400)}\n{s.tint}18`,
+		// Accepting `=` for the directive form must not make every colour prop a
+		// candidate.
+		'<Icon name="x" size={10} color="var(--tx3)" />',
+		"style:background-color={isTarget ? 'var(--pr-fog)' : undefined}"
 	];
 
 	function hitsIn(shape: string): string[] {
