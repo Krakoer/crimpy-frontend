@@ -49,10 +49,13 @@ const MARK_FIELDS = ['color'];
 //     which is the week grid cell whose empty-state hint sits eighty lines
 //     below its ground;
 //   - a ground handed to a child component through a prop;
-//   - a colour dimmed by an `opacity` on an inner element, which composites to
-//     something lighter than the token it names. No badge or hint in this repo
-//     carries an opacity over an accent token any more, which is why the shape
-//     is listed as unseen rather than as present.
+//   - a colour dimmed by an `opacity`, which composites to something lighter
+//     than the token it names. Live, not hypothetical: the "Group into X" button
+//     of ItemList.svelte declares its colour and an `opacity` on the same
+//     element, so a refused grouping composites the label and its white ground
+//     together against the selection bar and reads 2.43:1. The composite family
+//     is Krakoer/crimpy#137's, not this scan's, but it is present rather than
+//     absent and saying otherwise is what stops the next reader checking.
 //
 // Four more were found and closed rather than lived with, and are recorded
 // because how they were closed differs:
@@ -615,7 +618,12 @@ function accentsIn(
 	// strip that stopped at the first of them left `color` as the root, so the
 	// binding walk looked up the CSS property and every field access written
 	// through a directive resolved to nothing.
-	const value = expression.replace(/^\s*(?:style:)?[\w-]*\s*[:=]\s*/, '');
+	// Only a real property prefix is stripped: an identifier followed by a colon,
+	// or one followed immediately by an `=`. Allowing whitespace before the `=`
+	// ate the first identifier of `a === b ? x.color : y.text`, which is handed
+	// here raw from an Icon prop and carries no property at all, and rooted the
+	// binding walk on `b`.
+	const value = expression.replace(/^\s*(?:style:)?[a-zA-Z-]+(?:\s*:|=)\s*/, '');
 	const found: AccentUse[] = [];
 	for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
 		if (NEUTRAL_ACCENTS.includes(token)) found.push({ token, through: `var(--${token})` });
@@ -705,6 +713,21 @@ const STYLE_ATTRIBUTE = /style="[^"]*"/gs;
 const STYLE_STRING = /`[^`]*`|'[^'\n]*'/gs;
 const STYLE_DIRECTIVE = /style:(?:color|fill|stroke)=(?:"[^"]*"|\{[^}]*\})/g;
 const ICON_TAG = /<Icon\b[^>]*>/gs;
+
+// A colour handed to a child component by name. Every such prop in this repo
+// paints type, `labelColor` on LatestValue and `accent` on SessionRepsCard, so
+// one is measured against the text floor at the call site, where the ground is
+// readable even though the painting is not. A child that painted a mark with
+// one would be failed wrongly, which is the price of seeing the shape at all;
+// today there is no such child. `<Icon>` is excluded because its own pass reads
+// it, and reads it as the mark it is.
+const COMPONENT_TAG = /<(?!Icon\b)[A-Z]\w*\b[^>]*>/gs;
+const PROP_COLOUR = /\b(?:accent|[a-z]\w*Color)=(?:"([^"]*)"|\{([^}]*)\})/g;
+
+// A `<style>` block, which is plain CSS and carries none of the shapes above.
+// The hangboard components write three labels there. Split on the closing brace
+// so a rule's own font-size decides its floor rather than a neighbour's.
+const STYLE_BLOCK = /<style[^>]*>([\s\S]*?)<\/style>/g;
 const ICON_COLOUR = /\b(?:color|fill)=(?:"([^"]*)"|\{([^}]*)\})/g;
 const DECLARED_COLOUR = /(?<!-)\bcolor:\s*[^;"]*/gs;
 
@@ -765,6 +788,39 @@ function neutralOffencesIn(file: string, tokens: Record<string, string>): Neutra
 		}
 	}
 
+	for (const match of source.matchAll(COMPONENT_TAG)) {
+		for (const colour of match[0].matchAll(PROP_COLOUR)) {
+			record(lineAt(source, match.index + (colour.index ?? 0)), colour[1] ?? colour[2], 'text', '');
+		}
+	}
+
+	for (const block of source.matchAll(STYLE_BLOCK)) {
+		let at = block.index + block[0].indexOf(block[1]);
+		for (const rule of block[1].split('}')) {
+			const declarations = rule.match(DECLARED_COLOUR);
+			if (declarations !== null) {
+				const size = /font-size:\s*([\d.]+)px/.exec(rule);
+				const weight = /font-weight:\s*(\d+|bold)/.exec(rule);
+				const large =
+					size !== null &&
+					isLargeText(
+						parseFloat(size[1]),
+						weight === null ? 400 : weight[1] === 'bold' ? 700 : parseInt(weight[1])
+					);
+				const grounds = (rule.match(/background(?:-color)?:[^;]*/gs) ?? []).join(' ');
+				for (const declaration of declarations) {
+					record(
+						lineAt(source, at + rule.indexOf(declaration)),
+						declaration,
+						large ? 'large text' : 'text',
+						grounds
+					);
+				}
+			}
+			at += rule.length + 1;
+		}
+	}
+
 	const seen = new Set<string>();
 	return offences.filter((offence) => {
 		const key = `${offence.line}:${offence.token}:${offence.kind}`;
@@ -800,11 +856,37 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		expect(accentsIn('color: {type.text};', activity, {}).map((one) => one.token)).toEqual([]);
 		expect(accentsIn('color={stat.c}', {}, inline).map((one) => one.token)).toEqual(['gd']);
 		expect(accentsIn('color: var(--tx2);', {}, {}).map((one) => one.token)).toEqual([]);
+		// An Icon prop value arrives with no property in front of it, so nothing
+		// may be stripped off the front of it.
+		expect(
+			accentsIn("a === b ? 'var(--gd)' : 'var(--tx3)'", {}, {}).map((one) => one.token)
+		).toEqual(['gd']);
 
 		// The table a field comes from decides what it can hold. Gold can reach a
 		// session figure and cannot reach a block button, and reading both from
 		// one merged table would fail the block button for a colour it never gets.
 		expect(accentsIn('color={block.color}', table, {}).map((one) => one.token)).not.toContain('gd');
+	});
+
+	// The two shapes added after round 2, checked directly: a colour handed to a
+	// child by name, and a rule in a `<style>` block. Both were whole regions the
+	// scan could not read, and a colour prop is how nine assessment hand labels
+	// sat at 3.63:1 on a white card through the first two commits of this branch.
+	it('reads a colour handed to a child component by name', () => {
+		const tag = '<LatestValue label="LEFT" labelColor="var(--gn)" size={22} />';
+		const prop = [...tag.matchAll(PROP_COLOUR)][0];
+		expect(prop).toBeDefined();
+		expect(accentsIn(prop[1], {}, {}).map((one) => one.token)).toEqual(['gn']);
+		// An Icon's own colour belongs to the mark pass, not to this one.
+		expect([...'<Icon name="x" color="var(--gd)" />'.matchAll(COMPONENT_TAG)]).toEqual([]);
+	});
+
+	it('reads a rule in a style block', () => {
+		const block = [
+			...'<style>\n.hb-tag { font-size: 10px; color: var(--hb); }\n</style>'.matchAll(STYLE_BLOCK)
+		][0];
+		expect(block).toBeDefined();
+		expect(block[1].match(DECLARED_COLOUR)).toEqual(['color: var(--hb)']);
 	});
 
 	it('walks a binding back to the table it came from', () => {

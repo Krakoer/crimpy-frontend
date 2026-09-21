@@ -6,6 +6,9 @@
 		// LEFT, RIGHT or LATEST: which of the measurement's numbers this is.
 		label: string;
 		// The hand's own colour, which is how the two are told apart at a glance.
+		// It is written at 10px on a white card, so a caller hands over the text
+		// form of its accent rather than the accent: no accent in the palette
+		// clears the 4.5:1 floor on white. See Krakoer/crimpy#128.
 		labelColor: string;
 		// Absent for a hand the athlete has never measured, which reads as a dash
 		// rather than as a zero.

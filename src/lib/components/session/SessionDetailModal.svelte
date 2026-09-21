@@ -363,14 +363,14 @@
 										{#if assessment.per_hand}
 											<LatestValue
 												label="LEFT"
-												labelColor="var(--gn)"
+												labelColor="var(--gn-tx)"
 												reading={readRecordRatio(assessment, assessment.left_value)}
 												unit={assessment.unit}
 												size={15}
 											/>
 											<LatestValue
 												label="RIGHT"
-												labelColor="var(--pl)"
+												labelColor="var(--pl-tx)"
 												reading={readRecordRatio(assessment, assessment.right_value)}
 												unit={assessment.unit}
 												size={15}
@@ -382,7 +382,7 @@
 											     not the athlete's latest. -->
 											<LatestValue
 												label="RESULT"
-												labelColor="var(--pr)"
+												labelColor="var(--pr-tx)"
 												reading={readRecordRatio(
 													assessment,
 													assessment.right_value ?? assessment.left_value

@@ -138,14 +138,14 @@
 		{#if assessment.perHand}
 			<LatestValue
 				label="LEFT"
-				labelColor="var(--gn)"
+				labelColor="var(--gn-tx)"
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={26}
 			/>
 			<LatestValue
 				label="RIGHT"
-				labelColor="var(--pr)"
+				labelColor="var(--pr-tx)"
 				reading={latestRight}
 				unit={assessment.unit}
 				size={26}
@@ -153,7 +153,7 @@
 		{:else}
 			<LatestValue
 				label="LATEST"
-				labelColor="var(--pr)"
+				labelColor="var(--pr-tx)"
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={26}
