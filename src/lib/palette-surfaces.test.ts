@@ -49,6 +49,15 @@ const MARK_FIELDS = ['color'];
 //     which is the week grid cell whose empty-state hint sits eighty lines
 //     below its ground;
 //   - a ground handed to a child component through a prop;
+//   - a ground built with `color-mix()`. It names its accent, so the ground scan
+//     hands the pairing to the hue scan above, and that one knows only the
+//     `-lt` and `-fog` ground tokens, so neither measures it. Four hangboard
+//     rules sit in exactly that shape, `.hb-pill.hb-on` in HangboardItem and
+//     HangboardRepItem and two in HangboardSessionMap, where `--hb` over a 12%
+//     mix on the white card reads 3.97:1. That is an accent on a tint of its own
+//     hue, which is Krakoer/crimpy#119's family rather than this ticket's, and
+//     it is filed on Krakoer/crimpy#137 because clearing it wants a seventh text
+//     token and a decision about mirroring one the app has no counterpart for.
 //   - a colour dimmed by an `opacity`, which composites to something lighter
 //     than the token it names. Live, not hypothetical: the "Group into X" button
 //     of ItemList.svelte declares its colour and an `opacity` on the same
@@ -670,9 +679,10 @@ function neutralIn(declaration: string): string | null {
 //
 // Everything else is taken to sit on a neutral, and the nearest flat neutral
 // opened above it decides which. Assuming a neutral where the real ground is a
-// tint never understates a defect, since every tint is darker than every
-// neutral, so the worst this costs is a pairing reported against white that is
-// in truth a little worse than stated.
+// tint understates rather than overstates: a tint is darker, so the pairing
+// really reads worse than reported, and the scan errs towards silence rather
+// than towards a false alarm. `--hb` is the one token where that can flip a
+// verdict, at 4.61 on --panel against 4.04 on --bg.
 function groundFor(lines: string[], at: number, ownDeclarations: string): string | null {
 	if (isFlatGround(ownDeclarations)) {
 		if (namesTintedGround(ownDeclarations)) return null;
@@ -719,10 +729,14 @@ const ICON_TAG = /<Icon\b[^>]*>/gs;
 // one is measured against the text floor at the call site, where the ground is
 // readable even though the painting is not. A child that painted a mark with
 // one would be failed wrongly, which is the price of seeing the shape at all;
-// today there is no such child. `<Icon>` is excluded because its own pass reads
-// it, and reads it as the mark it is.
+// today there is no such child. A prop that names a ground or a stroke rather
+// than a foreground is excluded by name, since `backgroundColor` is the likelier
+// next prop and holding a ground to the text floor would be the same mistake in
+// the other direction. `<Icon>` is excluded because its own pass reads it, and
+// reads it as the mark it is.
 const COMPONENT_TAG = /<(?!Icon\b)[A-Z]\w*\b[^>]*>/gs;
-const PROP_COLOUR = /\b(?:accent|[a-z]\w*Color)=(?:"([^"]*)"|\{([^}]*)\})/g;
+const PROP_COLOUR =
+	/\b(?:accent|(?!background|bg|tint|fill|stroke|border|surface)[a-z]\w*Color)=(?:"([^"]*)"|\{([^}]*)\})/g;
 
 // A `<style>` block, which is plain CSS and carries none of the shapes above.
 // The hangboard components write three labels there. Split on the closing brace
@@ -879,6 +893,16 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		expect(accentsIn(prop[1], {}, {}).map((one) => one.token)).toEqual(['gn']);
 		// An Icon's own colour belongs to the mark pass, not to this one.
 		expect([...'<Icon name="x" color="var(--gd)" />'.matchAll(COMPONENT_TAG)]).toEqual([]);
+	});
+
+	it('leaves a ground or a stroke prop to whatever paints it', () => {
+		const reads = (tag: string) => [...tag.matchAll(PROP_COLOUR)].length;
+		expect(reads('<Chip labelColor="var(--gn)" />')).toBe(1);
+		expect(reads('<Chip accent={type.text} />')).toBe(1);
+		expect(reads('<Chip backgroundColor="var(--gd)" />')).toBe(0);
+		expect(reads('<Chip bgColor="var(--gd)" />')).toBe(0);
+		expect(reads('<Spark strokeColor={type.color} />')).toBe(0);
+		expect(reads('<Chip borderColor="var(--pr)" />')).toBe(0);
 	});
 
 	it('reads a rule in a style block', () => {
