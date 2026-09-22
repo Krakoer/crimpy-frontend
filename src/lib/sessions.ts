@@ -20,6 +20,11 @@ export interface SessionActivityInfo {
 	// own light ground, so a pill that writes its label in the accent is
 	// unreadable at the label sizes these surfaces use. See Krakoer/crimpy#119.
 	text: string;
+	// What the activity is drawn in when it is a mark on a neutral ground: an
+	// icon, or a figure large enough for the 3:1 floor rather than the 4.5:1
+	// one. It is the accent itself for every activity but climbing, whose gold
+	// reads 2.32:1 on white and misses both floors. See Krakoer/crimpy#128.
+	mark: string;
 }
 
 // Activity discriminators shared with the app, stored on sessions.activity.
@@ -30,7 +35,8 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		icon: 'flame',
 		color: 'var(--pr)',
 		tint: 'var(--pr-lt)',
-		text: 'var(--pr-tx)'
+		text: 'var(--pr-tx)',
+		mark: 'var(--pr)'
 	},
 	1: {
 		label: 'Climbing',
@@ -38,7 +44,8 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		icon: 'mountain',
 		color: 'var(--gd)',
 		tint: 'var(--gd-lt)',
-		text: 'var(--gd-tx)'
+		text: 'var(--gd-tx)',
+		mark: 'var(--gd-tx)'
 	},
 	2: {
 		label: 'Stretching',
@@ -46,7 +53,8 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		icon: 'figure',
 		color: 'var(--gn)',
 		tint: 'var(--gn-lt)',
-		text: 'var(--gn-tx)'
+		text: 'var(--gn-tx)',
+		mark: 'var(--gn)'
 	},
 	3: {
 		label: 'Workout',
@@ -54,7 +62,8 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		icon: 'dumbbell',
 		color: 'var(--pl)',
 		tint: 'var(--pl-lt)',
-		text: 'var(--pl-tx)'
+		text: 'var(--pl-tx)',
+		mark: 'var(--pl)'
 	},
 	4: {
 		label: 'Other',
@@ -62,7 +71,8 @@ export const SESSION_ACTIVITIES: Record<number, SessionActivityInfo> = {
 		icon: 'clock',
 		color: 'var(--bl)',
 		tint: 'var(--bl-lt)',
-		text: 'var(--bl-tx)'
+		text: 'var(--bl-tx)',
+		mark: 'var(--bl)'
 	}
 };
 
@@ -72,7 +82,8 @@ const UNKNOWN_SESSION_ACTIVITY: SessionActivityInfo = {
 	icon: 'clock',
 	color: 'var(--tx2)',
 	tint: 'var(--panel2)',
-	text: 'var(--tx2)'
+	text: 'var(--tx2)',
+	mark: 'var(--tx2)'
 };
 
 // An activity the app added before this portal knew about it degrades to a

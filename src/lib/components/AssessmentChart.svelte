@@ -49,7 +49,12 @@
 			textSoft: value('--tx2', '#7a6e62'),
 			textFaint: value('--tx3', '#b0a496'),
 			left: value('--gn', '#6b8f71'),
-			right: value('--pr', '#c2714f')
+			right: value('--pr', '#c2714f'),
+			// The tooltip writes the series names at 11px bold on a --panel ground,
+			// where the accents read 3.63:1 and 3.64:1. The line and the marker keep
+			// the accent; only the words take the text form. See Krakoer/crimpy#128.
+			leftText: value('--gn-tx', '#4e7154'),
+			rightText: value('--pr-tx', '#965134')
 		};
 	}
 
@@ -162,7 +167,7 @@
 						year: 'numeric'
 					});
 					const lines = params.map((p) => {
-						const color = p.seriesName === 'Left' ? theme.left : theme.right;
+						const color = p.seriesName === 'Left' ? theme.leftText : theme.rightText;
 						const reading = asRatios
 							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${ratioBasis.get(basisKey(p.seriesName, p.value[0])) ?? ''}</span>`
 							: `${formatValue(p.value[1])} ${unit}`;

@@ -571,7 +571,7 @@
 					<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
 						<Icon name="spark" size={13} color="var(--pl)" />
 						<span
-							style="font-size: 10.5px; font-weight: 700; color: var(--pl); letter-spacing: 0.06em;"
+							style="font-size: 10.5px; font-weight: 700; color: var(--pl-tx); letter-spacing: 0.06em;"
 							>ASSESSMENT</span
 						>
 						<span style="font-size: 11px; color: var(--tx3);"
@@ -716,7 +716,7 @@
 											padding: 7px 12px; border-radius: var(--rs);
 											border: 1px solid var(--bd); background: #fff;
 											font-family: var(--font); font-size: 12px; font-weight: 600;
-											color: {btn.color};
+											color: {btn.text};
 										"
 									>
 										<Icon name={btn.icon} size={13} color={btn.color} />

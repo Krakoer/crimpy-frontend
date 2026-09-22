@@ -434,7 +434,7 @@
 											padding: 7px 12px; border-radius: var(--rs);
 											border: 1px solid var(--bd); background: #fff;
 											font-family: var(--font); font-size: 12px; font-weight: 600;
-											color: {btn.color};
+											color: {btn.text};
 										"
 									>
 										<Icon name={btn.icon} size={13} color={btn.color} />

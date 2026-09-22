@@ -94,6 +94,38 @@ export function toneColor(tone: BandTone): string {
 	return `var(${toneVariable(tone)})`;
 }
 
+// The same band, in the form it is written as small text on the white panel the
+// load cards are drawn on. Every accent is under the 4.5:1 floor there, gold
+// worst at 2.32:1, so a figure or a table cell takes the text token while the
+// chart bars and the legend swatch keep the mark. See Krakoer/crimpy#128.
+export function toneTextVariable(tone: BandTone): string {
+	switch (tone) {
+		case 'low':
+			return '--gd-tx';
+		case 'good':
+			return '--gn-tx';
+		case 'high':
+			return '--pr-tx';
+		case 'unlabelled':
+			return '--tx2';
+	}
+}
+
+export function toneTextColor(tone: BandTone): string {
+	return `var(${toneTextVariable(tone)})`;
+}
+
+// The form a band takes as a mark on white: an icon, or a figure large enough
+// for the 3:1 floor, which the 26px headline tiles are. Sage, terracotta and
+// the muted token clear 3:1 and stay; only gold, at 2.32:1, has to move.
+export function toneMarkVariable(tone: BandTone): string {
+	return tone === 'low' ? toneTextVariable(tone) : toneVariable(tone);
+}
+
+export function toneMarkColor(tone: BandTone): string {
+	return `var(${toneMarkVariable(tone)})`;
+}
+
 export function formatWeekLabel(weekStart: string): string {
 	const date = new Date(`${weekStart}T00:00:00`);
 	return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });

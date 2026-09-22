@@ -184,7 +184,7 @@
 			>
 				<div style="flex: 1;">
 					<div
-						style="font-size: 12px; color: var(--pr); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px;"
+						style="font-size: 12px; color: var(--pr-tx); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px;"
 					>
 						{today}
 					</div>
@@ -262,7 +262,7 @@
 								<h3 style="font-size: 14.5px; font-weight: 700; color: var(--tx);">Coachees</h3>
 								<button
 									onclick={() => goto('/coachees')}
-									style="font-size: 12.5px; color: var(--pr); font-weight: 600; cursor: pointer; background: none; border: none; font-family: var(--font);"
+									style="font-size: 12.5px; color: var(--pr-tx); font-weight: 600; cursor: pointer; background: none; border: none; font-family: var(--font);"
 								>
 									All coachees
 								</button>
@@ -406,7 +406,7 @@
 									disabled={leavingEnrollment}
 									style="
 										padding: 8px 16px; border-radius: var(--rs);
-										border: 1px solid var(--rd); color: var(--rd);
+										border: 1px solid var(--rd); color: var(--rd-tx);
 										background: #fff; font-size: 12.5px; font-weight: 600;
 										cursor: pointer; font-family: var(--font);
 										opacity: {leavingEnrollment ? 0.6 : 1};

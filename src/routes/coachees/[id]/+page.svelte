@@ -426,7 +426,7 @@
 				</div>
 
 				<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd)' }] as stat (stat.k)}
+					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd-tx)' }] as stat (stat.k)}
 						<div
 							style="
 						padding: 10px 14px; border: 1px solid var(--bd);
@@ -456,7 +456,7 @@
 						style="
 						padding: 12px 16px; font-size: 13.5px; font-weight: 600;
 						border: none; background: transparent; cursor: pointer;
-						color: {activeTab === tab.id ? 'var(--pr)' : 'var(--tx2)'};
+						color: {activeTab === tab.id ? 'var(--pr-tx)' : 'var(--tx2)'};
 						border-bottom: 2px solid {activeTab === tab.id ? 'var(--pr)' : 'transparent'};
 						margin-bottom: -1px; font-family: var(--font);
 						display: flex; align-items: center; gap: 7px;
@@ -523,7 +523,7 @@
 											weekOffset = 0;
 											selectedDay = null;
 										}}
-										style="font-size: 11.5px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font); flex-shrink: 0;"
+										style="font-size: 11.5px; color: var(--pr-tx); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font); flex-shrink: 0;"
 										>Today</button
 									>
 								{/if}
@@ -581,7 +581,7 @@
 							</div>
 							{#if selectedDay}
 								<div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-									<span style="font-size: 12px; color: var(--pr); font-weight: 600;">
+									<span style="font-size: 12px; color: var(--pr-tx); font-weight: 600;">
 										Filtering: {selectedDay.toLocaleDateString('en-GB', {
 											weekday: 'long',
 											day: 'numeric',
@@ -720,7 +720,7 @@
 							</h3>
 							<button
 								onclick={() => (activeTab = 'assess')}
-								style="font-size: 12.5px; color: var(--pr); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
+								style="font-size: 12.5px; color: var(--pr-tx); font-weight: 600; background: none; border: none; cursor: pointer; font-family: var(--font);"
 								>View all</button
 							>
 						</div>
@@ -808,7 +808,7 @@
 									</div>
 								{/if}
 								<div
-									style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--pr); font-weight: 600;"
+									style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--pr-tx); font-weight: 600;"
 								>
 									Open program
 									<Icon name="chevron" size={13} color="var(--pr)" />

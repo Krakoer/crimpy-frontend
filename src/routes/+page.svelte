@@ -69,7 +69,7 @@
 			flex: 1; padding: 7px 12px; border-radius: 6px; border: none; cursor: pointer;
 			font-family: var(--font); font-size: 12.5px; font-weight: 600;
 			background: ${active ? '#fff' : 'transparent'};
-			color: ${active ? 'var(--pr)' : 'var(--tx2)'};
+			color: ${active ? 'var(--pr-tx)' : 'var(--tx2)'};
 			box-shadow: ${active ? 'var(--sh)' : 'none'};
 		`;
 	}

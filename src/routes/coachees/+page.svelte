@@ -156,7 +156,7 @@
 				</div>
 
 				{#if tokenError}
-					<div style="font-size: 12px; color: var(--rd);">{tokenError}</div>
+					<div style="font-size: 12px; color: var(--rd-tx);">{tokenError}</div>
 				{:else if generatingToken}
 					<div style="font-size: 12.5px; color: var(--tx3);">Generating...</div>
 				{:else if enrollmentToken}
@@ -173,7 +173,7 @@
 						</span>
 						<button
 							onclick={handleCopyLink}
-							style="background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; color: var(--pr); font-size: 12px; font-family: var(--font); font-weight: 600;"
+							style="background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; color: var(--pr-tx); font-size: 12px; font-family: var(--font); font-weight: 600;"
 						>
 							<Icon name="copy" size={14} color="var(--pr)" />
 							{copyConfirmed ? 'Copied!' : 'Copy'}

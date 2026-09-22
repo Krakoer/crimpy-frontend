@@ -317,7 +317,7 @@
 									}}
 									style="
 										background: none; border: none; cursor: pointer; padding: 0;
-										font-size: 11.5px; color: var(--rd); font-family: var(--font);
+										font-size: 11.5px; color: var(--rd-tx); font-family: var(--font);
 										text-decoration: underline; margin-top: 2px;
 									">Delete tag</button
 								>
@@ -380,7 +380,7 @@
 						style="
 							display: flex; width: 100%; align-items: center; gap: 8px;
 							padding: 8px 12px; text-align: left; background: none; border: none;
-							cursor: pointer; font-family: var(--font); font-size: 13px; color: var(--pr);
+							cursor: pointer; font-family: var(--font); font-size: 13px; color: var(--pr-tx);
 							font-weight: 600; border-top: 1px solid var(--bd2);
 							opacity: {creating ? 0.6 : 1};
 						"

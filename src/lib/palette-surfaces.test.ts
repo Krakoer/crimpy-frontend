@@ -2,6 +2,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+	MARK_CONTRAST_FLOOR,
+	TEXT_CONTRAST_FLOOR,
+	contrastRatio,
+	isLargeText
+} from '$lib/contrast';
 
 // The companion of palette-contrast.test.ts. That one asks whether the tokens
 // clear the floor; this one asks whether the surfaces use them. A pairing
@@ -43,10 +49,22 @@ const MARK_FIELDS = ['color'];
 //     which is the week grid cell whose empty-state hint sits eighty lines
 //     below its ground;
 //   - a ground handed to a child component through a prop;
-//   - a colour dimmed by an `opacity` on an inner element, which composites to
-//     something lighter than the token it names. No badge or hint in this repo
-//     carries an opacity over an accent token any more, which is why the shape
-//     is listed as unseen rather than as present.
+//   - a ground built with `color-mix()`. It names its accent, so the ground scan
+//     hands the pairing to the hue scan above, and that one knows only the
+//     `-lt` and `-fog` ground tokens, so neither measures it. Four hangboard
+//     rules sit in exactly that shape, `.hb-pill.hb-on` in HangboardItem and
+//     HangboardRepItem and two in HangboardSessionMap, where `--hb` over a 12%
+//     mix on the white card reads 3.97:1. That is an accent on a tint of its own
+//     hue, which is Krakoer/crimpy#119's family rather than this ticket's, and
+//     it is filed on Krakoer/crimpy#137 because clearing it wants a seventh text
+//     token and a decision about mirroring one the app has no counterpart for.
+//   - a colour dimmed by an `opacity`, which composites to something lighter
+//     than the token it names. Live, not hypothetical: the "Group into X" button
+//     of ItemList.svelte declares its colour and an `opacity` on the same
+//     element, so a refused grouping composites the label and its white ground
+//     together against the selection bar and reads 2.43:1. The composite family
+//     is Krakoer/crimpy#137's, not this scan's, but it is present rather than
+//     absent and saying otherwise is what stops the next reader checking.
 //
 // Four more were found and closed rather than lived with, and are recorded
 // because how they were closed differs:
@@ -462,5 +480,491 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 			stated,
 			`a hex alpha pair appended to a colour token is not a colour, so the declaration is dropped:\n${stated.join('\n')}`
 		).toEqual([]);
+	});
+});
+
+// The third shape, and the one Krakoer/crimpy#128 was opened for: an accent
+// written on a neutral ground rather than on a tint of its own hue. The two
+// scans above only ever look at a hue against itself, so a gold icon on a white
+// card at 2.32:1 was invisible to both.
+//
+// Two floors, not one. WCAG 1.4.3 holds text under 18.66px bold to 4.5:1 and
+// exempts large text at 3:1, and 1.4.11 sets 3:1 on anything that is not text.
+// The accents are the brand marks, and every one of them except gold clears
+// 3:1 on white, so an icon or a 32px figure keeps its accent while small text
+// moves to the darker form. Holding the whole family to 4.5:1 would repaint the
+// portal, and a 3:1 element failed here is as wrong as a 4.5:1 one passed.
+
+const PALETTE_SOURCE = fileURLToPath(new URL('../routes/layout.css', import.meta.url));
+
+const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2', 'bg'];
+
+// Every accent that is a mark rather than a text colour. `--hb` is listed even
+// though it clears 4.5:1 on white by itself, so that darkening it later is
+// measured rather than assumed.
+const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb'];
+
+// The three tables that name a colour per row, with the exported names a
+// surface reaches each one through. A field access is measured against the
+// table it really comes from: BLOCK_PRESENTATION holds no gold, so a block icon
+// must not be failed for a gold that cannot reach it, and SESSION_ACTIVITIES
+// does, so a session figure must be.
+const COLOUR_TABLES: Record<string, string[]> = {
+	'sessions.ts': ['SESSION_ACTIVITIES', 'sessionActivityInfo'],
+	'trainingTypes.ts': ['TRAINING_TYPE_INFO', 'trainingTypeInfo'],
+	'block-presentation.ts': ['BLOCK_PRESENTATION', 'STRUCTURE_BLOCKS']
+};
+
+function paletteTokens(): Record<string, string> {
+	const css = readFileSync(PALETTE_SOURCE, 'utf8');
+	const tokens: Record<string, string> = {};
+	for (const [, name, hex] of css.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)) {
+		tokens[name] = hex.toLowerCase();
+	}
+	return tokens;
+}
+
+// Field name to the tokens that field can hold, read out of the object literals
+// of a source. `{ color: 'var(--gd)' }` in a shared table and the inline
+// `{ k: 'Programs', c: 'var(--gd)' }` an each block loops over are the same
+// shape, so one reader answers both.
+function colourFields(source: string): Record<string, string[]> {
+	const fields: Record<string, string[]> = {};
+	for (const [, field, token] of source.matchAll(/(\w+):\s*'var\(--([\w-]+)\)'/g)) {
+		const held = (fields[field] ??= []);
+		if (!held.includes(token)) held.push(token);
+	}
+	return fields;
+}
+
+const TABLE_FIELDS: Record<string, Record<string, string[]>> = Object.fromEntries(
+	Object.keys(COLOUR_TABLES).map((name) => [
+		name,
+		colourFields(readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8'))
+	])
+);
+
+const TABLE_BY_EXPORT: Record<string, string> = Object.fromEntries(
+	Object.entries(COLOUR_TABLES).flatMap(([table, exports]) =>
+		exports.map((exported) => [exported, table])
+	)
+);
+
+// What each name in a file was last bound to, in the three shapes this repo
+// binds a table row with: an each block, an inline const, and a script
+// declaration. Enough to walk `btn` back to `allowedStructureButtons` and on to
+// STRUCTURE_BLOCKS, which is the deepest chain in the tree.
+function bindings(source: string): Record<string, string> {
+	const bound: Record<string, string> = {};
+	const remember = (name: string, expression: string) => {
+		bound[name] ??= expression;
+	};
+	for (const [, name, expression] of source.matchAll(/\{@const\s+(\w+)\s*=\s*([^}]*)\}/g)) {
+		remember(name, expression);
+	}
+	for (const [, expression, name] of source.matchAll(/\{#each\s+([\s\S]*?)\s+as\s+(\w+)/g)) {
+		remember(name, expression);
+	}
+	for (const [, name, expression] of source.matchAll(
+		/(?:const|let)\s+(\w+)\s*=\s*([\s\S]{0,240}?);/g
+	)) {
+		remember(name, expression);
+	}
+	return bound;
+}
+
+const BINDING_HOPS = 4;
+
+function tableFor(identifier: string, bound: Record<string, string>): string | null {
+	let expression = identifier;
+	for (let hop = 0; hop < BINDING_HOPS; hop++) {
+		for (const [exported, table] of Object.entries(TABLE_BY_EXPORT)) {
+			if (new RegExp(`\\b${exported}\\b`).test(expression)) return table;
+		}
+		const next = [...expression.matchAll(/\b([A-Za-z_]\w*)\b/g)]
+			.map((match) => match[1])
+			.find((name) => bound[name] !== undefined && bound[name] !== expression);
+		if (next === undefined) return null;
+		expression = bound[next];
+	}
+	return null;
+}
+
+interface AccentUse {
+	token: string;
+	through: string;
+}
+
+// The accents a colour expression can resolve to: a literal `var(--x)`, both
+// arms of a ternary, and a field access answered from the table the expression
+// is rooted in, or from the file's own literals when it is rooted in none. An
+// expression that resolves to nothing is a blind spot rather than a pass, and
+// is listed with the other blind spots at the top of this file.
+//
+// Two of those blind spots live here rather than in the ground logic:
+//
+//   - a colour returned by a function, `toneColor(band.tone)`. Nothing is
+//     resolved, and nothing is a pass. Three live defects hid behind this shape
+//     through the whole of #128's first pass: the training load panel, and both
+//     helpers of AssessmentComparison. The answer is not to resolve calls, which
+//     would mean following `toneColor` into another module, but to name each
+//     such helper as a pairing in palette-contrast.test.ts. `toneTextColor`,
+//     `toneMarkColor`, `progressionColor`, `missingRatioColor` and
+//     `denominatorNoteColor` are all measured there for that reason.
+//   - the file-local fallback puts every `field: 'var(--x)'` literal in a file
+//     into one namespace. Two record shapes in one file that both carry a
+//     `color` would be merged, and a `.color` rooted in the safe one measured
+//     against the union. It is the defect COLOUR_TABLES exists to prevent,
+//     which the fallback does not get, and it errs towards reporting rather
+//     than towards silence.
+function accentsIn(
+	expression: string,
+	bound: Record<string, string>,
+	local: Record<string, string[]>
+): AccentUse[] {
+	// The property is dropped before the root identifier is read, and a Svelte
+	// style directive carries two separators rather than one: `style:color=`. A
+	// strip that stopped at the first of them left `color` as the root, so the
+	// binding walk looked up the CSS property and every field access written
+	// through a directive resolved to nothing.
+	// Only a real property prefix is stripped: an identifier followed by a colon,
+	// or one followed immediately by an `=`. Allowing whitespace before the `=`
+	// ate the first identifier of `a === b ? x.color : y.text`, which is handed
+	// here raw from an Icon prop and carries no property at all, and rooted the
+	// binding walk on `b`.
+	const value = expression.replace(/^\s*(?:style:)?[a-zA-Z-]+(?:\s*:|=)\s*/, '');
+	const found: AccentUse[] = [];
+	for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
+		if (NEUTRAL_ACCENTS.includes(token)) found.push({ token, through: `var(--${token})` });
+	}
+	const root = /\b([A-Za-z_]\w*)/.exec(value)?.[1];
+	const table = root === undefined ? null : tableFor(root, bound);
+	const fields = table === null ? local : TABLE_FIELDS[table];
+	for (const [, field] of value.matchAll(/\.(\w+)\b/g)) {
+		for (const token of fields[field] ?? []) {
+			if (NEUTRAL_ACCENTS.includes(token)) found.push({ token, through: `.${field}` });
+		}
+	}
+	return found;
+}
+
+// A gradient is not a flat ground and cannot be measured as one, so the search
+// walks past it rather than reading it as either a tint or a neutral. The gold
+// icon on the settings page sits under a two-stop rule naming `var(--gd)`, and
+// taking that rule for the ground is what hid it.
+function isFlatGround(declaration: string): boolean {
+	return !/gradient\(/.test(declaration);
+}
+
+function namesTintedGround(declaration: string): boolean {
+	return (
+		/var\(--[\w-]+-(?:lt|fog)\)/.test(declaration) ||
+		/\.tint\b/.test(declaration) ||
+		NEUTRAL_ACCENTS.some((token) => namesToken(declaration, token))
+	);
+}
+
+function neutralIn(declaration: string): string | null {
+	const named = NEUTRAL_GROUND_TOKENS.find((token) => namesToken(declaration, token));
+	if (named) return named;
+	return /#fff\b|#ffffff\b/i.test(declaration) ? 'panel' : null;
+}
+
+// Which neutral a colour is painted on, or null when the pairing belongs to the
+// scan above instead. Only a tinted ground declared on the element itself hands
+// it over. A tinted ground further up is ignored rather than believed, because
+// at that distance it is as likely to be a sibling as a parent, and reading a
+// chip's tint as the ground of the label beside it is what kept two ASSESSMENT
+// labels on white unmeasured through the whole of #119.
+//
+// Everything else is taken to sit on a neutral, and the nearest flat neutral
+// opened above it decides which. Assuming a neutral where the real ground is a
+// tint understates rather than overstates: a tint is darker, so the pairing
+// really reads worse than reported, and the scan errs towards silence rather
+// than towards a false alarm. `--hb` is the one token where that can flip a
+// verdict, at 4.61 on --panel against 4.04 on --bg.
+function groundFor(lines: string[], at: number, ownDeclarations: string): string | null {
+	if (isFlatGround(ownDeclarations)) {
+		if (namesTintedGround(ownDeclarations)) return null;
+		const own = neutralIn(ownDeclarations);
+		if (own) return own;
+	}
+	for (let back = at; back >= Math.max(0, at - GROUND_REACH); back--) {
+		const declarations = (lines[back].match(/background(?:-color)?:[^;"]*/g) ?? []).join(' ');
+		if (!declarations || !isFlatGround(declarations)) continue;
+		const neutral = neutralIn(declarations);
+		if (neutral) return neutral;
+	}
+	return 'panel';
+}
+
+interface NeutralOffence {
+	file: string;
+	line: number;
+	kind: string;
+	ground: string;
+	through: string;
+	token: string;
+	ratio: number;
+	floor: number;
+}
+
+// A style attribute, a Svelte style directive, and the `color` and `fill` props
+// of an Icon. The Icon pass is what makes the two floors separable at all: a
+// stroke icon is not text whatever font-size the button around it declares,
+// and the favourite star sits in a button that declares one.
+const STYLE_ATTRIBUTE = /style="[^"]*"/gs;
+
+// The same declarations built as a string rather than written as an attribute:
+// the tab button of the landing page returns a template literal, and
+// auth-styles.ts holds whole style strings in single quotes. Neither is a
+// `style="..."` to anything reading the file, and a colour written in one is
+// painted exactly the same.
+const STYLE_STRING = /`[^`]*`|'[^'\n]*'/gs;
+const STYLE_DIRECTIVE = /style:(?:color|fill|stroke)=(?:"[^"]*"|\{[^}]*\})/g;
+const ICON_TAG = /<Icon\b[^>]*>/gs;
+
+// A colour handed to a child component by name. Every such prop in this repo
+// paints type, `labelColor` on LatestValue and `accent` on SessionRepsCard, so
+// one is measured against the text floor at the call site, where the ground is
+// readable even though the painting is not. A child that painted a mark with
+// one would be failed wrongly, which is the price of seeing the shape at all;
+// today there is no such child. A prop that names a ground or a stroke rather
+// than a foreground is excluded by name, since `backgroundColor` is the likelier
+// next prop and holding a ground to the text floor would be the same mistake in
+// the other direction. `<Icon>` is excluded because its own pass reads it, and
+// reads it as the mark it is.
+const COMPONENT_TAG = /<(?!Icon\b)[A-Z]\w*\b[^>]*>/gs;
+const PROP_COLOUR =
+	/\b(?:accent|(?!background|bg|tint|fill|stroke|border|surface)[a-z]\w*Color)=(?:"([^"]*)"|\{([^}]*)\})/g;
+
+// A `<style>` block, which is plain CSS and carries none of the shapes above.
+// The hangboard components write three labels there. Split on the closing brace
+// so a rule's own font-size decides its floor rather than a neighbour's.
+const STYLE_BLOCK = /<style[^>]*>([\s\S]*?)<\/style>/g;
+const ICON_COLOUR = /\b(?:color|fill)=(?:"([^"]*)"|\{([^}]*)\})/g;
+const DECLARED_COLOUR = /(?<!-)\bcolor:\s*[^;"]*/gs;
+
+function lineAt(source: string, index: number): number {
+	return source.slice(0, index).split('\n').length;
+}
+
+function neutralOffencesIn(file: string, tokens: Record<string, string>): NeutralOffence[] {
+	const source = readResolved(file);
+	const lines = source.split('\n');
+	const bound = bindings(source);
+	const local = colourFields(source);
+	const offences: NeutralOffence[] = [];
+
+	function record(at: number, expression: string, kind: string, own: string): void {
+		const floor = kind === 'text' ? TEXT_CONTRAST_FLOOR : MARK_CONTRAST_FLOOR;
+		const ground = groundFor(lines, at - 1, own);
+		if (ground === null) return;
+		for (const { token, through } of accentsIn(expression, bound, local)) {
+			const ratio = contrastRatio(tokens[token], tokens[ground]);
+			if (ratio >= floor) continue;
+			offences.push({ file, line: at, kind, ground, through, token, ratio, floor });
+		}
+	}
+
+	for (const pattern of [STYLE_ATTRIBUTE, STYLE_STRING]) {
+		for (const match of source.matchAll(pattern)) {
+			const block = match[0];
+			const declarations = block.match(DECLARED_COLOUR);
+			if (declarations === null) continue;
+			const grounds = (block.match(/background(?:-color)?:[^;"]*/gs) ?? []).join(' ');
+			const size = /font-size:\s*([\d.]+)px/.exec(block);
+			const weight = /font-weight:\s*(\d+|bold)/.exec(block);
+			const large =
+				size !== null &&
+				isLargeText(
+					parseFloat(size[1]),
+					weight === null ? 400 : weight[1] === 'bold' ? 700 : parseInt(weight[1])
+				);
+			for (const declaration of declarations) {
+				record(
+					lineAt(source, match.index + block.indexOf(declaration)),
+					declaration,
+					large ? 'large text' : 'text',
+					grounds
+				);
+			}
+		}
+	}
+
+	for (const match of source.matchAll(STYLE_DIRECTIVE)) {
+		record(lineAt(source, match.index), match[0], 'text', '');
+	}
+
+	for (const match of source.matchAll(ICON_TAG)) {
+		for (const colour of match[0].matchAll(ICON_COLOUR)) {
+			record(lineAt(source, match.index), colour[1] ?? colour[2], 'mark', '');
+		}
+	}
+
+	for (const match of source.matchAll(COMPONENT_TAG)) {
+		for (const colour of match[0].matchAll(PROP_COLOUR)) {
+			record(lineAt(source, match.index + (colour.index ?? 0)), colour[1] ?? colour[2], 'text', '');
+		}
+	}
+
+	for (const block of source.matchAll(STYLE_BLOCK)) {
+		let at = block.index + block[0].indexOf(block[1]);
+		for (const rule of block[1].split('}')) {
+			const declarations = rule.match(DECLARED_COLOUR);
+			if (declarations !== null) {
+				const size = /font-size:\s*([\d.]+)px/.exec(rule);
+				const weight = /font-weight:\s*(\d+|bold)/.exec(rule);
+				const large =
+					size !== null &&
+					isLargeText(
+						parseFloat(size[1]),
+						weight === null ? 400 : weight[1] === 'bold' ? 700 : parseInt(weight[1])
+					);
+				const grounds = (rule.match(/background(?:-color)?:[^;]*/gs) ?? []).join(' ');
+				for (const declaration of declarations) {
+					record(
+						lineAt(source, at + rule.indexOf(declaration)),
+						declaration,
+						large ? 'large text' : 'text',
+						grounds
+					);
+				}
+			}
+			at += rule.length + 1;
+		}
+	}
+
+	const seen = new Set<string>();
+	return offences.filter((offence) => {
+		const key = `${offence.line}:${offence.token}:${offence.kind}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
+describe('no surface writes an accent under its floor on a neutral ground', () => {
+	const tokens = paletteTokens();
+
+	// Checked against the shapes it has to read and the ones it has to leave
+	// alone. A guard whose only evidence is an empty list proves nothing about
+	// what it can see.
+	it('reads an accent through every spelling a surface uses', () => {
+		const table = bindings("{@const block = BLOCK_PRESENTATION['exercise']}");
+		const activity = bindings('const type = $derived(sessionActivityInfo(detail.activity));');
+		const inline = colourFields("{#each [{ k: 'Programs', c: 'var(--gd)' }] as stat (stat.k)}");
+
+		expect(accentsIn('color: var(--gd);', {}, {}).map((one) => one.token)).toEqual(['gd']);
+		expect(accentsIn('color="var(--gd)"', {}, {}).map((one) => one.token)).toEqual(['gd']);
+		expect(
+			accentsIn("color: {failed ? 'var(--rd)' : 'var(--tx3)'};", {}, {}).map((one) => one.token)
+		).toEqual(['rd']);
+		// A directive carries `style:` as well as the property, and the root of the
+		// binding walk has to be the expression rather than the word `color`.
+		expect(accentsIn('style:color={type.color}', activity, {}).map((one) => one.token)).toContain(
+			'gd'
+		);
+		expect(accentsIn('style:color={accent}', {}, {}).map((one) => one.token)).toEqual([]);
+		expect(accentsIn('color: {type.color};', activity, {}).map((one) => one.token)).toContain('gd');
+		expect(accentsIn('color: {type.text};', activity, {}).map((one) => one.token)).toEqual([]);
+		expect(accentsIn('color={stat.c}', {}, inline).map((one) => one.token)).toEqual(['gd']);
+		expect(accentsIn('color: var(--tx2);', {}, {}).map((one) => one.token)).toEqual([]);
+		// An Icon prop value arrives with no property in front of it, so nothing
+		// may be stripped off the front of it.
+		expect(
+			accentsIn("a === b ? 'var(--gd)' : 'var(--tx3)'", {}, {}).map((one) => one.token)
+		).toEqual(['gd']);
+
+		// The table a field comes from decides what it can hold. Gold can reach a
+		// session figure and cannot reach a block button, and reading both from
+		// one merged table would fail the block button for a colour it never gets.
+		expect(accentsIn('color={block.color}', table, {}).map((one) => one.token)).not.toContain('gd');
+	});
+
+	// The two shapes added after round 2, checked directly: a colour handed to a
+	// child by name, and a rule in a `<style>` block. Both were whole regions the
+	// scan could not read, and a colour prop is how nine assessment hand labels
+	// sat at 3.63:1 on a white card through the first two commits of this branch.
+	it('reads a colour handed to a child component by name', () => {
+		const tag = '<LatestValue label="LEFT" labelColor="var(--gn)" size={22} />';
+		const prop = [...tag.matchAll(PROP_COLOUR)][0];
+		expect(prop).toBeDefined();
+		expect(accentsIn(prop[1], {}, {}).map((one) => one.token)).toEqual(['gn']);
+		// An Icon's own colour belongs to the mark pass, not to this one.
+		expect([...'<Icon name="x" color="var(--gd)" />'.matchAll(COMPONENT_TAG)]).toEqual([]);
+	});
+
+	it('leaves a ground or a stroke prop to whatever paints it', () => {
+		const reads = (tag: string) => [...tag.matchAll(PROP_COLOUR)].length;
+		expect(reads('<Chip labelColor="var(--gn)" />')).toBe(1);
+		expect(reads('<Chip accent={type.text} />')).toBe(1);
+		expect(reads('<Chip backgroundColor="var(--gd)" />')).toBe(0);
+		expect(reads('<Chip bgColor="var(--gd)" />')).toBe(0);
+		expect(reads('<Spark strokeColor={type.color} />')).toBe(0);
+		expect(reads('<Chip borderColor="var(--pr)" />')).toBe(0);
+	});
+
+	it('reads a rule in a style block', () => {
+		const block = [
+			...'<style>\n.hb-tag { font-size: 10px; color: var(--hb); }\n</style>'.matchAll(STYLE_BLOCK)
+		][0];
+		expect(block).toBeDefined();
+		expect(block[1].match(DECLARED_COLOUR)).toEqual(['color: var(--hb)']);
+	});
+
+	it('walks a binding back to the table it came from', () => {
+		const bound = bindings(
+			'let allowedStructureButtons = $derived(\n\tSTRUCTURE_BLOCKS.filter((b) => true)\n);\n' +
+				'{#each allowedStructureButtons as btn (btn.type)}'
+		);
+		expect(tableFor('btn', bound)).toBe('block-presentation.ts');
+		expect(tableFor('somethingElse', bound)).toBeNull();
+	});
+
+	it('separates the two floors', () => {
+		expect(isLargeText(32, 700)).toBe(true);
+		expect(isLargeText(20, 700)).toBe(true);
+		expect(isLargeText(18, 700)).toBe(false);
+		expect(isLargeText(24, 400)).toBe(true);
+		expect(isLargeText(20, 400)).toBe(false);
+	});
+
+	// A gradient rule naming an accent used to be read as the ground of whatever
+	// came after it, which is how a gold icon on a white card went unmeasured.
+	it('does not take a gradient for a ground', () => {
+		const lines = [
+			'<div style="background: var(--panel);">',
+			'<div style="height: 3px; background: linear-gradient(90deg, var(--gd), var(--pl));"></div>',
+			'<Icon name="calendar" size={16} color="var(--gd)" />'
+		];
+		expect(groundFor(lines, 2, '')).toBe('panel');
+	});
+
+	// The numbers this sweep was decided on, restated so a token moved in
+	// layout.css cannot quietly change which side of a floor a surface sits on.
+	it('keeps gold the only accent that fails the mark floor on white', () => {
+		const failing = NEUTRAL_ACCENTS.filter(
+			(token) => contrastRatio(tokens[token], tokens.panel) < MARK_CONTRAST_FLOOR
+		);
+		expect(failing).toEqual(['gd']);
+	});
+
+	it('leaves only the two darkest accents above the text floor on white', () => {
+		const clearing = NEUTRAL_ACCENTS.filter(
+			(token) => contrastRatio(tokens[token], tokens.panel) >= TEXT_CONTRAST_FLOOR
+		);
+		expect(clearing).toEqual(['pr-dk', 'hb']);
+	});
+
+	it('finds no accent under its floor on a neutral ground', () => {
+		const offences = sourceFiles(SOURCE_ROOT).flatMap((file) => neutralOffencesIn(file, tokens));
+		const stated = offences.map(
+			(offence) =>
+				`${offence.file.slice(SOURCE_ROOT.length)}:${offence.line} writes ${offence.through} ` +
+				`(--${offence.token}) as ${offence.kind} on --${offence.ground}, ` +
+				`${offence.ratio.toFixed(2)}:1 against a ${offence.floor}:1 floor`
+		);
+		expect(stated, `accent under its floor on a neutral ground:\n${stated.join('\n')}`).toEqual([]);
 	});
 });

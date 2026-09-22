@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { MARK_CONTRAST_FLOOR, TEXT_CONTRAST_FLOOR, contrastRatio } from '$lib/contrast';
+import { BLOCK_PRESENTATION } from '$lib/block-presentation';
+import { missingRatioColor, progressionColor } from '$lib/components/assessment/comparison-colors';
+import { toneColor, toneMarkColor, toneTextColor } from '$lib/training-load';
+import type { BandTone } from '$lib/training-load';
 import { SESSION_ACTIVITIES } from '$lib/sessions';
 import { TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 import { sessionRpe, sessionRpeColor, sessionRpeTint } from '$lib/rpe';
@@ -10,8 +15,9 @@ import type { SessionResponse } from '$lib/api/client';
 // The floor for text below the 18.66px bold threshold, which every pill and
 // badge in this portal is: the session RPE badge is 10.5px bold on a session row
 // and 9px bold in the week grid, and the type chips are 8.5px to 12px. Nothing
-// here earns the 3:1 large text exemption.
-const CONTRAST_FLOOR = 4.5;
+// here earns the 3:1 large text exemption. Surfaces that do are measured in
+// palette-surfaces.test.ts, which holds both floors.
+const CONTRAST_FLOOR = TEXT_CONTRAST_FLOOR;
 
 const PALETTE_SOURCE = fileURLToPath(new URL('../routes/layout.css', import.meta.url));
 
@@ -22,27 +28,6 @@ function palette(): Record<string, string> {
 		tokens[name] = hex.toLowerCase();
 	}
 	return tokens;
-}
-
-function channel(value: number): number {
-	const c = value / 255;
-	return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-}
-
-function luminance(hex: string): number {
-	const n = parseInt(hex.slice(1), 16);
-	return (
-		0.2126 * channel((n >> 16) & 0xff) +
-		0.7152 * channel((n >> 8) & 0xff) +
-		0.0722 * channel(n & 0xff)
-	);
-}
-
-// WCAG 2.1 relative luminance contrast, (L1 + 0.05) / (L2 + 0.05).
-function contrastRatio(foreground: string, background: string): number {
-	const a = luminance(foreground);
-	const b = luminance(background);
-	return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
 // Resolves a value written as `var(--token)` against layout.css, so a pairing is
@@ -94,6 +79,8 @@ const MIRRORED_IN_CRIMPY_APP: Record<string, string> = {
 	'rd-tx': '#ac4747',
 	'bl-tx': '#4b698a'
 };
+
+const BAND_TONES: BandTone[] = ['low', 'good', 'high', 'unlabelled'];
 
 const session = (overrides: Partial<SessionResponse>): SessionResponse =>
 	({ id: 'x', rpe: null, rpe_failed: false, ...overrides }) as SessionResponse;
@@ -167,5 +154,104 @@ describe('surfaces that write an accent as text on its own tint', () => {
 		['a weigh-in that never happened', { missing: 'no-weigh-in' as const }]
 	])('holds the denominator note for %s', (label, reading) => {
 		expectClearsFloor(label, denominatorNoteColor(reading), 'var(--panel)', tokens);
+	});
+});
+
+describe('surfaces that write an accent on a neutral ground', () => {
+	const tokens = palette();
+
+	// The mark form is what a session keeps on white when it is an icon or a
+	// figure large enough for the 3:1 floor, which is the session detail
+	// modal's 32px duration. Only climbing moves, because only gold misses 3:1.
+	it.each(Object.entries(SESSION_ACTIVITIES))('holds the %s mark on white', (key, info) => {
+		const ratio = contrastRatio(resolve(info.mark, tokens), resolve('var(--panel)', tokens));
+		expect(
+			ratio,
+			`${info.label}: ${info.mark} reads ${ratio.toFixed(2)}:1 on --panel, under the ${MARK_CONTRAST_FLOOR}:1 mark floor`
+		).toBeGreaterThanOrEqual(MARK_CONTRAST_FLOOR);
+	});
+
+	it.each(Object.entries(SESSION_ACTIVITIES))(
+		'keeps the %s mark the accent unless it fails',
+		(key, info) => {
+			const accentClears =
+				contrastRatio(resolve(info.color, tokens), resolve('var(--panel)', tokens)) >=
+				MARK_CONTRAST_FLOOR;
+			expect(
+				info.mark,
+				`${info.label} was moved off its accent although the accent clears the mark floor, or left on one that does not`
+			).toBe(accentClears ? info.color : info.text);
+		}
+	);
+
+	// The rep rows of the session detail modal take their accent as a prop, from
+	// SessionDetailModal, and paint it at 11px bold on a white card. No source
+	// scan follows a colour through a prop, so the pairing is named here.
+	it.each(Object.entries(SESSION_ACTIVITIES))(
+		'holds the %s rep row label on the white card',
+		(key, info) => {
+			expectClearsFloor(`${info.label} rep row`, info.text, 'var(--panel)', tokens);
+		}
+	);
+
+	// The block palette writes its label in `text` and draws its icon in
+	// `color`, on the white of the right rail and the add menu.
+	it.each(Object.entries(BLOCK_PRESENTATION))('holds the %s block button label', (type, block) => {
+		expectClearsFloor(block.label, block.text, 'var(--panel)', tokens);
+	});
+
+	// Colours a source scan will never see, because they come out of a function
+	// rather than a token. Each one is named here instead, which is the price of
+	// the guard not resolving calls.
+	it.each(BAND_TONES)('holds the %s load band as a table cell', (tone) => {
+		expectClearsFloor(`${tone} load cell`, toneTextColor(tone), 'var(--panel)', tokens);
+	});
+
+	it.each(BAND_TONES)('holds the %s load band as a headline figure', (tone) => {
+		const ratio = contrastRatio(
+			resolve(toneMarkColor(tone), tokens),
+			resolve('var(--panel)', tokens)
+		);
+		expect(
+			ratio,
+			`${tone} load figure: ${toneMarkColor(tone)} reads ${ratio.toFixed(2)}:1 on --panel, under the ${MARK_CONTRAST_FLOOR}:1 mark floor`
+		).toBeGreaterThanOrEqual(MARK_CONTRAST_FLOOR);
+	});
+
+	// The load figures are 26px bold, so large text, and keep their accent
+	// wherever the accent clears 3:1. Only gold moves, exactly as the session
+	// activity marks do.
+	it.each(BAND_TONES)('keeps the %s load figure on its accent unless it fails', (tone) => {
+		const accentClears =
+			contrastRatio(resolve(toneColor(tone), tokens), resolve('var(--panel)', tokens)) >=
+			MARK_CONTRAST_FLOOR;
+		expect(toneMarkColor(tone)).toBe(accentClears ? toneColor(tone) : toneTextColor(tone));
+	});
+
+	it.each([
+		['a result that went backwards', -1],
+		['a result that went forwards', 1]
+	])('holds the assessment progression note for %s', (label, delta) => {
+		expectClearsFloor(
+			label,
+			progressionColor({ hand: 'single', delta, percent: delta, unchanged: false }),
+			'var(--panel)',
+			tokens
+		);
+	});
+
+	it.each([['stale'], ['no-weigh-in']] as const)(
+		'holds the missing ratio note for a %s weigh-in',
+		(missing) => {
+			expectClearsFloor(missing, missingRatioColor(missing), 'var(--panel)', tokens);
+		}
+	);
+
+	it.each(Object.entries(BLOCK_PRESENTATION))('holds the %s block button icon', (type, block) => {
+		const ratio = contrastRatio(resolve(block.color, tokens), resolve('var(--panel)', tokens));
+		expect(
+			ratio,
+			`${block.label}: ${block.color} reads ${ratio.toFixed(2)}:1 on --panel, under the ${MARK_CONTRAST_FLOOR}:1 mark floor`
+		).toBeGreaterThanOrEqual(MARK_CONTRAST_FLOOR);
 	});
 });

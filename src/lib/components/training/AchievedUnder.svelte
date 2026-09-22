@@ -24,7 +24,10 @@
 </script>
 
 {#if entries.length > 0}
-	<span data-testid="achieved-under" style="font-size: 10px; color: var(--pr); font-weight: 700;">
+	<span
+		data-testid="achieved-under"
+		style="font-size: 10px; color: var(--pr-tx); font-weight: 700;"
+	>
 		did {line}
 	</span>
 {/if}
