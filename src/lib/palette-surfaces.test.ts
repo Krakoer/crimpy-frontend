@@ -512,7 +512,23 @@ const PALETTE_SOURCE = fileURLToPath(new URL('../routes/layout.css', import.meta
 // Krakoer/crimpy#137 decided the --panel family and left this open. It is
 // recorded here, and in the --tx3-sm comment in layout.css, so the next reader
 // finds a question rather than an oversight.
-const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2'];
+const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2', 'bg'];
+
+// The pairings on --bg that no token in this palette fixes, exempted by name
+// rather than by dropping the ground.
+//
+// Narrowing the ground list to ['panel','panel2'] was the wrong way to record
+// the open question: it also stopped measuring the accents there, and those do
+// have a working answer. --hb reads 4.61:1 on --panel against 4.04:1 on --bg
+// and --pr-dk 4.84:1 against 4.23:1, so a teal or dark terracotta label on the
+// page ground would have passed a guard that failed it before this branch. The
+// -tx forms all clear the floor on --bg (--pr-tx 5.21, --gn-tx 4.82, --gd-tx
+// 4.77, --pl-tx 5.03, --rd-tx 4.90, --bl-tx 4.98, --hb-tx 4.63), so keeping the
+// ground costs nothing and keeps that covered.
+//
+// These two are the secondary and tertiary voice, at 4.34:1 and 4.26:1, and are
+// the open palette decision recorded on --tx3-sm in layout.css.
+const UNFIXABLE_ON_BG = ['tx2', 'tx3-sm'];
 
 // Every accent that is a mark rather than a text colour. `--hb` is listed even
 // though it clears 4.5:1 on white by itself, so that darkening it later is
@@ -547,11 +563,25 @@ function paletteTokens(): Record<string, string> {
 // of a source. `{ color: 'var(--gd)' }` in a shared table and the inline
 // `{ k: 'Programs', c: 'var(--gd)' }` an each block loops over are the same
 // shape, so one reader answers both.
+// A field bound to a conditional holds every token its arms name, not just the
+// one written first. `c: band ? toneMarkColor(band) : 'var(--tx3)'` is a load
+// tile's figure colour, and reading only a directly bound literal dropped the
+// placeholder arm: the `--` shown when there is no load rendered at 26px in
+// --tx3, 2.44:1, under the 3:1 a figure that size answers to.
+//
+// This is the same shape as the two readers fixed before it. A value is scanned
+// for every `var(--x)` it can produce rather than for the one it usually does.
 function colourFields(source: string): Record<string, string[]> {
 	const fields: Record<string, string[]> = {};
-	for (const [, field, token] of source.matchAll(/(\w+):\s*'var\(--([\w-]+)\)'/g)) {
-		const held = (fields[field] ??= []);
-		if (!held.includes(token)) held.push(token);
+	// The field name, then its value up to the comma that ends it, across one
+	// level of nesting so a `toneMarkColor(...)` arm does not cut it short.
+	for (const [, field, value] of source.matchAll(
+		/(\w+):\s*((?:[^,()]|\((?:[^()]|\([^()]*\))*\))*)/g
+	)) {
+		for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
+			const held = (fields[field] ??= []);
+			if (!held.includes(token)) held.push(token);
+		}
 	}
 	return fields;
 }
@@ -683,10 +713,19 @@ function namesTintedGround(declaration: string): boolean {
 	);
 }
 
+// An element that paints no ground of its own inherits the one behind it, which
+// the backward walk then finds. `transparent` and `background: none` are the
+// commonest spelling of an unselected chip, and reading them as "no neutral
+// here" is what left the AddZone button and the program filter chips
+// unmeasured: their selected arm names a tint, so the declaration was handed to
+// the hue scan, which does not measure --tx3 either.
+const INHERITS_GROUND = /\btransparent\b|background(?:-color)?:\s*none\b/;
+
 function neutralIn(declaration: string): string | null {
 	const named = NEUTRAL_GROUND_TOKENS.find((token) => namesToken(declaration, token));
 	if (named) return named;
-	return /#fff\b|#ffffff\b/i.test(declaration) ? 'panel' : null;
+	if (/#fff\b|#ffffff\b/i.test(declaration)) return 'panel';
+	return INHERITS_GROUND.test(declaration) ? 'inherit' : null;
 }
 
 // Which neutral a colour is painted on, or null when the pairing belongs to the
@@ -715,14 +754,22 @@ function groundFor(lines: string[], at: number, ownDeclarations: string): string
 		//
 		// So a declaration that names both is measured on its neutral arm here and
 		// left to the hue scan for its tinted one.
-		if (namesTintedGround(ownDeclarations)) return own ?? null;
-		if (own) return own;
+		// An inherited ground is not an answer, it is a reason to keep looking:
+		// the walk below finds what is actually behind the element.
+		if (namesTintedGround(ownDeclarations)) {
+			if (own === null) return null;
+			if (own !== 'inherit') return own;
+		} else if (own !== null && own !== 'inherit') {
+			return own;
+		}
 	}
 	for (let back = at; back >= Math.max(0, at - GROUND_REACH); back--) {
 		const declarations = (lines[back].match(/background(?:-color)?:[^;"]*/g) ?? []).join(' ');
 		if (!declarations || !isFlatGround(declarations)) continue;
 		const neutral = neutralIn(declarations);
-		if (neutral) return neutral;
+		// A transparent ancestor is see-through too: keep walking rather than
+		// answering with the sentinel.
+		if (neutral !== null && neutral !== 'inherit') return neutral;
 	}
 	return 'panel';
 }
@@ -812,6 +859,7 @@ function neutralOffencesIn(file: string, tokens: Record<string, string>): Neutra
 			// figure set at 26px. Spelling this `kind !== 'text'` silenced that
 			// case as well, which was broader than the reasoning beside it.
 			if (token === 'tx3' && kind === 'mark') continue;
+			if (ground === 'bg' && UNFIXABLE_ON_BG.includes(token)) continue;
 			const ratio = contrastRatio(tokens[token], tokens[ground]);
 			if (ratio >= floor) continue;
 			offences.push({ file, line: at, kind, ground, through, token, ratio, floor });
@@ -939,6 +987,26 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 	// child by name, and a rule in a `<style>` block. Both were whole regions the
 	// scan could not read, and a colour prop is how nine assessment hand labels
 	// sat at 3.63:1 on a white card through the first two commits of this branch.
+	// The shape that got through three rounds running: a token in one arm of a
+	// conditional, dropped by a reader that answers with one value. These two
+	// are the last readers in this file that did it.
+	it('reads a token in a conditional arm of a record field', () => {
+		const tile = colourFields("{ k: 'Load', c: band ? toneMarkColor(band) : 'var(--tx3)' }");
+		expect(tile.c).toContain('tx3');
+	});
+
+	it('keeps looking when an element paints no ground of its own', () => {
+		// An unselected chip is `transparent`, not `#fff`, and its selected arm
+		// names a tint. Reading that as "no neutral here" handed the whole
+		// declaration to the hue scan, which does not measure --tx3 either, so
+		// the label fell between the two.
+		const chip = "background: {on ? 'var(--pr-fog)' : 'transparent'}";
+		expect(neutralIn(chip)).toBe('inherit');
+		expect(groundFor(['', chip], 1, chip)).toBe('panel');
+		// A real neutral arm still answers directly.
+		expect(neutralIn("background: {on ? 'var(--pr-fog)' : '#fff'}")).toBe('panel');
+	});
+
 	it('reads a colour handed to a child component by name', () => {
 		const tag = '<LatestValue label="LEFT" labelColor="var(--gn)" size={22} />';
 		const prop = [...tag.matchAll(PROP_COLOUR)][0];

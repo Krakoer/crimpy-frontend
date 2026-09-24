@@ -1929,7 +1929,7 @@
 									padding: 3px 9px; font-size: 10.5px; font-weight: 600;
 									border-radius: 999px; border: none; cursor: pointer;
 									background: {trainingTypeFilter === f.id ? 'var(--pr-fog)' : 'transparent'};
-									color: {trainingTypeFilter === f.id ? 'var(--pr-tx)' : 'var(--tx3)'};
+									color: {trainingTypeFilter === f.id ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 									font-family: var(--font);
 								">{f.label}</button
 									>

@@ -95,7 +95,7 @@
 			</div>
 		</div>
 		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneMarkColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneMarkColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneMarkColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
+			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneMarkColor(ratioBand.tone) : 'var(--tx3-sm)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneMarkColor(loadBand.tone) : 'var(--tx3-sm)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneMarkColor(changeBand.tone) : 'var(--tx3-sm)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
 				<div style="{cardStyle} padding: 14px 16px;">
 					<div style={captionStyle}>{tile.k}</div>
 					<div
