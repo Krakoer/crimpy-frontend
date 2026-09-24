@@ -81,7 +81,9 @@
 			style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px;"
 		>
 			Circuit
-			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
+			<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500;"
+				>{collapsedSummary}</span
+			>
 		</span>
 		<!-- "sets" rather than "rounds": that is what the summary beside it and the
 		     editor both call a circuit's cycles, and rounds is the emom's word. -->

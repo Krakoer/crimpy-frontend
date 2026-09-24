@@ -55,7 +55,7 @@
 					<div
 						style="
 							display: flex; align-items: center; gap: 6px;
-							font-size: 11.5px; color: var(--tx3); margin-bottom: 4px;
+							font-size: 11.5px; color: var(--tx3-sm); margin-bottom: 4px;
 						"
 					>
 						{#each breadcrumbs as crumb, i (i)}
@@ -66,7 +66,7 @@
 								<button
 									onclick={() => goto(crumb.href!)}
 									style="
-										cursor: pointer; color: var(--tx3);
+										cursor: pointer; color: var(--tx3-sm);
 										background: none; border: none;
 										font-size: 11.5px; font-family: var(--font); padding: 0;
 									"
@@ -74,7 +74,9 @@
 									{crumb.label}
 								</button>
 							{:else}
-								<span style="color: {i === breadcrumbs.length - 1 ? 'var(--tx2)' : 'var(--tx3)'};">
+								<span
+									style="color: {i === breadcrumbs.length - 1 ? 'var(--tx2)' : 'var(--tx3-sm)'};"
+								>
 									{crumb.label}
 								</span>
 							{/if}

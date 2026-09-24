@@ -9,7 +9,7 @@ import type { MissingRatio } from './bodyweight-ratio';
 // measured the same way. See Krakoer/crimpy#128.
 
 export function progressionColor(hand: ComparedHand): string {
-	if (hand.delta === undefined) return 'var(--tx3)';
+	if (hand.delta === undefined) return 'var(--tx3-sm)';
 	// A result that did not move is not a loss, including the one the
 	// percentage cannot answer for because it started at zero.
 	if (hand.delta === 0) return 'var(--tx2)';

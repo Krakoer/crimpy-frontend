@@ -91,7 +91,7 @@
 				placeholder="Group title..."
 				style="border: none; outline: none; background: transparent; font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--tx); width: 160px;"
 			/>
-			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;"
+			<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500;"
 				>{item.items?.length ?? 0} items</span
 			>
 		</span>
@@ -109,7 +109,7 @@
 					>
 					<button
 						onclick={() => (confirmDelete = false)}
-						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3-sm); font-size: 11px; cursor: pointer; font-family: var(--font);"
 						>Cancel</button
 					>
 				{:else}

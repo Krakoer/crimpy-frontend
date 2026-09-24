@@ -28,7 +28,7 @@
 	let options = $derived(assessmentsForField(field, catalog));
 
 	const labelStyle =
-		'font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;';
+		'font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;';
 	const controlStyle =
 		'padding: 5px 4px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; color: var(--tx); outline: none; background: #fff;';
 </script>
@@ -55,5 +55,5 @@
 		onclick={(e) => e.stopPropagation()}
 		style="{controlStyle} width: 56px; text-align: center;"
 	/>
-	<span style="font-size: 11px; color: var(--tx3);">{fallbackUnit}</span>
+	<span style="font-size: 11px; color: var(--tx3-sm);">{fallbackUnit}</span>
 </div>

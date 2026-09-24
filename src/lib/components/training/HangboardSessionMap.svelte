@@ -90,7 +90,7 @@
 		border-radius: var(--rs);
 		border: 1px solid transparent;
 		background: transparent;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		font-size: 10px;
 		font-weight: 700;
 		letter-spacing: 0.06em;
@@ -100,9 +100,9 @@
 	}
 
 	.hb-set-label.hb-on {
-		border-color: var(--hb);
+		border-color: var(--hb-tx);
 		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
+		color: var(--hb-tx);
 	}
 
 	.hb-steps {
@@ -147,9 +147,9 @@
 	}
 
 	.hb-step.hb-custom {
-		border-color: var(--hb);
+		border-color: var(--hb-tx);
 		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
+		color: var(--hb-tx);
 	}
 
 	.hb-step.hb-on {

@@ -50,6 +50,6 @@
 		{headline}
 	</div>
 	{#if load}
-		<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">{load}</div>
+		<div style="font-size: 11px; color: var(--tx3-sm); margin-top: 4px;">{load}</div>
 	{/if}
 </div>

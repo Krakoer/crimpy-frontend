@@ -174,7 +174,7 @@
 
 	.hb-label {
 		font-size: 10px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		font-weight: 600;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;

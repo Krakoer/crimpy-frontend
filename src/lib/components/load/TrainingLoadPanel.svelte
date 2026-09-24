@@ -64,25 +64,25 @@
 	const cardStyle =
 		'background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh);';
 	const captionStyle =
-		'font-size: 10.5px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;';
+		'font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;';
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 16px;">
 	{#if loading}
 		<div
-			style="{cardStyle} padding: 48px 24px; text-align: center; color: var(--tx3); font-size: 13px;"
+			style="{cardStyle} padding: 48px 24px; text-align: center; color: var(--tx3-sm); font-size: 13px;"
 		>
 			Loading the weekly load...
 		</div>
 	{:else if failed}
 		<div
-			style="{cardStyle} padding: 48px 24px; text-align: center; color: var(--tx3); font-size: 13px;"
+			style="{cardStyle} padding: 48px 24px; text-align: center; color: var(--tx3-sm); font-size: 13px;"
 		>
 			The weekly load could not be read, so nothing here is known.
 		</div>
 	{:else if weeks.length === 0}
 		<div
-			style="{cardStyle} padding: 48px 24px; text-align: center; color: var(--tx3); font-size: 13px;"
+			style="{cardStyle} padding: 48px 24px; text-align: center; color: var(--tx3-sm); font-size: 13px;"
 		>
 			No weeks to show yet.
 		</div>
@@ -90,12 +90,12 @@
 		<!-- This week at a glance -->
 		<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 4px;">
 			<div style={captionStyle}>Week of {currentWeekLabel}</div>
-			<div style="font-size: 11px; color: var(--tx3);">
+			<div style="font-size: 11px; color: var(--tx3-sm);">
 				still in progress, so every figure below is a part week
 			</div>
 		</div>
 		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneMarkColor(ratioBand.tone) : 'var(--tx3)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneMarkColor(loadBand.tone) : 'var(--tx3)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneMarkColor(changeBand.tone) : 'var(--tx3)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
+			{#each [{ k: 'AL:CL ratio', v: formatRatio(current?.acute_chronic_ratio ?? null), note: ratioBand?.label ?? (current ? missingRatioNote(current) : ''), c: ratioBand ? toneMarkColor(ratioBand.tone) : 'var(--tx3-sm)' }, { k: 'Acute load', v: formatLoad(current?.acute_load ?? null), note: loadBand?.label ?? (current ? unknownLoadNote(current) : ''), c: loadBand ? toneMarkColor(loadBand.tone) : 'var(--tx3-sm)' }, { k: 'Week on week', v: formatPercent(current?.load_change_percent ?? null), note: changeBand?.label ?? 'Nothing to compare', c: changeBand ? toneMarkColor(changeBand.tone) : 'var(--tx3-sm)' }, { k: 'Mean RPE', v: formatRpe(current?.mean_rpe ?? null), note: current ? ratingCoverage(current) : '', c: 'var(--tx)' }] as tile (tile.k)}
 				<div style="{cardStyle} padding: 14px 16px;">
 					<div style={captionStyle}>{tile.k}</div>
 					<div
@@ -116,7 +116,7 @@
 				<div style="font-size: 13px; font-weight: 700; color: var(--tx);">
 					Weekly load and AL:CL
 				</div>
-				<div style="font-size: 11px; color: var(--tx3);">
+				<div style="font-size: 11px; color: var(--tx3-sm);">
 					{weeks.length} weeks, Monday to Sunday in your own time
 				</div>
 			</div>
@@ -211,7 +211,7 @@
 									{formatWeekLabel(week.week_start)}
 								</span>
 								{#if week.week_number !== null}
-									<span style="color: var(--tx3);"> W{week.week_number}</span>
+									<span style="color: var(--tx3-sm);"> W{week.week_number}</span>
 								{/if}
 							</td>
 							<td
@@ -245,7 +245,7 @@
 							>
 								{formatRpe(week.mean_rpe)}
 								{#if week.session_count > 0 && week.rated_sessions < week.session_count}
-									<span style="color: var(--tx3);">
+									<span style="color: var(--tx3-sm);">
 										({week.rated_sessions}/{week.session_count})</span
 									>
 								{/if}
@@ -260,7 +260,7 @@
 							>
 								{formatLoad(week.chronic_load)}
 								{#if week.chronic_load !== null && week.chronic_weeks < 3}
-									<span style="color: var(--tx3);" title={chronicBaselineNote(week) ?? ''}>
+									<span style="color: var(--tx3-sm);" title={chronicBaselineNote(week) ?? ''}>
 										({week.chronic_weeks}w)
 									</span>
 								{/if}
@@ -271,7 +271,7 @@
 								<span
 									style="font-weight: 700; color: {rowRatioBand
 										? toneTextColor(rowRatioBand.tone)
-										: 'var(--tx3)'};"
+										: 'var(--tx3-sm)'};"
 									title={rowRatioBand?.label ?? missingRatioNote(week)}
 								>
 									{formatRatio(week.acute_chronic_ratio)}
@@ -279,7 +279,9 @@
 							</td>
 							<td style="padding: 7px 10px 7px 0; border-bottom: 1px solid var(--bd2);">
 								<span
-									style="color: {rowChangeBand ? toneTextColor(rowChangeBand.tone) : 'var(--tx3)'};"
+									style="color: {rowChangeBand
+										? toneTextColor(rowChangeBand.tone)
+										: 'var(--tx3-sm)'};"
 								>
 									{formatPercent(week.load_change_percent)}
 								</span>
@@ -289,7 +291,7 @@
 				</tbody>
 			</table>
 			{#if baselineNote}
-				<div style="font-size: 11px; color: var(--tx3); margin-top: 10px;">{baselineNote}</div>
+				<div style="font-size: 11px; color: var(--tx3-sm); margin-top: 10px;">{baselineNote}</div>
 			{/if}
 		</div>
 	{/if}

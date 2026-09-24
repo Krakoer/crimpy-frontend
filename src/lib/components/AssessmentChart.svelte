@@ -47,7 +47,13 @@
 			borderLight: value('--bd2', '#f0eadf'),
 			text: value('--tx', '#2d241d'),
 			textSoft: value('--tx2', '#7a6e62'),
-			textFaint: value('--tx3', '#b0a496'),
+			// Every use of this is real type: axis labels at 10px, the slider
+			// labels at 9px and the tooltip's ratio-basis line. --tx3 is 2.44:1
+			// on the white card these charts sit on, so the faint voice here is
+			// the readable form. The palette is read off the document at runtime,
+			// which is a route no source scan can follow, so this pairing is
+			// named in palette-contrast.test.ts instead. See Krakoer/crimpy#137.
+			textFaint: value('--tx3-sm', '#787066'),
 			left: value('--gn', '#6b8f71'),
 			right: value('--pr', '#c2714f'),
 			// The tooltip writes the series names at 11px bold on a --panel ground,

@@ -20,7 +20,7 @@
 {#if overriding}
 	{#if item.comment?.trim()}
 		<div style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;">
-			<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+			<span style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 				>COMMENT</span
 			>
 			<p
@@ -32,7 +32,7 @@
 	{/if}
 {:else}
 	<div style="display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; width: 100%;">
-		<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+		<span style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 			>COMMENT</span
 		>
 		<textarea
@@ -45,7 +45,7 @@
 			onclick={(e) => e.stopPropagation()}
 			style="width: 100%; resize: vertical; min-height: 38px; padding: 6px 8px; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 12px; line-height: 1.4; color: var(--tx); outline: none; background: #fff;"
 		></textarea>
-		<span style="font-size: 10px; color: var(--tx3); align-self: flex-end;"
+		<span style="font-size: 10px; color: var(--tx3-sm); align-self: flex-end;"
 			>{(item.comment ?? '').length}/{MAX_COMMENT_LENGTH}</span
 		>
 	</div>

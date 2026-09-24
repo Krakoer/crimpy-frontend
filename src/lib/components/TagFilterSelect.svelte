@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagPill } from '$lib/tag-contrast';
 	import { apiClient, type Tag } from '$lib/api/client';
 
 	interface Props {
@@ -83,7 +84,7 @@
 				style="
 					display: inline-flex; align-items: center; gap: 4px;
 					padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
-					color: #fff; background: {tag.color};
+					color: {tagPill(tag.color).label}; background: {tagPill(tag.color).ground};
 				"
 			>
 				{tag.name}
@@ -100,7 +101,7 @@
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
-			<span style="color: var(--tx3); font-size: 12.5px;">{placeholder}</span>
+			<span style="color: var(--tx3-sm); font-size: 12.5px;">{placeholder}</span>
 		{/if}
 	</div>
 
@@ -146,7 +147,7 @@
 				{/each}
 				{#if filtered.length === 0}
 					<p
-						style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);"
+						style="padding: 10px 12px; font-size: 12px; color: var(--tx3-sm); font-family: var(--font);"
 					>
 						{search.trim()
 							? 'No matching tags.'

@@ -59,7 +59,7 @@
 	<div
 		style="
 			background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-			padding: 40px 24px; text-align: center; color: var(--tx3); font-size: 13px;
+			padding: 40px 24px; text-align: center; color: var(--tx3-sm); font-size: 13px;
 		"
 	>
 		No assessment records yet. Write an assessment on a training, and the results land here once the

@@ -275,7 +275,7 @@
 
 	.hb-label {
 		font-size: 10px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		font-weight: 600;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -283,7 +283,7 @@
 
 	.hb-hint {
 		font-size: 11px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 	}
 
 	.hb-pills {
@@ -305,9 +305,9 @@
 	}
 
 	.hb-pill.hb-on {
-		border-color: var(--hb);
+		border-color: var(--hb-tx);
 		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
+		color: var(--hb-tx);
 		font-weight: 700;
 	}
 

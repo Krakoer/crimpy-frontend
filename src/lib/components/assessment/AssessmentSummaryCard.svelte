@@ -47,12 +47,12 @@
 		<div style="font-size: 12px; font-weight: 600; color: var(--tx); min-width: 0;">
 			{assessment.label}
 		</div>
-		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
+		<div style="font-size: 11px; color: var(--tx3-sm); flex-shrink: 0;">
 			{readingLabel(bodyweightRelative, assessment.unit)}
 		</div>
 	</div>
 	{#if assessment.hasGrips}
-		<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
+		<div style="font-size: 11px; color: var(--tx3-sm); margin-bottom: 10px;">
 			{gripLabel(selectedGrip)}
 		</div>
 	{/if}

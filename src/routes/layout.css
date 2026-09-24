@@ -9,7 +9,43 @@
 	--tx: #2d241d;
 	--tx2: #7a6e62;
 	--tx3: #b0a496;
+	/* The third level of the type hierarchy read at a size that has to clear the
+	   4.5:1 text floor. --tx3 itself is 2.44:1 on --panel, which is under the
+	   4.5:1 floor at every size, the large-text exemption included, and under the
+	   3:1 mark floor as well. It is not fine for a line of any size: what is left
+	   for it is decoration, a separator or a hairline rule, which WCAG exempts.
+	   Every caption, hint and muted ternary arm takes this instead.
+
+	   It reads 4.87:1 on --panel and 4.52:1 on --panel2. It cannot be lighter:
+	   4.5:1 on a white card admits nothing paler than about this, which is why it
+	   lands within a hair of --tx2 (4.96:1 on --panel). At these sizes the third
+	   level and the second cannot be told apart by lightness and stay readable,
+	   so the distinction between them has to be carried by size and weight rather
+	   than colour. That is a real cost of the split and not an oversight.
+
+	   Neither this nor --tx2 clears the floor on the two darker neutral grounds.
+	   On --bg, the page ground, they read 4.26:1 and 4.34:1; on --bd2, which
+	   thirteen status pills fill with, 4.07:1 and 4.14:1. That is the whole
+	   secondary and tertiary voice failing on two grounds rather than this token
+	   failing, and no choice of token fixes it: the border family is being used
+	   as a chip ground and is too dark for the type scale. Darkening the text
+	   tokens far enough inverts them against --tx2; lightening the chip grounds
+	   changes what nine pills look like. Krakoer/crimpy#137 settled the --panel
+	   family and left that open, recorded here and beside NEUTRAL_GROUND_TOKENS
+	   in palette-surfaces.test.ts.
+
+	   The app's counterpart is textMutedSmall in
+	   crimpy-app/lib/theme/crimpy_theme.dart. The two values differ, #787066 warm
+	   here against #737373 there, because the two palettes differ in hue at every
+	   neutral level: it is a mapping rather than a parity claim. */
+	--tx3-sm: #787066;
 	--pr: #c2714f;
+	/* The terracotta a primary button is filled with when it carries a white
+	   label. --pr itself reads 3.64:1 under white, over the 3:1 mark floor and
+	   under the 4.5:1 text one, so the 13px labels the portal's buttons use are
+	   not readable on it. This reads 4.84:1. The buttons are the only thing that
+	   moved: --pr keeps its value and every marker, ring, icon and stripe drawn
+	   in it. See Krakoer/crimpy#137. */
 	--pr-dk: #a85e40;
 	--pr-lt: #f5e2d7;
 	--pr-fog: #fbf1ea;
@@ -56,6 +92,13 @@
 	   ground from a darker red than this one, and one value has to clear both.
 	   It is statusErrorText in crimpy-app/lib/theme/crimpy_theme.dart. */
 	--rd-tx: #ac4747;
+	/* The red a destructive button is filled with when it carries a white label,
+	   the counterpart of --pr-dk for terracotta. --rd itself is 3.74:1 under
+	   white, which is over the 3:1 mark floor and under the 4.5:1 text one, so a
+	   13px "Delete" on it is not readable. This reads 4.85:1 under white and
+	   4.52:1 on --rd-lt, so it can also be written on the light error ground
+	   without a second token. */
+	--rd-dk: #a75c5c;
 	--bl: #5b7fa6;
 	--bl-lt: #e6ecf2;
 	/* The blue an accent is written in when it sits on --bl-lt. --bl reads
@@ -63,6 +106,25 @@
 	   crimpy-app/lib/theme/crimpy_theme.dart. */
 	--bl-tx: #4b698a;
 	--hb: #4a7c8c;
+	/* The hangboard teal written on a tint of its own hue, the way --pr-tx and
+	   the rest are. Four hangboard rules build their ground with
+	   color-mix(in srgb, var(--hb) 12%, transparent) over the white card, which
+	   composites to #e9eff1 over the white card; --hb reads 3.97:1 there, under
+	   the floor for the 11px and 10px labels those rules use.
+
+	   The value clears the darkest ground the rule actually mounts on, not just
+	   the lightest. .hb-pill.hb-on renders twice: in the Hands radiogroup on the
+	   white body, and in the Grip radiogroup inside .hb-inspector, which is
+	   --panel2 and darkens again to a 6% --hb mix when focused. The same 12% mix
+	   composites to #e9eff1, #e5e7e3 and #dbe1de across those three, and this
+	   reads 4.53:1 on the worst of them and 6.00:1 on white. An earlier value
+	   cleared the white mount at 4.55:1 and missed the focused inspector at
+	   3.99:1, which is the kind of thing one ground in a comment hides.
+
+	   The portal's hangboard teal has no counterpart in the app theme, which is
+	   why there is no Dart twin to keep in step with, the same reason accentTeal
+	   has no text form there. */
+	--hb-tx: #3f6977;
 	--r: 10px;
 	--rs: 8px;
 	--rl: 14px;

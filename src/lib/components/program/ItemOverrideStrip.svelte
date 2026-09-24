@@ -65,7 +65,7 @@
 					{/each}
 					<!-- The reset is judged as one row, so the coach is told what else
 						goes with it before they press it rather than after. -->
-					<span style="font-size: 11px; color: var(--tx3);">
+					<span style="font-size: 11px; color: var(--tx3-sm);">
 						{mode.readOnly
 							? mode.readOnlyReason
 							: staleNotice.clearedByApply
@@ -78,7 +78,7 @@
 						control here would only promise what the save cannot do. -->
 					<span
 						data-testid="stale-override-blocked"
-						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
+						style="font-size: 11px; font-weight: 600; color: var(--tx3-sm); flex-shrink: 0;"
 						>Cannot be cleared here</span
 					>
 				{:else if mode.readOnly}
@@ -87,7 +87,7 @@
 						lie the coach can disprove. -->
 					<span
 						data-testid="stale-override-blocked"
-						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
+						style="font-size: 11px; font-weight: 600; color: var(--tx3-sm); flex-shrink: 0;"
 						>{staleNotice.clearedByApply
 							? 'Turn Edit on to drop it'
 							: 'Turn Edit on to clear it'}</span
@@ -98,7 +98,7 @@
 						that cannot move. Apply is the gesture that drops the row. -->
 					<span
 						data-testid="stale-override-dropped"
-						style="font-size: 11px; font-weight: 600; color: var(--tx3); flex-shrink: 0;"
+						style="font-size: 11px; font-weight: 600; color: var(--tx3-sm); flex-shrink: 0;"
 						>Applying drops it</span
 					>
 				{:else}
@@ -120,7 +120,7 @@
 		<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
 			{#if showsWeeks}
 				<span
-					style="font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--tx3); flex-shrink: 0;"
+					style="font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--tx3-sm); flex-shrink: 0;"
 					>PER WEEK</span
 				>
 				{#each weeks as entry (entry.key)}
@@ -133,10 +133,11 @@
 							padding: 2px 7px; border-radius: 999px; font-size: 10.5px;
 							border: 1px solid {entry.current ? 'var(--pr)' : 'var(--bd)'};
 							background: {entry.current ? 'var(--pr-fog)' : 'var(--panel)'};
-							color: {entry.summary ? 'var(--tx2)' : 'var(--tx3)'};
+							color: {entry.summary ? 'var(--tx2)' : 'var(--tx3-sm)'};
 						"
 					>
-						<span style="font-weight: 700; color: {entry.current ? 'var(--pr-tx)' : 'var(--tx3)'};"
+						<span
+							style="font-weight: 700; color: {entry.current ? 'var(--pr-tx)' : 'var(--tx3-sm)'};"
 							>{entry.label}</span
 						>
 						{entry.summary || 'as written'}
@@ -149,7 +150,7 @@
 			{#if overridden && !mode.readOnly && !staleNotice}
 				<button
 					onclick={() => mode.resetItem(itemId)}
-					style="border: none; background: transparent; padding: 2px 4px; font-family: var(--font); font-size: 10.5px; font-weight: 600; color: var(--tx3); cursor: pointer;"
+					style="border: none; background: transparent; padding: 2px 4px; font-family: var(--font); font-size: 10.5px; font-weight: 600; color: var(--tx3-sm); cursor: pointer;"
 					>Reset to the training</button
 				>
 			{/if}

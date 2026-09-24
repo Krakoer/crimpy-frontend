@@ -55,20 +55,20 @@
 			style="background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs); padding: 14px 16px;"
 		>
 			<p
-				style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
+				style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
 			>
 				Account details
 			</p>
 			<div style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px;">
 				<div style="display: flex; gap: 8px;">
-					<span style="color: var(--tx3); width: 52px; flex-shrink: 0;">Name</span>
+					<span style="color: var(--tx3-sm); width: 52px; flex-shrink: 0;">Name</span>
 					<span style="color: var(--tx2);">
 						{authStore.user?.firstname}
 						{authStore.user?.lastname}
 					</span>
 				</div>
 				<div style="display: flex; gap: 8px;">
-					<span style="color: var(--tx3); width: 52px; flex-shrink: 0;">Email</span>
+					<span style="color: var(--tx3-sm); width: 52px; flex-shrink: 0;">Email</span>
 					<span style="color: var(--tx2);">
 						{authStore.user?.email}
 						{#if authStore.user?.email_verified}
@@ -79,7 +79,7 @@
 			</div>
 		</div>
 
-		<p style="font-size: 12px; color: var(--tx3); line-height: 1.5; text-align: center;">
+		<p style="font-size: 12px; color: var(--tx3-sm); line-height: 1.5; text-align: center;">
 			This typically takes 1 to 2 business days. You will be notified by email once your account has
 			been validated.
 		</p>

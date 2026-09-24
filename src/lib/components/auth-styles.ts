@@ -1,11 +1,11 @@
 export const authLabel =
-	'display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;';
+	'display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;';
 
 export const authInput =
 	'width: 100%; border: 1px solid var(--bd); border-radius: var(--rs); padding: 10px 12px; font-family: var(--font); font-size: 13.5px; color: var(--tx); outline: none; background: #fff;';
 
 export const authPrimaryButton =
-	'width: 100%; padding: 11px 16px; border-radius: var(--rs); background: var(--pr); color: #fff; border: 1px solid var(--pr); font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);';
+	'width: 100%; padding: 11px 16px; border-radius: var(--rs); background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk); font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);';
 
 export const authSecondaryButton =
 	'padding: 9px 16px; border-radius: var(--rs); background: #fff; color: var(--tx); border: 1px solid var(--bd); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);';

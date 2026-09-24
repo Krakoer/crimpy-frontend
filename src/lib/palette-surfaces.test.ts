@@ -59,12 +59,13 @@ const MARK_FIELDS = ['color'];
 //     it is filed on Krakoer/crimpy#137 because clearing it wants a seventh text
 //     token and a decision about mirroring one the app has no counterpart for.
 //   - a colour dimmed by an `opacity`, which composites to something lighter
-//     than the token it names. Live, not hypothetical: the "Group into X" button
-//     of ItemList.svelte declares its colour and an `opacity` on the same
-//     element, so a refused grouping composites the label and its white ground
-//     together against the selection bar and reads 2.43:1. The composite family
-//     is Krakoer/crimpy#137's, not this scan's, but it is present rather than
-//     absent and saying otherwise is what stops the next reader checking.
+//     than the token it names. Live, not hypothetical: HangboardSessionMap puts
+//     `opacity: 0.75` on a 9px badge inside `.hb-step.hb-on`, which takes white
+//     on --hb from 4.56:1 down to about 3.3:1. The ItemList "Group into X"
+//     button used to be the example here and was fixed by Krakoer/crimpy#137,
+//     which is why the example moved rather than the entry going: the family is
+//     still unmeasured, and saying otherwise is what stops the next reader
+//     checking.
 //
 // Four more were found and closed rather than lived with, and are recorded
 // because how they were closed differs:
@@ -497,12 +498,51 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 
 const PALETTE_SOURCE = fileURLToPath(new URL('../routes/layout.css', import.meta.url));
 
+// The neutral grounds a label can sit on, and the ones this palette has a
+// working text token for.
+//
+// --bd, --bd2 and --bg are grounds too and are deliberately not here. Adding
+// them reports sixteen sites, thirteen on --bd2 and three on --bg, and none of
+// them can be fixed by choosing a different token: --tx3-sm is 4.07:1 on --bd2
+// and 4.26:1 on --bg, and --tx2 is 4.14:1 and 4.34:1, so the whole secondary
+// and tertiary voice is under the floor on both. The border family is being
+// used as a chip ground and is too dark for the type scale, which is a palette
+// decision rather than a swap: darken the text tokens past --tx2 and the three
+// levels inverte; lighten the chip grounds and nine pills change character.
+//
+// Krakoer/crimpy#137 decided the --panel family and left this open. It is
+// recorded here, and in the --tx3-sm comment in layout.css, so the next reader
+// finds a question rather than an oversight.
 const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2', 'bg'];
+
+// The pairings on --bg that no token in this palette fixes, exempted by name
+// rather than by dropping the ground.
+//
+// Narrowing the ground list to ['panel','panel2'] was the wrong way to record
+// the open question: it also stopped measuring the accents there, and those do
+// have a working answer. --hb reads 4.61:1 on --panel against 4.04:1 on --bg
+// and --pr-dk 4.84:1 against 4.23:1, so a teal or dark terracotta label on the
+// page ground would have passed a guard that failed it before this branch. The
+// -tx forms all clear the floor on --bg (--pr-tx 5.21, --gn-tx 4.82, --gd-tx
+// 4.77, --pl-tx 5.03, --rd-tx 4.90, --bl-tx 4.98, --hb-tx 4.63), so keeping the
+// ground costs nothing and keeps that covered.
+//
+// These two are the secondary and tertiary voice, at 4.34:1 and 4.26:1, and are
+// the open palette decision recorded on --tx3-sm in layout.css.
+// Only tx3-sm: --tx2 is not in NEUTRAL_ACCENTS, so naming it here made the list
+// look broader than it is. --tx2 on --bg is 4.34:1 and is part of the same open
+// question, recorded on --tx3-sm in layout.css rather than in a list that has
+// no way to act on it.
+const UNFIXABLE_ON_BG = ['tx3-sm'];
 
 // Every accent that is a mark rather than a text colour. `--hb` is listed even
 // though it clears 4.5:1 on white by itself, so that darkening it later is
 // measured rather than assumed.
-const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb'];
+// --tx3-sm is scanned as well as --tx3. It is the token minted to clear the
+// text floor, and it does on --panel and --panel2 and not on --bd2, where it is
+// 4.07:1. A token that exists to clear a floor is exactly the one worth
+// measuring, or the sweep that introduced it quietly moves the problem.
+const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb', 'tx3', 'tx3-sm'];
 
 // The three tables that name a colour per row, with the exported names a
 // surface reaches each one through. A field access is measured against the
@@ -528,11 +568,33 @@ function paletteTokens(): Record<string, string> {
 // of a source. `{ color: 'var(--gd)' }` in a shared table and the inline
 // `{ k: 'Programs', c: 'var(--gd)' }` an each block loops over are the same
 // shape, so one reader answers both.
+// A field bound to a conditional holds every token its arms name, not just the
+// one written first. `c: band ? toneMarkColor(band) : 'var(--tx3)'` is a load
+// tile's figure colour, and reading only a directly bound literal dropped the
+// placeholder arm: the `--` shown when there is no load rendered at 26px in
+// --tx3, 2.44:1, under the 3:1 a figure that size answers to.
+//
+// This is the same shape as the two readers fixed before it. A value is scanned
+// for every `var(--x)` it can produce rather than for the one it usually does.
 function colourFields(source: string): Record<string, string[]> {
 	const fields: Record<string, string[]> = {};
-	for (const [, field, token] of source.matchAll(/(\w+):\s*'var\(--([\w-]+)\)'/g)) {
-		const held = (fields[field] ??= []);
-		if (!held.includes(token)) held.push(token);
+	// The field name, then its value up to the comma that ends it, across one
+	// level of nesting so a `toneMarkColor(...)` arm does not cut it short.
+	// The value stops at a comma, a semicolon, a closing brace or a newline.
+	// Without the last three it ran across a whole style attribute, so in a
+	// .svelte file every CSS property became a "field" holding every token after
+	// it: `display` resolved to twenty-four tokens in one route, `label` to
+	// sixteen, and `href`, `padding` and `bind` were fields. Nothing collided
+	// today, but accentsIn consults this table for any `.field` on an unresolved
+	// root, so a future `color={row.label}` would have reported a phantom
+	// offence, which is the false alarm this file warns about three times.
+	for (const [, field, value] of source.matchAll(
+		/(\w+):\s*((?:[^,;}\n()]|\((?:[^()]|\([^()]*\))*\))*)/g
+	)) {
+		for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
+			const held = (fields[field] ??= []);
+			if (!held.includes(token)) held.push(token);
+		}
 	}
 	return fields;
 }
@@ -632,7 +694,17 @@ function accentsIn(
 	// ate the first identifier of `a === b ? x.color : y.text`, which is handed
 	// here raw from an Icon prop and carries no property at all, and rooted the
 	// binding walk on `b`.
-	const value = expression.replace(/^\s*(?:style:)?[a-zA-Z-]+(?:\s*:|=)\s*/, '');
+	// A tag pill's colours are computed from the coach's own hex by tagPill, so
+	// neither its ground nor its label is a token and neither can be measured
+	// here. The call is cut out before the accents are read, the way the app's
+	// withoutResolved cuts textOn and markOn: left in, the `.label` and `.ground`
+	// accesses fall through to the file-local field table and resolve to whatever
+	// `color` happens to hold in that file, which reported a phantom --pr.
+	// tag-contrast.test.ts is what measures the real pairing, over every colour a
+	// tag can hold rather than over the eight that are seeded.
+	const value = expression
+		.replace(/\btagPill\((?:[^()]|\([^()]*\))*\)(?:\.\w+)?/g, '')
+		.replace(/^\s*(?:style:)?[a-zA-Z-]+(?:\s*:|=)\s*/, '');
 	const found: AccentUse[] = [];
 	for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
 		if (NEUTRAL_ACCENTS.includes(token)) found.push({ token, through: `var(--${token})` });
@@ -664,10 +736,19 @@ function namesTintedGround(declaration: string): boolean {
 	);
 }
 
+// An element that paints no ground of its own inherits the one behind it, which
+// the backward walk then finds. `transparent` and `background: none` are the
+// commonest spelling of an unselected chip, and reading them as "no neutral
+// here" is what left the AddZone button and the program filter chips
+// unmeasured: their selected arm names a tint, so the declaration was handed to
+// the hue scan, which does not measure --tx3 either.
+const INHERITS_GROUND = /\btransparent\b|background(?:-color)?:\s*none\b/;
+
 function neutralIn(declaration: string): string | null {
 	const named = NEUTRAL_GROUND_TOKENS.find((token) => namesToken(declaration, token));
 	if (named) return named;
-	return /#fff\b|#ffffff\b/i.test(declaration) ? 'panel' : null;
+	if (/#fff\b|#ffffff\b/i.test(declaration)) return 'panel';
+	return INHERITS_GROUND.test(declaration) ? 'inherit' : null;
 }
 
 // Which neutral a colour is painted on, or null when the pairing belongs to the
@@ -685,15 +766,33 @@ function neutralIn(declaration: string): string | null {
 // verdict, at 4.61 on --panel against 4.04 on --bg.
 function groundFor(lines: string[], at: number, ownDeclarations: string): string | null {
 	if (isFlatGround(ownDeclarations)) {
-		if (namesTintedGround(ownDeclarations)) return null;
 		const own = neutralIn(ownDeclarations);
-		if (own) return own;
+		// A tinted ground hands the pairing to the hue scan above, which is the
+		// right owner of an accent on a tint of its own hue. But a ground written
+		// as a ternary is two grounds, and a chip whose selected arm is a tint and
+		// whose unselected arm is #fff has a neutral ground half the time. Bailing
+		// on the whole declaration because one arm named a tint is what hid every
+		// toggle chip in this repo from the --tx3 scan: the hue scan does not
+		// measure --tx3 either, since it belongs to no hue, so nobody did.
+		//
+		// So a declaration that names both is measured on its neutral arm here and
+		// left to the hue scan for its tinted one.
+		// An inherited ground is not an answer, it is a reason to keep looking:
+		// the walk below finds what is actually behind the element.
+		if (namesTintedGround(ownDeclarations)) {
+			if (own === null) return null;
+			if (own !== 'inherit') return own;
+		} else if (own !== null && own !== 'inherit') {
+			return own;
+		}
 	}
 	for (let back = at; back >= Math.max(0, at - GROUND_REACH); back--) {
 		const declarations = (lines[back].match(/background(?:-color)?:[^;"]*/g) ?? []).join(' ');
 		if (!declarations || !isFlatGround(declarations)) continue;
 		const neutral = neutralIn(declarations);
-		if (neutral) return neutral;
+		// A transparent ancestor is see-through too: keep walking rather than
+		// answering with the sentinel.
+		if (neutral !== null && neutral !== 'inherit') return neutral;
 	}
 	return 'panel';
 }
@@ -761,6 +860,29 @@ function neutralOffencesIn(file: string, tokens: Record<string, string>): Neutra
 		const ground = groundFor(lines, at - 1, own);
 		if (ground === null) return;
 		for (const { token, through } of accentsIn(expression, bound, local)) {
+			// --tx3 is measured as text and not as a mark, which is the one token
+			// here that gets that exemption and the only one that needs saying.
+			//
+			// It is 2.44:1 on --panel, so it fails the 3:1 mark floor as well as
+			// the 4.5:1 text one, and a scan that held it to both would report 74
+			// icons and separators alongside the 36 labels. Those are not the same
+			// question. A `·` between two buttons and a hairline rule are
+			// decoration, which WCAG 1.4.11 exempts; a drag handle drawn in it is
+			// not, and is a real defect this does not report.
+			//
+			// Krakoer/crimpy#137 asked about --tx3 as small text and its decision
+			// was to split the token, which keeps --tx3 as the mark form. Holding
+			// the mark form to the mark floor would have deleted the token and
+			// made the split the "darken --tx3 outright" option that was weighed
+			// and turned down. So the mark half is left, named here rather than
+			// passed over in silence, and wants its own ticket.
+			//
+			// Marks only. Large text is still measured: 2.44:1 misses the 3:1
+			// large-text floor too, and none of the argument above is about a
+			// figure set at 26px. Spelling this `kind !== 'text'` silenced that
+			// case as well, which was broader than the reasoning beside it.
+			if (token === 'tx3' && kind === 'mark') continue;
+			if (ground === 'bg' && UNFIXABLE_ON_BG.includes(token)) continue;
 			const ratio = contrastRatio(tokens[token], tokens[ground]);
 			if (ratio >= floor) continue;
 			offences.push({ file, line: at, kind, ground, through, token, ratio, floor });
@@ -857,9 +979,11 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 
 		expect(accentsIn('color: var(--gd);', {}, {}).map((one) => one.token)).toEqual(['gd']);
 		expect(accentsIn('color="var(--gd)"', {}, {}).map((one) => one.token)).toEqual(['gd']);
+		// Both arms, since Krakoer/crimpy#137 put --tx3 in the scanned set: the
+		// muted arm of a ternary is exactly where its small text hid.
 		expect(
 			accentsIn("color: {failed ? 'var(--rd)' : 'var(--tx3)'};", {}, {}).map((one) => one.token)
-		).toEqual(['rd']);
+		).toEqual(['rd', 'tx3']);
 		// A directive carries `style:` as well as the property, and the root of the
 		// binding walk has to be the expression rather than the word `color`.
 		expect(accentsIn('style:color={type.color}', activity, {}).map((one) => one.token)).toContain(
@@ -874,7 +998,7 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		// may be stripped off the front of it.
 		expect(
 			accentsIn("a === b ? 'var(--gd)' : 'var(--tx3)'", {}, {}).map((one) => one.token)
-		).toEqual(['gd']);
+		).toEqual(['gd', 'tx3']);
 
 		// The table a field comes from decides what it can hold. Gold can reach a
 		// session figure and cannot reach a block button, and reading both from
@@ -886,6 +1010,26 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 	// child by name, and a rule in a `<style>` block. Both were whole regions the
 	// scan could not read, and a colour prop is how nine assessment hand labels
 	// sat at 3.63:1 on a white card through the first two commits of this branch.
+	// The shape that got through three rounds running: a token in one arm of a
+	// conditional, dropped by a reader that answers with one value. These two
+	// are the last readers in this file that did it.
+	it('reads a token in a conditional arm of a record field', () => {
+		const tile = colourFields("{ k: 'Load', c: band ? toneMarkColor(band) : 'var(--tx3)' }");
+		expect(tile.c).toContain('tx3');
+	});
+
+	it('keeps looking when an element paints no ground of its own', () => {
+		// An unselected chip is `transparent`, not `#fff`, and its selected arm
+		// names a tint. Reading that as "no neutral here" handed the whole
+		// declaration to the hue scan, which does not measure --tx3 either, so
+		// the label fell between the two.
+		const chip = "background: {on ? 'var(--pr-fog)' : 'transparent'}";
+		expect(neutralIn(chip)).toBe('inherit');
+		expect(groundFor(['', chip], 1, chip)).toBe('panel');
+		// A real neutral arm still answers directly.
+		expect(neutralIn("background: {on ? 'var(--pr-fog)' : '#fff'}")).toBe('panel');
+	});
+
 	it('reads a colour handed to a child component by name', () => {
 		const tag = '<LatestValue label="LEFT" labelColor="var(--gn)" size={22} />';
 		const prop = [...tag.matchAll(PROP_COLOUR)][0];
@@ -947,14 +1091,20 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		const failing = NEUTRAL_ACCENTS.filter(
 			(token) => contrastRatio(tokens[token], tokens.panel) < MARK_CONTRAST_FLOOR
 		);
-		expect(failing).toEqual(['gd']);
+		// --tx3 joins gold under the mark floor, and is the reason the scan
+		// above measures it as text only. It is 2.44:1 on --panel, so every icon
+		// and separator drawn in it is under 3:1 as well. That is a real family
+		// and a different one: see the note beside the exemption in `record`.
+		expect(failing).toEqual(['gd', 'tx3']);
 	});
 
 	it('leaves only the two darkest accents above the text floor on white', () => {
 		const clearing = NEUTRAL_ACCENTS.filter(
 			(token) => contrastRatio(tokens[token], tokens.panel) >= TEXT_CONTRAST_FLOOR
 		);
-		expect(clearing).toEqual(['pr-dk', 'hb']);
+		// --tx3-sm joins them, which is the whole reason it exists: it is the one
+		// neutral in this set minted to be readable rather than to be a hue.
+		expect(clearing).toEqual(['pr-dk', 'hb', 'tx3-sm']);
 	});
 
 	it('finds no accent under its floor on a neutral ground', () => {
@@ -966,5 +1116,352 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 				`${offence.ratio.toFixed(2)}:1 against a ${offence.floor}:1 floor`
 		);
 		expect(stated, `accent under its floor on a neutral ground:\n${stated.join('\n')}`).toEqual([]);
+	});
+});
+
+// The mirror of the scan above, and the fourth of this file. That one measures
+// an accent written on a neutral; this one measures a neutral written on an
+// accent. Neither of the other three could see it: the hue scan reads an accent
+// on a light ground of its own hue, the concatenation scan reads alpha pairs,
+// and the neutral scan reads the foreground for an accent and finds a #fff.
+//
+// It is Krakoer/crimpy#137's family. What it was written for: the training type
+// picker wrote `color: #fff` on `TRAINING_TYPE_INFO[t].color`, which for
+// climbing is white on --gd at 2.32:1 in a 12px label, and about two dozen
+// primary buttons wrote white on --pr at 3.64:1 in a 13px one. Both are under
+// the text floor and neither was measured by anything.
+//
+// The ground is read the same way the foreground is in the scan above, through
+// accentsIn, so a ground carried by `.color` off a record is caught as well as
+// one written as `var(--pr)`. That matters: the picker's ground is the record
+// field, not a token, and a scan that only read tokens would have missed the
+// worst pairing of the family.
+//
+// That holds for a field whose value is a token and for nothing else. accentsIn
+// resolves `var(--x)` literals, so a record of raw hexes resolves to nothing
+// and the pairing is not measured. TAG_COLORS in TagSelect.svelte is exactly
+// that: eight hardcoded hexes, five of which carry white under 4.5:1
+// (#FB8C00 2.37, #00ACC1 2.74, #43A047 3.30, #1E88E5 3.68, #E53935 4.23), and
+// a tag pill writes 10px white on whichever one the tag drew. Live, in
+// TagSelect, TagFilterSelect, SelectExerciseModal and the exercises route, and
+// invisible here. The hardcoded hexes are their own Alpine violation and
+// predate Krakoer/crimpy#137; naming them is not fixing them.
+//
+// The branch pairing below assumes both ternaries turn on the same condition
+// with the same polarity. `background: {!a ? ... }` beside `color: {a ? ... }`
+// would be paired the wrong way round. Nothing in src/ is written that way.
+
+// What counts as a neutral written on top. The page grounds double as
+// foregrounds here, since white on an accent is the whole shape, and the text
+// tokens are included because a dark neutral on a light accent is the same
+// question asked the other way round.
+const NEUTRAL_FOREGROUND_TOKENS = ['panel', 'panel2', 'bg', 'tx', 'tx2', 'tx3', 'tx3-sm'];
+
+// A foreground written as a literal rather than a token. `#fff` is by far the
+// commonest ground-facing colour in this repo and the one the family is about.
+// Every neutral the declaration can render in, not the first one found.
+//
+// A conditional label is the commonest shape in this repo, and one arm of it
+// being white is the whole family this scan exists for. Returning a single
+// answer meant a named token beat the `#fff` literal and the white arm was
+// dropped: `color: {sel ? '#fff' : 'var(--tx)'}` on an accent ground reported
+// --tx and stayed silent about the white, which is what kept the coachee week
+// strip invisible here even once its ground was on the same element.
+function neutralForegroundsIn(declaration: string): string[] {
+	const found = NEUTRAL_FOREGROUND_TOKENS.filter((token) => namesToken(declaration, token));
+	if (/#fff\b|#ffffff\b|\bwhite\b/i.test(declaration)) found.push('panel');
+	return [...new Set(found)];
+}
+
+interface AccentGroundOffence {
+	file: string;
+	line: number;
+	kind: string;
+	ground: string;
+	through: string;
+	foreground: string;
+	ratio: number;
+	floor: number;
+}
+
+// Only a ground declared on the element itself. A neutral label and an accent
+// ground in different elements is the pairing the GROUND_REACH window exists
+// for in the scan above, but reaching backwards here would read a card's accent
+// header as the ground of every neutral line in the card body, which is a false
+// alarm rather than a miss. A ground further away than its own declaration is a
+// blind spot of this scan, named here rather than left for a reader to find.
+function accentGroundOffencesIn(
+	file: string,
+	tokens: Record<string, string>
+): AccentGroundOffence[] {
+	return accentGroundOffencesInSource(readResolved(file), file, tokens);
+}
+
+// Split from the reader above so the self-tests below can hand it a source
+// string, the way the scans before it are checked against the shapes they have
+// to read rather than against files on disk.
+function accentGroundOffencesInSource(
+	source: string,
+	file: string,
+	tokens: Record<string, string>
+): AccentGroundOffence[] {
+	const bound = bindings(source);
+	const local = colourFields(source);
+	const offences: AccentGroundOffence[] = [];
+
+	// A ground and a label written as ternaries on the same element are two
+	// states of one button, not four combinations of one. The save buttons write
+	// `background: {isDirty ? 'var(--pr)' : '#fff'}` beside
+	// `color: {isDirty ? '#fff' : 'var(--tx2)'}`, and pairing every branch with
+	// every other reports --tx2 on --pr at 1.36:1, a pairing that cannot render:
+	// the label is only --tx2 when the ground is white. Reporting it would be the
+	// kind of false alarm that gets a guard switched off.
+	//
+	// So when both sides are ternaries with the same number of branches, they are
+	// paired by position. Anything else is cross-paired as before, which is the
+	// safe direction: a missed pairing is a blind spot, an invented one is noise.
+	function branchesOf(declaration: string): string[] {
+		const parts = declaration.split(/\?|:(?![^(]*\))/).slice(1);
+		return parts.length >= 2 ? parts : [declaration];
+	}
+
+	function record(at: number, colours: string[], grounds: string, kind: string): void {
+		if (!grounds || !isFlatGround(grounds)) return;
+		const floor = kind === 'text' ? TEXT_CONTRAST_FLOOR : MARK_CONTRAST_FLOOR;
+		const groundBranches = branchesOf(grounds);
+		for (const declaration of colours) {
+			const colourBranches = branchesOf(declaration);
+			const paired = groundBranches.length > 1 && groundBranches.length === colourBranches.length;
+			const pairs: [string, string][] = paired
+				? colourBranches.map((colour, index) => [colour, groundBranches[index]])
+				: [[declaration, grounds]];
+			for (const [colour, ground] of pairs) {
+				for (const foreground of neutralForegroundsIn(colour)) {
+					for (const { token, through } of accentsIn(ground, bound, local)) {
+						const ratio = contrastRatio(tokens[foreground], tokens[token]);
+						if (ratio >= floor) continue;
+						offences.push({
+							file,
+							line: at,
+							kind,
+							ground: token,
+							through,
+							foreground,
+							ratio,
+							floor
+						});
+					}
+				}
+			}
+		}
+	}
+
+	// Whether the element this style opens holds any text of its own.
+	//
+	// A block that states no size would otherwise be held to the text floor,
+	// which is right for a label and wrong for a tile that holds only an
+	// `<Icon>` and carries `color: #fff` for the icon's sake. The sidebar logo
+	// chip and the enrolment-link chip are exactly that, and reporting them
+	// drove a ground darker for a floor they do not answer to.
+	//
+	// The children are read rather than guessed at: everything from the end of
+	// the open tag to the matching close, with tags and Svelte blocks removed.
+	// Whitespace left over means nothing was written there, so the colour paints
+	// a mark. A tile holding initials keeps the text floor, which is what tells
+	// the two sidebar chips apart.
+	//
+	// It stops at the first closing div, button, a or span, which can be a
+	// nested one, and reads at most 600 characters. So
+	// `<button ...><span><Icon/></span> Delete</button>` truncates at the inner
+	// `</span>`, finds only tags, and files a white label on --pr as a mark.
+	// Nothing in src/ is written that way; it is the direction this errs in, and
+	// it errs towards silence rather than towards a false alarm.
+	function holdsText(from: number): boolean {
+		const open = source.indexOf('>', from);
+		if (open < 0) return true;
+		const body = source.slice(open + 1, open + 600);
+		const end = body.search(/<\/(?:div|button|a|span)>/);
+		const inner = (end < 0 ? body : body.slice(0, end))
+			.replace(/<[^>]*>/g, ' ')
+			.replace(/\{[^}]*\}/g, ' ');
+		return /\S/.test(inner);
+	}
+
+	function floorFor(block: string): string {
+		const size = /font-size:\s*([\d.]+)px/.exec(block);
+		const weight = /font-weight:\s*(\d+|bold)/.exec(block);
+		if (size === null) return 'text';
+		const large = isLargeText(
+			parseFloat(size[1]),
+			weight === null ? 400 : weight[1] === 'bold' ? 700 : parseInt(weight[1])
+		);
+		return large ? 'large text' : 'text';
+	}
+
+	for (const pattern of [STYLE_ATTRIBUTE, STYLE_STRING]) {
+		for (const match of source.matchAll(pattern)) {
+			const block = match[0];
+			const colours = block.match(DECLARED_COLOUR);
+			if (colours === null) continue;
+			const grounds = (block.match(/background(?:-color)?:[^;"]*/gs) ?? []).join(' ');
+			const sized = /font-size:\s*[\d.]+px/.test(block);
+			const kind = !sized && !holdsText(match.index + block.length) ? 'mark' : floorFor(block);
+			record(lineAt(source, match.index), colours, grounds, kind);
+		}
+	}
+
+	for (const block of source.matchAll(STYLE_BLOCK)) {
+		let at = block.index + block[0].indexOf(block[1]);
+		for (const rule of block[1].split('}')) {
+			const colours = rule.match(DECLARED_COLOUR);
+			if (colours !== null) {
+				const grounds = (rule.match(/background(?:-color)?:[^;]*/gs) ?? []).join(' ');
+				record(lineAt(source, at + rule.indexOf(colours[0])), colours, grounds, floorFor(rule));
+			}
+			at += rule.length + 1;
+		}
+	}
+
+	const seen = new Set<string>();
+	return offences.filter((offence) => {
+		const key = `${offence.line}:${offence.ground}:${offence.foreground}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
+describe('no surface writes a neutral under its floor on an accent ground', () => {
+	const tokens = paletteTokens();
+
+	const scan = (source: string) => accentGroundOffencesInSource(source, 'inline', tokens);
+
+	it('reads a ground named as a token and one carried by a record field', () => {
+		// A token ground, which is the primary button shape.
+		expect(
+			scan('<b style="background: var(--gd); color: #fff; font-size: 12px;">x</b>').map(
+				(one) => `${one.through} ${one.ratio.toFixed(2)}`
+			)
+		).toEqual(['var(--gd) 2.32']);
+
+		// And a ground carried by a record field, which is the training type
+		// picker and the worst pairing the family had. A scan reading only tokens
+		// would call this file clean.
+		// A record field holds every type colour, so one picker reports one
+		// offence per colour white fails on, which is all five. That is the shape
+		// the family's worst pairing had and a token-only scan would call clean.
+		const picker =
+			'{#each TRAINING_TYPES as t (t)}' +
+			'<b style="background: {TRAINING_TYPE_INFO[t].color}; color: #fff; font-size: 12px;">x</b>';
+		const through = scan(picker).map((one) => one.through);
+		expect(new Set(through)).toEqual(new Set(['.color']));
+		expect(
+			scan(picker)
+				.map((one) => one.ground)
+				.sort()
+		).toEqual(['bl', 'gd', 'gn', 'pl', 'pr']);
+	});
+
+	it('reads white however it is spelled, and leaves an accent label alone', () => {
+		const white = (value: string) =>
+			scan(`<b style="background: var(--gd); color: ${value}; font-size: 12px;">x</b>`).length;
+		expect(white('#fff')).toBe(1);
+		expect(white('#ffffff')).toBe(1);
+		expect(white('white')).toBe(1);
+		expect(white('var(--panel)')).toBe(1);
+		// A dark neutral on a light accent is the same question the other way
+		// round, and --tx clears the floor on gold, so it is not an offence.
+		expect(white('var(--tx)')).toBe(0);
+		// An accent written on an accent belongs to the hue scan, not this one.
+		expect(white('var(--gd-tx)')).toBe(0);
+	});
+
+	it('tells a mark-only tile from a label when neither states a size', () => {
+		// A chip holding an Icon and nothing else paints a mark, whatever white
+		// sits in its style attribute for the icon's sake. One holding initials
+		// paints text. Neither states a font-size, so the children decide.
+		const tile = '<div style="background: var(--pr); color: #fff;"><Icon name="logo" /></div>';
+		const initials = '<div style="background: var(--pr); color: #fff;">{initials}x</div>';
+		expect(scan(tile)).toEqual([]);
+		expect(scan(initials).map((one) => one.kind)).toEqual(['text']);
+	});
+
+	it('reads every arm of a conditional label, not just the first', () => {
+		// A named token used to beat the #fff literal, so the white arm of a
+		// ternary was dropped and only the arm that already passed was measured.
+		// That is the shape this scan exists for.
+		const both = scan(
+			"<b style=\"background: var(--pr); color: {sel ? '#fff' : 'var(--tx)'}; font-size: 10px;\">x</b>"
+		);
+		expect(both.map((one) => one.foreground)).toContain('panel');
+		// --tx on --pr is 4.18:1, under the floor too, so both arms are reported
+		// and neither hides the other.
+		expect(both.map((one) => one.foreground)).toContain('tx');
+	});
+
+	it('separates the two floors', () => {
+		// White on --pr is 3.64:1: under the 4.5:1 text floor, over the 3:1 large
+		// one. The same pairing therefore fails at 13px and passes at 24px, which
+		// is the distinction the decision on Krakoer/crimpy#137 turns on.
+		const at = (size: string, weight: string) =>
+			scan(
+				`<b style="background: var(--pr); color: #fff; font-size: ${size}; font-weight: ${weight};">x</b>`
+			).map((one) => one.kind);
+		expect(at('13px', '600')).toEqual(['text']);
+		expect(at('24px', '400')).toEqual([]);
+		expect(at('19px', '700')).toEqual([]);
+		// --gd carries white at 2.32:1 and so fails even the large floor. No size
+		// makes a gold ground readable under white.
+		expect(
+			scan('<b style="background: var(--gd); color: #fff; font-size: 24px;">x</b>').map(
+				(one) => one.kind
+			)
+		).toEqual(['large text']);
+	});
+
+	it('reads a rule in a style block', () => {
+		const block = '<style>.pill { background: var(--gd); color: #fff; font-size: 11px; }</style>';
+		expect(scan(block).map((one) => one.ground)).toEqual(['gd']);
+	});
+
+	it('does not take a gradient for a ground', () => {
+		const gradient =
+			'<b style="background: linear-gradient(var(--gd), var(--pr)); color: #fff; font-size: 12px;">x</b>';
+		expect(scan(gradient)).toEqual([]);
+	});
+
+	it('leaves a neutral ground to the scan before it', () => {
+		expect(scan('<b style="background: #fff; color: var(--gd); font-size: 12px;">x</b>')).toEqual(
+			[]
+		);
+	});
+
+	it('keeps white unreadable on every accent at a small size', () => {
+		// Stated as a fact about the palette rather than about the sources: only
+		// one accent in it carries white at 4.5:1, which is why the fix for this
+		// family is a darker ground or a darker label and never a smaller one.
+		const carrying = NEUTRAL_ACCENTS.filter(
+			(token) => contrastRatio(tokens.panel, tokens[token]) >= TEXT_CONTRAST_FLOOR
+		);
+		// The two darkest accents, plus --tx3-sm, which is a text token rather
+		// than a ground and is in this list only because the scan measures it as
+		// a foreground. Everything else needs a darker ground or a darker label,
+		// which is why this family could not be fixed by resizing.
+		expect(carrying).toEqual(['pr-dk', 'hb', 'tx3-sm']);
+	});
+
+	it('finds no neutral under its floor on an accent ground', () => {
+		const offences = sourceFiles(SOURCE_ROOT).flatMap((file) =>
+			accentGroundOffencesIn(file, tokens)
+		);
+		const stated = offences.map(
+			(offence) =>
+				`${offence.file.slice(SOURCE_ROOT.length)}:${offence.line} writes --${offence.foreground} ` +
+				`as ${offence.kind} on ${offence.through} (--${offence.ground}), ` +
+				`${offence.ratio.toFixed(2)}:1 against a ${offence.floor}:1 floor`
+		);
+		expect(stated, `neutral under its floor on an accent ground:\n${stated.join('\n')}`).toEqual(
+			[]
+		);
 	});
 });

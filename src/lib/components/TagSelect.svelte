@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagPill } from '$lib/tag-contrast';
 	import { apiClient, type Tag } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -190,7 +191,7 @@
 				style="
 					display: inline-flex; align-items: center; gap: 4px;
 					padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
-					color: #fff; background: {tag.color};
+					color: {tagPill(tag.color).label}; background: {tagPill(tag.color).ground};
 				"
 			>
 				{tag.name}
@@ -207,7 +208,7 @@
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
-			<span style="color: var(--tx3); font-size: 12.5px;">Click to add tags</span>
+			<span style="color: var(--tx3-sm); font-size: 12.5px;">Click to add tags</span>
 		{/if}
 	</div>
 
@@ -264,7 +265,7 @@
 									disabled={editSaving || !editName.trim()}
 									style="
 										padding: 4px 10px; border-radius: var(--rs); border: none;
-										background: var(--pr); color: #fff; font-size: 11.5px; font-weight: 600;
+										background: var(--pr-dk); color: #fff; font-size: 11.5px; font-weight: 600;
 										cursor: pointer; font-family: var(--font);
 										opacity: {editSaving || !editName.trim() ? 0.6 : 1};
 									">{editSaving ? '...' : 'Save'}</button
@@ -353,7 +354,7 @@
 									class="tag-edit-btn"
 									style="
 										padding: 8px 10px; background: none; border: none; cursor: pointer;
-										color: var(--tx3); opacity: 0; transition: opacity 0.1s;
+										color: var(--tx3-sm); opacity: 0; transition: opacity 0.1s;
 									"
 									aria-label="Edit {tag.name}"
 								>
@@ -366,7 +367,7 @@
 
 				{#if filtered.length === 0 && !showCreate}
 					<p
-						style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);"
+						style="padding: 10px 12px; font-size: 12px; color: var(--tx3-sm); font-family: var(--font);"
 					>
 						{search.trim() ? 'No matching tags.' : 'No tags yet.'}
 					</p>

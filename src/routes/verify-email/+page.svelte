@@ -169,7 +169,7 @@
 				style="background: var(--panel2); border: 1px solid var(--bd2); border-radius: var(--rs); padding: 14px 16px;"
 			>
 				<p
-					style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
+					style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
 				>
 					Next steps
 				</p>
@@ -187,7 +187,7 @@
 			</div>
 
 			<div style="text-align: center;">
-				<p style="font-size: 12.5px; color: var(--tx3); margin-bottom: 10px;">
+				<p style="font-size: 12.5px; color: var(--tx3-sm); margin-bottom: 10px;">
 					Did not receive the email?
 				</p>
 				<button

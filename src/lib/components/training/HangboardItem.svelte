@@ -982,7 +982,7 @@
 
 	.hb-label {
 		font-size: 10px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		font-weight: 600;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -990,7 +990,7 @@
 
 	.hb-hint {
 		font-size: 11px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 	}
 
 	.hb-pills {
@@ -1012,9 +1012,9 @@
 	}
 
 	.hb-pill.hb-on {
-		border-color: var(--hb);
+		border-color: var(--hb-tx);
 		background: color-mix(in srgb, var(--hb) 12%, transparent);
-		color: var(--hb);
+		color: var(--hb-tx);
 		font-weight: 700;
 	}
 
@@ -1043,7 +1043,7 @@
 		border-radius: 999px;
 		border: none;
 		background: transparent;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		font-size: 11px;
 		font-weight: 600;
 		cursor: pointer;
@@ -1170,7 +1170,7 @@
 		border-radius: 6px;
 		border: 1px solid var(--bd);
 		background: #fff;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		cursor: pointer;
 		display: inline-flex;
 		align-items: center;
@@ -1193,7 +1193,7 @@
 		gap: 14px;
 		flex-wrap: wrap;
 		font-size: 10px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 	}
 
 	.hb-legend span {

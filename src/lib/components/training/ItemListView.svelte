@@ -77,6 +77,6 @@
 	{/each}
 
 	{#if items.length === 0}
-		<p style="font-size: 13px; color: var(--tx3); padding: 8px 0;">No items</p>
+		<p style="font-size: 13px; color: var(--tx3-sm); padding: 8px 0;">No items</p>
 	{/if}
 </div>

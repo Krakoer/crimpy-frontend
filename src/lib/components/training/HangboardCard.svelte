@@ -156,7 +156,7 @@
 
 	.hb-summary {
 		font-size: 11px;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		font-weight: 500;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -194,7 +194,7 @@
 		border-radius: 6px;
 		border: 1px solid var(--bd);
 		background: #fff;
-		color: var(--tx3);
+		color: var(--tx3-sm);
 		cursor: pointer;
 		display: inline-flex;
 		align-items: center;

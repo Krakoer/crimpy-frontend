@@ -109,7 +109,7 @@
 		<div style="font-size: 13px; font-weight: 700; color: var(--tx); min-width: 0;">
 			{assessment.label}
 		</div>
-		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
+		<div style="font-size: 11px; color: var(--tx3-sm); flex-shrink: 0;">
 			{readingLabel(bodyweightRelative, assessment.unit)}
 		</div>
 	</div>
@@ -123,13 +123,13 @@
 						padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
 						border: none; cursor: pointer; white-space: nowrap; font-family: var(--font);
 						background: {grip === selectedGrip ? 'var(--pr-fog)' : 'var(--bd2)'};
-						color: {grip === selectedGrip ? 'var(--pr-tx)' : 'var(--tx3)'};
+						color: {grip === selectedGrip ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 					">{gripLabel(grip)}</button
 				>
 			{/each}
 		</div>
 	{:else if grips.length === 1}
-		<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
+		<div style="font-size: 11px; color: var(--tx3-sm); margin-bottom: 10px;">
 			{gripLabel(grips[0])}
 		</div>
 	{/if}
@@ -177,7 +177,7 @@
 		<button
 			onclick={onToggleChart}
 			style="
-				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3)'};
+				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 				background: none; border: none; cursor: pointer; padding: 0;
 				font-family: var(--font); font-weight: 600; margin-bottom: 8px;
 			">{showChart ? 'Hide chart' : 'Show chart'}</button
@@ -196,7 +196,7 @@
 		{/if}
 
 		<div
-			style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3); margin-top: 6px;"
+			style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3-sm); margin-top: 6px;"
 		>
 			<span>{history.length} records</span>
 			{#if delta !== null}

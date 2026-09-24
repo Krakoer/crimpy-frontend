@@ -96,7 +96,9 @@
 			style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px;"
 		>
 			Circuit
-			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">{collapsedSummary}</span>
+			<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500;"
+				>{collapsedSummary}</span
+			>
 		</span>
 		{#if !overriding}
 			<div
@@ -112,7 +114,7 @@
 					>
 					<button
 						onclick={() => (confirmDelete = false)}
-						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3-sm); font-size: 11px; cursor: pointer; font-family: var(--font);"
 						>Cancel</button
 					>
 				{:else}
@@ -142,7 +144,7 @@
 			<div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 						>SETS</span
 					>
 					<input
@@ -155,7 +157,7 @@
 				</div>
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 						>SET REST</span
 					>
 					<div style="display: flex; align-items: center; gap: 2px;">
@@ -166,7 +168,7 @@
 							onclick={(e) => e.stopPropagation()}
 							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
-						<span style="font-size: 10px; color: var(--tx3);">m</span>
+						<span style="font-size: 10px; color: var(--tx3-sm);">m</span>
 						<input
 							type="number"
 							min="0"
@@ -175,7 +177,7 @@
 							onclick={(e) => e.stopPropagation()}
 							style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
-						<span style="font-size: 10px; color: var(--tx3);">s</span>
+						<span style="font-size: 10px; color: var(--tx3-sm);">s</span>
 					</div>
 				</div>
 			</div>

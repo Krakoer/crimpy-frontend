@@ -212,7 +212,7 @@
 					{#each [{ k: 'Date', v: formatSessionDateShort(detail.date) }, { k: 'Time', v: formatSessionTime(detail.date) }, { k: 'Duration', v: formatDuration(detail.duration) }, { k: 'Reps', v: loading || repsUnknown ? '--' : String(totalReps) }] as stat (stat.k)}
 						<div data-testid="session-stat-{stat.k.toLowerCase()}" style="padding: 14px 16px;">
 							<div
-								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+								style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 							>
 								{stat.k}
 							</div>
@@ -236,7 +236,7 @@
 							{formatDuration(detail.duration)}
 						</div>
 						<div
-							style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px;"
+							style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px;"
 						>
 							Duration
 						</div>
@@ -255,7 +255,7 @@
 								>{formatSessionTime(detail.date)}</span
 							>
 						</div>
-						<div style="font-size: 11.5px; color: var(--tx3);">
+						<div style="font-size: 11.5px; color: var(--tx3-sm);">
 							Logged by the athlete, so it carries no sensor measurements.
 						</div>
 					</div>
@@ -275,7 +275,7 @@
 					style="
 						width: 52px; height: 52px; border-radius: var(--rs); flex-shrink: 0;
 						background: {rpe ? sessionRpeTint(rpe) : 'var(--panel2)'};
-						color: {rpe ? sessionRpeColor(rpe) : 'var(--tx3)'};
+						color: {rpe ? sessionRpeColor(rpe) : 'var(--tx3-sm)'};
 						font-size: {rpe?.failed ? '12px' : '22px'}; font-weight: 700;
 					"
 				>
@@ -283,7 +283,7 @@
 				</div>
 				<div style="min-width: 0;">
 					<div
-						style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+						style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 					>
 						Session RPE
 					</div>
@@ -295,7 +295,7 @@
 
 			{#if loading}
 				<div
-					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3);"
+					style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3-sm);"
 				>
 					Loading session details...
 				</div>
@@ -315,7 +315,7 @@
 					<SessionPrescriptionCard prescription={detail.prescription} {itemResults} />
 				{:else if detail.origin === 'played'}
 					<div
-						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; font-size: 12.5px; color: var(--tx3);"
+						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 16px 18px; font-size: 12.5px; color: var(--tx3-sm);"
 					>
 						Played from the athlete's own library, so there is nothing prescribed to compare it to.
 					</div>
@@ -353,7 +353,7 @@
 										     builtins are: a pull up count has no grip. The unit is named
 										     here because the numbers beside it no longer carry it, a
 										     ratio having none to carry. -->
-										<div style="font-size: 11.5px; color: var(--tx3);">
+										<div style="font-size: 11.5px; color: var(--tx3-sm);">
 											{assessment.training_id
 												? readsAs
 												: `${gripLabel(assessment.grip_position ?? 0)}, ${readsAs}`}
@@ -416,7 +416,7 @@
 				     nothing at all. -->
 				{#if hasRepData && reps.length === 0 && itemResults.length === 0 && !repsUnknown && !error}
 					<div
-						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3);"
+						style="background: var(--panel); border: 1px solid var(--bd); border-radius: var(--rl); padding: 24px; text-align: center; font-size: 13px; color: var(--tx3-sm);"
 					>
 						No rep data was recorded for this session.
 					</div>

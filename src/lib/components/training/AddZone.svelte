@@ -41,7 +41,7 @@
 				padding: 10px 14px; border-radius: var(--rl);
 				border: 1.5px dashed {isDropTarget ? 'var(--pr)' : 'var(--bd)'};
 				display: flex; align-items: center; justify-content: center; gap: 6px;
-				color: {isDropTarget ? 'var(--pr-tx)' : 'var(--tx3)'};
+				color: {isDropTarget ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 				font-size: 12.5px; font-weight: 500; cursor: pointer;
 				background: {isDropTarget ? 'var(--pr-fog)' : 'transparent'};
 				font-family: var(--font); transition: border-color 0.15s, color 0.15s;
@@ -77,7 +77,7 @@
 			{/each}
 			<span
 				onclick={() => (expanded = false)}
-				style="font-size: 11px; color: var(--tx3); cursor: pointer; margin-left: 4px;"
+				style="font-size: 11px; color: var(--tx3-sm); cursor: pointer; margin-left: 4px;"
 				role="button"
 				tabindex="0"
 				onkeydown={(e) => e.key === 'Enter' && (expanded = false)}>Cancel</span

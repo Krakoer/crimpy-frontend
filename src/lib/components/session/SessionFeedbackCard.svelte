@@ -80,7 +80,7 @@
 	{#if notes}
 		<div style="padding: 14px 18px; border-bottom: 1px solid var(--bd2);">
 			<div
-				style="font-size: 10.5px; color: var(--tx3); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px;"
+				style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px;"
 			>
 				How the athlete felt
 			</div>
@@ -90,7 +90,7 @@
 		</div>
 	{:else}
 		<div style="padding: 14px 18px; border-bottom: 1px solid var(--bd2);">
-			<p style="font-size: 12.5px; color: var(--tx3);">
+			<p style="font-size: 12.5px; color: var(--tx3-sm);">
 				The athlete left no feedback on this session.
 			</p>
 		</div>
@@ -99,7 +99,7 @@
 	<div style="padding: 14px 18px;">
 		<div class="flex items-center justify-between" style="margin-bottom: 8px;">
 			<div
-				style="font-size: 10.5px; color: var(--tx3); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;"
+				style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;"
 			>
 				Your reply
 			</div>
@@ -129,7 +129,7 @@
 				{current.coach_reply}
 			</p>
 			{#if current.coach_reply_at}
-				<div style="font-size: 11.5px; color: var(--tx3); margin-top: 8px;">
+				<div style="font-size: 11.5px; color: var(--tx3-sm); margin-top: 8px;">
 					Sent {formatSessionDateShort(current.coach_reply_at)}
 				</div>
 			{/if}
@@ -159,7 +159,7 @@
 					class="flex items-center gap-1.5"
 					style="
 						padding: 8px 16px; border-radius: var(--rs);
-						background: var(--pr); color: #fff; border: none;
+						background: var(--pr-dk); color: #fff; border: none;
 						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 						opacity: {canSave ? 1 : 0.6};
 					"
@@ -171,7 +171,7 @@
 			<!-- An empty reply is how a coach takes an answer back, so the button
 			     stays live once one exists even when the box has been cleared. -->
 			{#if replied && reply.trim() === ''}
-				<div style="font-size: 11.5px; color: var(--tx3); margin-top: 6px;">
+				<div style="font-size: 11.5px; color: var(--tx3-sm); margin-top: 6px;">
 					Saving an empty reply removes it.
 				</div>
 			{/if}

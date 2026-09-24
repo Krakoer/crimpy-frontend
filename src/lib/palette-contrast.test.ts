@@ -145,13 +145,58 @@ describe('surfaces that write an accent as text on its own tint', () => {
 	// token, not one returned by a function the way denominatorNoteColor is. It
 	// went unmeasured until a reader found it, so it is enumerated here.
 	//
-	// Only the two accent states. The third returns var(--tx3), the muted body
-	// token this portal writes all its secondary text in, which is a typographic
-	// choice across every surface rather than an accent used as text, and not
-	// something to settle inside an assessment test.
+	// All three states, including the normal one. It used to return var(--tx3)
+	// and was left out on the grounds that the muted body token was a
+	// typographic choice rather than an accent used as text. Krakoer/crimpy#137
+	// settled that: it is an eleven pixel line on a panel at 2.44:1, so it
+	// returns var(--tx3-sm) now and is measured with the other two.
+	// A chart reads the palette off the document at runtime, through
+	// getComputedStyle, and hands the values to echarts as option objects. There
+	// is no color: declaration, no style= attribute and no <Icon> prop anywhere
+	// in that path, so palette-surfaces.test.ts cannot see it: --tx3 shipped as
+	// 9px and 10px axis type on a white card through four review rounds of
+	// Krakoer/crimpy#137, asserted closed each time.
+	//
+	// The two call sites are enumerable, so the tokens they name are pinned here
+	// by the key each theme uses them under. A key that paints type has to hold
+	// a token that clears the text floor on the card the chart sits on.
+	it.each([
+		['AssessmentChart textFaint', '--tx3-sm'],
+		['AssessmentChart textSoft', '--tx2'],
+		['AssessmentChart text', '--tx'],
+		['TrainingLoadChart textFaint', '--tx3-sm'],
+		['TrainingLoadChart textSoft', '--tx2'],
+		['TrainingLoadChart text', '--tx']
+	])('holds %s at the small text floor', (label, token) => {
+		expectClearsFloor(label, `var(${token})`, 'var(--panel)', tokens);
+	});
+
+	// And the source is checked against that list, so renaming a key or pointing
+	// one at another token fails here rather than silently.
+	it('names every text key the two chart themes actually use', () => {
+		const used = ['AssessmentChart.svelte', 'load/TrainingLoadChart.svelte'].flatMap((file) => {
+			const source = readFileSync(
+				fileURLToPath(new URL(`./components/${file}`, import.meta.url)),
+				'utf8'
+			);
+			return [...source.matchAll(/\b(text|textSoft|textFaint):\s*value\('(--[\w-]+)'/g)].map(
+				([, key, token]) => `${key} ${token}`
+			);
+		});
+		expect(used.sort()).toEqual([
+			'text --tx',
+			'text --tx',
+			'textFaint --tx3-sm',
+			'textFaint --tx3-sm',
+			'textSoft --tx2',
+			'textSoft --tx2'
+		]);
+	});
+
 	it.each([
 		['a weigh-in that went stale', { missing: 'stale' as const }],
-		['a weigh-in that never happened', { missing: 'no-weigh-in' as const }]
+		['a weigh-in that never happened', { missing: 'no-weigh-in' as const }],
+		['a weigh-in that is current', { bodyweightKg: 70, weighedAt: '2026-01-01' }]
 	])('holds the denominator note for %s', (label, reading) => {
 		expectClearsFloor(label, denominatorNoteColor(reading), 'var(--panel)', tokens);
 	});

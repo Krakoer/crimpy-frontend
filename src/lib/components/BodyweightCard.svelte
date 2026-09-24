@@ -29,13 +29,13 @@
 		style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px;"
 	>
 		<div style="font-size: 12px; font-weight: 600; color: var(--tx); min-width: 0;">Bodyweight</div>
-		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">kg</div>
+		<div style="font-size: 11px; color: var(--tx3-sm); flex-shrink: 0;">kg</div>
 	</div>
 
 	{#if loading}
-		<div style="font-size: 12.5px; color: var(--tx3);">Loading...</div>
+		<div style="font-size: 12.5px; color: var(--tx3-sm);">Loading...</div>
 	{:else if failed}
-		<div style="font-size: 12.5px; color: var(--tx3);">
+		<div style="font-size: 12.5px; color: var(--tx3-sm);">
 			Could not be loaded, so what is here now is not known.
 		</div>
 	{:else if trend}
@@ -49,7 +49,7 @@
 				</div>
 			{/if}
 		</div>
-		<div style="font-size: 11px; color: var(--tx3); margin-top: 4px;">
+		<div style="font-size: 11px; color: var(--tx3-sm); margin-top: 4px;">
 			{#if change}
 				Measured {formatDayMonth(trend.latest.measured_at)}, against {formatKg(
 					trend.previous!.weight_kg
@@ -68,7 +68,7 @@
 	{:else}
 		<!-- Said out loud rather than drawn as a zero: a strength number cannot be
 		     read as a ratio without this, so a coach needs to know it is missing. -->
-		<div style="font-size: 12.5px; color: var(--tx3);">
+		<div style="font-size: 12.5px; color: var(--tx3-sm);">
 			Not recorded yet, so a load set as a percentage of it cannot be read here.
 		</div>
 	{/if}

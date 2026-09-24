@@ -60,7 +60,7 @@
 				disabled={busy}
 				style="
 					padding: 9px 18px; border-radius: var(--rs);
-					border: 1px solid var(--rd); background: var(--rd); color: #fff;
+					border: 1px solid var(--rd-dk); background: var(--rd-dk); color: #fff;
 					font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 					opacity: {busy ? 0.6 : 1};
 				">{busy ? busyLabel : confirmLabel}</button

@@ -102,7 +102,7 @@
 			list, since "0 days" would then be a claim about the athlete made out of
 			a gap in the response. -->
 		{#if availability && !failed && !declaredEmpty && wholeWeekRead}
-			<div style="font-size: 10px; color: var(--tx3); padding-left: 17px;">
+			<div style="font-size: 10px; color: var(--tx3-sm); padding-left: 17px;">
 				{plannedDayCount} day{plannedDayCount === 1 ? '' : 's'}
 			</div>
 		{/if}
@@ -113,7 +113,7 @@
 			style="
 				grid-column: span 9; display: flex; align-items: center;
 				padding: 8px 12px; font-size: 11.5px;
-				color: {failed ? 'var(--rd-tx)' : 'var(--tx3)'};
+				color: {failed ? 'var(--rd-tx)' : 'var(--tx3-sm)'};
 			"
 		>
 			{emptyMessage}
