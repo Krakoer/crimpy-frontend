@@ -393,7 +393,7 @@
 								? 'var(--pr)'
 								: 'var(--bd)'}; background: {isAmrap ? 'var(--pr-fog)' : '#fff'}; color: {isAmrap
 								? 'var(--pr-tx)'
-								: 'var(--tx3)'}; font-size: 11px; font-weight: 700; cursor: pointer; font-family: var(--font);"
+								: 'var(--tx3-sm)'}; font-size: 11px; font-weight: 700; cursor: pointer; font-family: var(--font);"
 							>AMRAP</button
 						>
 					{/if}
@@ -413,7 +413,7 @@
 								? 'var(--pr-fog)'
 								: '#fff'}; color: {variableTarget
 								? 'var(--pr-tx)'
-								: 'var(--tx3)'}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
+								: 'var(--tx3-sm)'}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);"
 							>%</button
 						>
 					{/if}

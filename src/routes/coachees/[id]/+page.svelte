@@ -471,7 +471,7 @@
 								style="
 						font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
 						background: {activeTab === tab.id ? 'var(--pr-fog)' : 'var(--bd2)'};
-						color: {activeTab === tab.id ? 'var(--pr-tx)' : 'var(--tx3)'};
+						color: {activeTab === tab.id ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 					">{tab.n}</span
 							>
 						{/if}
@@ -1114,7 +1114,7 @@
 												}}
 												onmouseleave={(e) => {
 													e.currentTarget.style.borderColor = 'var(--bd)';
-													e.currentTarget.style.color = 'var(--tx3)';
+													e.currentTarget.style.color = 'var(--tx3-sm)';
 												}}
 												title="Delete program"
 											>

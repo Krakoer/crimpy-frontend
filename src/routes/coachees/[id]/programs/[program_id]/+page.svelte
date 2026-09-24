@@ -1039,7 +1039,7 @@
 					display: inline-flex; align-items: center; gap: 6px;
 					padding: 6px 14px; border-radius: var(--rs);
 					background: {isDirty ? 'var(--pr-dk)' : '#fff'};
-					color: {isDirty ? '#fff' : 'var(--tx3)'};
+					color: {isDirty ? '#fff' : 'var(--tx3-sm)'};
 					border: 1px solid {isDirty ? 'var(--pr-dk)' : 'var(--bd)'};
 					font-size: 12.5px; font-weight: 600; cursor: {isDirty ? 'pointer' : 'default'};
 					font-family: var(--font); transition: all 0.15s;
@@ -1587,7 +1587,7 @@
 																			onclick={() => removeSession(wn, session._id)}
 																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
-																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; position: relative;"
 																			onmouseenter={(e) => {
 																				e.currentTarget.style.opacity = '1';
 																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1620,7 +1620,7 @@
 																	}}
 																	onmouseleave={(e) => {
 																		e.currentTarget.style.borderColor = 'var(--bd)';
-																		e.currentTarget.style.color = 'var(--tx3)';
+																		e.currentTarget.style.color = 'var(--tx3-sm)';
 																	}}
 																>
 																	<Icon name="plus" size={14} color="currentColor" />
@@ -1719,7 +1719,7 @@
 																			onclick={() => removeSession(wn, session._id)}
 																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
-																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; position: relative;"
 																			onmouseenter={(e) => {
 																				e.currentTarget.style.opacity = '1';
 																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1801,7 +1801,7 @@
 																		onclick={() => removeSession(wn, session._id)}
 																		aria-label="Remove session"
 																		onpointerdown={(e) => e.stopPropagation()}
-																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
+																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; position: relative;"
 																		onmouseenter={(e) => {
 																			e.currentTarget.style.opacity = '1';
 																			e.currentTarget.style.background = 'rgba(0,0,0,0.06)';

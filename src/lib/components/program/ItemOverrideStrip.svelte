@@ -133,7 +133,7 @@
 							padding: 2px 7px; border-radius: 999px; font-size: 10.5px;
 							border: 1px solid {entry.current ? 'var(--pr)' : 'var(--bd)'};
 							background: {entry.current ? 'var(--pr-fog)' : 'var(--panel)'};
-							color: {entry.summary ? 'var(--tx2)' : 'var(--tx3)'};
+							color: {entry.summary ? 'var(--tx2)' : 'var(--tx3-sm)'};
 						"
 					>
 						<span

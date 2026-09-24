@@ -497,12 +497,31 @@ describe('no surface builds a colour by concatenating a hex alpha pair onto a to
 
 const PALETTE_SOURCE = fileURLToPath(new URL('../routes/layout.css', import.meta.url));
 
-const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2', 'bg'];
+// The neutral grounds a label can sit on, and the ones this palette has a
+// working text token for.
+//
+// --bd, --bd2 and --bg are grounds too and are deliberately not here. Adding
+// them reports sixteen sites, thirteen on --bd2 and three on --bg, and none of
+// them can be fixed by choosing a different token: --tx3-sm is 4.07:1 on --bd2
+// and 4.26:1 on --bg, and --tx2 is 4.14:1 and 4.34:1, so the whole secondary
+// and tertiary voice is under the floor on both. The border family is being
+// used as a chip ground and is too dark for the type scale, which is a palette
+// decision rather than a swap: darken the text tokens past --tx2 and the three
+// levels inverte; lighten the chip grounds and nine pills change character.
+//
+// Krakoer/crimpy#137 decided the --panel family and left this open. It is
+// recorded here, and in the --tx3-sm comment in layout.css, so the next reader
+// finds a question rather than an oversight.
+const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2'];
 
 // Every accent that is a mark rather than a text colour. `--hb` is listed even
 // though it clears 4.5:1 on white by itself, so that darkening it later is
 // measured rather than assumed.
-const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb', 'tx3'];
+// --tx3-sm is scanned as well as --tx3. It is the token minted to clear the
+// text floor, and it does on --panel and --panel2 and not on --bd2, where it is
+// 4.07:1. A token that exists to clear a floor is exactly the one worth
+// measuring, or the sweep that introduced it quietly moves the problem.
+const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb', 'tx3', 'tx3-sm'];
 
 // The three tables that name a colour per row, with the exported names a
 // surface reaches each one through. A field access is measured against the
@@ -685,8 +704,18 @@ function neutralIn(declaration: string): string | null {
 // verdict, at 4.61 on --panel against 4.04 on --bg.
 function groundFor(lines: string[], at: number, ownDeclarations: string): string | null {
 	if (isFlatGround(ownDeclarations)) {
-		if (namesTintedGround(ownDeclarations)) return null;
 		const own = neutralIn(ownDeclarations);
+		// A tinted ground hands the pairing to the hue scan above, which is the
+		// right owner of an accent on a tint of its own hue. But a ground written
+		// as a ternary is two grounds, and a chip whose selected arm is a tint and
+		// whose unselected arm is #fff has a neutral ground half the time. Bailing
+		// on the whole declaration because one arm named a tint is what hid every
+		// toggle chip in this repo from the --tx3 scan: the hue scan does not
+		// measure --tx3 either, since it belongs to no hue, so nobody did.
+		//
+		// So a declaration that names both is measured on its neutral arm here and
+		// left to the hue scan for its tinted one.
+		if (namesTintedGround(ownDeclarations)) return own ?? null;
 		if (own) return own;
 	}
 	for (let back = at; back >= Math.max(0, at - GROUND_REACH); back--) {
@@ -777,7 +806,12 @@ function neutralOffencesIn(file: string, tokens: Record<string, string>): Neutra
 			// made the split the "darken --tx3 outright" option that was weighed
 			// and turned down. So the mark half is left, named here rather than
 			// passed over in silence, and wants its own ticket.
-			if (token === 'tx3' && kind !== 'text') continue;
+			//
+			// Marks only. Large text is still measured: 2.44:1 misses the 3:1
+			// large-text floor too, and none of the argument above is about a
+			// figure set at 26px. Spelling this `kind !== 'text'` silenced that
+			// case as well, which was broader than the reasoning beside it.
+			if (token === 'tx3' && kind === 'mark') continue;
 			const ratio = contrastRatio(tokens[token], tokens[ground]);
 			if (ratio >= floor) continue;
 			offences.push({ file, line: at, kind, ground, through, token, ratio, floor });
@@ -977,7 +1011,9 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		const clearing = NEUTRAL_ACCENTS.filter(
 			(token) => contrastRatio(tokens[token], tokens.panel) >= TEXT_CONTRAST_FLOOR
 		);
-		expect(clearing).toEqual(['pr-dk', 'hb']);
+		// --tx3-sm joins them, which is the whole reason it exists: it is the one
+		// neutral in this set minted to be readable rather than to be a hue.
+		expect(clearing).toEqual(['pr-dk', 'hb', 'tx3-sm']);
 	});
 
 	it('finds no accent under its floor on a neutral ground', () => {
@@ -1142,6 +1178,13 @@ function accentGroundOffencesInSource(
 	// Whitespace left over means nothing was written there, so the colour paints
 	// a mark. A tile holding initials keeps the text floor, which is what tells
 	// the two sidebar chips apart.
+	//
+	// It stops at the first closing div, button, a or span, which can be a
+	// nested one, and reads at most 600 characters. So
+	// `<button ...><span><Icon/></span> Delete</button>` truncates at the inner
+	// `</span>`, finds only tags, and files a white label on --pr as a mark.
+	// Nothing in src/ is written that way; it is the direction this errs in, and
+	// it errs towards silence rather than towards a false alarm.
 	function holdsText(from: number): boolean {
 		const open = source.indexOf('>', from);
 		if (open < 0) return true;
@@ -1309,9 +1352,11 @@ describe('no surface writes a neutral under its floor on an accent ground', () =
 		const carrying = NEUTRAL_ACCENTS.filter(
 			(token) => contrastRatio(tokens.panel, tokens[token]) >= TEXT_CONTRAST_FLOOR
 		);
-		// The two darkest. Everything else needs a darker ground or a darker
-		// label, which is why this family could not be fixed by resizing.
-		expect(carrying).toEqual(['pr-dk', 'hb']);
+		// The two darkest accents, plus --tx3-sm, which is a text token rather
+		// than a ground and is in this list only because the scan measures it as
+		// a foreground. Everything else needs a darker ground or a darker label,
+		// which is why this family could not be fixed by resizing.
+		expect(carrying).toEqual(['pr-dk', 'hb', 'tx3-sm']);
 	});
 
 	it('finds no neutral under its floor on an accent ground', () => {

@@ -123,7 +123,7 @@
 						padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
 						border: none; cursor: pointer; white-space: nowrap; font-family: var(--font);
 						background: {grip === selectedGrip ? 'var(--pr-fog)' : 'var(--bd2)'};
-						color: {grip === selectedGrip ? 'var(--pr-tx)' : 'var(--tx3)'};
+						color: {grip === selectedGrip ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 					">{gripLabel(grip)}</button
 				>
 			{/each}

@@ -459,7 +459,7 @@
 										padding: 3px 8px; border-radius: var(--rs); font-size: 11px; font-weight: 600;
 										border: 1px solid {favoritesOnlyExercises ? 'var(--pr)' : 'var(--bd)'};
 										background: {favoritesOnlyExercises ? 'var(--pr-lt)' : '#fff'};
-										color: {favoritesOnlyExercises ? 'var(--pr-tx)' : 'var(--tx3)'};
+										color: {favoritesOnlyExercises ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 										cursor: pointer; font-family: var(--font);
 									">Fav</button
 								>

@@ -23,11 +23,21 @@
 	   so the distinction between them has to be carried by size and weight rather
 	   than colour. That is a real cost of the split and not an oversight.
 
-	   Neither this nor --tx2 clears the floor on --bg, the page ground, where
-	   they read 4.26:1 and 4.34:1. That is the whole secondary voice failing on
-	   one ground rather than this token failing, it predates Krakoer/crimpy#137,
-	   and it is recorded here rather than fixed. It is textMutedSmall in
-	   crimpy-app/lib/theme/crimpy_theme.dart. */
+	   Neither this nor --tx2 clears the floor on the two darker neutral grounds.
+	   On --bg, the page ground, they read 4.26:1 and 4.34:1; on --bd2, which
+	   thirteen status pills fill with, 4.07:1 and 4.14:1. That is the whole
+	   secondary and tertiary voice failing on two grounds rather than this token
+	   failing, and no choice of token fixes it: the border family is being used
+	   as a chip ground and is too dark for the type scale. Darkening the text
+	   tokens far enough inverts them against --tx2; lightening the chip grounds
+	   changes what nine pills look like. Krakoer/crimpy#137 settled the --panel
+	   family and left that open, recorded here and beside NEUTRAL_GROUND_TOKENS
+	   in palette-surfaces.test.ts.
+
+	   The app's counterpart is textMutedSmall in
+	   crimpy-app/lib/theme/crimpy_theme.dart. The two values differ, #787066 warm
+	   here against #737373 there, because the two palettes differ in hue at every
+	   neutral level: it is a mapping rather than a parity claim. */
 	--tx3-sm: #787066;
 	--pr: #c2714f;
 	/* The terracotta a primary button is filled with when it carries a white

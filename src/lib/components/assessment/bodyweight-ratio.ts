@@ -168,7 +168,7 @@ export function formatDenominatorNote(
 // line of writing on a panel, and layout.css says there that --rd and --gd read
 // under the contrast floor at that size while --rd-tx and --gd-tx clear it.
 export function denominatorNoteColor(reading: DenominatorReading): string {
-	if (reading.bodyweightKg !== undefined) return 'var(--tx3)';
+	if (reading.bodyweightKg !== undefined) return 'var(--tx3-sm)';
 	return reading.missing === 'stale' ? 'var(--gd-tx)' : 'var(--rd-tx)';
 }
 
