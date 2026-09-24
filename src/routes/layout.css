@@ -10,9 +10,11 @@
 	--tx2: #7a6e62;
 	--tx3: #b0a496;
 	/* The third level of the type hierarchy read at a size that has to clear the
-	   4.5:1 text floor. --tx3 itself is 2.44:1 on --panel, which is fine for a
-	   rule or a 14px and up line and unreadable for the 8px to 12px captions,
-	   hints and muted ternary arms that src/ writes it as. Those take this.
+	   4.5:1 text floor. --tx3 itself is 2.44:1 on --panel, which is under the
+	   4.5:1 floor at every size, the large-text exemption included, and under the
+	   3:1 mark floor as well. It is not fine for a line of any size: what is left
+	   for it is decoration, a separator or a hairline rule, which WCAG exempts.
+	   Every caption, hint and muted ternary arm takes this instead.
 
 	   It reads 4.87:1 on --panel and 4.52:1 on --panel2. It cannot be lighter:
 	   4.5:1 on a white card admits nothing paler than about this, which is why it
@@ -28,6 +30,12 @@
 	   crimpy-app/lib/theme/crimpy_theme.dart. */
 	--tx3-sm: #787066;
 	--pr: #c2714f;
+	/* The terracotta a primary button is filled with when it carries a white
+	   label. --pr itself reads 3.64:1 under white, over the 3:1 mark floor and
+	   under the 4.5:1 text one, so the 13px labels the portal's buttons use are
+	   not readable on it. This reads 4.84:1. The buttons are the only thing that
+	   moved: --pr keeps its value and every marker, ring, icon and stripe drawn
+	   in it. See Krakoer/crimpy#137. */
 	--pr-dk: #a85e40;
 	--pr-lt: #f5e2d7;
 	--pr-fog: #fbf1ea;

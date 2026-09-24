@@ -353,7 +353,7 @@
 									class="tag-edit-btn"
 									style="
 										padding: 8px 10px; background: none; border: none; cursor: pointer;
-										color: var(--tx3); opacity: 0; transition: opacity 0.1s;
+										color: var(--tx3-sm); opacity: 0; transition: opacity 0.1s;
 									"
 									aria-label="Edit {tag.name}"
 								>

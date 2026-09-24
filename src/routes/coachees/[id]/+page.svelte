@@ -542,8 +542,8 @@
 										}}
 										style="
 										padding: 10px 4px; border-radius: var(--rs); text-align: center; cursor: pointer;
-										background: {day.isSelected ? 'var(--pr)' : day.isToday ? 'var(--pr-fog)' : 'var(--panel2)'};
-										border: 1px solid {day.isSelected ? 'var(--pr)' : day.isToday ? 'var(--pr-lt)' : 'transparent'};
+										background: {day.isSelected ? 'var(--pr-dk)' : day.isToday ? 'var(--pr-fog)' : 'var(--panel2)'};
+										border: 1px solid {day.isSelected ? 'var(--pr-dk)' : day.isToday ? 'var(--pr-lt)' : 'transparent'};
 										transition: background 0.1s;
 									"
 									>
@@ -552,7 +552,7 @@
 												? '#fff'
 												: day.isToday
 													? 'var(--pr-tx)'
-													: 'var(--tx3)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
+													: 'var(--tx3-sm)'}; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
 										>
 											{day.dayLabel}
 										</div>
@@ -1107,7 +1107,7 @@
 										{:else}
 											<button
 												onclick={() => (confirmDeleteProgramId = program.id)}
-												style="width: 32px; height: 32px; border-radius: var(--rs); border: 1px solid var(--bd); color: var(--tx3); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+												style="width: 32px; height: 32px; border-radius: var(--rs); border: 1px solid var(--bd); color: var(--tx3-sm); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;"
 												onmouseenter={(e) => {
 													e.currentTarget.style.borderColor = 'var(--rd)';
 													e.currentTarget.style.color = 'var(--rd)';

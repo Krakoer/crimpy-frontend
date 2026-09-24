@@ -140,7 +140,7 @@
 				<div
 					style="
 						width: 44px; height: 44px; border-radius: var(--rs);
-						background: var(--pr-dk); color: #fff;
+						background: var(--pr); color: #fff;
 						display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 					"
 				>
@@ -305,7 +305,9 @@
 							{coachee.user_email ?? ''}
 						</div>
 						<div
-							style="font-size: 12.5px; color: {extra?.lastActivity ? 'var(--tx2)' : 'var(--tx3)'};"
+							style="font-size: 12.5px; color: {extra?.lastActivity
+								? 'var(--tx2)'
+								: 'var(--tx3-sm)'};"
 						>
 							{extra === undefined
 								? '...'
@@ -316,7 +318,7 @@
 						<div
 							style="font-size: 12.5px; color: {extra?.activeProgram
 								? 'var(--tx)'
-								: 'var(--tx3)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+								: 'var(--tx3-sm)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 						>
 							{extra === undefined ? '...' : (extra.activeProgram ?? '-')}
 						</div>

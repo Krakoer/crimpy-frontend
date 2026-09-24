@@ -275,7 +275,7 @@
 					style="
 						width: 52px; height: 52px; border-radius: var(--rs); flex-shrink: 0;
 						background: {rpe ? sessionRpeTint(rpe) : 'var(--panel2)'};
-						color: {rpe ? sessionRpeColor(rpe) : 'var(--tx3)'};
+						color: {rpe ? sessionRpeColor(rpe) : 'var(--tx3-sm)'};
 						font-size: {rpe?.failed ? '12px' : '22px'}; font-weight: 700;
 					"
 				>

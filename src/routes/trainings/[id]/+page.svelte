@@ -751,7 +751,7 @@
 									title="Create new exercise"
 									style="
 										width: 24px; height: 24px; border-radius: var(--rs);
-										border: 1px dashed var(--bd); background: #fff; color: var(--tx3);
+										border: 1px dashed var(--bd); background: #fff; color: var(--tx3-sm);
 										cursor: pointer; display: flex; align-items: center; justify-content: center;
 									"
 								>

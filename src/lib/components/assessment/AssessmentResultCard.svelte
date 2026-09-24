@@ -177,7 +177,7 @@
 		<button
 			onclick={onToggleChart}
 			style="
-				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3)'};
+				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 				background: none; border: none; cursor: pointer; padding: 0;
 				font-family: var(--font); font-weight: 600; margin-bottom: 8px;
 			">{showChart ? 'Hide chart' : 'Show chart'}</button

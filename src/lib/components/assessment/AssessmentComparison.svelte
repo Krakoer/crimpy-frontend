@@ -132,7 +132,7 @@
 
 	const columns = 'display: grid; grid-template-columns: 1.6fr 0.9fr 1fr 1fr 0.9fr;';
 	const headerCell =
-		'font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;';
+		'font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;';
 	const selectStyle =
 		'padding: 5px 8px; border: 1px solid var(--bd); border-radius: var(--rs); background: var(--panel); color: var(--tx); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer;';
 </script>

@@ -153,7 +153,7 @@
 				tabindex="0"
 				onkeydown={(e) => e.key === 'Enter' && collapseSignals.expand++}>Expand all</span
 			>
-			<span style="color: var(--tx3);">·</span>
+			<span style="color: var(--tx3-sm);">·</span>
 			<span
 				onclick={() => {
 					collapseSignals.collapse++;
@@ -164,7 +164,7 @@
 				onkeydown={(e) => e.key === 'Enter' && collapseSignals.collapse++}>Collapse all</span
 			>
 			{#if !overriding && !selecting && items.length > 1}
-				<span style="color: var(--tx3);">·</span>
+				<span style="color: var(--tx3-sm);">·</span>
 				<button
 					onclick={() => (selecting = true)}
 					style="font-size: 12px; color: var(--tx3-sm); font-weight: 600; cursor: pointer; border: none; background: transparent; padding: 0; font-family: var(--font);"
@@ -195,7 +195,10 @@
 				     12px bold. WCAG exempts an inactive control from the floor, and
 				     this one is not inactive: groupSelection still fires and answers
 				     with a snackbar saying why it refused. --tx2 reads 4.96:1 on the
-				     button's white, and the icon is a mark at the 3:1 floor. -->
+				     button's white, and the icon takes it too: --tx3 would be
+				     2.44:1 there, which misses the 3:1 mark floor as well as the
+				     text one, so dimming to it would trade one unreadable state
+				     for another. -->
 				{#each GROUPING_TARGETS as target (target)}
 					{@const issue = groupingIssue(target)}
 					{@const block = BLOCK_PRESENTATION[target]}
@@ -210,7 +213,7 @@
 							color: {issue ? 'var(--tx2)' : block.text}; cursor: pointer;
 						"
 					>
-						<Icon name={block.icon} size={12} color={issue ? 'var(--tx3)' : block.color} />
+						<Icon name={block.icon} size={12} color={issue ? 'var(--tx2)' : block.color} />
 						Group into {blockLabel(target)}
 					</button>
 				{/each}

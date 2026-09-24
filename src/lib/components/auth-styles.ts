@@ -1,5 +1,5 @@
 export const authLabel =
-	'display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;';
+	'display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;';
 
 export const authInput =
 	'width: 100%; border: 1px solid var(--bd); border-radius: var(--rs); padding: 10px 12px; font-family: var(--font); font-size: 13.5px; color: var(--tx); outline: none; background: #fff;';

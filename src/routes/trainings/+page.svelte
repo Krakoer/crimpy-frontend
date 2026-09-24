@@ -397,7 +397,7 @@
 												width: 28px; height: 28px; border-radius: 6px;
 												border: none; background: transparent;
 												display: flex; align-items: center; justify-content: center;
-												cursor: pointer; color: var(--tx3);
+												cursor: pointer; color: var(--tx3-sm);
 											"
 										>
 											<Icon name="trash" size={14} color="var(--tx3)" />

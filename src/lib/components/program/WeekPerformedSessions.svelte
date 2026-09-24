@@ -121,7 +121,7 @@
 			style="
 				grid-column: span 9; display: flex; align-items: center;
 				padding: 8px 12px; font-size: 11.5px;
-				color: {failed ? 'var(--rd-tx)' : 'var(--tx3)'};
+				color: {failed ? 'var(--rd-tx)' : 'var(--tx3-sm)'};
 			"
 		>
 			{emptyMessage}

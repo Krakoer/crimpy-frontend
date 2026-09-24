@@ -1344,7 +1344,7 @@
 													style="
 												display: inline-block; width: 12px;
 												transform: {expanded ? 'rotate(90deg)' : 'rotate(0)'};
-												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr-tx)' : 'var(--tx3)'};
+												transition: transform 0.15s; flex-shrink: 0; color: {isCurrent ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 												font-size: 10px;
 											">&#9654;</span
 												>
@@ -1429,7 +1429,7 @@
 												<span
 													style="flex: 1; font-family: var(--font); font-size: 12px; color: {draft.notes
 														? 'var(--tx)'
-														: 'var(--tx3)'}; font-style: {draft.notes ? 'normal' : 'italic'};"
+														: 'var(--tx3-sm)'}; font-style: {draft.notes ? 'normal' : 'italic'};"
 												>
 													{draft.notes || 'No notes'}
 												</span>
@@ -1587,7 +1587,7 @@
 																			onclick={() => removeSession(wn, session._id)}
 																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
-																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
 																			onmouseenter={(e) => {
 																				e.currentTarget.style.opacity = '1';
 																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1611,7 +1611,7 @@
 																	style="
 															flex: 1; display: flex; align-items: center; justify-content: center;
 															border-radius: 5px; border: 1px dashed var(--bd);
-															color: var(--tx3); margin: 2px; min-height: 40px;
+															color: var(--tx3-sm); margin: 2px; min-height: 40px;
 															transition: border-color 0.15s, color 0.15s;
 														"
 																	onmouseenter={(e) => {
@@ -1719,7 +1719,7 @@
 																			onclick={() => removeSession(wn, session._id)}
 																			aria-label="Remove session"
 																			onpointerdown={(e) => e.stopPropagation()}
-																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
+																			style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
 																			onmouseenter={(e) => {
 																				e.currentTarget.style.opacity = '1';
 																				e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -1801,7 +1801,7 @@
 																		onclick={() => removeSession(wn, session._id)}
 																		aria-label="Remove session"
 																		onpointerdown={(e) => e.stopPropagation()}
-																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
+																		style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--tx3-sm); background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; border-radius: 3px; opacity: 0.6; position: relative;"
 																		onmouseenter={(e) => {
 																			e.currentTarget.style.opacity = '1';
 																			e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
@@ -2073,7 +2073,7 @@
 						>
 							<span
 								style="font-size: 13px; font-weight: 700; color: {isBlocked
-									? 'var(--tx3)'
+									? 'var(--tx3-sm)'
 									: 'var(--tx)'};">{wn}</span
 							>
 							{#if isSource}

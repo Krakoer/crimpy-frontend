@@ -61,7 +61,7 @@
 			style="
 				width: 32px; height: 32px;
 				border-radius: 9px;
-				background: var(--pr-dk);
+				background: var(--pr);
 				color: #fff;
 				display: flex; align-items: center; justify-content: center;
 				flex-shrink: 0;
@@ -228,7 +228,7 @@
 				width: 28px; height: 28px; border-radius: var(--rs);
 				display: flex; align-items: center; justify-content: center;
 				background: none; border: none; cursor: pointer;
-				color: var(--tx3);
+				color: var(--tx3-sm);
 			"
 		>
 			<Icon name="logout" size={15} color="var(--tx3)" />

@@ -20,7 +20,7 @@
 	];
 
 	const labelStyle =
-		'font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;';
+		'font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;';
 	const inputStyle =
 		'padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff; width: 100%;';
 </script>

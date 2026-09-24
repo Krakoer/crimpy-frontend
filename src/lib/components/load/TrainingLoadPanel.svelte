@@ -64,7 +64,7 @@
 	const cardStyle =
 		'background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh);';
 	const captionStyle =
-		'font-size: 10.5px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;';
+		'font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;';
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 16px;">
@@ -271,7 +271,7 @@
 								<span
 									style="font-weight: 700; color: {rowRatioBand
 										? toneTextColor(rowRatioBand.tone)
-										: 'var(--tx3)'};"
+										: 'var(--tx3-sm)'};"
 									title={rowRatioBand?.label ?? missingRatioNote(week)}
 								>
 									{formatRatio(week.acute_chronic_ratio)}
@@ -279,7 +279,9 @@
 							</td>
 							<td style="padding: 7px 10px 7px 0; border-bottom: 1px solid var(--bd2);">
 								<span
-									style="color: {rowChangeBand ? toneTextColor(rowChangeBand.tone) : 'var(--tx3)'};"
+									style="color: {rowChangeBand
+										? toneTextColor(rowChangeBand.tone)
+										: 'var(--tx3-sm)'};"
 								>
 									{formatPercent(week.load_change_percent)}
 								</span>

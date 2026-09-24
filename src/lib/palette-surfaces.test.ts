@@ -502,7 +502,7 @@ const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2', 'bg'];
 // Every accent that is a mark rather than a text colour. `--hb` is listed even
 // though it clears 4.5:1 on white by itself, so that darkening it later is
 // measured rather than assumed.
-const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb'];
+const NEUTRAL_ACCENTS = ['pr', 'pr-dk', 'gn', 'gd', 'pl', 'rd', 'bl', 'hb', 'tx3'];
 
 // The three tables that name a colour per row, with the exported names a
 // surface reaches each one through. A field access is measured against the
@@ -761,6 +761,23 @@ function neutralOffencesIn(file: string, tokens: Record<string, string>): Neutra
 		const ground = groundFor(lines, at - 1, own);
 		if (ground === null) return;
 		for (const { token, through } of accentsIn(expression, bound, local)) {
+			// --tx3 is measured as text and not as a mark, which is the one token
+			// here that gets that exemption and the only one that needs saying.
+			//
+			// It is 2.44:1 on --panel, so it fails the 3:1 mark floor as well as
+			// the 4.5:1 text one, and a scan that held it to both would report 74
+			// icons and separators alongside the 36 labels. Those are not the same
+			// question. A `·` between two buttons and a hairline rule are
+			// decoration, which WCAG 1.4.11 exempts; a drag handle drawn in it is
+			// not, and is a real defect this does not report.
+			//
+			// Krakoer/crimpy#137 asked about --tx3 as small text and its decision
+			// was to split the token, which keeps --tx3 as the mark form. Holding
+			// the mark form to the mark floor would have deleted the token and
+			// made the split the "darken --tx3 outright" option that was weighed
+			// and turned down. So the mark half is left, named here rather than
+			// passed over in silence, and wants its own ticket.
+			if (token === 'tx3' && kind !== 'text') continue;
 			const ratio = contrastRatio(tokens[token], tokens[ground]);
 			if (ratio >= floor) continue;
 			offences.push({ file, line: at, kind, ground, through, token, ratio, floor });
@@ -857,9 +874,11 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 
 		expect(accentsIn('color: var(--gd);', {}, {}).map((one) => one.token)).toEqual(['gd']);
 		expect(accentsIn('color="var(--gd)"', {}, {}).map((one) => one.token)).toEqual(['gd']);
+		// Both arms, since Krakoer/crimpy#137 put --tx3 in the scanned set: the
+		// muted arm of a ternary is exactly where its small text hid.
 		expect(
 			accentsIn("color: {failed ? 'var(--rd)' : 'var(--tx3)'};", {}, {}).map((one) => one.token)
-		).toEqual(['rd']);
+		).toEqual(['rd', 'tx3']);
 		// A directive carries `style:` as well as the property, and the root of the
 		// binding walk has to be the expression rather than the word `color`.
 		expect(accentsIn('style:color={type.color}', activity, {}).map((one) => one.token)).toContain(
@@ -874,7 +893,7 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		// may be stripped off the front of it.
 		expect(
 			accentsIn("a === b ? 'var(--gd)' : 'var(--tx3)'", {}, {}).map((one) => one.token)
-		).toEqual(['gd']);
+		).toEqual(['gd', 'tx3']);
 
 		// The table a field comes from decides what it can hold. Gold can reach a
 		// session figure and cannot reach a block button, and reading both from
@@ -947,7 +966,11 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		const failing = NEUTRAL_ACCENTS.filter(
 			(token) => contrastRatio(tokens[token], tokens.panel) < MARK_CONTRAST_FLOOR
 		);
-		expect(failing).toEqual(['gd']);
+		// --tx3 joins gold under the mark floor, and is the reason the scan
+		// above measures it as text only. It is 2.44:1 on --panel, so every icon
+		// and separator drawn in it is under 3:1 as well. That is a real family
+		// and a different one: see the note beside the exemption in `record`.
+		expect(failing).toEqual(['gd', 'tx3']);
 	});
 
 	it('leaves only the two darkest accents above the text floor on white', () => {
@@ -986,6 +1009,20 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 // one written as `var(--pr)`. That matters: the picker's ground is the record
 // field, not a token, and a scan that only read tokens would have missed the
 // worst pairing of the family.
+//
+// That holds for a field whose value is a token and for nothing else. accentsIn
+// resolves `var(--x)` literals, so a record of raw hexes resolves to nothing
+// and the pairing is not measured. TAG_COLORS in TagSelect.svelte is exactly
+// that: eight hardcoded hexes, five of which carry white under 4.5:1
+// (#FB8C00 2.37, #00ACC1 2.74, #43A047 3.30, #1E88E5 3.68, #E53935 4.23), and
+// a tag pill writes 10px white on whichever one the tag drew. Live, in
+// TagSelect, TagFilterSelect, SelectExerciseModal and the exercises route, and
+// invisible here. The hardcoded hexes are their own Alpine violation and
+// predate Krakoer/crimpy#137; naming them is not fixing them.
+//
+// The branch pairing below assumes both ternaries turn on the same condition
+// with the same polarity. `background: {!a ? ... }` beside `color: {a ? ... }`
+// would be paired the wrong way round. Nothing in src/ is written that way.
 
 // What counts as a neutral written on top. The page grounds double as
 // foregrounds here, since white on an accent is the whole shape, and the text
@@ -995,10 +1032,18 @@ const NEUTRAL_FOREGROUND_TOKENS = ['panel', 'panel2', 'bg', 'tx', 'tx2', 'tx3', 
 
 // A foreground written as a literal rather than a token. `#fff` is by far the
 // commonest ground-facing colour in this repo and the one the family is about.
-function neutralForegroundIn(declaration: string): string | null {
-	const named = NEUTRAL_FOREGROUND_TOKENS.find((token) => namesToken(declaration, token));
-	if (named) return named;
-	return /#fff\b|#ffffff\b|\bwhite\b/i.test(declaration) ? 'panel' : null;
+// Every neutral the declaration can render in, not the first one found.
+//
+// A conditional label is the commonest shape in this repo, and one arm of it
+// being white is the whole family this scan exists for. Returning a single
+// answer meant a named token beat the `#fff` literal and the white arm was
+// dropped: `color: {sel ? '#fff' : 'var(--tx)'}` on an accent ground reported
+// --tx and stayed silent about the white, which is what kept the coachee week
+// strip invisible here even once its ground was on the same element.
+function neutralForegroundsIn(declaration: string): string[] {
+	const found = NEUTRAL_FOREGROUND_TOKENS.filter((token) => namesToken(declaration, token));
+	if (/#fff\b|#ffffff\b|\bwhite\b/i.test(declaration)) found.push('panel');
+	return [...new Set(found)];
 }
 
 interface AccentGroundOffence {
@@ -1064,24 +1109,48 @@ function accentGroundOffencesInSource(
 				? colourBranches.map((colour, index) => [colour, groundBranches[index]])
 				: [[declaration, grounds]];
 			for (const [colour, ground] of pairs) {
-				const foreground = neutralForegroundIn(colour);
-				if (foreground === null) continue;
-				for (const { token, through } of accentsIn(ground, bound, local)) {
-					const ratio = contrastRatio(tokens[foreground], tokens[token]);
-					if (ratio >= floor) continue;
-					offences.push({
-						file,
-						line: at,
-						kind,
-						ground: token,
-						through,
-						foreground,
-						ratio,
-						floor
-					});
+				for (const foreground of neutralForegroundsIn(colour)) {
+					for (const { token, through } of accentsIn(ground, bound, local)) {
+						const ratio = contrastRatio(tokens[foreground], tokens[token]);
+						if (ratio >= floor) continue;
+						offences.push({
+							file,
+							line: at,
+							kind,
+							ground: token,
+							through,
+							foreground,
+							ratio,
+							floor
+						});
+					}
 				}
 			}
 		}
+	}
+
+	// Whether the element this style opens holds any text of its own.
+	//
+	// A block that states no size would otherwise be held to the text floor,
+	// which is right for a label and wrong for a tile that holds only an
+	// `<Icon>` and carries `color: #fff` for the icon's sake. The sidebar logo
+	// chip and the enrolment-link chip are exactly that, and reporting them
+	// drove a ground darker for a floor they do not answer to.
+	//
+	// The children are read rather than guessed at: everything from the end of
+	// the open tag to the matching close, with tags and Svelte blocks removed.
+	// Whitespace left over means nothing was written there, so the colour paints
+	// a mark. A tile holding initials keeps the text floor, which is what tells
+	// the two sidebar chips apart.
+	function holdsText(from: number): boolean {
+		const open = source.indexOf('>', from);
+		if (open < 0) return true;
+		const body = source.slice(open + 1, open + 600);
+		const end = body.search(/<\/(?:div|button|a|span)>/);
+		const inner = (end < 0 ? body : body.slice(0, end))
+			.replace(/<[^>]*>/g, ' ')
+			.replace(/\{[^}]*\}/g, ' ');
+		return /\S/.test(inner);
 	}
 
 	function floorFor(block: string): string {
@@ -1101,7 +1170,9 @@ function accentGroundOffencesInSource(
 			const colours = block.match(DECLARED_COLOUR);
 			if (colours === null) continue;
 			const grounds = (block.match(/background(?:-color)?:[^;"]*/gs) ?? []).join(' ');
-			record(lineAt(source, match.index), colours, grounds, floorFor(block));
+			const sized = /font-size:\s*[\d.]+px/.test(block);
+			const kind = !sized && !holdsText(match.index + block.length) ? 'mark' : floorFor(block);
+			record(lineAt(source, match.index), colours, grounds, kind);
 		}
 	}
 
@@ -1169,6 +1240,29 @@ describe('no surface writes a neutral under its floor on an accent ground', () =
 		expect(white('var(--tx)')).toBe(0);
 		// An accent written on an accent belongs to the hue scan, not this one.
 		expect(white('var(--gd-tx)')).toBe(0);
+	});
+
+	it('tells a mark-only tile from a label when neither states a size', () => {
+		// A chip holding an Icon and nothing else paints a mark, whatever white
+		// sits in its style attribute for the icon's sake. One holding initials
+		// paints text. Neither states a font-size, so the children decide.
+		const tile = '<div style="background: var(--pr); color: #fff;"><Icon name="logo" /></div>';
+		const initials = '<div style="background: var(--pr); color: #fff;">{initials}x</div>';
+		expect(scan(tile)).toEqual([]);
+		expect(scan(initials).map((one) => one.kind)).toEqual(['text']);
+	});
+
+	it('reads every arm of a conditional label, not just the first', () => {
+		// A named token used to beat the #fff literal, so the white arm of a
+		// ternary was dropped and only the arm that already passed was measured.
+		// That is the shape this scan exists for.
+		const both = scan(
+			"<b style=\"background: var(--pr); color: {sel ? '#fff' : 'var(--tx)'}; font-size: 10px;\">x</b>"
+		);
+		expect(both.map((one) => one.foreground)).toContain('panel');
+		// --tx on --pr is 4.18:1, under the floor too, so both arms are reported
+		// and neither hides the other.
+		expect(both.map((one) => one.foreground)).toContain('tx');
 	});
 
 	it('separates the two floors', () => {

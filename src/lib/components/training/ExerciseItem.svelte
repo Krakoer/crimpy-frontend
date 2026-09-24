@@ -296,7 +296,7 @@
 								? '#fff'
 								: 'transparent'}; color: {!isDuration
 								? 'var(--pr-tx)'
-								: 'var(--tx3)'}; font-family: var(--font); box-shadow: {!isDuration
+								: 'var(--tx3-sm)'}; font-family: var(--font); box-shadow: {!isDuration
 								? 'var(--sh)'
 								: 'none'};">Reps</button
 						>
@@ -306,7 +306,7 @@
 								? '#fff'
 								: 'transparent'}; color: {isDuration
 								? 'var(--pr-tx)'
-								: 'var(--tx3)'}; font-family: var(--font); box-shadow: {isDuration
+								: 'var(--tx3-sm)'}; font-family: var(--font); box-shadow: {isDuration
 								? 'var(--sh)'
 								: 'none'};">Duration</button
 						>

@@ -136,7 +136,8 @@
 							color: {entry.summary ? 'var(--tx2)' : 'var(--tx3)'};
 						"
 					>
-						<span style="font-weight: 700; color: {entry.current ? 'var(--pr-tx)' : 'var(--tx3)'};"
+						<span
+							style="font-weight: 700; color: {entry.current ? 'var(--pr-tx)' : 'var(--tx3-sm)'};"
 							>{entry.label}</span
 						>
 						{entry.summary || 'as written'}
