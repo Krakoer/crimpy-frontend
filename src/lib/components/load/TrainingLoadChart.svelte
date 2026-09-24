@@ -35,7 +35,9 @@
 			borderLight: value('--bd2', '#f0eadf'),
 			text: value('--tx', '#2d241d'),
 			textSoft: value('--tx2', '#7a6e62'),
-			textFaint: value('--tx3', '#b0a496'),
+			// Real type at 9px and 10px on a white card, so the readable form.
+			// See the note in AssessmentChart.svelte and Krakoer/crimpy#137.
+			textFaint: value('--tx3-sm', '#787066'),
 			tone: (variable: string) => value(variable, '#b0a496')
 		};
 	}

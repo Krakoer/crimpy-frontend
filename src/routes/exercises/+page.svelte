@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagPill } from '$lib/tag-contrast';
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
@@ -353,9 +354,9 @@
 								onclick={() => toggleFilterTag(tag.id)}
 								style="
 									font-size: 11px; padding: 4px 9px; border-radius: 999px;
-									background: {active ? tag.color : 'var(--panel2)'};
+									background: {active ? tagPill(tag.color).ground : 'var(--panel2)'};
 									border: 1px solid {active ? tag.color : 'var(--bd)'};
-									color: {active ? '#fff' : 'var(--tx2)'};
+									color: {active ? tagPill(tag.color).label : 'var(--tx2)'};
 									font-weight: 500; cursor: pointer; font-family: var(--font);
 								"
 							>
@@ -454,7 +455,9 @@
 									<div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;">
 										{#each exercise.tags as tag (tag.id)}
 											<span
-												style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: #fff; background: {tag.color};"
+												style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: {tagPill(
+													tag.color
+												).label}; background: {tagPill(tag.color).ground};"
 											>
 												{tag.name}
 											</span>

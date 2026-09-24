@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagPill } from '$lib/tag-contrast';
 	import { onMount } from 'svelte';
 	import type { Exercise, Tag } from '$lib/api/client';
 	import { apiClient } from '$lib/api/client';
@@ -230,8 +231,9 @@
 							<div style="margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px;">
 								{#each ex.tags as tag (tag.id)}
 									<span
-										style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: #fff; background: {tag.color};"
-										>{tag.name}</span
+										style="font-size: 10px; padding: 2px 7px; border-radius: 999px; color: {tagPill(
+											tag.color
+										).label}; background: {tagPill(tag.color).ground};">{tag.name}</span
 									>
 								{/each}
 							</div>

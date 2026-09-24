@@ -109,14 +109,22 @@
 	/* The hangboard teal written on a tint of its own hue, the way --pr-tx and
 	   the rest are. Four hangboard rules build their ground with
 	   color-mix(in srgb, var(--hb) 12%, transparent) over the white card, which
-	   composites to #e9eff1; --hb reads 3.97:1 there, under the floor for the
-	   11px and 10px labels those rules use. This reads 4.55:1 on that ground and
-	   5.29:1 on white.
+	   composites to #e9eff1 over the white card; --hb reads 3.97:1 there, under
+	   the floor for the 11px and 10px labels those rules use.
+
+	   The value clears the darkest ground the rule actually mounts on, not just
+	   the lightest. .hb-pill.hb-on renders twice: in the Hands radiogroup on the
+	   white body, and in the Grip radiogroup inside .hb-inspector, which is
+	   --panel2 and darkens again to a 6% --hb mix when focused. The same 12% mix
+	   composites to #e9eff1, #e5e7e3 and #dbe1de across those three, and this
+	   reads 4.53:1 on the worst of them and 6.00:1 on white. An earlier value
+	   cleared the white mount at 4.55:1 and missed the focused inspector at
+	   3.99:1, which is the kind of thing one ground in a comment hides.
 
 	   The portal's hangboard teal has no counterpart in the app theme, which is
 	   why there is no Dart twin to keep in step with, the same reason accentTeal
 	   has no text form there. */
-	--hb-tx: #447281;
+	--hb-tx: #3f6977;
 	--r: 10px;
 	--rs: 8px;
 	--rl: 14px;

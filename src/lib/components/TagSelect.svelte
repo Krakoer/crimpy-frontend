@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagPill } from '$lib/tag-contrast';
 	import { apiClient, type Tag } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -190,7 +191,7 @@
 				style="
 					display: inline-flex; align-items: center; gap: 4px;
 					padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
-					color: #fff; background: {tag.color};
+					color: {tagPill(tag.color).label}; background: {tagPill(tag.color).ground};
 				"
 			>
 				{tag.name}

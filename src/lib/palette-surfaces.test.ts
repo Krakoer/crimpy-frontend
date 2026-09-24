@@ -59,12 +59,13 @@ const MARK_FIELDS = ['color'];
 //     it is filed on Krakoer/crimpy#137 because clearing it wants a seventh text
 //     token and a decision about mirroring one the app has no counterpart for.
 //   - a colour dimmed by an `opacity`, which composites to something lighter
-//     than the token it names. Live, not hypothetical: the "Group into X" button
-//     of ItemList.svelte declares its colour and an `opacity` on the same
-//     element, so a refused grouping composites the label and its white ground
-//     together against the selection bar and reads 2.43:1. The composite family
-//     is Krakoer/crimpy#137's, not this scan's, but it is present rather than
-//     absent and saying otherwise is what stops the next reader checking.
+//     than the token it names. Live, not hypothetical: HangboardSessionMap puts
+//     `opacity: 0.75` on a 9px badge inside `.hb-step.hb-on`, which takes white
+//     on --hb from 4.56:1 down to about 3.3:1. The ItemList "Group into X"
+//     button used to be the example here and was fixed by Krakoer/crimpy#137,
+//     which is why the example moved rather than the entry going: the family is
+//     still unmeasured, and saying otherwise is what stops the next reader
+//     checking.
 //
 // Four more were found and closed rather than lived with, and are recorded
 // because how they were closed differs:
@@ -528,7 +529,11 @@ const NEUTRAL_GROUND_TOKENS = ['panel', 'panel2', 'bg'];
 //
 // These two are the secondary and tertiary voice, at 4.34:1 and 4.26:1, and are
 // the open palette decision recorded on --tx3-sm in layout.css.
-const UNFIXABLE_ON_BG = ['tx2', 'tx3-sm'];
+// Only tx3-sm: --tx2 is not in NEUTRAL_ACCENTS, so naming it here made the list
+// look broader than it is. --tx2 on --bg is 4.34:1 and is part of the same open
+// question, recorded on --tx3-sm in layout.css rather than in a list that has
+// no way to act on it.
+const UNFIXABLE_ON_BG = ['tx3-sm'];
 
 // Every accent that is a mark rather than a text colour. `--hb` is listed even
 // though it clears 4.5:1 on white by itself, so that darkening it later is
@@ -575,8 +580,16 @@ function colourFields(source: string): Record<string, string[]> {
 	const fields: Record<string, string[]> = {};
 	// The field name, then its value up to the comma that ends it, across one
 	// level of nesting so a `toneMarkColor(...)` arm does not cut it short.
+	// The value stops at a comma, a semicolon, a closing brace or a newline.
+	// Without the last three it ran across a whole style attribute, so in a
+	// .svelte file every CSS property became a "field" holding every token after
+	// it: `display` resolved to twenty-four tokens in one route, `label` to
+	// sixteen, and `href`, `padding` and `bind` were fields. Nothing collided
+	// today, but accentsIn consults this table for any `.field` on an unresolved
+	// root, so a future `color={row.label}` would have reported a phantom
+	// offence, which is the false alarm this file warns about three times.
 	for (const [, field, value] of source.matchAll(
-		/(\w+):\s*((?:[^,()]|\((?:[^()]|\([^()]*\))*\))*)/g
+		/(\w+):\s*((?:[^,;}\n()]|\((?:[^()]|\([^()]*\))*\))*)/g
 	)) {
 		for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
 			const held = (fields[field] ??= []);
@@ -681,7 +694,17 @@ function accentsIn(
 	// ate the first identifier of `a === b ? x.color : y.text`, which is handed
 	// here raw from an Icon prop and carries no property at all, and rooted the
 	// binding walk on `b`.
-	const value = expression.replace(/^\s*(?:style:)?[a-zA-Z-]+(?:\s*:|=)\s*/, '');
+	// A tag pill's colours are computed from the coach's own hex by tagPill, so
+	// neither its ground nor its label is a token and neither can be measured
+	// here. The call is cut out before the accents are read, the way the app's
+	// withoutResolved cuts textOn and markOn: left in, the `.label` and `.ground`
+	// accesses fall through to the file-local field table and resolve to whatever
+	// `color` happens to hold in that file, which reported a phantom --pr.
+	// tag-contrast.test.ts is what measures the real pairing, over every colour a
+	// tag can hold rather than over the eight that are seeded.
+	const value = expression
+		.replace(/\btagPill\((?:[^()]|\([^()]*\))*\)(?:\.\w+)?/g, '')
+		.replace(/^\s*(?:style:)?[a-zA-Z-]+(?:\s*:|=)\s*/, '');
 	const found: AccentUse[] = [];
 	for (const [, token] of value.matchAll(/var\(--([\w-]+)\)/g)) {
 		if (NEUTRAL_ACCENTS.includes(token)) found.push({ token, through: `var(--${token})` });
