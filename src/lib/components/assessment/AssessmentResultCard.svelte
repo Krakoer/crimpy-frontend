@@ -109,7 +109,7 @@
 		<div style="font-size: 13px; font-weight: 700; color: var(--tx); min-width: 0;">
 			{assessment.label}
 		</div>
-		<div style="font-size: 11px; color: var(--tx3); flex-shrink: 0;">
+		<div style="font-size: 11px; color: var(--tx3-sm); flex-shrink: 0;">
 			{readingLabel(bodyweightRelative, assessment.unit)}
 		</div>
 	</div>
@@ -129,7 +129,7 @@
 			{/each}
 		</div>
 	{:else if grips.length === 1}
-		<div style="font-size: 11px; color: var(--tx3); margin-bottom: 10px;">
+		<div style="font-size: 11px; color: var(--tx3-sm); margin-bottom: 10px;">
 			{gripLabel(grips[0])}
 		</div>
 	{/if}
@@ -196,7 +196,7 @@
 		{/if}
 
 		<div
-			style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3); margin-top: 6px;"
+			style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tx3-sm); margin-top: 6px;"
 		>
 			<span>{history.length} records</span>
 			{#if delta !== null}

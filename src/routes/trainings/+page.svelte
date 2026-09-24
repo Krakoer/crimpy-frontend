@@ -171,7 +171,7 @@
 			style="
 				display: inline-flex; align-items: center; gap: 7px;
 				padding: 9px 16px; border-radius: var(--rs);
-				background: var(--pr); color: #fff; border: 1px solid var(--pr);
+				background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 				font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 			"
 		>
@@ -275,7 +275,7 @@
 
 		{#if loading}
 			<div
-				style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;"
+				style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3-sm); font-size: 13px;"
 			>
 				<div
 					style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
@@ -434,7 +434,7 @@
 
 							<div style="height: 1px; background: var(--bd2);"></div>
 							<div
-								style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--tx3);"
+								style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--tx3-sm);"
 							>
 								<span style="display: inline-flex; align-items: center; gap: 4px;">
 									<Icon name="clock" size={12} color="var(--tx3)" />
@@ -582,7 +582,7 @@
 										aria-label="Duplicate {training.title}"
 										style="
 											padding: 4px 10px; border-radius: 6px;
-											border: 1px solid var(--bd); color: var(--tx3);
+											border: 1px solid var(--bd); color: var(--tx3-sm);
 											background: transparent; font-size: 12px; font-weight: 500;
 											cursor: {duplicatingId ? 'default' : 'pointer'}; font-family: var(--font);
 											opacity: {duplicatingId === training.id ? 0.5 : 1};
@@ -595,7 +595,7 @@
 										aria-label="Delete {training.title}"
 										style="
 											padding: 4px 10px; border-radius: 6px;
-											border: 1px solid var(--bd); color: var(--tx3);
+											border: 1px solid var(--bd); color: var(--tx3-sm);
 											background: transparent; font-size: 12px; font-weight: 500;
 											cursor: pointer; font-family: var(--font);
 										"
@@ -614,7 +614,7 @@
 		{/if}
 
 		{#if !loading && filtered.length === 0 && trainings.length > 0}
-			<div style="text-align: center; padding: 32px 0; color: var(--tx3); font-size: 13.5px;">
+			<div style="text-align: center; padding: 32px 0; color: var(--tx3-sm); font-size: 13.5px;">
 				No results for your current filters.
 			</div>
 		{/if}

@@ -96,13 +96,15 @@
 	</div>
 
 	{#if loading}
-		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3);">Loading activity...</div>
+		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3-sm);">
+			Loading activity...
+		</div>
 	{:else if failed && events.length === 0}
 		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx2);">
 			The activity feed could not be read. Reload to try again.
 		</div>
 	{:else if events.length === 0}
-		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3);">
+		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3-sm);">
 			Nothing has happened yet. Your coachees' sessions and declared weeks land here.
 		</div>
 	{:else}
@@ -151,7 +153,7 @@
 					{/if}
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 2px;">
-					<span style="font-size: 11.5px; color: var(--tx3); white-space: nowrap;">
+					<span style="font-size: 11.5px; color: var(--tx3-sm); white-space: nowrap;">
 						{timeAgo(event.occurred_at)}
 					</span>
 					<span

@@ -296,7 +296,7 @@
 			style="
 				display: inline-flex; align-items: center; gap: 7px;
 				padding: 8px 16px; border-radius: var(--rs);
-				background: var(--pr); color: #fff; border: 1px solid var(--pr);
+				background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 				font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 				opacity: {saving || !draft.title.trim() ? 0.6 : 1};
 			"
@@ -356,8 +356,8 @@
 											padding: 5px 12px; font-size: 12px; font-weight: 600;
 											border-radius: var(--rs); font-family: var(--font);
 											border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
-											background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
-											color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
+											background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].tint : '#fff'};
+											color: {draft.training_type === t ? TRAINING_TYPE_INFO[t].text : 'var(--tx2)'};
 											cursor: pointer; transition: all 0.15s;
 										">{TRAINING_TYPE_INFO[t].label}</button
 									>
@@ -379,7 +379,7 @@
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px;">
 							<span
-								style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+								style="font-size: 11px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 								>GOAL</span
 							>
 							<input
@@ -420,7 +420,7 @@
 					{#if allowedStructureButtons.length > 0}
 						<div style="padding: 14px 14px 10px; border-bottom: 1px solid var(--bd2);">
 							<div
-								style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px;"
+								style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px;"
 							>
 								ADD BLOCK
 							</div>
@@ -494,7 +494,7 @@
 							{#if rootExerciseSearch}
 								<span
 									onclick={() => handleSidebarSearch('')}
-									style="cursor: pointer; color: var(--tx3); font-size: 11px;"
+									style="cursor: pointer; color: var(--tx3-sm); font-size: 11px;"
 									role="button"
 									tabindex="0"
 									onkeydown={(e) => e.key === 'Enter' && handleSidebarSearch('')}>x</span
@@ -514,7 +514,9 @@
 						style="padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;"
 					>
 						{#if sidebarLoading}
-							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">
+							<div
+								style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3-sm);"
+							>
 								Loading...
 							</div>
 						{:else if sidebarResults.length > 0}
@@ -547,7 +549,7 @@
 											{ex.name}
 										</div>
 										{#if ex.tags && ex.tags.length > 0}
-											<div style="font-size: 10px; color: var(--tx3);">
+											<div style="font-size: 10px; color: var(--tx3-sm);">
 												{ex.tags.map((t) => t.name).join(' · ')}
 											</div>
 										{/if}
@@ -562,13 +564,15 @@
 									style="
 										width: 100%; padding: 6px; border-radius: var(--rs);
 										border: 1px dashed var(--bd); background: transparent;
-										font-size: 11px; color: var(--tx3); cursor: pointer;
+										font-size: 11px; color: var(--tx3-sm); cursor: pointer;
 										font-family: var(--font); opacity: {sidebarLoadingMore ? 0.5 : 1};
 									">{sidebarLoadingMore ? '...' : 'Load more'}</button
 								>
 							{/if}
 						{:else}
-							<div style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3);">
+							<div
+								style="padding: 16px; text-align: center; font-size: 12px; color: var(--tx3-sm);"
+							>
 								No exercises found
 							</div>
 						{/if}
@@ -617,8 +621,8 @@
 									padding: 5px 12px; font-size: 12px; font-weight: 600;
 									border-radius: var(--rs); font-family: var(--font);
 									border: 1.5px solid {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : 'var(--bd)'};
-									background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].color : '#fff'};
-									color: {draft.training_type === t ? '#fff' : 'var(--tx2)'};
+									background: {draft.training_type === t ? TRAINING_TYPE_INFO[t].tint : '#fff'};
+									color: {draft.training_type === t ? TRAINING_TYPE_INFO[t].text : 'var(--tx2)'};
 									cursor: pointer; transition: all 0.15s;
 								">{TRAINING_TYPE_INFO[t].label}</button
 							>
@@ -640,7 +644,7 @@
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
 					<span
-						style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						style="font-size: 11px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 						>GOAL</span
 					>
 					<input

@@ -297,7 +297,7 @@
 			style="
 				display: inline-flex; align-items: center; gap: 7px;
 				padding: 9px 16px; border-radius: var(--rs);
-				background: var(--pr); color: #fff; border: 1px solid var(--pr);
+				background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 				font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 			"
 		>
@@ -316,7 +316,7 @@
 				style="background: #fff; border: 1px solid var(--bd); border-radius: var(--rl); padding: 14px; box-shadow: var(--sh);"
 			>
 				<div
-					style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
+					style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
 				>
 					Favorites
 				</div>
@@ -342,7 +342,7 @@
 					style="background: #fff; border: 1px solid var(--bd); border-radius: var(--rl); padding: 14px; box-shadow: var(--sh);"
 				>
 					<div
-						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
+						style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;"
 					>
 						Tags
 					</div>
@@ -374,9 +374,9 @@
 				<div style="font-size: 13px; color: var(--tx2);">
 					<span style="color: var(--tx); font-weight: 600;">{exercises.length}</span>
 					{#if total > exercises.length}
-						<span style="color: var(--tx3);"> of {total} exercises</span>
+						<span style="color: var(--tx3-sm);"> of {total} exercises</span>
 					{:else}
-						<span style="color: var(--tx3);"> exercise{exercises.length === 1 ? '' : 's'}</span>
+						<span style="color: var(--tx3-sm);"> exercise{exercises.length === 1 ? '' : 's'}</span>
 					{/if}
 				</div>
 				<div
@@ -402,7 +402,7 @@
 
 			{#if loading}
 				<div
-					style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3); font-size: 13px;"
+					style="display: flex; align-items: center; gap: 12px; padding: 32px 0; color: var(--tx3-sm); font-size: 13px;"
 				>
 					<div
 						style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
@@ -410,7 +410,7 @@
 					Loading exercises...
 				</div>
 			{:else if exercises.length === 0}
-				<div style="padding: 48px 0; text-align: center; color: var(--tx3); font-size: 13.5px;">
+				<div style="padding: 48px 0; text-align: center; color: var(--tx3-sm); font-size: 13.5px;">
 					{favoritesOnly
 						? search
 							? 'No favorites match your search.'
@@ -483,7 +483,7 @@
 								title="Delete {exercise.name}"
 								style="
 									border-left: 1px solid var(--bd2); padding: 0 16px;
-									background: none; cursor: pointer; color: var(--tx3);
+									background: none; cursor: pointer; color: var(--tx3-sm);
 									font-size: 12px; font-family: var(--font); font-weight: 600;
 								"
 							>
@@ -592,7 +592,7 @@
 				{#if viewDescription}
 					<div>
 						<div
-							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
+							style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
 						>
 							Description
 						</div>
@@ -604,7 +604,7 @@
 				{#if viewComment}
 					<div>
 						<div
-							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
+							style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
 						>
 							Execution notes
 						</div>
@@ -616,7 +616,7 @@
 				{#if viewVideoLink}
 					<div>
 						<div
-							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
+							style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
 						>
 							Video
 						</div>
@@ -630,14 +630,14 @@
 								{viewVideoLink}
 							</a>
 						{:else}
-							<p style="font-size: 13px; color: var(--tx3); overflow-wrap: anywhere;">
+							<p style="font-size: 13px; color: var(--tx3-sm); overflow-wrap: anywhere;">
 								{viewVideoLink}
 							</p>
 						{/if}
 					</div>
 				{/if}
 				{#if !viewHasDetails}
-					<p style="font-size: 13.5px; color: var(--tx3);">No details added.</p>
+					<p style="font-size: 13.5px; color: var(--tx3-sm);">No details added.</p>
 				{/if}
 			</div>
 
@@ -655,7 +655,7 @@
 					}}
 					style="
 						flex: 1; padding: 9px 16px; border-radius: var(--rs);
-						background: var(--pr); color: #fff; border: 1px solid var(--pr);
+						background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 						font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 					"
 				>
@@ -728,7 +728,7 @@
 				<div>
 					<label
 						for="ex-name"
-						style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+						style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 					>
 						Name *
 					</label>
@@ -748,7 +748,7 @@
 				<div>
 					<label
 						for="ex-description"
-						style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+						style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 					>
 						Description
 					</label>
@@ -768,7 +768,7 @@
 				<div>
 					<label
 						for="ex-comment"
-						style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+						style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 					>
 						Execution notes
 					</label>
@@ -788,7 +788,7 @@
 				<div>
 					<label
 						for="ex-video-link"
-						style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+						style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 					>
 						Video link
 					</label>
@@ -807,7 +807,7 @@
 
 				<div>
 					<div
-						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+						style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 					>
 						Tags
 					</div>
@@ -822,7 +822,7 @@
 						disabled={saving || !form.name.trim()}
 						style="
 							flex: 1; padding: 9px 16px; border-radius: var(--rs);
-							background: var(--pr); color: #fff; border: 1px solid var(--pr);
+							background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 							font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 							opacity: {saving || !form.name.trim() ? 0.6 : 1};
 						"

@@ -37,7 +37,7 @@
 		style="display: flex; flex-direction: column; gap: 6px;{inset ? ` padding: ${inset};` : ''}"
 	>
 		<div
-			style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+			style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 		>
 			What the athlete said
 		</div>
@@ -51,7 +51,7 @@
 			>
 				{#if labelled}
 					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 700; letter-spacing: 0.04em; margin-right: 6px;"
+						style="font-size: 10px; color: var(--tx3-sm); font-weight: 700; letter-spacing: 0.04em; margin-right: 6px;"
 						>#{entry.occurrence + 1}</span
 					>
 				{/if}

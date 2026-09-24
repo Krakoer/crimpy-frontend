@@ -207,7 +207,7 @@
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
-			<span style="color: var(--tx3); font-size: 12.5px;">Click to add tags</span>
+			<span style="color: var(--tx3-sm); font-size: 12.5px;">Click to add tags</span>
 		{/if}
 	</div>
 
@@ -264,7 +264,7 @@
 									disabled={editSaving || !editName.trim()}
 									style="
 										padding: 4px 10px; border-radius: var(--rs); border: none;
-										background: var(--pr); color: #fff; font-size: 11.5px; font-weight: 600;
+										background: var(--pr-dk); color: #fff; font-size: 11.5px; font-weight: 600;
 										cursor: pointer; font-family: var(--font);
 										opacity: {editSaving || !editName.trim() ? 0.6 : 1};
 									">{editSaving ? '...' : 'Save'}</button
@@ -366,7 +366,7 @@
 
 				{#if filtered.length === 0 && !showCreate}
 					<p
-						style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);"
+						style="padding: 10px 12px; font-size: 12px; color: var(--tx3-sm); font-family: var(--font);"
 					>
 						{search.trim() ? 'No matching tags.' : 'No tags yet.'}
 					</p>

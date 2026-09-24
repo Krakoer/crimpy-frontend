@@ -100,7 +100,7 @@
 			</span>
 		{/each}
 		{#if selectedTags.length === 0}
-			<span style="color: var(--tx3); font-size: 12.5px;">{placeholder}</span>
+			<span style="color: var(--tx3-sm); font-size: 12.5px;">{placeholder}</span>
 		{/if}
 	</div>
 
@@ -146,7 +146,7 @@
 				{/each}
 				{#if filtered.length === 0}
 					<p
-						style="padding: 10px 12px; font-size: 12px; color: var(--tx3); font-family: var(--font);"
+						style="padding: 10px 12px; font-size: 12px; color: var(--tx3-sm); font-family: var(--font);"
 					>
 						{search.trim()
 							? 'No matching tags.'

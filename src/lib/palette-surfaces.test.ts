@@ -968,3 +968,270 @@ describe('no surface writes an accent under its floor on a neutral ground', () =
 		expect(stated, `accent under its floor on a neutral ground:\n${stated.join('\n')}`).toEqual([]);
 	});
 });
+
+// The mirror of the scan above, and the fourth of this file. That one measures
+// an accent written on a neutral; this one measures a neutral written on an
+// accent. Neither of the other three could see it: the hue scan reads an accent
+// on a light ground of its own hue, the concatenation scan reads alpha pairs,
+// and the neutral scan reads the foreground for an accent and finds a #fff.
+//
+// It is Krakoer/crimpy#137's family. What it was written for: the training type
+// picker wrote `color: #fff` on `TRAINING_TYPE_INFO[t].color`, which for
+// climbing is white on --gd at 2.32:1 in a 12px label, and about two dozen
+// primary buttons wrote white on --pr at 3.64:1 in a 13px one. Both are under
+// the text floor and neither was measured by anything.
+//
+// The ground is read the same way the foreground is in the scan above, through
+// accentsIn, so a ground carried by `.color` off a record is caught as well as
+// one written as `var(--pr)`. That matters: the picker's ground is the record
+// field, not a token, and a scan that only read tokens would have missed the
+// worst pairing of the family.
+
+// What counts as a neutral written on top. The page grounds double as
+// foregrounds here, since white on an accent is the whole shape, and the text
+// tokens are included because a dark neutral on a light accent is the same
+// question asked the other way round.
+const NEUTRAL_FOREGROUND_TOKENS = ['panel', 'panel2', 'bg', 'tx', 'tx2', 'tx3', 'tx3-sm'];
+
+// A foreground written as a literal rather than a token. `#fff` is by far the
+// commonest ground-facing colour in this repo and the one the family is about.
+function neutralForegroundIn(declaration: string): string | null {
+	const named = NEUTRAL_FOREGROUND_TOKENS.find((token) => namesToken(declaration, token));
+	if (named) return named;
+	return /#fff\b|#ffffff\b|\bwhite\b/i.test(declaration) ? 'panel' : null;
+}
+
+interface AccentGroundOffence {
+	file: string;
+	line: number;
+	kind: string;
+	ground: string;
+	through: string;
+	foreground: string;
+	ratio: number;
+	floor: number;
+}
+
+// Only a ground declared on the element itself. A neutral label and an accent
+// ground in different elements is the pairing the GROUND_REACH window exists
+// for in the scan above, but reaching backwards here would read a card's accent
+// header as the ground of every neutral line in the card body, which is a false
+// alarm rather than a miss. A ground further away than its own declaration is a
+// blind spot of this scan, named here rather than left for a reader to find.
+function accentGroundOffencesIn(
+	file: string,
+	tokens: Record<string, string>
+): AccentGroundOffence[] {
+	return accentGroundOffencesInSource(readResolved(file), file, tokens);
+}
+
+// Split from the reader above so the self-tests below can hand it a source
+// string, the way the scans before it are checked against the shapes they have
+// to read rather than against files on disk.
+function accentGroundOffencesInSource(
+	source: string,
+	file: string,
+	tokens: Record<string, string>
+): AccentGroundOffence[] {
+	const bound = bindings(source);
+	const local = colourFields(source);
+	const offences: AccentGroundOffence[] = [];
+
+	// A ground and a label written as ternaries on the same element are two
+	// states of one button, not four combinations of one. The save buttons write
+	// `background: {isDirty ? 'var(--pr)' : '#fff'}` beside
+	// `color: {isDirty ? '#fff' : 'var(--tx2)'}`, and pairing every branch with
+	// every other reports --tx2 on --pr at 1.36:1, a pairing that cannot render:
+	// the label is only --tx2 when the ground is white. Reporting it would be the
+	// kind of false alarm that gets a guard switched off.
+	//
+	// So when both sides are ternaries with the same number of branches, they are
+	// paired by position. Anything else is cross-paired as before, which is the
+	// safe direction: a missed pairing is a blind spot, an invented one is noise.
+	function branchesOf(declaration: string): string[] {
+		const parts = declaration.split(/\?|:(?![^(]*\))/).slice(1);
+		return parts.length >= 2 ? parts : [declaration];
+	}
+
+	function record(at: number, colours: string[], grounds: string, kind: string): void {
+		if (!grounds || !isFlatGround(grounds)) return;
+		const floor = kind === 'text' ? TEXT_CONTRAST_FLOOR : MARK_CONTRAST_FLOOR;
+		const groundBranches = branchesOf(grounds);
+		for (const declaration of colours) {
+			const colourBranches = branchesOf(declaration);
+			const paired = groundBranches.length > 1 && groundBranches.length === colourBranches.length;
+			const pairs: [string, string][] = paired
+				? colourBranches.map((colour, index) => [colour, groundBranches[index]])
+				: [[declaration, grounds]];
+			for (const [colour, ground] of pairs) {
+				const foreground = neutralForegroundIn(colour);
+				if (foreground === null) continue;
+				for (const { token, through } of accentsIn(ground, bound, local)) {
+					const ratio = contrastRatio(tokens[foreground], tokens[token]);
+					if (ratio >= floor) continue;
+					offences.push({
+						file,
+						line: at,
+						kind,
+						ground: token,
+						through,
+						foreground,
+						ratio,
+						floor
+					});
+				}
+			}
+		}
+	}
+
+	function floorFor(block: string): string {
+		const size = /font-size:\s*([\d.]+)px/.exec(block);
+		const weight = /font-weight:\s*(\d+|bold)/.exec(block);
+		if (size === null) return 'text';
+		const large = isLargeText(
+			parseFloat(size[1]),
+			weight === null ? 400 : weight[1] === 'bold' ? 700 : parseInt(weight[1])
+		);
+		return large ? 'large text' : 'text';
+	}
+
+	for (const pattern of [STYLE_ATTRIBUTE, STYLE_STRING]) {
+		for (const match of source.matchAll(pattern)) {
+			const block = match[0];
+			const colours = block.match(DECLARED_COLOUR);
+			if (colours === null) continue;
+			const grounds = (block.match(/background(?:-color)?:[^;"]*/gs) ?? []).join(' ');
+			record(lineAt(source, match.index), colours, grounds, floorFor(block));
+		}
+	}
+
+	for (const block of source.matchAll(STYLE_BLOCK)) {
+		let at = block.index + block[0].indexOf(block[1]);
+		for (const rule of block[1].split('}')) {
+			const colours = rule.match(DECLARED_COLOUR);
+			if (colours !== null) {
+				const grounds = (rule.match(/background(?:-color)?:[^;]*/gs) ?? []).join(' ');
+				record(lineAt(source, at + rule.indexOf(colours[0])), colours, grounds, floorFor(rule));
+			}
+			at += rule.length + 1;
+		}
+	}
+
+	const seen = new Set<string>();
+	return offences.filter((offence) => {
+		const key = `${offence.line}:${offence.ground}:${offence.foreground}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
+describe('no surface writes a neutral under its floor on an accent ground', () => {
+	const tokens = paletteTokens();
+
+	const scan = (source: string) => accentGroundOffencesInSource(source, 'inline', tokens);
+
+	it('reads a ground named as a token and one carried by a record field', () => {
+		// A token ground, which is the primary button shape.
+		expect(
+			scan('<b style="background: var(--gd); color: #fff; font-size: 12px;">x</b>').map(
+				(one) => `${one.through} ${one.ratio.toFixed(2)}`
+			)
+		).toEqual(['var(--gd) 2.32']);
+
+		// And a ground carried by a record field, which is the training type
+		// picker and the worst pairing the family had. A scan reading only tokens
+		// would call this file clean.
+		// A record field holds every type colour, so one picker reports one
+		// offence per colour white fails on, which is all five. That is the shape
+		// the family's worst pairing had and a token-only scan would call clean.
+		const picker =
+			'{#each TRAINING_TYPES as t (t)}' +
+			'<b style="background: {TRAINING_TYPE_INFO[t].color}; color: #fff; font-size: 12px;">x</b>';
+		const through = scan(picker).map((one) => one.through);
+		expect(new Set(through)).toEqual(new Set(['.color']));
+		expect(
+			scan(picker)
+				.map((one) => one.ground)
+				.sort()
+		).toEqual(['bl', 'gd', 'gn', 'pl', 'pr']);
+	});
+
+	it('reads white however it is spelled, and leaves an accent label alone', () => {
+		const white = (value: string) =>
+			scan(`<b style="background: var(--gd); color: ${value}; font-size: 12px;">x</b>`).length;
+		expect(white('#fff')).toBe(1);
+		expect(white('#ffffff')).toBe(1);
+		expect(white('white')).toBe(1);
+		expect(white('var(--panel)')).toBe(1);
+		// A dark neutral on a light accent is the same question the other way
+		// round, and --tx clears the floor on gold, so it is not an offence.
+		expect(white('var(--tx)')).toBe(0);
+		// An accent written on an accent belongs to the hue scan, not this one.
+		expect(white('var(--gd-tx)')).toBe(0);
+	});
+
+	it('separates the two floors', () => {
+		// White on --pr is 3.64:1: under the 4.5:1 text floor, over the 3:1 large
+		// one. The same pairing therefore fails at 13px and passes at 24px, which
+		// is the distinction the decision on Krakoer/crimpy#137 turns on.
+		const at = (size: string, weight: string) =>
+			scan(
+				`<b style="background: var(--pr); color: #fff; font-size: ${size}; font-weight: ${weight};">x</b>`
+			).map((one) => one.kind);
+		expect(at('13px', '600')).toEqual(['text']);
+		expect(at('24px', '400')).toEqual([]);
+		expect(at('19px', '700')).toEqual([]);
+		// --gd carries white at 2.32:1 and so fails even the large floor. No size
+		// makes a gold ground readable under white.
+		expect(
+			scan('<b style="background: var(--gd); color: #fff; font-size: 24px;">x</b>').map(
+				(one) => one.kind
+			)
+		).toEqual(['large text']);
+	});
+
+	it('reads a rule in a style block', () => {
+		const block = '<style>.pill { background: var(--gd); color: #fff; font-size: 11px; }</style>';
+		expect(scan(block).map((one) => one.ground)).toEqual(['gd']);
+	});
+
+	it('does not take a gradient for a ground', () => {
+		const gradient =
+			'<b style="background: linear-gradient(var(--gd), var(--pr)); color: #fff; font-size: 12px;">x</b>';
+		expect(scan(gradient)).toEqual([]);
+	});
+
+	it('leaves a neutral ground to the scan before it', () => {
+		expect(scan('<b style="background: #fff; color: var(--gd); font-size: 12px;">x</b>')).toEqual(
+			[]
+		);
+	});
+
+	it('keeps white unreadable on every accent at a small size', () => {
+		// Stated as a fact about the palette rather than about the sources: only
+		// one accent in it carries white at 4.5:1, which is why the fix for this
+		// family is a darker ground or a darker label and never a smaller one.
+		const carrying = NEUTRAL_ACCENTS.filter(
+			(token) => contrastRatio(tokens.panel, tokens[token]) >= TEXT_CONTRAST_FLOOR
+		);
+		// The two darkest. Everything else needs a darker ground or a darker
+		// label, which is why this family could not be fixed by resizing.
+		expect(carrying).toEqual(['pr-dk', 'hb']);
+	});
+
+	it('finds no neutral under its floor on an accent ground', () => {
+		const offences = sourceFiles(SOURCE_ROOT).flatMap((file) =>
+			accentGroundOffencesIn(file, tokens)
+		);
+		const stated = offences.map(
+			(offence) =>
+				`${offence.file.slice(SOURCE_ROOT.length)}:${offence.line} writes --${offence.foreground} ` +
+				`as ${offence.kind} on ${offence.through} (--${offence.ground}), ` +
+				`${offence.ratio.toFixed(2)}:1 against a ${offence.floor}:1 floor`
+		);
+		expect(stated, `neutral under its floor on an accent ground:\n${stated.join('\n')}`).toEqual(
+			[]
+		);
+	});
+});

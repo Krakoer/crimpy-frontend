@@ -74,7 +74,7 @@
 		>
 			EMOM
 			<span
-				style="font-size: 11px; color: var(--tx3); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+				style="font-size: 11px; color: var(--tx3-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 				>{collapsedSummary}</span
 			>
 		</span>

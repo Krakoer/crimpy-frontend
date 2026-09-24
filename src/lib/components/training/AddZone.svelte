@@ -77,7 +77,7 @@
 			{/each}
 			<span
 				onclick={() => (expanded = false)}
-				style="font-size: 11px; color: var(--tx3); cursor: pointer; margin-left: 4px;"
+				style="font-size: 11px; color: var(--tx3-sm); cursor: pointer; margin-left: 4px;"
 				role="button"
 				tabindex="0"
 				onkeydown={(e) => e.key === 'Enter' && (expanded = false)}>Cancel</span

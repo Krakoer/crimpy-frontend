@@ -117,7 +117,7 @@
 			<div>
 				<label
 					for="cem-name"
-					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+					style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 				>
 					Name *
 				</label>
@@ -138,7 +138,7 @@
 			<div>
 				<label
 					for="cem-description"
-					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+					style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 				>
 					Description
 				</label>
@@ -158,7 +158,7 @@
 			<div>
 				<label
 					for="cem-comment"
-					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+					style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 				>
 					Execution notes
 				</label>
@@ -178,7 +178,7 @@
 			<div>
 				<label
 					for="cem-video"
-					style="display: block; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+					style="display: block; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 				>
 					Video link
 				</label>
@@ -197,7 +197,7 @@
 
 			<div>
 				<p
-					style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
+					style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;"
 				>
 					Tags
 				</p>
@@ -213,7 +213,7 @@
 				disabled={saving || !name.trim()}
 				style="
 					flex: 1; padding: 9px 16px; border-radius: var(--rs);
-					background: var(--pr); color: #fff; border: 1px solid var(--pr);
+					background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 					font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 					opacity: {saving || !name.trim() ? 0.5 : 1};
 				"

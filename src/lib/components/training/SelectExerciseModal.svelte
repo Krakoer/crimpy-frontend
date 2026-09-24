@@ -193,7 +193,7 @@
 		<div style="flex: 1; overflow-y: auto;">
 			{#if loading}
 				<div
-					style="display: flex; align-items: center; gap: 10px; padding: 24px 16px; color: var(--tx3); font-size: 13px; font-family: var(--font);"
+					style="display: flex; align-items: center; gap: 10px; padding: 24px 16px; color: var(--tx3-sm); font-size: 13px; font-family: var(--font);"
 				>
 					<div
 						style="width: 14px; height: 14px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"
@@ -202,7 +202,7 @@
 				</div>
 			{:else if exercises.length === 0}
 				<p
-					style="padding: 24px 16px; font-size: 13px; color: var(--tx3); font-family: var(--font);"
+					style="padding: 24px 16px; font-size: 13px; color: var(--tx3-sm); font-family: var(--font);"
 				>
 					No exercises found.
 				</p>
@@ -221,7 +221,7 @@
 						<div style="font-size: 13.5px; font-weight: 600; color: var(--tx);">{ex.name}</div>
 						{#if ex.description?.trim()}
 							<div
-								style="font-size: 12px; color: var(--tx3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+								style="font-size: 12px; color: var(--tx3-sm); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 							>
 								{ex.description.trim()}
 							</div>

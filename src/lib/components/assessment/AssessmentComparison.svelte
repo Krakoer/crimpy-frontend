@@ -181,7 +181,7 @@
 	</div>
 
 	{#if days.length < 2}
-		<div style="padding: 28px 20px; text-align: center; color: var(--tx3); font-size: 13px;">
+		<div style="padding: 28px 20px; text-align: center; color: var(--tx3-sm); font-size: 13px;">
 			Two test days are needed to compare. The athlete has tested on
 			{days.length === 1 ? 'one day' : 'none'} so far.
 		</div>
@@ -190,11 +190,11 @@
 			The comparison could not be loaded, so nothing here says how the athlete moved.
 		</div>
 	{:else if loading}
-		<div style="padding: 28px 20px; text-align: center; color: var(--tx3); font-size: 13px;">
+		<div style="padding: 28px 20px; text-align: center; color: var(--tx3-sm); font-size: 13px;">
 			Reading both dates...
 		</div>
 	{:else if rows.length === 0}
-		<div style="padding: 28px 20px; text-align: center; color: var(--tx3); font-size: 13px;">
+		<div style="padding: 28px 20px; text-align: center; color: var(--tx3-sm); font-size: 13px;">
 			Nothing had been measured by either of these dates.
 		</div>
 	{:else}
@@ -223,11 +223,11 @@
 				>
 					<div style="min-width: 0;">
 						<div style="font-weight: 600; color: var(--tx);">{row.label}</div>
-						<div style="font-size: 11px; color: var(--tx3);">
+						<div style="font-size: 11px; color: var(--tx3-sm);">
 							{row.bodyweightRelative ? 'ratio to bodyweight' : unitLabel(row.unit)}
 						</div>
 					</div>
-					<div style="color: var(--tx3); font-size: 12px;">
+					<div style="color: var(--tx3-sm); font-size: 12px;">
 						{row.hasGrips ? gripLabel(row.gripPosition) : ''}
 					</div>
 
@@ -252,7 +252,7 @@
 									<!-- The value cells beside this one are one to three lines tall
 									     depending on the ratio and the carried forward note, so the
 									     two hands cannot be told apart by their position. -->
-									<span style="color: var(--tx3); font-weight: 600; font-size: 11px;"
+									<span style="color: var(--tx3-sm); font-weight: 600; font-size: 11px;"
 										>{handLabel(hand)}</span
 									>
 								{/if}
@@ -274,13 +274,13 @@
 )}
 	<div style="text-align: right;">
 		{#if !value}
-			<span style="color: var(--tx3); font-size: 12px;">
+			<span style="color: var(--tx3-sm); font-size: 12px;">
 				{handLabel(hand) ? handLabel(hand) + ' ' : ''}not measured
 			</span>
 		{:else}
 			<div style="font-weight: 600; color: var(--tx);">
 				{#if handLabel(hand)}
-					<span style="color: var(--tx3); font-weight: 600; font-size: 11px;"
+					<span style="color: var(--tx3-sm); font-weight: 600; font-size: 11px;"
 						>{handLabel(hand)}</span
 					>
 				{/if}
@@ -288,7 +288,7 @@
 				{#if value.missingRatio}
 					<!-- The row header calls this a ratio to bodyweight, so the unit has
 					     to be said on the number that is not one. -->
-					<span style="color: var(--tx3); font-weight: 600; font-size: 11px;"
+					<span style="color: var(--tx3-sm); font-weight: 600; font-size: 11px;"
 						>{unitLabel(row.unit)}</span
 					>
 				{/if}
@@ -297,7 +297,7 @@
 				<!-- The weigh-in is dated, because the last one at or before a result
 				     can be the same morning or four weeks old, and a coach reading the
 				     ratio cannot tell the two apart from the weight alone. -->
-				<div style="font-size: 11px; color: var(--tx3);">
+				<div style="font-size: 11px; color: var(--tx3-sm);">
 					{value.raw.toFixed(1)} kg at {value.bodyweightKg.toFixed(1)} kg, {formatDayMonth(
 						value.weighedAt
 					)}
@@ -308,7 +308,7 @@
 				</div>
 			{/if}
 			{#if carriedFrom(value, day)}
-				<div style="font-size: 11px; color: var(--tx3);">
+				<div style="font-size: 11px; color: var(--tx3-sm);">
 					measured {carriedFrom(value, day)}
 				</div>
 			{/if}

@@ -33,18 +33,19 @@
 </script>
 
 <div style="display: flex; align-items: center; gap: 10px;">
-	<span style="font-size: 11px; color: var(--tx3); font-weight: 600; width: 28px; flex-shrink: 0;"
+	<span
+		style="font-size: 11px; color: var(--tx3-sm); font-weight: 600; width: 28px; flex-shrink: 0;"
 		>#{position}</span
 	>
 	<span style="font-size: 11px; font-weight: 700; color: {accent}; width: 16px; flex-shrink: 0;"
 		>{handShort(rep.hand)}</span
 	>
 	<span
-		style="font-size: 11px; color: var(--tx3); width: 32px; flex-shrink: 0;"
+		style="font-size: 11px; color: var(--tx3-sm); width: 32px; flex-shrink: 0;"
 		title={gripShort(rep.grip_position)}>{gripShort(rep.grip_position)}</span
 	>
 	{#if showEdge}
-		<span style="font-size: 11px; color: var(--tx3); width: 34px; flex-shrink: 0;"
+		<span style="font-size: 11px; color: var(--tx3-sm); width: 34px; flex-shrink: 0;"
 			>{rep.edge_size_mm ? `${rep.edge_size_mm}mm` : ''}</span
 		>
 	{/if}
@@ -68,7 +69,7 @@
 	{:else}
 		<div style="flex: 1;"></div>
 		<span
-			style="font-size: 11px; font-style: italic; color: var(--tx3); width: 92px; text-align: right; flex-shrink: 0;"
+			style="font-size: 11px; font-style: italic; color: var(--tx3-sm); width: 92px; text-align: right; flex-shrink: 0;"
 		>
 			not measured
 		</span>

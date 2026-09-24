@@ -59,7 +59,7 @@
 			style="font-size: 13px; font-weight: 700; color: var(--tx); flex: 1; display: flex; align-items: center; gap: 8px;"
 		>
 			{item.group_title ?? 'Group'}
-			<span style="font-size: 11px; color: var(--tx3); font-weight: 500;"
+			<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500;"
 				>{item.items?.length ?? 0} items</span
 			>
 		</span>

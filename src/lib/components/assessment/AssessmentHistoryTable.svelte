@@ -56,7 +56,7 @@
 			style="
 				{columns} min-width: 520px;
 				padding: 10px 20px; border-bottom: 1px solid var(--bd2);
-				font-size: 10.5px; color: var(--tx3); font-weight: 600;
+				font-size: 10.5px; color: var(--tx3-sm); font-weight: 600;
 				letter-spacing: 0.06em; text-transform: uppercase;
 				background: var(--panel2);
 			"
@@ -90,7 +90,7 @@
 						</div>
 					{/if}
 				</div>
-				<div style="color: var(--tx3); font-size: 12px;">
+				<div style="color: var(--tx3-sm); font-size: 12px;">
 					{record.training_id ? '' : gripLabel(record.grip_position ?? 0)}
 				</div>
 				{#if record.per_hand}
@@ -112,7 +112,7 @@
 	<div style="{span} text-align: right;">
 		<div style="font-weight: 600;">{cellValue(reading, value, record.unit)}</div>
 		{#if load}
-			<div style="font-size: 11px; color: var(--tx3);">{load}</div>
+			<div style="font-size: 11px; color: var(--tx3-sm);">{load}</div>
 		{/if}
 	</div>
 {/snippet}

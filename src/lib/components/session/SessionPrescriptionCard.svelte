@@ -63,7 +63,7 @@
 	>
 		<div style="min-width: 0;">
 			<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Prescribed</h3>
-			<div class="truncate" style="font-size: 11.5px; color: var(--tx3); margin-top: 2px;">
+			<div class="truncate" style="font-size: 11.5px; color: var(--tx3-sm); margin-top: 2px;">
 				{prescription.title}
 			</div>
 		</div>
@@ -80,7 +80,7 @@
 	{#if prescription.goal?.trim()}
 		<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
 			<div
-				style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+				style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 			>
 				Goal
 			</div>
@@ -95,7 +95,7 @@
 			style="padding: 12px 18px; border-bottom: 1px solid var(--bd2); background: var(--panel2);"
 		>
 			<div
-				style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+				style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 			>
 				Coach notes for this session
 			</div>
@@ -110,7 +110,7 @@
 	{#if relativeValues.length > 0}
 		<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
 			<div
-				style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+				style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 			>
 				Asked for, in the athlete's numbers of the day
 			</div>
@@ -124,7 +124,7 @@
 					<div class="flex items-baseline justify-between gap-3" style="font-size: 12.5px;">
 						<span style="color: var(--tx2); min-width: 0;">
 							{relative.percent}% {assessmentLabel(relative.assessment_id, catalog)}
-							<span style="color: var(--tx3);"
+							<span style="color: var(--tx3-sm);"
 								>({fieldLabels[relative.field] ?? relative.field})</span
 							>
 						</span>
@@ -132,11 +132,11 @@
 							{#each resolved as entry, i (entry.hand)}
 								{@const hand = handLabel(entry.hand, resolved.length)}
 								<span style="margin-left: {i === 0 ? 0 : 8}px;">
-									{#if hand}<span style="font-size: 10.5px; color: var(--tx3); font-weight: 700;"
+									{#if hand}<span style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 700;"
 											>{hand}</span
 										>{/if}
 									{formatResolvedValue(entry.value, relative.field)}{#if entry.fromFallback}<span
-											style="font-size: 11px; color: var(--tx3); font-weight: 600;"
+											style="font-size: 11px; color: var(--tx3-sm); font-weight: 600;"
 										>
 											fallback</span
 										>{/if}

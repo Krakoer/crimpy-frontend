@@ -354,11 +354,11 @@
 					{loadError}
 				</div>
 			{:else if loading || !training}
-				<div style="padding: 28px 0; text-align: center; font-size: 13px; color: var(--tx3);">
+				<div style="padding: 28px 0; text-align: center; font-size: 13px; color: var(--tx3-sm);">
 					Loading the training...
 				</div>
 			{:else if items.length === 0}
-				<div style="padding: 28px 0; text-align: center; font-size: 13px; color: var(--tx3);">
+				<div style="padding: 28px 0; text-align: center; font-size: 13px; color: var(--tx3-sm);">
 					This training holds no block to configure.
 				</div>
 			{:else}
@@ -374,7 +374,7 @@
 			class="flex shrink-0 items-center gap-2"
 			style="padding: 12px 20px; border-top: 1px solid var(--bd); background: var(--panel);"
 		>
-			<span style="font-size: 12px; color: var(--tx3);">{footerSummary}</span>
+			<span style="font-size: 12px; color: var(--tx3-sm);">{footerSummary}</span>
 			<div style="flex: 1;"></div>
 			{#if !readOnly && customisedCount > 0}
 				<button
@@ -392,7 +392,7 @@
 				<button
 					onclick={apply}
 					disabled={!training}
-					style="padding: 7px 14px; border-radius: var(--rs); border: 1px solid var(--pr); background: var(--pr); font-family: var(--font); font-size: 12.5px; font-weight: 700; color: #fff; cursor: pointer;"
+					style="padding: 7px 14px; border-radius: var(--rs); border: 1px solid var(--pr-dk); background: var(--pr-dk); font-family: var(--font); font-size: 12.5px; font-weight: 700; color: #fff; cursor: pointer;"
 					>Apply</button
 				>
 			{/if}

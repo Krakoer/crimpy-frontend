@@ -104,7 +104,7 @@
 					use:focusOnMount
 					style="
 						padding: 9px 18px; border-radius: var(--rs);
-						border: 1px solid var(--pr); background: var(--pr); color: #fff;
+						border: 1px solid var(--pr-dk); background: var(--pr-dk); color: #fff;
 						font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 					">Stay</button
 				>

@@ -43,7 +43,7 @@
 					Crimpy
 				</div>
 				<div
-					style="font-size: 10.5px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: -1px;"
+					style="font-size: 10.5px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; margin-top: -1px;"
 				>
 					Coach Studio
 				</div>

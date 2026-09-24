@@ -98,7 +98,7 @@
 				<div
 					style="
 						width: 40px; height: 40px; border-radius: 50%;
-						background: var(--pr); color: #fff;
+						background: var(--pr-dk); color: #fff;
 						display: flex; align-items: center; justify-content: center;
 						font-size: 14px; font-weight: 600; flex-shrink: 0;
 					"
@@ -107,7 +107,7 @@
 				</div>
 				<div style="min-width: 0;">
 					<p
-						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
+						style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
 					>
 						Coach
 					</p>

@@ -61,7 +61,7 @@
 			style="
 				width: 32px; height: 32px;
 				border-radius: 9px;
-				background: var(--pr);
+				background: var(--pr-dk);
 				color: #fff;
 				display: flex; align-items: center; justify-content: center;
 				flex-shrink: 0;
@@ -75,7 +75,7 @@
 				Crimpy
 			</div>
 			<div
-				style="font-size: 10.5px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: -1px;"
+				style="font-size: 10.5px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; margin-top: -1px;"
 			>
 				Coach Studio
 			</div>
@@ -89,13 +89,13 @@
 				display: flex; align-items: center; gap: 8px;
 				background: #fff; border: 1px solid var(--bd);
 				border-radius: var(--rs); padding: 7px 10px;
-				color: var(--tx3); font-size: 12.5px;
+				color: var(--tx3-sm); font-size: 12.5px;
 			"
 		>
 			<Icon name="search" size={14} color="var(--tx3)" />
 			<span style="flex: 1;">Quick search</span>
 			<span
-				style="font-size: 10px; padding: 1px 5px; border: 1px solid var(--bd); border-radius: 4px; color: var(--tx3);"
+				style="font-size: 10px; padding: 1px 5px; border: 1px solid var(--bd); border-radius: 4px; color: var(--tx3-sm);"
 			>
 				Ctrl K
 			</span>
@@ -106,7 +106,7 @@
 	<div
 		style="
 			padding: 4px 24px 8px;
-			font-size: 10px; color: var(--tx3);
+			font-size: 10px; color: var(--tx3-sm);
 			letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
 		"
 	>
@@ -202,7 +202,7 @@
 		<div
 			style="
 				width: 34px; height: 34px; border-radius: 50%;
-				background: var(--pr); color: #fff;
+				background: var(--pr-dk); color: #fff;
 				display: flex; align-items: center; justify-content: center;
 				font-size: 13px; font-weight: 600;
 				flex-shrink: 0;
@@ -217,7 +217,7 @@
 				{authStore.user?.firstname ?? ''}
 				{authStore.user?.lastname ?? ''}
 			</div>
-			<div style="font-size: 11px; color: var(--tx3);">
+			<div style="font-size: 11px; color: var(--tx3-sm);">
 				{authStore.isAdmin ? 'Admin' : 'Coach'}
 			</div>
 		</div>

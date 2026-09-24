@@ -139,7 +139,7 @@
 			{#each stats as stat (stat.label)}
 				<div style="padding: 14px 18px;">
 					<div
-						style="font-size: 10.5px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+						style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 					>
 						{stat.label}
 					</div>
@@ -152,7 +152,7 @@
 
 		<div style="padding: 16px 18px;">
 			<h4
-				style="font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;"
+				style="font-size: 11px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;"
 			>
 				{blocks ? 'Blocks' : 'Repetitions'}
 			</h4>
@@ -189,7 +189,7 @@
 														{set.label}
 													</span>
 													<span
-														style="font-size: 11px; color: var(--tx3); flex-shrink: 0; white-space: nowrap;"
+														style="font-size: 11px; color: var(--tx3-sm); flex-shrink: 0; white-space: nowrap;"
 													>
 														{repsSummary(setWork)}
 													</span>

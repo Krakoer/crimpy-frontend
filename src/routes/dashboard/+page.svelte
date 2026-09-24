@@ -159,7 +159,7 @@
 				style="
 					display: inline-flex; align-items: center; gap: 7px;
 					padding: 9px 16px; border-radius: var(--rs);
-					background: var(--pr); color: #fff;
+					background: var(--pr-dk); color: #fff;
 					border: 1px solid var(--pr);
 					font-size: 13.5px; font-weight: 600;
 					cursor: pointer; font-family: var(--font);
@@ -199,14 +199,14 @@
 					style="background: #fff; border: 1px solid var(--bd); border-radius: var(--rs); padding: 10px 14px; min-width: 96px;"
 				>
 					<div
-						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
+						style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;"
 					>
 						This week
 					</div>
 					<div style="font-size: 22px; font-weight: 700; color: var(--pr); margin-top: 2px;">
 						{loadingTodo ? '-' : (todo?.sessions_this_week ?? '-')}
 					</div>
-					<div style="font-size: 10px; color: var(--tx3); margin-top: 1px;">sessions</div>
+					<div style="font-size: 10px; color: var(--tx3-sm); margin-top: 1px;">sessions</div>
 				</div>
 			</div>
 
@@ -281,7 +281,7 @@
 									<div
 										style="
 									width: 30px; height: 30px; border-radius: 50%;
-									background: var(--pr); color: #fff;
+									background: var(--pr-dk); color: #fff;
 									display: flex; align-items: center; justify-content: center;
 									font-size: 11px; font-weight: 600; flex-shrink: 0;
 								"
@@ -295,7 +295,7 @@
 											{coachee.user_firstname}
 											{coachee.user_lastname}
 										</div>
-										<div style="font-size: 11.5px; color: var(--tx3);">
+										<div style="font-size: 11.5px; color: var(--tx3-sm);">
 											{coachee.user_email ?? ''}
 										</div>
 									</div>
@@ -309,7 +309,7 @@
 
 			{#if loadingCoachees}
 				<div
-					style="display: flex; align-items: center; gap: 12px; padding: 24px 0; color: var(--tx3); font-size: 13px;"
+					style="display: flex; align-items: center; gap: 12px; padding: 24px 0; color: var(--tx3-sm); font-size: 13px;"
 				>
 					<div
 						style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
@@ -328,7 +328,7 @@
 				style="background: #fff; border-radius: var(--rl); border: 1px solid var(--bd); padding: 24px; box-shadow: var(--sh);"
 			>
 				<div
-					style="font-size: 11px; color: var(--tx3); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;"
+					style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;"
 				>
 					Your profile
 				</div>
@@ -366,7 +366,7 @@
 
 				{#if loadingEnrollment}
 					<div
-						style="display: flex; align-items: center; gap: 10px; color: var(--tx3); font-size: 13px; padding: 8px 0;"
+						style="display: flex; align-items: center; gap: 10px; color: var(--tx3-sm); font-size: 13px; padding: 8px 0;"
 					>
 						<div
 							style="width: 16px; height: 16px; border: 2px solid var(--bd); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite;"
@@ -374,13 +374,15 @@
 						Loading...
 					</div>
 				{:else if !userEnrollment}
-					<p style="font-size: 13.5px; color: var(--tx3);">You are not enrolled with any coach.</p>
+					<p style="font-size: 13.5px; color: var(--tx3-sm);">
+						You are not enrolled with any coach.
+					</p>
 				{:else}
 					<div
 						style="margin-bottom: 16px; border: 1px solid var(--bd); background: var(--panel2); border-radius: var(--rs); padding: 16px;"
 					>
 						<div
-							style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
+							style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;"
 						>
 							Coach
 						</div>
@@ -388,7 +390,7 @@
 							{userEnrollment.coach_firstname}
 							{userEnrollment.coach_lastname}
 						</div>
-						<div style="font-size: 12.5px; color: var(--tx3);">
+						<div style="font-size: 12.5px; color: var(--tx3-sm);">
 							Enrolled since {formatDate(userEnrollment.enrolled_at)}
 						</div>
 					</div>

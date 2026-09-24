@@ -992,7 +992,7 @@
 			<Icon name="spark" size={14} color="var(--pl)" />
 			Assessments
 			{#if coacheeAssessments.length > 0}
-				<span style="font-size: 11px; color: var(--tx3); font-weight: 600;"
+				<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 600;"
 					>{coacheeAssessments.length}</span
 				>
 			{/if}
@@ -1038,9 +1038,9 @@
 				style="
 					display: inline-flex; align-items: center; gap: 6px;
 					padding: 6px 14px; border-radius: var(--rs);
-					background: {isDirty ? 'var(--pr)' : '#fff'};
+					background: {isDirty ? 'var(--pr-dk)' : '#fff'};
 					color: {isDirty ? '#fff' : 'var(--tx3)'};
-					border: 1px solid {isDirty ? 'var(--pr)' : 'var(--bd)'};
+					border: 1px solid {isDirty ? 'var(--pr-dk)' : 'var(--bd)'};
 					font-size: 12.5px; font-weight: 600; cursor: {isDirty ? 'pointer' : 'default'};
 					font-family: var(--font); transition: all 0.15s;
 				"
@@ -1054,7 +1054,7 @@
 				style="
 					display: inline-flex; align-items: center; gap: 6px;
 					padding: 6px 14px; border-radius: var(--rs);
-					background: var(--pr); color: #fff; border: 1px solid var(--pr);
+					background: var(--pr-dk); color: #fff; border: 1px solid var(--pr-dk);
 					font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 				"
 			>
@@ -1093,7 +1093,7 @@
 				"
 				>
 					<div
-						style="font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;"
+						style="font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;"
 					>
 						Edit program
 					</div>
@@ -1157,7 +1157,7 @@
 						<button
 							onclick={saveEdit}
 							disabled={saving}
-							style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--rs); background: var(--pr); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving
+							style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--rs); background: var(--pr-dk); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving
 								? 0.7
 								: 1};"
 						>
@@ -1186,7 +1186,7 @@
 						<span
 							style="
 							display: inline-flex; padding: 2px 9px; border-radius: 999px;
-							font-size: 11.5px; font-weight: 600; background: var(--bd2); color: var(--tx3);
+							font-size: 11.5px; font-weight: 600; background: var(--bd2); color: var(--tx3-sm);
 						">Completed · {program.duration_weeks} weeks</span
 						>
 					{:else}
@@ -1199,9 +1199,9 @@
 					{/if}
 					{#if program.objective}
 						<span style="font-size: 12.5px; color: var(--tx2);">{program.objective}</span>
-						<span style="font-size: 12px; color: var(--tx3);">·</span>
+						<span style="font-size: 12px; color: var(--tx3-sm);">·</span>
 					{/if}
-					<span style="font-size: 12px; color: var(--tx3);"
+					<span style="font-size: 12px; color: var(--tx3-sm);"
 						>Started {formatDate(program.start_date)}</span
 					>
 					<div style="flex: 1;"></div>
@@ -1238,7 +1238,7 @@
 					"
 						>
 							<div
-								style="font-size: 11px; color: var(--tx3); font-weight: 600; padding: 8px 10px; display: flex; align-items: center; gap: 8px;"
+								style="font-size: 11px; color: var(--tx3-sm); font-weight: 600; padding: 8px 10px; display: flex; align-items: center; gap: 8px;"
 							>
 								WEEK
 								<span style="display: flex; gap: 4px;">
@@ -1251,20 +1251,20 @@
 									<button
 										onclick={collapseAll}
 										title="Collapse all"
-										style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--tx3); padding: 0;"
+										style="background: none; border: none; cursor: pointer; font-size: 10px; color: var(--tx3-sm); padding: 0;"
 										>-</button
 									>
 								</span>
 							</div>
 							{#each DAY_LABELS as d (d)}
 								<div
-									style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
+									style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
 								>
 									{d}
 								</div>
 							{/each}
 							<div
-								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
+								style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; text-align: center; padding: 8px 0; letter-spacing: 0.06em;"
 								title="Flexible -- assigned per week, not pinned to a day"
 							>
 								/WK
@@ -1355,7 +1355,7 @@
 												>
 												{#if isCurrent}
 													<span
-														style="font-size: 8.5px; font-weight: 700; color: #fff; background: var(--pr); padding: 1px 5px; border-radius: 3px; line-height: 14px;"
+														style="font-size: 8.5px; font-weight: 700; color: #fff; background: var(--pr-dk); padding: 1px 5px; border-radius: 3px; line-height: 14px;"
 														>NOW</span
 													>
 												{/if}
@@ -1368,14 +1368,14 @@
 												style="display: flex; align-items: center; gap: 4px; padding-left: 18px;"
 											>
 												<span
-													style="flex: 1; min-width: 0; font-size: 10px; color: var(--tx3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+													style="flex: 1; min-width: 0; font-size: 10px; color: var(--tx3-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 												>
 													{weekDateRange(wn)}
 												</span>
 												{#if !expanded && sessCount > 0}
 													<span
 														style="
-													flex-shrink: 0; font-size: 10px; color: var(--tx3); font-weight: 600;
+													flex-shrink: 0; font-size: 10px; color: var(--tx3-sm); font-weight: 600;
 													background: {isCurrent ? 'var(--panel)' : 'var(--panel2)'}; border: 1px solid var(--bd2);
 													padding: 0 6px; border-radius: 999px; line-height: 15px;
 												">{sessCount}</span
@@ -1479,7 +1479,7 @@
 															style="
 														display: inline-flex; align-items: center; gap: 5px;
 														padding: 4px 10px; border-radius: var(--rs);
-														border: 1px solid var(--bd); background: #fff; color: var(--tx3);
+														border: 1px solid var(--bd); background: #fff; color: var(--tx3-sm);
 														font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--font);
 													"
 														>
@@ -1514,7 +1514,7 @@
 													<span style="font-size: 20px; font-weight: 700; color: var(--tx);"
 														>{sessCount}</span
 													>
-													<span style="font-size: 11px; color: var(--tx3);">sessions</span>
+													<span style="font-size: 11px; color: var(--tx3-sm);">sessions</span>
 												</div>
 												{#if draft.notes}
 													<div
@@ -1879,7 +1879,7 @@
 							<div
 								style="
 							background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-							padding: 32px 24px; text-align: center; color: var(--tx3); font-size: 13px;
+							padding: 32px 24px; text-align: center; color: var(--tx3-sm); font-size: 13px;
 						"
 							>
 								No weeks defined. Use "Edit details" to set a duration.
@@ -1905,7 +1905,7 @@
 								style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;"
 							>
 								<h3 style="font-size: 13px; font-weight: 700; color: var(--tx);">Trainings</h3>
-								<span style="font-size: 11px; color: var(--tx3);">{trainings.length}</span>
+								<span style="font-size: 11px; color: var(--tx3-sm);">{trainings.length}</span>
 							</div>
 							<div
 								style="
@@ -1973,7 +1973,9 @@
 								</SidePanelDraggable>
 							{/each}
 							{#if filteredTrainings.length === 0}
-								<div style="padding: 16px; text-align: center; color: var(--tx3); font-size: 12px;">
+								<div
+									style="padding: 16px; text-align: center; color: var(--tx3-sm); font-size: 12px;"
+								>
 									No trainings found.
 								</div>
 							{/if}
@@ -1984,19 +1986,20 @@
 						>
 							<div style="flex: 1;">
 								<div
-									style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;"
+									style="font-size: 10px; color: var(--tx3-sm); letter-spacing: 0.04em; font-weight: 600;"
 								>
 									TOTAL
 								</div>
 								<div style="font-size: 16px; font-weight: 700; color: var(--tx);">
 									{totalSessions}
-									<span style="font-size: 11px; color: var(--tx3); font-weight: 500;">sessions</span
+									<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500;"
+										>sessions</span
 									>
 								</div>
 							</div>
 							<div>
 								<div
-									style="font-size: 10px; color: var(--tx3); letter-spacing: 0.04em; font-weight: 600;"
+									style="font-size: 10px; color: var(--tx3-sm); letter-spacing: 0.04em; font-weight: 600;"
 								>
 									WEEKS
 								</div>
@@ -2074,9 +2077,9 @@
 									: 'var(--tx)'};">{wn}</span
 							>
 							{#if isSource}
-								<span style="font-size: 8px; color: var(--tx3);">source</span>
+								<span style="font-size: 8px; color: var(--tx3-sm);">source</span>
 							{:else if isPlayed}
-								<span style="font-size: 8px; color: var(--tx3);">played</span>
+								<span style="font-size: 8px; color: var(--tx3-sm);">played</span>
 							{:else if hasDraft}
 								<span style="font-size: 8px; color: var(--gd-tx); font-weight: 600;">data</span>
 							{/if}

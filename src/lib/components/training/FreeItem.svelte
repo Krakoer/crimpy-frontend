@@ -76,7 +76,7 @@
 			Note
 			{#if collapsed && summary}
 				<span
-					style="font-size: 11px; color: var(--tx3); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+					style="font-size: 11px; color: var(--tx3-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 					>{summary}</span
 				>
 			{/if}
@@ -95,7 +95,7 @@
 					>
 					<button
 						onclick={() => (confirmDelete = false)}
-						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3-sm); font-size: 11px; cursor: pointer; font-family: var(--font);"
 						>Cancel</button
 					>
 				{:else}
@@ -123,7 +123,7 @@
 			{#if overriding}
 				<div style="display: flex; flex-direction: column; gap: 4px;" title={TEXT_FIXED_REASON}>
 					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 						>FIXED BY THE TRAINING</span
 					>
 					{#if item.free_text?.trim()}
@@ -133,7 +133,7 @@
 							{item.free_text}
 						</p>
 					{:else}
-						<p style="margin: 0; font-size: 13px; color: var(--tx3);">No text</p>
+						<p style="margin: 0; font-size: 13px; color: var(--tx3-sm);">No text</p>
 					{/if}
 				</div>
 			{:else}

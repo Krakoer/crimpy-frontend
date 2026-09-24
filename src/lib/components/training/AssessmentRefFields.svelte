@@ -55,5 +55,5 @@
 		onclick={(e) => e.stopPropagation()}
 		style="{controlStyle} width: 56px; text-align: center;"
 	/>
-	<span style="font-size: 11px; color: var(--tx3);">{fallbackUnit}</span>
+	<span style="font-size: 11px; color: var(--tx3-sm);">{fallbackUnit}</span>
 </div>

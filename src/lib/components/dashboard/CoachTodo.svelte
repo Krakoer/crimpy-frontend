@@ -72,7 +72,7 @@
 				{week.user_lastname}
 			</div>
 			<div
-				style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+				style="font-size: 11.5px; color: var(--tx3-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 			>
 				{week.program_name} - {detail}
 			</div>
@@ -93,7 +93,7 @@
 			<span
 				style="
 					margin-left: auto; min-width: 22px; padding: 1px 7px;
-					border-radius: 999px; background: var(--pr); color: #fff;
+					border-radius: 999px; background: var(--pr-dk); color: #fff;
 					font-size: 11px; font-weight: 700; text-align: center;
 				"
 			>
@@ -103,7 +103,7 @@
 	</div>
 
 	{#if loading}
-		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3);">
+		<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3-sm);">
 			Loading your list...
 		</div>
 	{:else if failed || !todo}
@@ -113,7 +113,7 @@
 	{:else}
 		{#if todo.pending_feedback.length > 0}
 			<div
-				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;"
+				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;"
 			>
 				Waiting on your answer
 			</div>
@@ -143,7 +143,7 @@
 							{item.user_lastname}
 						</div>
 						<div
-							style="font-size: 11.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+							style="font-size: 11.5px; color: var(--tx3-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 						>
 							{item.session_name || 'Session'} - {formatDate(item.session_date)}
 						</div>
@@ -157,7 +157,7 @@
 				</button>
 			{/each}
 			{#if hiddenFeedback > 0}
-				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
+				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3-sm);">
 					and {hiddenFeedback} more
 				</div>
 			{/if}
@@ -165,7 +165,7 @@
 
 		{#if currentWeeks.length > 0}
 			<div
-				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
+				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
 			>
 				Not programmed this week
 			</div>
@@ -178,7 +178,7 @@
 				)}
 			{/each}
 			{#if hiddenCurrentWeeks > 0}
-				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
+				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3-sm);">
 					and {hiddenCurrentWeeks} more
 				</div>
 			{/if}
@@ -186,7 +186,7 @@
 
 		{#if nextWeeks.length > 0}
 			<div
-				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
+				style="padding: 11px 20px 6px; font-size: 11px; color: var(--tx3-sm); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; border-top: 1px solid var(--bd2);"
 			>
 				Weeks left to program
 			</div>
@@ -199,21 +199,21 @@
 				)}
 			{/each}
 			{#if hiddenNextWeeks > 0}
-				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3);">
+				<div style="padding: 2px 20px 12px; font-size: 11.5px; color: var(--tx3-sm);">
 					and {hiddenNextWeeks} more
 				</div>
 			{/if}
 		{/if}
 
 		{#if count === 0}
-			<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3);">
+			<div style="padding: 18px 20px; font-size: 12.5px; color: var(--tx3-sm);">
 				Nothing waiting on you.
 			</div>
 		{/if}
 
 		{#if !todo.empty_week_check.reached}
 			<div
-				style="padding: 10px 20px 14px; border-top: 1px solid var(--bd2); font-size: 11.5px; color: var(--tx3);"
+				style="padding: 10px 20px 14px; border-top: 1px solid var(--bd2); font-size: 11.5px; color: var(--tx3-sm);"
 			>
 				Programs whose week of {formatDate(`${todo.empty_week_check.week_start}T00:00:00`)} holds no session
 				are listed from {checkMoment}. A week already being trained is listed whatever the moment

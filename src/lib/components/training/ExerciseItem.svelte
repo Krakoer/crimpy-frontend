@@ -231,7 +231,7 @@
 				>{exerciseName}</span
 			>
 			{#if collapsed && collapsedSummary}
-				<span style="font-size: 11px; color: var(--tx3); font-weight: 500; flex-shrink: 0;"
+				<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500; flex-shrink: 0;"
 					>{collapsedSummary}</span
 				>
 			{/if}
@@ -250,7 +250,7 @@
 					>
 					<button
 						onclick={() => (confirmDelete = false)}
-						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3); font-size: 11px; cursor: pointer; font-family: var(--font);"
+						style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--bd); background: #fff; color: var(--tx3-sm); font-size: 11px; cursor: pointer; font-family: var(--font);"
 						>Cancel</button
 					>
 				{:else}
@@ -323,7 +323,7 @@
 							onclick={(e) => e.stopPropagation()}
 							style="width: 52px; padding: 5px 4px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 						/>
-						<span style="font-size: 11px; color: var(--tx3);">% of</span>
+						<span style="font-size: 11px; color: var(--tx3-sm);">% of</span>
 						<select
 							bind:value={variableTarget.assessment_id}
 							onclick={(e) => e.stopPropagation()}
@@ -338,7 +338,7 @@
 				<div style="display: flex; align-items: center; gap: 4px;">
 					{#if variableTarget && !isAmrap}
 						<span
-							style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+							style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 							>FALLBACK</span
 						>
 					{/if}
@@ -352,7 +352,7 @@
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
-							<span style="font-size: 10px; color: var(--tx3);">m</span>
+							<span style="font-size: 10px; color: var(--tx3-sm);">m</span>
 							<input
 								type="number"
 								min="0"
@@ -362,7 +362,7 @@
 								onclick={(e) => e.stopPropagation()}
 								style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 							/>
-							<span style="font-size: 10px; color: var(--tx3);">s</span>
+							<span style="font-size: 10px; color: var(--tx3-sm);">s</span>
 						</div>
 					{:else if isAmrap}
 						<span
@@ -423,7 +423,7 @@
 			<!-- Load (optional) -->
 			<div style="display: flex; flex-direction: column; gap: 4px;">
 				<span
-					style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; text-align: center;"
+					style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em; text-align: center;"
 					>LOAD</span
 				>
 				{#if item.loads && item.loads.length > 0}
@@ -481,7 +481,7 @@
 			<!-- Rest -->
 			<div style="display: flex; flex-direction: column; gap: 4px;">
 				<span
-					style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em; text-align: center;"
+					style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em; text-align: center;"
 					>REST</span
 				>
 				<div style="display: flex; align-items: center; gap: 2px;">
@@ -493,7 +493,7 @@
 						onclick={(e) => e.stopPropagation()}
 						style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 					/>
-					<span style="font-size: 10px; color: var(--tx3);">m</span>
+					<span style="font-size: 10px; color: var(--tx3-sm);">m</span>
 					<input
 						type="number"
 						min="0"
@@ -503,7 +503,7 @@
 						onclick={(e) => e.stopPropagation()}
 						style="width: 36px; padding: 5px 2px; text-align: center; border: 1px solid var(--bd); border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 					/>
-					<span style="font-size: 10px; color: var(--tx3);">s</span>
+					<span style="font-size: 10px; color: var(--tx3-sm);">s</span>
 				</div>
 			</div>
 

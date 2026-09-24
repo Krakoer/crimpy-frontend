@@ -110,7 +110,7 @@
 			</span>
 		</div>
 		{#if !failed}
-			<div style="font-size: 10px; color: var(--tx3); padding-left: 17px;">
+			<div style="font-size: 10px; color: var(--tx3-sm); padding-left: 17px;">
 				{sessions.length} session{sessions.length === 1 ? '' : 's'}
 			</div>
 		{/if}
@@ -169,7 +169,7 @@
 						{#if isOffProgram(session)}
 							<span
 								title="Played outside this program"
-								style="font-size: 8px; font-weight: 700; color: var(--tx3); letter-spacing: 0.04em; flex-shrink: 0;"
+								style="font-size: 8px; font-weight: 700; color: var(--tx3-sm); letter-spacing: 0.04em; flex-shrink: 0;"
 								>OFF</span
 							>
 						{/if}

@@ -158,7 +158,7 @@
 				onclick={() => {
 					collapseSignals.collapse++;
 				}}
-				style="font-size: 12px; color: var(--tx3); font-weight: 600; cursor: pointer;"
+				style="font-size: 12px; color: var(--tx3-sm); font-weight: 600; cursor: pointer;"
 				role="button"
 				tabindex="0"
 				onkeydown={(e) => e.key === 'Enter' && collapseSignals.collapse++}>Collapse all</span
@@ -167,12 +167,12 @@
 				<span style="color: var(--tx3);">·</span>
 				<button
 					onclick={() => (selecting = true)}
-					style="font-size: 12px; color: var(--tx3); font-weight: 600; cursor: pointer; border: none; background: transparent; padding: 0; font-family: var(--font);"
+					style="font-size: 12px; color: var(--tx3-sm); font-weight: 600; cursor: pointer; border: none; background: transparent; padding: 0; font-family: var(--font);"
 					>Select</button
 				>
 			{/if}
 			<div style="flex: 1;"></div>
-			<span style="font-size: 12px; color: var(--tx3);">{items.length} blocks</span>
+			<span style="font-size: 12px; color: var(--tx3-sm);">{items.length} blocks</span>
 		</div>
 
 		{#if selecting}
@@ -188,6 +188,14 @@
 					>{selectedItems.length} selected</span
 				>
 				<div style="flex: 1;"></div>
+				<!-- A refused target is dimmed by swapping the label and the icon for
+				     quieter tokens, not by an opacity on the button. An opacity here
+				     composites the label and the button's own white ground together
+				     against the --pr-fog bar behind, which took --pr-tx to 2.43:1 at
+				     12px bold. WCAG exempts an inactive control from the floor, and
+				     this one is not inactive: groupSelection still fires and answers
+				     with a snackbar saying why it refused. --tx2 reads 4.96:1 on the
+				     button's white, and the icon is a mark at the 3:1 floor. -->
 				{#each GROUPING_TARGETS as target (target)}
 					{@const issue = groupingIssue(target)}
 					{@const block = BLOCK_PRESENTATION[target]}
@@ -199,17 +207,16 @@
 							padding: 5px 11px; border-radius: var(--rs);
 							border: 1px solid var(--bd); background: #fff;
 							font-family: var(--font); font-size: 12px; font-weight: 600;
-							color: {block.text}; cursor: pointer;
-							opacity: {issue ? 0.55 : 1};
+							color: {issue ? 'var(--tx2)' : block.text}; cursor: pointer;
 						"
 					>
-						<Icon name={block.icon} size={12} color={block.color} />
+						<Icon name={block.icon} size={12} color={issue ? 'var(--tx3)' : block.color} />
 						Group into {blockLabel(target)}
 					</button>
 				{/each}
 				<button
 					onclick={stopSelecting}
-					style="font-size: 12px; color: var(--tx3); font-weight: 600; cursor: pointer; border: none; background: transparent; padding: 5px 4px; font-family: var(--font);"
+					style="font-size: 12px; color: var(--tx3-sm); font-weight: 600; cursor: pointer; border: none; background: transparent; padding: 5px 4px; font-family: var(--font);"
 					>Cancel</button
 				>
 			</div>

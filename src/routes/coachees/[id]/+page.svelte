@@ -434,7 +434,7 @@
 					"
 						>
 							<div
-								style="font-size: 10.5px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;"
+								style="font-size: 10.5px; color: var(--tx3-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;"
 							>
 								{stat.k}
 							</div>
@@ -590,7 +590,7 @@
 									</span>
 									<button
 										onclick={() => (selectedDay = null)}
-										style="font-size: 11.5px; color: var(--tx3); background: none; border: none; cursor: pointer; font-family: var(--font);"
+										style="font-size: 11.5px; color: var(--tx3-sm); background: none; border: none; cursor: pointer; font-family: var(--font);"
 										>Clear</button
 									>
 								</div>
@@ -613,7 +613,7 @@
 								<h3 style="font-size: 14px; font-weight: 700; color: var(--tx);">
 									{selectedDay ? 'Sessions on this day' : 'All sessions'}
 								</h3>
-								<span style="font-size: 12px; color: var(--tx3);"
+								<span style="font-size: 12px; color: var(--tx3-sm);"
 									>{displayedSessions.length} session{displayedSessions.length !== 1
 										? 's'
 										: ''}</span
@@ -622,7 +622,7 @@
 
 							{#if displayedSessions.length === 0}
 								<div
-									style="padding: 32px 20px; text-align: center; color: var(--tx3); font-size: 13px;"
+									style="padding: 32px 20px; text-align: center; color: var(--tx3-sm); font-size: 13px;"
 								>
 									{selectedDay ? 'No sessions on this day.' : 'No sessions recorded yet.'}
 								</div>
@@ -630,7 +630,7 @@
 								<div>
 									{#each sessionGroups as group (group.label)}
 										<div
-											style="padding: 10px 20px 0; font-size: 11px; color: var(--tx3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
+											style="padding: 10px 20px 0; font-size: 11px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;"
 										>
 											{group.label}
 										</div>
@@ -676,7 +676,7 @@
 													</div>
 													{#if session.notes?.trim()}
 														<div
-															style="font-size: 11.5px; color: var(--tx3); margin-top: 3px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+															style="font-size: 11.5px; color: var(--tx3-sm); margin-top: 3px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
 														>
 															"{session.notes}"
 														</div>
@@ -739,7 +739,7 @@
 							<div
 								style="
 							background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd);
-							padding: 24px 16px; text-align: center; color: var(--tx3); font-size: 13px;
+							padding: 24px 16px; text-align: center; color: var(--tx3-sm); font-size: 13px;
 						"
 							>
 								No assessments yet.
@@ -781,7 +781,7 @@
 										<span
 											style="
 										display: inline-flex; padding: 2px 8px; border-radius: 999px;
-										font-size: 11px; font-weight: 600; background: var(--bd2); color: var(--tx3);
+										font-size: 11px; font-weight: 600; background: var(--bd2); color: var(--tx3-sm);
 									">Starts soon</span
 										>
 									{/if}
@@ -835,7 +835,7 @@
 							style="
 							display: inline-flex; align-items: center; gap: 6px;
 							padding: 7px 14px; border-radius: var(--rs);
-							background: var(--pr); color: #fff; border: none;
+							background: var(--pr-dk); color: #fff; border: none;
 							font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 						"
 						>
@@ -913,7 +913,7 @@
 												style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 											/>
 											<span
-												style="font-size: 11px; color: var(--tx3); display: block; margin-top: 4px;"
+												style="font-size: 11px; color: var(--tx3-sm); display: block; margin-top: 4px;"
 												>Snapped to the Monday of the chosen week.</span
 											>
 										</div>
@@ -950,7 +950,7 @@
 										style="
 										display: inline-flex; align-items: center; gap: 6px;
 										padding: 8px 16px; border-radius: var(--rs);
-										background: var(--pr); color: #fff; border: none;
+										background: var(--pr-dk); color: #fff; border: none;
 										font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 										opacity: {savingProgram ? 0.7 : 1};
 									"
@@ -978,7 +978,7 @@
 						padding: 40px 24px; text-align: center;
 					"
 						>
-							<div style="font-size: 13px; color: var(--tx3); margin-bottom: 12px;">
+							<div style="font-size: 13px; color: var(--tx3-sm); margin-bottom: 12px;">
 								No programs yet.
 							</div>
 							<button
@@ -989,7 +989,7 @@
 								style="
 								display: inline-flex; align-items: center; gap: 6px;
 								padding: 8px 16px; border-radius: var(--rs);
-								background: var(--pr); color: #fff; border: none;
+								background: var(--pr-dk); color: #fff; border: none;
 								font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font);
 							"
 							>
@@ -1048,7 +1048,7 @@
 												<span
 													style="
 												display: inline-flex; padding: 2px 8px; border-radius: 999px;
-												font-size: 11px; font-weight: 600; background: var(--bd2); color: var(--tx3);
+												font-size: 11px; font-weight: 600; background: var(--bd2); color: var(--tx3-sm);
 											">Completed</span
 												>
 											{/if}
@@ -1058,7 +1058,7 @@
 												{program.objective}
 											</div>
 										{/if}
-										<div style="display: flex; gap: 12px; font-size: 12px; color: var(--tx3);">
+										<div style="display: flex; gap: 12px; font-size: 12px; color: var(--tx3-sm);">
 											<span>Started {formatProgramDate(program.start_date)}</span>
 											{#if program.duration_weeks}
 												<span>·</span>
@@ -1073,7 +1073,7 @@
 												style="width: 60px; display: flex; flex-direction: column; align-items: center; gap: 4px;"
 											>
 												<div
-													style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+													style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 												>
 													PROGRESS
 												</div>
@@ -1086,7 +1086,9 @@
 														)}%; height: 100%; background: var(--pr); border-radius: 3px;"
 													></div>
 												</div>
-												<div style="font-size: 10px; color: var(--tx3);">{ps.week}/{totalWks}</div>
+												<div style="font-size: 10px; color: var(--tx3-sm);">
+													{ps.week}/{totalWks}
+												</div>
 											</div>
 										{/if}
 
@@ -1160,17 +1162,17 @@
 							     table below holds records measured against earlier ones, each
 							     naming its own. -->
 							{#if loadingBodyweights}
-								<span style="color: var(--tx3);">Loading bodyweight...</span>
+								<span style="color: var(--tx3-sm);">Loading bodyweight...</span>
 							{:else if bodyweightsFailed}
-								<span style="color: var(--tx3);">Bodyweight could not be loaded</span>
+								<span style="color: var(--tx3-sm);">Bodyweight could not be loaded</span>
 							{:else if bodyweightInEffect}
 								Latest bodyweight <span style="font-weight: 600; color: var(--tx);"
 									>{formatKg(bodyweightInEffect.weight_kg)}</span
-								><span style="color: var(--tx3);"
+								><span style="color: var(--tx3-sm);"
 									>, {formatDayMonth(bodyweightInEffect.measured_at)}</span
 								>
 							{:else}
-								<span style="color: var(--tx3);">No bodyweight recorded</span>
+								<span style="color: var(--tx3-sm);">No bodyweight recorded</span>
 							{/if}
 						</div>
 					</div>
@@ -1192,7 +1194,7 @@
 					<div style="font-size: 15px; font-weight: 600; color: var(--tx); margin-bottom: 6px;">
 						Notes coming soon
 					</div>
-					<div style="font-size: 13px; color: var(--tx3);">
+					<div style="font-size: 13px; color: var(--tx3-sm);">
 						Coach notes and annotations will appear here.
 					</div>
 				</div>

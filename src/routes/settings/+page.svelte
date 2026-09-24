@@ -136,7 +136,7 @@
 							Nudge every athlete you coach who has not said yet what their next week looks like, so
 							you write their program around the week they actually have.
 						</p>
-						<p style="font-size: 12px; color: var(--tx3); margin-bottom: 18px;">
+						<p style="font-size: 12px; color: var(--tx3-sm); margin-bottom: 18px;">
 							Their app raises the reminder at this hour in their own timezone, not yours, and only
 							reaches an athlete who has the app and allows notifications.
 						</p>
@@ -174,7 +174,9 @@
 									disabled={!enabled}
 									style="{controlStyle} width: 100%; opacity: {enabled ? 1 : 0.5};"
 								/>
-								<span style="font-size: 11px; color: var(--tx3); display: block; margin-top: 4px;">
+								<span
+									style="font-size: 11px; color: var(--tx3-sm); display: block; margin-top: 4px;"
+								>
 									In each athlete's local time.
 								</span>
 							</div>
@@ -184,7 +186,7 @@
 							<button
 								onclick={save}
 								disabled={saving}
-								style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--rs); background: var(--pr); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving
+								style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--rs); background: var(--pr-dk); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {saving
 									? 0.7
 									: 1};"
 							>
@@ -218,7 +220,7 @@
 							listed in the to do panel on your dashboard. A week already being trained is listed
 							there whatever the moment says.
 						</p>
-						<p style="font-size: 12px; color: var(--tx3); margin-bottom: 18px;">
+						<p style="font-size: 12px; color: var(--tx3-sm); margin-bottom: 18px;">
 							Read on your own clock, so it comes round at the hour you set wherever you are.
 						</p>
 
@@ -245,7 +247,9 @@
 									bind:value={emptyWeekTime}
 									style="{controlStyle} width: 100%;"
 								/>
-								<span style="font-size: 11px; color: var(--tx3); display: block; margin-top: 4px;">
+								<span
+									style="font-size: 11px; color: var(--tx3-sm); display: block; margin-top: 4px;"
+								>
 									In your local time.
 								</span>
 							</div>
@@ -255,7 +259,7 @@
 							<button
 								onclick={saveTodoSettings}
 								disabled={savingTodo}
-								style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--rs); background: var(--pr); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {savingTodo
+								style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--rs); background: var(--pr-dk); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {savingTodo
 									? 0.7
 									: 1};"
 							>

@@ -9,6 +9,24 @@
 	--tx: #2d241d;
 	--tx2: #7a6e62;
 	--tx3: #b0a496;
+	/* The third level of the type hierarchy read at a size that has to clear the
+	   4.5:1 text floor. --tx3 itself is 2.44:1 on --panel, which is fine for a
+	   rule or a 14px and up line and unreadable for the 8px to 12px captions,
+	   hints and muted ternary arms that src/ writes it as. Those take this.
+
+	   It reads 4.87:1 on --panel and 4.52:1 on --panel2. It cannot be lighter:
+	   4.5:1 on a white card admits nothing paler than about this, which is why it
+	   lands within a hair of --tx2 (4.96:1 on --panel). At these sizes the third
+	   level and the second cannot be told apart by lightness and stay readable,
+	   so the distinction between them has to be carried by size and weight rather
+	   than colour. That is a real cost of the split and not an oversight.
+
+	   Neither this nor --tx2 clears the floor on --bg, the page ground, where
+	   they read 4.26:1 and 4.34:1. That is the whole secondary voice failing on
+	   one ground rather than this token failing, it predates Krakoer/crimpy#137,
+	   and it is recorded here rather than fixed. It is textMutedSmall in
+	   crimpy-app/lib/theme/crimpy_theme.dart. */
+	--tx3-sm: #787066;
 	--pr: #c2714f;
 	--pr-dk: #a85e40;
 	--pr-lt: #f5e2d7;
@@ -56,6 +74,13 @@
 	   ground from a darker red than this one, and one value has to clear both.
 	   It is statusErrorText in crimpy-app/lib/theme/crimpy_theme.dart. */
 	--rd-tx: #ac4747;
+	/* The red a destructive button is filled with when it carries a white label,
+	   the counterpart of --pr-dk for terracotta. --rd itself is 3.74:1 under
+	   white, which is over the 3:1 mark floor and under the 4.5:1 text one, so a
+	   13px "Delete" on it is not readable. This reads 4.85:1 under white and
+	   4.52:1 on --rd-lt, so it can also be written on the light error ground
+	   without a second token. */
+	--rd-dk: #a75c5c;
 	--bl: #5b7fa6;
 	--bl-lt: #e6ecf2;
 	/* The blue an accent is written in when it sits on --bl-lt. --bl reads
@@ -63,6 +88,17 @@
 	   crimpy-app/lib/theme/crimpy_theme.dart. */
 	--bl-tx: #4b698a;
 	--hb: #4a7c8c;
+	/* The hangboard teal written on a tint of its own hue, the way --pr-tx and
+	   the rest are. Four hangboard rules build their ground with
+	   color-mix(in srgb, var(--hb) 12%, transparent) over the white card, which
+	   composites to #e9eff1; --hb reads 3.97:1 there, under the floor for the
+	   11px and 10px labels those rules use. This reads 4.55:1 on that ground and
+	   5.29:1 on white.
+
+	   The portal's hangboard teal has no counterpart in the app theme, which is
+	   why there is no Dart twin to keep in step with, the same reason accentTeal
+	   has no text form there. */
+	--hb-tx: #447281;
 	--r: 10px;
 	--rs: 8px;
 	--rl: 14px;

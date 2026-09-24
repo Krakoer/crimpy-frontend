@@ -133,7 +133,7 @@
 				>{exerciseName}</span
 			>
 			{#if collapsed && collapsedSummary}
-				<span style="font-size: 11px; color: var(--tx3); font-weight: 500; flex-shrink: 0;"
+				<span style="font-size: 11px; color: var(--tx3-sm); font-weight: 500; flex-shrink: 0;"
 					>{collapsedSummary}</span
 				>
 			{/if}
@@ -156,7 +156,8 @@
 			style="padding: 12px 18px; border-top: 1px solid var(--bd2); display: flex; gap: 24px; flex-wrap: wrap;"
 		>
 			<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+				<span
+					style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 					>{isDuration ? 'DURATION' : 'REPS'}</span
 				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
@@ -172,7 +173,7 @@
 					<!-- The fixed number a client without the assessment runs is the target's
 					     own fallback. A program week may move it without touching the plain
 					     field beside it, so reading that field names a value nobody plays. -->
-					<span style="font-size: 10px; color: var(--tx3);">
+					<span style="font-size: 10px; color: var(--tx3-sm);">
 						fallback {isDuration
 							? fmtTime(variableTarget.fallback)
 							: `${variableTarget.fallback} reps`}
@@ -190,14 +191,14 @@
 			{#if (item.loads && item.loads.length > 0) || achievedLoad.length > 0}
 				<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
 					<span
-						style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+						style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 						>LOAD</span
 					>
 					<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
 						{item.loads && item.loads.length > 0 ? formatLoad(item.loads[0], catalog) : 'none'}
 					</span>
 					{#if item.loads?.[0]?.unit === 'percent_assessment'}
-						<span style="font-size: 10px; color: var(--tx3);">
+						<span style="font-size: 10px; color: var(--tx3-sm);">
 							fallback {item.loads[0].fallback ?? 0} kg
 						</span>
 					{/if}
@@ -206,7 +207,8 @@
 			{/if}
 
 			<div style="display: flex; flex-direction: column; gap: 2px; align-items: center;">
-				<span style="font-size: 10px; color: var(--tx3); font-weight: 600; letter-spacing: 0.04em;"
+				<span
+					style="font-size: 10px; color: var(--tx3-sm); font-weight: 600; letter-spacing: 0.04em;"
 					>REST</span
 				>
 				<span style="font-size: 15px; font-weight: 700; color: var(--tx);">
@@ -252,7 +254,7 @@
 						Watch demo
 					</a>
 				{:else if exerciseVideoLink}
-					<span style="font-size: 12px; color: var(--tx3); overflow-wrap: anywhere;"
+					<span style="font-size: 12px; color: var(--tx3-sm); overflow-wrap: anywhere;"
 						>Video: {exerciseVideoLink}</span
 					>
 				{/if}

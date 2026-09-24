@@ -62,7 +62,7 @@
 			Note
 			{#if collapsed && summary}
 				<span
-					style="font-size: 11px; color: var(--tx3); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+					style="font-size: 11px; color: var(--tx3-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 					>{summary}</span
 				>
 			{/if}
@@ -78,7 +78,7 @@
 					{item.free_text}
 				</p>
 			{:else}
-				<p style="margin: 0; font-size: 13px; color: var(--tx3);">No text</p>
+				<p style="margin: 0; font-size: 13px; color: var(--tx3-sm);">No text</p>
 			{/if}
 
 			<!-- A note carries its own text, and is its own reason for being in the
