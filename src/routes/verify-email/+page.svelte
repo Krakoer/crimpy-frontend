@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { apiClient } from '$lib/api/client';
+	import { ApiError, apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import AuthShell from '$lib/components/AuthShell.svelte';
@@ -78,7 +78,8 @@
 		resendMessage = '';
 		try {
 			await apiClient.resendVerification(authStore.user.email);
-			resendMessage = 'Verification email sent. Please check your inbox.';
+			resendMessage =
+				'If your email still needs verifying, a new link is on its way. Please check your inbox.';
 			resendCooldown = 600;
 
 			if (cooldownInterval) {
@@ -93,11 +94,10 @@
 				}
 			}, 1000);
 		} catch (e) {
-			const errorMessage = e instanceof Error ? e.message : 'Failed to resend verification email';
-			if (errorMessage.includes('cooldown')) {
+			if (e instanceof ApiError && e.status === 429) {
 				error = 'Please wait before requesting another verification email.';
 			} else {
-				error = errorMessage;
+				error = e instanceof Error ? e.message : 'Failed to resend verification email';
 			}
 		} finally {
 			resending = false;
@@ -149,9 +149,8 @@
 					Verify your email
 				</h1>
 				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px; line-height: 1.5;">
-					Thank you for registering, {authStore.user?.firstname}. We have sent a verification link
-					to
-					<strong style="color: var(--tx);">{authStore.user?.email}</strong>.
+					Thank you for registering, {authStore.user?.firstname}. Check your inbox at
+					<strong style="color: var(--tx);">{authStore.user?.email}</strong> for the next step.
 				</p>
 			{/if}
 		</div>
@@ -177,7 +176,7 @@
 					style="font-size: 12.5px; color: var(--tx2); line-height: 1.7; padding-left: 18px; list-style: decimal;"
 				>
 					<li>Check your inbox, and your spam folder</li>
-					<li>Click the verification link in the email</li>
+					<li>Follow the link in the email</li>
 					{#if authStore.isCoach}
 						<li>Wait for admin validation to access the coach portal</li>
 					{:else}
