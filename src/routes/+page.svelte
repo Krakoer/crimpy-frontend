@@ -118,6 +118,16 @@
 						required
 						style={authInput}
 					/>
+					<div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+						<a
+							href={email
+								? `/forgot-password?email=${encodeURIComponent(email)}`
+								: '/forgot-password'}
+							style="font-size: 12px; color: var(--pr-tx); font-weight: 600; text-decoration: none;"
+						>
+							Forgot password?
+						</a>
+					</div>
 				</div>
 
 				<button

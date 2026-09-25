@@ -885,7 +885,9 @@ const ENDPOINTS_WITHOUT_TOKEN_REFRESH = [
 	'/auth/login',
 	'/auth/register',
 	'/auth/refresh',
-	'/auth/logout'
+	'/auth/logout',
+	'/auth/forgot-password',
+	'/auth/reset-password'
 ];
 
 class ApiClient {
@@ -1099,6 +1101,23 @@ class ApiClient {
 		return this.request<{ message: string }>('/auth/resend-verification', {
 			method: 'POST',
 			body: JSON.stringify({ email })
+		});
+	}
+
+	async forgotPassword(email: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>('/auth/forgot-password', {
+			method: 'POST',
+			body: JSON.stringify({ email })
+		});
+	}
+
+	async resetPassword(
+		token: string,
+		newPassword: string
+	): Promise<{ message: string; is_coach: boolean }> {
+		return this.request<{ message: string; is_coach: boolean }>('/auth/reset-password', {
+			method: 'POST',
+			body: JSON.stringify({ token, new_password: newPassword })
 		});
 	}
 
