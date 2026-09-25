@@ -14,6 +14,8 @@
 	let dayOfWeek = $state(4);
 	let time = $state('21:00');
 
+	let sendingResetLink = $state(false);
+
 	let todoLoadFailed = $state(false);
 	let savingTodo = $state(false);
 	let emptyWeekDay = $state(4);
@@ -77,6 +79,20 @@
 			snackbar.show(e instanceof Error ? e.message : 'Failed to save the check', 'error');
 		} finally {
 			savingTodo = false;
+		}
+	}
+
+	async function sendResetLink() {
+		const email = authStore.user?.email;
+		if (!email) return;
+		sendingResetLink = true;
+		try {
+			await apiClient.forgotPassword(email);
+			snackbar.show(`Reset link sent to ${email}`);
+		} catch (e) {
+			snackbar.show(e instanceof Error ? e.message : 'Failed to send the reset link', 'error');
+		} finally {
+			sendingResetLink = false;
 		}
 	}
 
@@ -271,6 +287,34 @@
 				</div>
 			{/if}
 		{/if}
+
+		<div
+			style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); padding: 22px 24px;"
+		>
+			<div class="flex items-center gap-2" style="margin-bottom: 4px;">
+				<Icon name="lock" size={16} color="var(--pr-tx)" />
+				<h3 style="font-size: 16px; font-weight: 700; color: var(--tx);">Password</h3>
+			</div>
+			<p style="font-size: 13px; color: var(--tx2); margin-bottom: 6px;">
+				Get an email with a link to choose a new password. The link is valid for one hour.
+			</p>
+			<p style="font-size: 12px; color: var(--tx3-sm); margin-bottom: 18px;">
+				Sent to {authStore.user?.email}. Once the new password is set, every device signed in to
+				your account is signed out, this one included.
+			</p>
+			<div style="display: flex; justify-content: flex-end;">
+				<button
+					onclick={sendResetLink}
+					disabled={sendingResetLink}
+					style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--rs); border: 1px solid var(--bd); background: var(--panel); color: var(--tx); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); opacity: {sendingResetLink
+						? 0.7
+						: 1};"
+				>
+					<Icon name="mail" size={14} color="var(--tx2)" />
+					{sendingResetLink ? 'Sending...' : 'Send reset link'}
+				</button>
+			</div>
+		</div>
 	</div>
 </AppShell>
 
