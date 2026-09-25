@@ -81,15 +81,17 @@ test.describe('reset password', () => {
 		await expect(page.getByRole('link', { name: 'Go to sign in' })).toBeHidden();
 	});
 
-	// The link may belong to another account than the one signed in here, and
-	// a session the reset did revoke fails on its own at the next refresh.
-	test('leaves the session this browser holds alone', async ({ page }) => {
+	test('signs this browser out when the reset revoked its session', async ({ page }) => {
 		await page.addInitScript(() => {
-			localStorage.setItem('auth_token', 'other-account-token');
-			localStorage.setItem('refresh_token', 'other-account-refresh');
+			localStorage.setItem('auth_token', 'same-account-token');
+			localStorage.setItem('refresh_token', 'same-account-refresh');
 		});
 		await stub(page, 'POST', '/auth/reset-password', {
-			body: { message: 'Password reset', is_coach: false }
+			body: { message: 'Password reset', is_coach: true }
+		});
+		await stub(page, 'POST', '/auth/refresh', {
+			status: 401,
+			body: { error: 'Invalid refresh token' }
 		});
 
 		await page.goto('/reset-password?token=abc123');
@@ -98,8 +100,30 @@ test.describe('reset password', () => {
 		await page.getByRole('button', { name: 'Set new password' }).click();
 
 		await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
-		expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe(
-			'other-account-token'
+		expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
+		expect(await page.evaluate(() => localStorage.getItem('refresh_token'))).toBeNull();
+	});
+
+	test('keeps a session the reset did not touch', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('auth_token', 'other-account-token');
+			localStorage.setItem('refresh_token', 'other-account-refresh');
+		});
+		await stub(page, 'POST', '/auth/reset-password', {
+			body: { message: 'Password reset', is_coach: false }
+		});
+		await stub(page, 'POST', '/auth/refresh', {
+			body: { token: 'rotated-token', refresh_token: 'rotated-refresh' }
+		});
+
+		await page.goto('/reset-password?token=abc123');
+		await page.getByLabel('New password', { exact: true }).fill('new secret');
+		await page.getByLabel('Confirm new password').fill('new secret');
+		await page.getByRole('button', { name: 'Set new password' }).click();
+
+		await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
+		expect(await page.evaluate(() => localStorage.getItem('refresh_token'))).toBe(
+			'rotated-refresh'
 		);
 	});
 

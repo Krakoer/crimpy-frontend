@@ -975,6 +975,18 @@ class ApiClient {
 		}
 	}
 
+	/**
+	 * Refreshes once so a session the server has revoked, as a password reset
+	 * does, is dropped now rather than at the next refresh up to an hour away.
+	 * A session the server still honours is only rotated. Reports whether the
+	 * session is gone.
+	 */
+	async dropSessionIfRevoked(): Promise<boolean> {
+		if (!this.getRefreshToken()) return false;
+		await this.refreshAccessToken();
+		return !this.getRefreshToken();
+	}
+
 	private refreshAccessToken(): Promise<boolean> {
 		if (!this.inFlightRefresh) {
 			this.inFlightRefresh = this.rotateTokens().finally(() => {

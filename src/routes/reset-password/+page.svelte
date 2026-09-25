@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { apiClient } from '$lib/api/client';
+	import { authStore } from '$lib/stores/auth.svelte';
 	import AuthShell from '$lib/components/AuthShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import {
@@ -33,6 +34,7 @@
 		try {
 			const response = await apiClient.resetPassword(token, password);
 			isCoach = response.is_coach;
+			if (await apiClient.dropSessionIfRevoked()) authStore.clearSession();
 			done = true;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Could not reset your password';
