@@ -81,14 +81,15 @@ test.describe('reset password', () => {
 		await expect(page.getByRole('link', { name: 'Go to sign in' })).toBeHidden();
 	});
 
-	test('drops the session this browser held', async ({ page }) => {
-		await page.goto('/');
-		await page.evaluate(() => {
-			localStorage.setItem('auth_token', 'stale-token');
-			localStorage.setItem('refresh_token', 'stale-refresh');
+	// The link may belong to another account than the one signed in here, and
+	// a session the reset did revoke fails on its own at the next refresh.
+	test('leaves the session this browser holds alone', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('auth_token', 'other-account-token');
+			localStorage.setItem('refresh_token', 'other-account-refresh');
 		});
 		await stub(page, 'POST', '/auth/reset-password', {
-			body: { message: 'Password reset', is_coach: true }
+			body: { message: 'Password reset', is_coach: false }
 		});
 
 		await page.goto('/reset-password?token=abc123');
@@ -97,8 +98,9 @@ test.describe('reset password', () => {
 		await page.getByRole('button', { name: 'Set new password' }).click();
 
 		await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
-		expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
-		expect(await page.evaluate(() => localStorage.getItem('refresh_token'))).toBeNull();
+		expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe(
+			'other-account-token'
+		);
 	});
 
 	test('refuses two passwords that differ without calling the API', async ({ page }) => {
@@ -151,7 +153,9 @@ test.describe('settings', () => {
 		await expect(page.getByRole('heading', { name: 'Password' })).toBeVisible();
 		await page.getByRole('button', { name: 'Send reset link' }).click();
 
-		await expect(page.getByText('Reset link sent to coach@example.com')).toBeVisible();
+		await expect(
+			page.getByText('Check your inbox at coach@example.com for a reset link')
+		).toBeVisible();
 		expect(posted[0].body).toEqual({ email: 'coach@example.com' });
 	});
 });

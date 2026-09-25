@@ -88,7 +88,7 @@
 		sendingResetLink = true;
 		try {
 			await apiClient.forgotPassword(email);
-			snackbar.show(`Reset link sent to ${email}`);
+			snackbar.show(`Check your inbox at ${email} for a reset link`);
 		} catch (e) {
 			snackbar.show(e instanceof Error ? e.message : 'Failed to send the reset link', 'error');
 		} finally {
