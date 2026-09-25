@@ -33,6 +33,8 @@ test.describe('registration', () => {
 		await page.locator('form').getByRole('button', { name: 'Register as coach' }).click();
 
 		await expect(page).toHaveURL('/verify-email');
+		await expect(page.getByRole('heading', { name: 'Verify your email' })).toBeVisible();
+		await expect(page.getByText('coach@example.com')).toBeVisible();
 		expect(posted).toHaveLength(1);
 		expect(posted[0].body).toMatchObject({
 			email: 'coach@example.com',
@@ -72,7 +74,7 @@ test.describe('registration', () => {
 test.describe('email verification prompt', () => {
 	const unverified = testUser({ email_verified: false, coach_validated: false });
 
-	test('names the address the link was sent to', async ({ page }) => {
+	test('names the address to check', async ({ page }) => {
 		await signIn(page, unverified);
 
 		await page.goto('/verify-email');
