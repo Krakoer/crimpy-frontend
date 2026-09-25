@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { apiClient } from '$lib/api/client';
+	import { ApiError, apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import AuthShell from '$lib/components/AuthShell.svelte';
@@ -78,7 +78,8 @@
 		resendMessage = '';
 		try {
 			await apiClient.resendVerification(authStore.user.email);
-			resendMessage = 'Verification email sent. Please check your inbox.';
+			resendMessage =
+				'If your email still needs verifying, a new link is on its way. Please check your inbox.';
 			resendCooldown = 600;
 
 			if (cooldownInterval) {
@@ -93,11 +94,10 @@
 				}
 			}, 1000);
 		} catch (e) {
-			const errorMessage = e instanceof Error ? e.message : 'Failed to resend verification email';
-			if (errorMessage.includes('cooldown')) {
+			if (e instanceof ApiError && e.status === 429) {
 				error = 'Please wait before requesting another verification email.';
 			} else {
-				error = errorMessage;
+				error = e instanceof Error ? e.message : 'Failed to resend verification email';
 			}
 		} finally {
 			resending = false;

@@ -81,16 +81,20 @@ test.describe('email verification prompt', () => {
 		await page.goto('/verify-email');
 		await page.getByRole('button', { name: 'Resend verification email' }).click();
 
-		await expect(page.getByText('Verification email sent. Please check your inbox.')).toBeVisible();
+		await expect(
+			page.getByText(
+				'If your email still needs verifying, a new link is on its way. Please check your inbox.'
+			)
+		).toBeVisible();
 		await expect(page.getByRole('button', { name: /Resend in/ })).toBeDisabled();
 		expect(posted[0].body).toEqual({ email: 'coach@example.com' });
 	});
 
-	test('translates a cooldown rejection into plain wording', async ({ page }) => {
+	test('translates a rate limit rejection into plain wording', async ({ page }) => {
 		await signIn(page, unverified);
 		await stub(page, 'POST', '/auth/resend-verification', {
 			status: 429,
-			body: { error: 'resend cooldown active' }
+			body: 'Too Many Requests'
 		});
 
 		await page.goto('/verify-email');
