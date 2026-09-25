@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { capture, mockApi, signIn, stub, testEnrollmentTokenInfo, testUser } from './fixtures';
+import {
+	API_URL,
+	capture,
+	mockApi,
+	signIn,
+	stub,
+	testEnrollmentTokenInfo,
+	testUser
+} from './fixtures';
 
 test.beforeEach(async ({ page }) => {
 	await mockApi(page);
@@ -8,8 +16,11 @@ test.beforeEach(async ({ page }) => {
 test.describe('registration', () => {
 	test('registers a coach and sends them to the verification page', async ({ page }) => {
 		const registered = testUser({ email_verified: false, coach_validated: false });
+		// The API answers a taken address exactly like a new one, and neither
+		// comes with a token.
 		await stub(page, 'POST', '/auth/register', {
-			body: { token: 'test-token', refresh_token: 'test-refresh-token', user: registered }
+			status: 201,
+			body: { message: 'Coach account created.', user: registered }
 		});
 		const posted = capture(page, 'POST', '/auth/register');
 
@@ -33,8 +44,8 @@ test.describe('registration', () => {
 
 	test('keeps the coach on the form when the registration is rejected', async ({ page }) => {
 		await stub(page, 'POST', '/auth/register', {
-			status: 409,
-			body: { error: 'Email already registered' }
+			status: 400,
+			body: { error: 'Password must be at least 6 characters' }
 		});
 
 		await page.goto('/');
@@ -45,7 +56,7 @@ test.describe('registration', () => {
 		await page.getByLabel('Password').fill('correct horse');
 		await page.locator('form').getByRole('button', { name: 'Register as coach' }).click();
 
-		await expect(page.getByText('Email already registered')).toBeVisible();
+		await expect(page.getByText('Password must be at least 6 characters')).toBeVisible();
 		await expect(page).toHaveURL('/');
 	});
 
@@ -92,10 +103,10 @@ test.describe('email verification prompt', () => {
 
 	test('translates a rate limit rejection into plain wording', async ({ page }) => {
 		await signIn(page, unverified);
-		await stub(page, 'POST', '/auth/resend-verification', {
-			status: 429,
-			body: 'Too Many Requests'
-		});
+		// The rate limiter answers in plain text, not JSON.
+		await page.route(`${API_URL}/auth/resend-verification`, (route) =>
+			route.fulfill({ status: 429, contentType: 'text/plain', body: 'Too Many Requests' })
+		);
 
 		await page.goto('/verify-email');
 		await page.getByRole('button', { name: 'Resend verification email' }).click();

@@ -149,9 +149,8 @@
 					Verify your email
 				</h1>
 				<p style="font-size: 13px; color: var(--tx2); margin-top: 6px; line-height: 1.5;">
-					Thank you for registering, {authStore.user?.firstname}. We have sent a verification link
-					to
-					<strong style="color: var(--tx);">{authStore.user?.email}</strong>.
+					Thank you for registering, {authStore.user?.firstname}. Check your inbox at
+					<strong style="color: var(--tx);">{authStore.user?.email}</strong> for the next step.
 				</p>
 			{/if}
 		</div>
@@ -177,7 +176,7 @@
 					style="font-size: 12.5px; color: var(--tx2); line-height: 1.7; padding-left: 18px; list-style: decimal;"
 				>
 					<li>Check your inbox, and your spam folder</li>
-					<li>Click the verification link in the email</li>
+					<li>Follow the link in the email</li>
 					{#if authStore.isCoach}
 						<li>Wait for admin validation to access the coach portal</li>
 					{:else}
