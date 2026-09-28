@@ -9,7 +9,6 @@
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
-	import { seriesTokens } from './chart-axes';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -37,9 +36,11 @@
 	let latestRight = $derived(reading(latest?.right_value));
 	let latestSingle = $derived(reading(singleValue(latest)));
 	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
-	// The metric's text hue, as on the results tab: the hands are no longer two
-	// colours anywhere. See Krakoer/crimpy#164.
-	let labelColor = $derived(`var(${seriesTokens(assessment.id).text})`);
+	// Ink for every metric: this card sits beside the sessions, where a hue
+	// means a session activity, and it draws no chart its labels would have to
+	// be the legend of. The hands are no longer two colours. See
+	// Krakoer/crimpy#164.
+	const labelColor = 'var(--tx)';
 </script>
 
 <div
