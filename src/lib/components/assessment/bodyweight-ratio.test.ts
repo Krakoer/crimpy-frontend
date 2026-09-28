@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { AssessmentResponse } from '$lib/api/client';
 import {
 	bodyweightScore,
+	drawsRatios,
+	plottedRecords,
 	formatDenominatorNote,
 	formatRatio,
 	formatRatioBasis,
@@ -237,5 +239,31 @@ describe('formatting', () => {
 	it('tells a weigh-in that went stale apart from one that never happened', () => {
 		expect(missingRatioLabel('stale')).toBe('no recent weight');
 		expect(missingRatioLabel('no-weigh-in')).toBe('no weight on file');
+	});
+});
+
+describe('plottedRecords', () => {
+	// The review's case: two tested days, one of them with no weigh-in to divide
+	// by. The chart draws ratios, so only one point, and one point is a value.
+	const unweighed = record({
+		id: 'unweighed',
+		session_date: '2026-02-20T10:00:00Z',
+		bodyweight_kg: null,
+		bodyweight_measured_at: null
+	});
+	const weighed = record({ id: 'weighed' });
+
+	it('leaves out a record whose ratio was declined when the chart draws ratios', () => {
+		expect(drawsRatios([unweighed, weighed], true)).toBe(true);
+		expect(plottedRecords([unweighed, weighed], true).map((r) => r.id)).toEqual(['weighed']);
+	});
+
+	it('keeps every measured record when the chart draws loads', () => {
+		expect(plottedRecords([unweighed, weighed], false).map((r) => r.id)).toEqual([
+			'unweighed',
+			'weighed'
+		]);
+		expect(drawsRatios([unweighed], true)).toBe(false);
+		expect(plottedRecords([unweighed], true).map((r) => r.id)).toEqual(['unweighed']);
 	});
 });

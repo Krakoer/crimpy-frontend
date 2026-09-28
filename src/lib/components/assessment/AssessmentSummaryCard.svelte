@@ -36,6 +36,11 @@
 	let latestRight = $derived(reading(latest?.right_value));
 	let latestSingle = $derived(reading(singleValue(latest)));
 	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+	// Ink for every metric: this card sits beside the sessions, where a hue
+	// means a session activity, and it draws no chart its labels would have to
+	// be the legend of. The hands are no longer two colours. See
+	// Krakoer/crimpy#164.
+	const labelColor = 'var(--tx)';
 </script>
 
 <div
@@ -60,14 +65,14 @@
 		{#if assessment.perHand}
 			<LatestValue
 				label="LEFT"
-				labelColor="var(--gn-tx)"
+				{labelColor}
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={22}
 			/>
 			<LatestValue
 				label="RIGHT"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestRight}
 				unit={assessment.unit}
 				size={22}
@@ -75,7 +80,7 @@
 		{:else}
 			<LatestValue
 				label="LATEST"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={22}

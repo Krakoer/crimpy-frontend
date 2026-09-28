@@ -4,6 +4,7 @@
 	import AssessmentHistoryTable from './AssessmentHistoryTable.svelte';
 	import AssessmentResultCard from './AssessmentResultCard.svelte';
 	import { firstGrip, groupRecordedAssessments, measuredAt } from './assessment-records';
+	import { INK_SERIES, seriesTokens } from './chart-axes';
 
 	interface Props {
 		// The athlete the records belong to. The comparison reads its two dates
@@ -17,9 +18,14 @@
 		// assessment and an athlete whose results failed to load both arrive here
 		// with an empty list, and they are not the same statement.
 		failed?: boolean;
+		// Whether each metric takes its own hue. Only where no session activity
+		// or training type colour shares the view: the program page this also
+		// opens over paints the "Other" training type in the blue critical force
+		// takes, so there every metric is ink. See Krakoer/crimpy#164.
+		metricHues?: boolean;
 	}
 
-	let { userId, records, historyLength = 8, failed = false }: Props = $props();
+	let { userId, records, historyLength = 8, failed = false, metricHues = true }: Props = $props();
 
 	const recorded = $derived(groupRecordedAssessments(records));
 	const history = $derived(
@@ -78,6 +84,7 @@
 				onSelectGrip={(grip) => (selectedGrip[assessment.id] = grip)}
 				showChart={showChart[assessment.id] ?? false}
 				onToggleChart={() => (showChart[assessment.id] = !(showChart[assessment.id] ?? false))}
+				tokens={metricHues ? seriesTokens(assessment.id) : INK_SERIES}
 			/>
 		{/each}
 	</div>

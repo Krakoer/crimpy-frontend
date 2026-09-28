@@ -1,4 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+// A pure module with no imports of its own, so it loads outside the build.
+import { CRITICAL_FORCE_ID } from '../src/lib/components/assessment/chart-axes';
 
 /**
  * The app resolves its API base url at runtime from GET /config.json, which
@@ -15,7 +17,7 @@ export const API_URL = 'http://api.test';
  * The assessments Crimpy ships, seeded by the backend migration. They are rows
  * like a coach's own, so a test names one by its id.
  */
-export const BUILTIN_CRITICAL_FORCE = '55970ac0-4544-4945-80cd-4841f7c58fe5';
+export const BUILTIN_CRITICAL_FORCE = CRITICAL_FORCE_ID;
 export const BUILTIN_MAX_FORCE = 'f7954158-63ba-4f0b-a125-6ef195fa6442';
 export const BUILTIN_ENDURANCE_60 = '493acbdd-6fe7-4f25-987c-575ccf433293';
 

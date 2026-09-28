@@ -3,6 +3,7 @@
 	import { gripLabel } from '$lib/sessions';
 	import {
 		formatRecordValue,
+		measuredAt,
 		singleValue,
 		unitLabel,
 		type RecordedAssessment
@@ -11,11 +12,13 @@
 		denominatorNoteColor,
 		formatDenominatorNote,
 		formatRatio,
+		plottedRecords,
 		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
+	import { testedDays, type SeriesTokens } from './chart-axes';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -25,9 +28,12 @@
 		onSelectGrip: (grip: number) => void;
 		showChart: boolean;
 		onToggleChart: () => void;
+		// The hue the chart and the hand labels are drawn in.
+		tokens: SeriesTokens;
 	}
 
-	let { assessment, selectedGrip, onSelectGrip, showChart, onToggleChart }: Props = $props();
+	let { assessment, selectedGrip, onSelectGrip, showChart, onToggleChart, tokens }: Props =
+		$props();
 
 	let grips = $derived(
 		assessment.hasGrips
@@ -42,6 +48,18 @@
 	);
 
 	let latest = $derived(history.at(-1));
+
+	// A single tested day is a value, which the numbers above already show; the
+	// chart is offered from the second. See Krakoer/crimpy#164.
+	// Counted over the points the chart will draw: in ratio mode a record with
+	// no ratio leaves a gap, and two days of which one is a gap are one point.
+	let chartable = $derived(
+		testedDays(plottedRecords(history, assessment.bodyweightRelative).map(measuredAt)) >= 2
+	);
+
+	// The metric's text hue names the hands, the way it names the lines in the
+	// chart's tooltip: one hue per metric, the hands told apart by line style.
+	let labelColor = $derived(`var(${tokens.text})`);
 
 	function format(value: number | null | undefined): string {
 		return formatRecordValue(value, assessment.unit);
@@ -138,14 +156,14 @@
 		{#if assessment.perHand}
 			<LatestValue
 				label="LEFT"
-				labelColor="var(--gn-tx)"
+				{labelColor}
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={26}
 			/>
 			<LatestValue
 				label="RIGHT"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestRight}
 				unit={assessment.unit}
 				size={26}
@@ -153,7 +171,7 @@
 		{:else}
 			<LatestValue
 				label="LATEST"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={26}
@@ -174,25 +192,29 @@
 	{/if}
 
 	{#if history.length >= 2}
-		<button
-			onclick={onToggleChart}
-			style="
+		{#if chartable}
+			<button
+				onclick={onToggleChart}
+				style="
 				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 				background: none; border: none; cursor: pointer; padding: 0;
 				font-family: var(--font); font-weight: 600; margin-bottom: 8px;
 			">{showChart ? 'Hide chart' : 'Show chart'}</button
-		>
+			>
 
-		{#if showChart}
-			<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
-				<AssessmentChart
-					{history}
-					unit={unitLabel(assessment.unit)}
-					formatValue={(v) => formatRecordValue(v, assessment.unit)}
-					perHand={assessment.perHand}
-					{bodyweightRelative}
-				/>
-			</div>
+			{#if showChart}
+				<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
+					<AssessmentChart
+						{tokens}
+						{history}
+						unit={unitLabel(assessment.unit)}
+						rawUnit={assessment.unit}
+						formatValue={(v) => formatRecordValue(v, assessment.unit)}
+						perHand={assessment.perHand}
+						{bodyweightRelative}
+					/>
+				</div>
+			{/if}
 		{/if}
 
 		<div

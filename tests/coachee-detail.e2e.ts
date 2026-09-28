@@ -2449,6 +2449,91 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		await expect(tooltip).toContainText('1.31');
 	});
 
+	// Which calendar day a result falls on depends on the zone it is read in,
+	// so these pin it. See Krakoer/crimpy#164.
+	test.describe('on the day count axis', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		const hang = (id: string, at: string, load: number, weighed: boolean) =>
+			testAssessmentRecord({
+				id,
+				session_id: `session-${id}`,
+				session_date: at,
+				updated_at: at,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: false,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: load,
+				left_value: null,
+				bodyweight_kg: weighed ? 70 : null,
+				bodyweight_measured_at: weighed ? at : null
+			});
+
+		// Two sessions on one day share the day's place on the axis and not a
+		// load, so each ratio has to name its own.
+		test('gives each of two sessions on one day its own load in the tooltip', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [
+					hang('morning', '2026-03-02T08:00:00Z', 14, true),
+					hang('evening', '2026-03-02T16:00:00Z', 17, true),
+					hang('later', '2026-03-12T10:00:00Z', 18, true)
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+			await page.getByRole('button', { name: 'Show chart' }).click();
+
+			const results = page.getByRole('list', { name: 'Assessment results' });
+			const chart = results.locator('svg').first();
+			await expect(chart).toBeVisible();
+			const box = await chart.boundingBox();
+			if (!box) throw new Error('the chart has no box to hover');
+			// The first day sits on the left edge of the plot, past its 48px gutter.
+			await page.mouse.move(box.x + 50, box.y + box.height * 0.4);
+
+			const tooltip = page
+				.locator('div')
+				.filter({ hasText: /14\.0 kg at 70\.0 kg/ })
+				.last();
+			await expect(tooltip).toContainText('17.0 kg at 70.0 kg');
+			await expect(tooltip).toContainText('1.20');
+			await expect(tooltip).toContainText('1.24');
+			const text = (await tooltip.textContent()) ?? '';
+			expect(text.match(/14\.0 kg at/g)).toHaveLength(1);
+			expect(text.match(/17\.0 kg at/g)).toHaveLength(1);
+		});
+
+		// The axis spans the days that carry a point: a result with no weigh-in
+		// is a gap on a ratio chart, and labelling back to it pads the axis with
+		// empty days. Both ends are labelled.
+		test('labels the first and the last plotted day and no unplotted one', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [
+					hang('unweighed', '2026-02-10T10:00:00Z', 12, false),
+					hang('first', '2026-03-02T10:00:00Z', 14, true),
+					hang('last', '2026-03-12T10:00:00Z', 17, true)
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+			await page.getByRole('button', { name: 'Show chart' }).click();
+
+			const labels = page.getByRole('list', { name: 'Assessment results' }).locator('svg text');
+			await expect(labels.filter({ hasText: /^2 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /^7 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /^12 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /Feb/ })).toHaveCount(0);
+		});
+	});
+
 	// A per hand card is half a card wide per column, so a weigh-in date said
 	// under each hand wraps in the middle of itself, which is the one fact the
 	// issue comment asked the screen to carry. The session owns the weigh-in, so
@@ -2577,8 +2662,9 @@ test.describe('bodyweight relative results outside the comparison', () => {
 	// line, and its unit, under a card showing the second grip's number.
 	test('redraws the chart when the coach switches grip', async ({ page }) => {
 		await stubCoacheeDetail(page);
-		const onGrip = (grip: number, id: string, value: number, weighed: boolean) =>
-			recordOn(grip === 0 ? '2026-03-02' : '2026-03-09', {
+		// Each grip tested on two days, since one day is a value and not a chart.
+		const onGrip = (grip: number, id: string, value: number, weighed: boolean, day: string) =>
+			recordOn(day, {
 				id,
 				session_id: `session-${id}`,
 				assessment_id: BUILTIN_MAX_FORCE,
@@ -2596,10 +2682,10 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		// has none and reads as kilograms, so the axis has to change with the grip.
 		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
 			body: [
-				onGrip(0, 'g0a', 25, true),
-				onGrip(0, 'g0b', 27, true),
-				onGrip(1, 'g1a', 18, false),
-				onGrip(1, 'g1b', 19, false)
+				onGrip(0, 'g0a', 25, true, '2026-03-02'),
+				onGrip(0, 'g0b', 27, true, '2026-03-04'),
+				onGrip(1, 'g1a', 18, false, '2026-03-09'),
+				onGrip(1, 'g1b', 19, false, '2026-03-11')
 			]
 		});
 
@@ -2614,6 +2700,40 @@ test.describe('bodyweight relative results outside the comparison', () => {
 
 		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
 		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toHaveCount(0);
+	});
+
+	// Which calendar day a result falls on depends on the zone it is read in, so
+	// the zone is pinned: at UTC+11 13:00Z is already the next day.
+	test.describe('in a pinned zone', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		// Two tests on one day are still a single value on the day axis: a line
+		// through one day is not a trend, so the chart waits for a second day.
+		// See Krakoer/crimpy#164.
+		test('offers no chart while every result sits on one day', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			const sameDay = (id: string, value: number, hour: string) =>
+				testAssessmentRecord({
+					id,
+					session_id: `session-${id}`,
+					session_date: `2026-03-02T${hour}:00:00Z`,
+					updated_at: `2026-03-02T${hour}:00:00Z`,
+					assessment_id: BUILTIN_MAX_FORCE,
+					grip_position: 0,
+					right_value: value,
+					left_value: value - 1
+				});
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [sameDay('late-morning', 40, '11'), sameDay('early-afternoon', 41, '13')]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+
+			const results = page.getByRole('list', { name: 'Assessment results' });
+			await expect(results.getByText('2 records')).toBeVisible();
+			await expect(results.getByRole('button', { name: 'Show chart' })).toHaveCount(0);
+		});
 	});
 
 	// The summary beside the sessions draws the same component as the card on the
