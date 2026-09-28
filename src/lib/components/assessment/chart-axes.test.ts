@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	CRITICAL_FORCE_ID,
 	dateLabelInterval,
@@ -121,6 +121,24 @@ describe('seriesTokens', () => {
 });
 
 describe('the date axis', () => {
+	// The clock change tests only cross one in a zone that has them on these
+	// dates, so the zone is pinned for this block. Node reads TZ afresh on
+	// every change to it.
+	const runnerZone = process.env.TZ;
+	beforeAll(() => {
+		process.env.TZ = 'Europe/Paris';
+	});
+	afterAll(() => {
+		if (runnerZone === undefined) delete process.env.TZ;
+		else process.env.TZ = runnerZone;
+	});
+
+	it('runs in a zone with a clock change', () => {
+		const winter = new Date(2026, 0, 15).getTimezoneOffset();
+		const summer = new Date(2026, 6, 15).getTimezoneOffset();
+		expect(winter).not.toBe(summer);
+	});
+
 	const at = (year: number, month: number, day: number, hour = 12) =>
 		new Date(year, month - 1, day, hour).getTime();
 	const labels = (first: number, last: number) => {

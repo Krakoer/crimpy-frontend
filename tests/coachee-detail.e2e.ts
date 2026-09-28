@@ -2449,6 +2449,91 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		await expect(tooltip).toContainText('1.31');
 	});
 
+	// Which calendar day a result falls on depends on the zone it is read in,
+	// so these pin it. See Krakoer/crimpy#164.
+	test.describe('on the day count axis', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		const hang = (id: string, at: string, load: number, weighed: boolean) =>
+			testAssessmentRecord({
+				id,
+				session_id: `session-${id}`,
+				session_date: at,
+				updated_at: at,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: false,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: load,
+				left_value: null,
+				bodyweight_kg: weighed ? 70 : null,
+				bodyweight_measured_at: weighed ? at : null
+			});
+
+		// Two sessions on one day share the day's place on the axis and not a
+		// load, so each ratio has to name its own.
+		test('gives each of two sessions on one day its own load in the tooltip', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [
+					hang('morning', '2026-03-02T08:00:00Z', 14, true),
+					hang('evening', '2026-03-02T16:00:00Z', 17, true),
+					hang('later', '2026-03-12T10:00:00Z', 18, true)
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+			await page.getByRole('button', { name: 'Show chart' }).click();
+
+			const results = page.getByRole('list', { name: 'Assessment results' });
+			const chart = results.locator('svg').first();
+			await expect(chart).toBeVisible();
+			const box = await chart.boundingBox();
+			if (!box) throw new Error('the chart has no box to hover');
+			// The first day sits on the left edge of the plot, past its 48px gutter.
+			await page.mouse.move(box.x + 50, box.y + box.height * 0.4);
+
+			const tooltip = page
+				.locator('div')
+				.filter({ hasText: /14\.0 kg at 70\.0 kg/ })
+				.last();
+			await expect(tooltip).toContainText('17.0 kg at 70.0 kg');
+			await expect(tooltip).toContainText('1.20');
+			await expect(tooltip).toContainText('1.24');
+			const text = (await tooltip.textContent()) ?? '';
+			expect(text.match(/14\.0 kg at/g)).toHaveLength(1);
+			expect(text.match(/17\.0 kg at/g)).toHaveLength(1);
+		});
+
+		// The axis spans the days that carry a point: a result with no weigh-in
+		// is a gap on a ratio chart, and labelling back to it pads the axis with
+		// empty days. Both ends are labelled.
+		test('labels the first and the last plotted day and no unplotted one', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [
+					hang('unweighed', '2026-02-10T10:00:00Z', 12, false),
+					hang('first', '2026-03-02T10:00:00Z', 14, true),
+					hang('last', '2026-03-12T10:00:00Z', 17, true)
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+			await page.getByRole('button', { name: 'Show chart' }).click();
+
+			const labels = page.getByRole('list', { name: 'Assessment results' }).locator('svg text');
+			await expect(labels.filter({ hasText: /^2 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /^7 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /^12 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /Feb/ })).toHaveCount(0);
+		});
+	});
+
 	// A per hand card is half a card wide per column, so a weigh-in date said
 	// under each hand wraps in the middle of itself, which is the one fact the
 	// issue comment asked the screen to carry. The session owns the weigh-in, so
@@ -2622,7 +2707,7 @@ test.describe('bodyweight relative results outside the comparison', () => {
 	test.describe('in a pinned zone', () => {
 		test.use({ timezoneId: 'Europe/Paris' });
 
-		// Two tests on one day are still a single value on the time axis: a line
+		// Two tests on one day are still a single value on the day axis: a line
 		// through one day is not a trend, so the chart waits for a second day.
 		// See Krakoer/crimpy#164.
 		test('offers no chart while every result sits on one day', async ({ page }) => {

@@ -12,6 +12,7 @@
 	import {
 		drawsRatios,
 		formatRatio,
+		plottedRecords,
 		formatRatioBasis,
 		readRecordRatio
 	} from '$lib/components/assessment/bodyweight-ratio';
@@ -47,6 +48,13 @@
 	} = $props();
 
 	let container: HTMLDivElement;
+	// One point of a line: its day and value, and for a ratio the load and the
+	// weigh-in it was built from.
+	interface ChartPoint {
+		value: [number, number];
+		basis?: string;
+	}
+
 	let chart = $state<import('echarts').ECharts | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 
@@ -95,53 +103,50 @@
 		});
 	}
 
-	// The load a ratio was built from, keyed by the line it belongs to and the
-	// point it was drawn at, so the tooltip can show what produced the number
-	// without a second pass over the history. A ratio nobody can check against a
-	// weight and a day is a number the coach has to take on trust, and the two
-	// hands of one session are two different loads at the same instant, so the
-	// timestamp alone does not name one of them.
-	let ratioBasis = new Map<string, string>();
-
-	function basisKey(seriesName: string, at: number): string {
-		return `${seriesName}:${at}`;
-	}
-
 	function buildOptions(data: AssessmentResponse[]) {
 		const theme = palette();
-		ratioBasis = new Map();
 		const asRatios = drawsRatios(data, bodyweightRelative);
-		// The x axis counts whole days from the first tested day, the way the app's
-		// does, so its labels fall on the first and the last day and a clock
-		// change cannot move one onto the wrong date. Two tests on one day share
-		// that day's place.
-		const first = Math.min(...data.map(measuredAt));
-		const spanDays = data.length === 0 ? 0 : dayOffset(first, Math.max(...data.map(measuredAt)));
+		// The x axis counts whole days from the first plotted day to the last, the
+		// way the app's does, so its labels fall on both and a clock change cannot
+		// move one onto the wrong date. Only the records the chart puts a point
+		// for count: in ratio mode one with no ratio is a gap, and spanning it
+		// would pad the axis with days that hold nothing. Two tests on one day
+		// share that day's place.
+		const plotted = plottedRecords(data, bodyweightRelative).map(measuredAt);
+		const first = plotted.length === 0 ? 0 : Math.min(...plotted);
+		const spanDays = plotted.length === 0 ? 0 : dayOffset(first, Math.max(...plotted));
+		const interval = dateLabelInterval(spanDays);
+		// The labelled days, pinned rather than stepped by the interval: once the
+		// chart is zoomed, echarts would start stepping from the window edge and
+		// land labels between days.
+		const labelledDays = Array.from(
+			{ length: Math.floor(spanDays / interval) + 1 },
+			(_, index) => index * interval
+		);
 		const dateOf = (offset: number) => shortDate(dayAt(first, offset));
 		// A record whose ratio had to be declined leaves a gap rather than a point
 		// drawn in kilograms among ratios, which would read as a collapse.
-		const points = (
-			seriesName: string,
-			pick: (a: AssessmentResponse) => number | null | undefined
-		) =>
-			data
-				.map((a) => {
-					const at = dayOffset(first, measuredAt(a));
-					if (!asRatios) return [at, pick(a)] as const;
-					const reading = readRecordRatio(a, pick(a));
-					if (reading?.ratio !== undefined) {
-						ratioBasis.set(basisKey(seriesName, at), formatRatioBasis(reading));
-					}
-					return [at, reading?.ratio] as const;
-				})
-				.filter(
-					(point): point is readonly [number, number] => point[1] !== null && point[1] !== undefined
-				)
-				.map((point) => [point[0], point[1]]);
+		//
+		// Each point carries the load its ratio was built from, so the tooltip can
+		// show what produced the number. A ratio nobody can check against a weight
+		// and a day is a number the coach has to take on trust. It rides on the
+		// point rather than in a lookup by position: two hands of one session, and
+		// two sessions on one day, share a position and not a load.
+		const points = (pick: (a: AssessmentResponse) => number | null | undefined): ChartPoint[] =>
+			data.flatMap((a) => {
+				const at = dayOffset(first, measuredAt(a));
+				if (!asRatios) {
+					const value = pick(a);
+					return value === null || value === undefined ? [] : [{ value: [at, value] }];
+				}
+				const reading = readRecordRatio(a, pick(a));
+				if (reading?.ratio === undefined) return [];
+				return [{ value: [at, reading.ratio], basis: formatRatioBasis(reading) }];
+			});
 
 		// The left hand solid and the right dashed, both in the metric's hue. A
 		// single value assessment draws its one line solid.
-		const line = (name: string, dashed: boolean, values: number[][]) => ({
+		const line = (name: string, dashed: boolean, values: ChartPoint[]) => ({
 			name,
 			type: 'line',
 			data: values,
@@ -157,26 +162,26 @@
 					line(
 						'Left',
 						false,
-						points('Left', (a) => a.left_value)
+						points((a) => a.left_value)
 					),
 					line(
 						'Right',
 						true,
-						points('Right', (a) => a.right_value)
+						points((a) => a.right_value)
 					)
 				]
 			: [
 					line(
 						'Result',
 						false,
-						points('Result', (a) => singleValue(a))
+						points((a) => singleValue(a))
 					)
 				];
 
 		// Never zoomed under the unit's minimum span, and starting from a round
 		// number under the lowest result rather than from zero or from the result.
 		const range = valueAxisRange(
-			series.flatMap((s) => s.data.map((point) => point[1])),
+			series.flatMap((s) => s.data.map((point) => point.value[1])),
 			rawUnit,
 			asRatios
 		);
@@ -204,7 +209,12 @@
 				borderWidth: 1,
 				textStyle: { ...baseText, color: theme.text },
 				formatter: (
-					params: Array<{ axisValue: string | number; seriesName: string; value: [number, number] }>
+					params: Array<{
+						axisValue: string | number;
+						seriesName: string;
+						value: [number, number];
+						data: ChartPoint;
+					}>
 				) => {
 					const date = dayAt(first, Number(params[0].axisValue)).toLocaleDateString('en-GB', {
 						day: 'numeric',
@@ -214,7 +224,7 @@
 					const lines = params.map((p) => {
 						const color = theme.seriesText;
 						const reading = asRatios
-							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${ratioBasis.get(basisKey(p.seriesName, p.value[0])) ?? ''}</span>`
+							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${p.data.basis ?? ''}</span>`
 							: `${formatValue(p.value[1])} ${unit}`;
 						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${reading}`;
 					});
@@ -238,8 +248,15 @@
 				// on both of those days.
 				min: 0,
 				max: spanDays,
-				interval: dateLabelInterval(spanDays),
-				axisLabel: { ...baseText, fontSize: 10, color: theme.textFaint, formatter: dateOf },
+				interval,
+				axisLabel: {
+					...baseText,
+					fontSize: 10,
+					color: theme.textFaint,
+					formatter: dateOf,
+					customValues: labelledDays
+				},
+				axisTick: { customValues: labelledDays },
 				axisPointer: {
 					label: { ...pointerLabel, formatter: ({ value }: { value: number }) => dateOf(value) }
 				},
