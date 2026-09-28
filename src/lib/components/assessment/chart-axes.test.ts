@@ -122,8 +122,9 @@ describe('seriesTokens', () => {
 
 describe('the date axis', () => {
 	// The clock change tests only cross one in a zone that has them on these
-	// dates, so the zone is pinned for this block. Node reads TZ afresh on
-	// every change to it.
+	// dates, so the zone is pinned for this block. That takes effect because
+	// vite.config.ts runs the unit tests in forked processes, where Node reads
+	// TZ afresh on every change to it; a worker thread would keep its zone.
 	const runnerZone = process.env.TZ;
 	beforeAll(() => {
 		process.env.TZ = 'Europe/Paris';
