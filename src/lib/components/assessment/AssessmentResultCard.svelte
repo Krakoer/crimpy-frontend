@@ -12,12 +12,13 @@
 		denominatorNoteColor,
 		formatDenominatorNote,
 		formatRatio,
+		plottedRecords,
 		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
-	import { seriesTokens, testedDays } from './chart-axes';
+	import { testedDays, type SeriesTokens } from './chart-axes';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -27,9 +28,12 @@
 		onSelectGrip: (grip: number) => void;
 		showChart: boolean;
 		onToggleChart: () => void;
+		// The hue the chart and the hand labels are drawn in.
+		tokens: SeriesTokens;
 	}
 
-	let { assessment, selectedGrip, onSelectGrip, showChart, onToggleChart }: Props = $props();
+	let { assessment, selectedGrip, onSelectGrip, showChart, onToggleChart, tokens }: Props =
+		$props();
 
 	let grips = $derived(
 		assessment.hasGrips
@@ -47,11 +51,15 @@
 
 	// A single tested day is a value, which the numbers above already show; the
 	// chart is offered from the second. See Krakoer/crimpy#164.
-	let chartable = $derived(testedDays(history.map(measuredAt)) >= 2);
+	// Counted over the points the chart will draw: in ratio mode a record with
+	// no ratio leaves a gap, and two days of which one is a gap are one point.
+	let chartable = $derived(
+		testedDays(plottedRecords(history, assessment.bodyweightRelative).map(measuredAt)) >= 2
+	);
 
 	// The metric's text hue names the hands, the way it names the lines in the
 	// chart's tooltip: one hue per metric, the hands told apart by line style.
-	let labelColor = $derived(`var(${seriesTokens(assessment.id).text})`);
+	let labelColor = $derived(`var(${tokens.text})`);
 
 	function format(value: number | null | undefined): string {
 		return formatRecordValue(value, assessment.unit);
@@ -197,7 +205,7 @@
 			{#if showChart}
 				<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
 					<AssessmentChart
-						assessmentId={assessment.id}
+						{tokens}
 						{history}
 						unit={unitLabel(assessment.unit)}
 						rawUnit={assessment.unit}

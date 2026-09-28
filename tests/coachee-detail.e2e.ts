@@ -2634,7 +2634,7 @@ test.describe('bodyweight relative results outside the comparison', () => {
 				left_value: value - 1
 			});
 		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
-			body: [sameDay('morning', 40, '09'), sameDay('evening', 41, '17')]
+			body: [sameDay('late-morning', 40, '11'), sameDay('early-afternoon', 41, '13')]
 		});
 
 		await page.goto('/coachees/coachee-1');

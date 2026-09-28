@@ -2,15 +2,16 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { AssessmentResponse } from '$lib/api/client';
 	import { measuredAt, singleValue } from '$lib/components/assessment/assessment-records';
-	import { seriesTokens, valueAxisRange } from '$lib/components/assessment/chart-axes';
+	import { valueAxisRange, type SeriesTokens } from '$lib/components/assessment/chart-axes';
 	import {
+		drawsRatios,
 		formatRatio,
 		formatRatioBasis,
 		readRecordRatio
 	} from '$lib/components/assessment/bodyweight-ratio';
 
 	let {
-		assessmentId,
+		tokens,
 		history,
 		unit,
 		rawUnit,
@@ -18,9 +19,9 @@
 		perHand = true,
 		bodyweightRelative = false
 	}: {
-		// Which assessment the history measures, which picks the hue its lines
-		// are drawn in: one per metric, the hands told apart by line style.
-		assessmentId: string;
+		// The hue the lines are drawn in and the text form naming them: one per
+		// metric, the hands told apart by line style. See seriesTokens.
+		tokens: SeriesTokens;
 		history: AssessmentResponse[];
 		unit: string;
 		// The unit as assessment_definitions.unit holds it, which sets the
@@ -46,7 +47,6 @@
 	// Echarts wants concrete colors, so the Alpine variables are read off the
 	// document once rather than hardcoded here where they would drift.
 	function palette() {
-		const tokens = seriesTokens(assessmentId);
 		const styles = getComputedStyle(document.documentElement);
 		const value = (name: string, fallback: string) =>
 			styles.getPropertyValue(name).trim() || fallback;
@@ -101,23 +101,10 @@
 		return `${seriesName}:${at}`;
 	}
 
-	// Whether the lines are ratios. An assessment that reads as one still draws
-	// kilograms while nothing in the history has a denominator to divide by:
-	// filtering every point out would leave an empty grid where the page used to
-	// show the loads, which says less than the raw numbers did.
-	function drawsRatios(data: AssessmentResponse[]): boolean {
-		if (!bodyweightRelative) return false;
-		return data.some(
-			(a) =>
-				readRecordRatio(a, a.right_value)?.ratio !== undefined ||
-				readRecordRatio(a, a.left_value)?.ratio !== undefined
-		);
-	}
-
 	function buildOptions(data: AssessmentResponse[]) {
 		const theme = palette();
 		ratioBasis = new Map();
-		const asRatios = drawsRatios(data);
+		const asRatios = drawsRatios(data, bodyweightRelative);
 		// A record whose ratio had to be declined leaves a gap rather than a point
 		// drawn in kilograms among ratios, which would read as a collapse.
 		const points = (
@@ -183,6 +170,17 @@
 
 		const baseText = { fontFamily: theme.font, fontSize: 11 };
 		const axisName = asRatios ? 'ratio' : unit;
+		// The labels the cross pointer writes on each axis, in the chart's own
+		// voice rather than echarts' default dark blue, and through the axes'
+		// formatters so they carry no more precision than the chart does.
+		const pointerLabel = {
+			...baseText,
+			fontSize: 10,
+			color: theme.text,
+			backgroundColor: theme.panel,
+			borderColor: theme.border,
+			borderWidth: 1
+		};
 
 		return {
 			textStyle: baseText,
@@ -228,6 +226,9 @@
 				max: 'dataMax',
 				splitNumber: 4,
 				axisLabel: { ...baseText, fontSize: 10, color: theme.textFaint, formatter: shortDate },
+				axisPointer: {
+					label: { ...pointerLabel, formatter: ({ value }: { value: number }) => shortDate(value) }
+				},
 				axisLine: { lineStyle: { color: theme.border } },
 				splitLine: { show: false }
 			},
@@ -244,6 +245,13 @@
 					color: theme.textFaint,
 					formatter: (val: number) => (asRatios ? formatRatio(val) : formatValue(val))
 				},
+				axisPointer: {
+					label: {
+						...pointerLabel,
+						formatter: ({ value }: { value: number }) =>
+							asRatios ? formatRatio(value) : formatValue(value)
+					}
+				},
 				axisLine: { show: false },
 				splitLine: { lineStyle: { color: theme.borderLight } }
 			},
@@ -257,6 +265,19 @@
 					borderColor: theme.border,
 					fillerColor: translucent(theme.series, 0.08),
 					handleStyle: { color: theme.series },
+					moveHandleStyle: { color: translucent(theme.series, 0.3) },
+					dataBackground: {
+						lineStyle: { color: theme.border },
+						areaStyle: { color: theme.borderLight }
+					},
+					selectedDataBackground: {
+						lineStyle: { color: theme.series },
+						areaStyle: { color: translucent(theme.series, 0.12) }
+					},
+					emphasis: {
+						handleStyle: { color: theme.series },
+						moveHandleStyle: { color: theme.series }
+					},
 					textStyle: { ...baseText, fontSize: 9, color: theme.textFaint },
 					labelFormatter: (_: number, val: string) => shortDate(val)
 				}

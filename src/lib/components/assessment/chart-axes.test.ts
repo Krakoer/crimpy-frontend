@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { seriesTokens, testedDays, valueAxisRange } from './chart-axes';
+import { CRITICAL_FORCE_ID, seriesTokens, testedDays, valueAxisRange } from './chart-axes';
 
 describe('valueAxisRange', () => {
 	// The chart of Krakoer/crimpy#164: 20.8 and 20.9 kg on a 0.2 kg axis.
@@ -40,11 +40,25 @@ describe('valueAxisRange', () => {
 		});
 	});
 
-	it('keeps a wide axis to six labels at the most', () => {
-		expect(valueAxisRange([22, 78], 'kilograms', false)).toEqual({
+	// Wider than six steps, the gap widens to a nice multiple of the span and
+	// both ends round out to it, so the top is always labelled. The first two
+	// are the ranges review found unlabelled at the top.
+	it.each([
+		[[22, 53], { min: 20, max: 60, interval: 10 }],
+		[[27, 58], { min: 20, max: 60, interval: 10 }],
+		[[3, 64], { min: 0, max: 80, interval: 20 }],
+		[[22, 78], { min: 20, max: 80, interval: 20 }],
+		[[25, 75], { min: 20, max: 80, interval: 20 }]
+	])('labels both ends of %j kg, six labels at the most', (values, range) => {
+		expect(valueAxisRange(values, 'kilograms', false)).toEqual(range);
+		expect((range.max - range.min) / range.interval + 1).toBeLessThanOrEqual(6);
+	});
+
+	it('widens the axis for a value just past a step', () => {
+		expect(valueAxisRange([20.2, 25.0004], 'kilograms', false)).toEqual({
 			min: 20,
-			max: 80,
-			interval: 10
+			max: 30,
+			interval: 5
 		});
 	});
 
@@ -72,7 +86,7 @@ describe('testedDays', () => {
 describe('seriesTokens', () => {
 	it('draws max and critical force in two hues', () => {
 		const maxForce = seriesTokens('f7954158-63ba-4f0b-a125-6ef195fa6442');
-		const criticalForce = seriesTokens('55970ac0-4544-4945-80cd-4841f7c58fe5');
+		const criticalForce = seriesTokens(CRITICAL_FORCE_ID);
 		expect(maxForce.line).toBe('--tx');
 		expect(criticalForce.line).toBe('--bl');
 		expect(criticalForce.text).toBe('--bl-tx');

@@ -182,3 +182,34 @@ export function formatRatioBasis(reading: BodyweightReading, now: Date = new Dat
 		now
 	)}`;
 }
+
+// Whether an assessment chart draws ratios. One that reads as a ratio still
+// draws kilograms while nothing in the history has a denominator to divide by:
+// filtering every point out would leave an empty grid where the page used to
+// show the loads, which says less than the raw numbers did.
+export function drawsRatios(records: AssessmentResponse[], bodyweightRelative: boolean): boolean {
+	if (!bodyweightRelative) return false;
+	return records.some(
+		(record) =>
+			readRecordRatio(record, record.right_value)?.ratio !== undefined ||
+			readRecordRatio(record, record.left_value)?.ratio !== undefined
+	);
+}
+
+// The records an assessment chart puts a point for. In ratio mode a record
+// whose ratio had to be declined leaves a gap, so it is not one of them, and a
+// card deciding whether there is a chart to offer has to count these rather
+// than the whole history. See Krakoer/crimpy#164.
+export function plottedRecords(
+	records: AssessmentResponse[],
+	bodyweightRelative: boolean
+): AssessmentResponse[] {
+	const asRatios = drawsRatios(records, bodyweightRelative);
+	return records.filter((record) =>
+		[record.left_value, record.right_value].some((value) =>
+			asRatios
+				? readRecordRatio(record, value)?.ratio !== undefined
+				: value !== null && value !== undefined
+		)
+	);
+}

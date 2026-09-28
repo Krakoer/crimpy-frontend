@@ -68,7 +68,7 @@
 		</div>
 
 		<div class="space-y-3 overflow-y-auto" style="padding: 18px 20px; background: var(--bg);">
-			<AssessmentResults {userId} {records} {failed} />
+			<AssessmentResults {userId} {records} {failed} metricHues={false} />
 		</div>
 	</div>
 </div>
