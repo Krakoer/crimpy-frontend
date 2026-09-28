@@ -9,6 +9,7 @@
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
+	import { seriesTokens } from './chart-axes';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -36,6 +37,9 @@
 	let latestRight = $derived(reading(latest?.right_value));
 	let latestSingle = $derived(reading(singleValue(latest)));
 	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+	// The metric's text hue, as on the results tab: the hands are no longer two
+	// colours anywhere. See Krakoer/crimpy#164.
+	let labelColor = $derived(`var(${seriesTokens(assessment.id).text})`);
 </script>
 
 <div
@@ -60,14 +64,14 @@
 		{#if assessment.perHand}
 			<LatestValue
 				label="LEFT"
-				labelColor="var(--gn-tx)"
+				{labelColor}
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={22}
 			/>
 			<LatestValue
 				label="RIGHT"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestRight}
 				unit={assessment.unit}
 				size={22}
@@ -75,7 +79,7 @@
 		{:else}
 			<LatestValue
 				label="LATEST"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={22}

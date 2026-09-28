@@ -3,6 +3,7 @@
 	import { gripLabel } from '$lib/sessions';
 	import {
 		formatRecordValue,
+		measuredAt,
 		singleValue,
 		unitLabel,
 		type RecordedAssessment
@@ -16,6 +17,7 @@
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
+	import { seriesTokens, testedDays } from './chart-axes';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -42,6 +44,14 @@
 	);
 
 	let latest = $derived(history.at(-1));
+
+	// A single tested day is a value, which the numbers above already show; the
+	// chart is offered from the second. See Krakoer/crimpy#164.
+	let chartable = $derived(testedDays(history.map(measuredAt)) >= 2);
+
+	// The metric's text hue names the hands, the way it names the lines in the
+	// chart's tooltip: one hue per metric, the hands told apart by line style.
+	let labelColor = $derived(`var(${seriesTokens(assessment.id).text})`);
 
 	function format(value: number | null | undefined): string {
 		return formatRecordValue(value, assessment.unit);
@@ -138,14 +148,14 @@
 		{#if assessment.perHand}
 			<LatestValue
 				label="LEFT"
-				labelColor="var(--gn-tx)"
+				{labelColor}
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={26}
 			/>
 			<LatestValue
 				label="RIGHT"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestRight}
 				unit={assessment.unit}
 				size={26}
@@ -153,7 +163,7 @@
 		{:else}
 			<LatestValue
 				label="LATEST"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={26}
@@ -174,25 +184,29 @@
 	{/if}
 
 	{#if history.length >= 2}
-		<button
-			onclick={onToggleChart}
-			style="
+		{#if chartable}
+			<button
+				onclick={onToggleChart}
+				style="
 				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 				background: none; border: none; cursor: pointer; padding: 0;
 				font-family: var(--font); font-weight: 600; margin-bottom: 8px;
 			">{showChart ? 'Hide chart' : 'Show chart'}</button
-		>
+			>
 
-		{#if showChart}
-			<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
-				<AssessmentChart
-					{history}
-					unit={unitLabel(assessment.unit)}
-					formatValue={(v) => formatRecordValue(v, assessment.unit)}
-					perHand={assessment.perHand}
-					{bodyweightRelative}
-				/>
-			</div>
+			{#if showChart}
+				<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
+					<AssessmentChart
+						assessmentId={assessment.id}
+						{history}
+						unit={unitLabel(assessment.unit)}
+						rawUnit={assessment.unit}
+						formatValue={(v) => formatRecordValue(v, assessment.unit)}
+						perHand={assessment.perHand}
+						{bodyweightRelative}
+					/>
+				</div>
+			{/if}
 		{/if}
 
 		<div

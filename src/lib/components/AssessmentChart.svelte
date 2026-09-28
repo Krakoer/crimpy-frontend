@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { AssessmentResponse } from '$lib/api/client';
 	import { measuredAt, singleValue } from '$lib/components/assessment/assessment-records';
+	import { seriesTokens, valueAxisRange } from '$lib/components/assessment/chart-axes';
 	import {
 		formatRatio,
 		formatRatioBasis,
@@ -9,14 +10,22 @@
 	} from '$lib/components/assessment/bodyweight-ratio';
 
 	let {
+		assessmentId,
 		history,
 		unit,
+		rawUnit,
 		formatValue,
 		perHand = true,
 		bodyweightRelative = false
 	}: {
+		// Which assessment the history measures, which picks the hue its lines
+		// are drawn in: one per metric, the hands told apart by line style.
+		assessmentId: string;
 		history: AssessmentResponse[];
 		unit: string;
+		// The unit as assessment_definitions.unit holds it, which sets the
+		// narrowest span the value axis may zoom to.
+		rawUnit: string;
 		formatValue: (v: number) => string;
 		// An assessment measured on one hand at a time draws a line per hand. One
 		// measured as a single number draws one line, and calling it "right" would
@@ -37,6 +46,7 @@
 	// Echarts wants concrete colors, so the Alpine variables are read off the
 	// document once rather than hardcoded here where they would drift.
 	function palette() {
+		const tokens = seriesTokens(assessmentId);
 		const styles = getComputedStyle(document.documentElement);
 		const value = (name: string, fallback: string) =>
 			styles.getPropertyValue(name).trim() || fallback;
@@ -54,14 +64,22 @@
 			// which is a route no source scan can follow, so this pairing is
 			// named in palette-contrast.test.ts instead. See Krakoer/crimpy#137.
 			textFaint: value('--tx3-sm', '#787066'),
-			left: value('--gn', '#6b8f71'),
-			right: value('--pr', '#c2714f'),
-			// The tooltip writes the series names at 11px bold on a --panel ground,
-			// where the accents read 3.63:1 and 3.64:1. The line and the marker keep
-			// the accent; only the words take the text form. See Krakoer/crimpy#128.
-			leftText: value('--gn-tx', '#4e7154'),
-			rightText: value('--pr-tx', '#965134')
+			// One hue for the metric; the hands are told apart by line style. The
+			// tooltip writes the series names at 11px bold on a --panel ground, where
+			// an accent can sit under the text floor, so the line and the marker take
+			// the hue and the words its text form. See Krakoer/crimpy#128 and #164.
+			series: value(tokens.line, '#2d241d'),
+			seriesText: value(tokens.text, '#2d241d')
 		};
+	}
+
+	// The slider's window, a wash of the series hue rather than a hardcoded one,
+	// so it cannot keep a colour the lines no longer use.
+	function translucent(hex: string, alpha: number): string {
+		const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+		if (!match) return hex;
+		const [r, g, b] = match.slice(1).map((pair) => parseInt(pair, 16));
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
 	function shortDate(value: number | string): string {
@@ -121,37 +139,47 @@
 				)
 				.map((point) => [point[0], point[1]]);
 
-		const line = (name: string, color: string, values: number[][]) => ({
+		// The left hand solid and the right dashed, both in the metric's hue. A
+		// single value assessment draws its one line solid.
+		const line = (name: string, dashed: boolean, values: number[][]) => ({
 			name,
 			type: 'line',
 			data: values,
 			smooth: false,
 			symbol: 'circle',
 			symbolSize: 5,
-			lineStyle: { color, width: 2 },
-			itemStyle: { color }
+			lineStyle: { color: theme.series, width: 2, type: dashed ? 'dashed' : 'solid' },
+			itemStyle: { color: theme.series }
 		});
 
 		const series = perHand
 			? [
 					line(
 						'Left',
-						theme.left,
+						false,
 						points('Left', (a) => a.left_value)
 					),
 					line(
 						'Right',
-						theme.right,
+						true,
 						points('Right', (a) => a.right_value)
 					)
 				]
 			: [
 					line(
 						'Result',
-						theme.right,
+						false,
 						points('Result', (a) => singleValue(a))
 					)
 				];
+
+		// Never zoomed under the unit's minimum span, and starting from a round
+		// number under the lowest result rather than from zero or from the result.
+		const range = valueAxisRange(
+			series.flatMap((s) => s.data.map((point) => point[1])),
+			rawUnit,
+			asRatios
+		);
 
 		const baseText = { fontFamily: theme.font, fontSize: 11 };
 		const axisName = asRatios ? 'ratio' : unit;
@@ -173,7 +201,7 @@
 						year: 'numeric'
 					});
 					const lines = params.map((p) => {
-						const color = p.seriesName === 'Left' ? theme.leftText : theme.rightText;
+						const color = theme.seriesText;
 						const reading = asRatios
 							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${ratioBasis.get(basisKey(p.seriesName, p.value[0])) ?? ''}</span>`
 							: `${formatValue(p.value[1])} ${unit}`;
@@ -195,6 +223,10 @@
 			grid: { left: 48, right: 16, top: perHand ? 28 : 12, bottom: 48 },
 			xAxis: {
 				type: 'time',
+				// The first test to the last, not a season padded around them.
+				min: 'dataMin',
+				max: 'dataMax',
+				splitNumber: 4,
 				axisLabel: { ...baseText, fontSize: 10, color: theme.textFaint, formatter: shortDate },
 				axisLine: { lineStyle: { color: theme.border } },
 				splitLine: { show: false }
@@ -202,11 +234,9 @@
 			yAxis: {
 				type: 'value',
 				name: axisName,
-				// A ratio has no meaningful zero: a weighted hang is always above 1,
-				// and an axis starting at 0 leaves a season of training as a flat line
-				// across the top fifth of the plot. Kilograms keep the zero, where the
-				// distance from it is the result.
-				scale: asRatios,
+				min: range?.min,
+				max: range?.max,
+				interval: range?.interval,
 				nameTextStyle: { ...baseText, fontSize: 10, color: theme.textFaint },
 				axisLabel: {
 					...baseText,
@@ -225,8 +255,8 @@
 					height: 18,
 					bottom: 4,
 					borderColor: theme.border,
-					fillerColor: 'rgba(194, 113, 79, 0.08)',
-					handleStyle: { color: theme.right },
+					fillerColor: translucent(theme.series, 0.08),
+					handleStyle: { color: theme.series },
 					textStyle: { ...baseText, fontSize: 9, color: theme.textFaint },
 					labelFormatter: (_: number, val: string) => shortDate(val)
 				}

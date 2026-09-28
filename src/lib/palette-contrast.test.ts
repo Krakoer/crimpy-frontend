@@ -166,7 +166,11 @@ describe('surfaces that write an accent as text on its own tint', () => {
 		['AssessmentChart text', '--tx'],
 		['TrainingLoadChart textFaint', '--tx3-sm'],
 		['TrainingLoadChart textSoft', '--tx2'],
-		['TrainingLoadChart text', '--tx']
+		['TrainingLoadChart text', '--tx'],
+		// The series names in the assessment tooltip and the hand labels on the
+		// result cards, from seriesTokens in assessment/chart-axes.ts.
+		['AssessmentChart seriesText, critical force', '--bl-tx'],
+		['AssessmentChart seriesText, any other metric', '--tx']
 	])('holds %s at the small text floor', (label, token) => {
 		expectClearsFloor(label, `var(${token})`, 'var(--panel)', tokens);
 	});
