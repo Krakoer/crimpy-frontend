@@ -2,7 +2,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { AssessmentResponse } from '$lib/api/client';
 	import { measuredAt, singleValue } from '$lib/components/assessment/assessment-records';
-	import { valueAxisRange, type SeriesTokens } from '$lib/components/assessment/chart-axes';
+	import {
+		dateLabelInterval,
+		dayAt,
+		dayOffset,
+		valueAxisRange,
+		type SeriesTokens
+	} from '$lib/components/assessment/chart-axes';
 	import {
 		drawsRatios,
 		formatRatio,
@@ -82,8 +88,8 @@
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	function shortDate(value: number | string): string {
-		return new Date(Number(value)).toLocaleDateString('en-GB', {
+	function shortDate(date: Date): string {
+		return date.toLocaleDateString('en-GB', {
 			day: 'numeric',
 			month: 'short'
 		});
@@ -105,6 +111,13 @@
 		const theme = palette();
 		ratioBasis = new Map();
 		const asRatios = drawsRatios(data, bodyweightRelative);
+		// The x axis counts whole days from the first tested day, the way the app's
+		// does, so its labels fall on the first and the last day and a clock
+		// change cannot move one onto the wrong date. Two tests on one day share
+		// that day's place.
+		const first = Math.min(...data.map(measuredAt));
+		const spanDays = data.length === 0 ? 0 : dayOffset(first, Math.max(...data.map(measuredAt)));
+		const dateOf = (offset: number) => shortDate(dayAt(first, offset));
 		// A record whose ratio had to be declined leaves a gap rather than a point
 		// drawn in kilograms among ratios, which would read as a collapse.
 		const points = (
@@ -113,7 +126,7 @@
 		) =>
 			data
 				.map((a) => {
-					const at = measuredAt(a);
+					const at = dayOffset(first, measuredAt(a));
 					if (!asRatios) return [at, pick(a)] as const;
 					const reading = readRecordRatio(a, pick(a));
 					if (reading?.ratio !== undefined) {
@@ -193,7 +206,7 @@
 				formatter: (
 					params: Array<{ axisValue: string | number; seriesName: string; value: [number, number] }>
 				) => {
-					const date = new Date(params[0].axisValue).toLocaleDateString('en-GB', {
+					const date = dayAt(first, Number(params[0].axisValue)).toLocaleDateString('en-GB', {
 						day: 'numeric',
 						month: 'short',
 						year: 'numeric'
@@ -220,14 +233,15 @@
 			},
 			grid: { left: 48, right: 16, top: perHand ? 28 : 12, bottom: 48 },
 			xAxis: {
-				type: 'time',
-				// The first test to the last, not a season padded around them.
-				min: 'dataMin',
-				max: 'dataMax',
-				splitNumber: 4,
-				axisLabel: { ...baseText, fontSize: 10, color: theme.textFaint, formatter: shortDate },
+				type: 'value',
+				// The first test to the last, not a season padded around them, labelled
+				// on both of those days.
+				min: 0,
+				max: spanDays,
+				interval: dateLabelInterval(spanDays),
+				axisLabel: { ...baseText, fontSize: 10, color: theme.textFaint, formatter: dateOf },
 				axisPointer: {
-					label: { ...pointerLabel, formatter: ({ value }: { value: number }) => shortDate(value) }
+					label: { ...pointerLabel, formatter: ({ value }: { value: number }) => dateOf(value) }
 				},
 				axisLine: { lineStyle: { color: theme.border } },
 				splitLine: { show: false }
@@ -253,6 +267,7 @@
 					}
 				},
 				axisLine: { show: false },
+				axisTick: { show: false },
 				splitLine: { lineStyle: { color: theme.borderLight } }
 			},
 			dataZoom: [
@@ -279,7 +294,7 @@
 						moveHandleStyle: { color: theme.series }
 					},
 					textStyle: { ...baseText, fontSize: 9, color: theme.textFaint },
-					labelFormatter: (_: number, val: string) => shortDate(val)
+					labelFormatter: (value: number) => dateOf(value)
 				}
 			],
 			series

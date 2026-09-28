@@ -22,10 +22,19 @@ export function minimumAxisSpan(unit: string, asRatios: boolean): number {
 }
 
 // Rounded to a thousandth so a ratio step does not print as 1.2000000000000002.
-// Only ever applied to a result, never inside a floor or a ceiling, so a value
-// just past a step (25.0004 kg) still widens the axis the way the app's does.
+// Only ever applied to a result.
 function tidy(value: number): number {
 	return Math.round(value * 1000) / 1000;
+}
+
+// A quotient a hair off a whole number from floating point (1.2 / 0.1 is
+// 11.999999999999998) taken as that whole number before a floor or a ceiling,
+// so a result sitting on a step is not pushed a whole step out. Far too fine to
+// swallow a real excess: 25.0004 kg over 5 is 5.00008, and still widens the
+// axis. The app snaps the same way.
+function snapped(quotient: number): number {
+	const whole = Math.round(quotient);
+	return Math.abs(quotient - whole) < 1e-9 ? whole : quotient;
 }
 
 // The multiples of the span the gap between labels may take: 1, 2 and 4 of
@@ -54,8 +63,8 @@ export function valueAxisRange(
 ): { min: number; max: number; interval: number } | null {
 	if (values.length === 0) return null;
 	const step = minimumAxisSpan(unit, asRatios);
-	const low = Math.max(0, Math.floor(Math.min(...values) / step) * step);
-	const high = Math.max(Math.ceil(Math.max(...values) / step) * step, low + step);
+	const low = Math.max(0, Math.floor(snapped(Math.min(...values) / step)) * step);
+	const high = Math.max(Math.ceil(snapped(Math.max(...values) / step)) * step, low + step);
 	const steps = Math.round((high - low) / step);
 	if (steps <= 1) return { min: tidy(low), max: tidy(high), interval: tidy(step / 5) };
 	for (
@@ -64,12 +73,43 @@ export function valueAxisRange(
 		multiple = niceMultiple(multiple + 1)
 	) {
 		const interval = step * multiple;
-		const min = Math.floor(low / interval) * interval;
-		const max = Math.ceil(high / interval) * interval;
+		const min = Math.floor(snapped(low / interval)) * interval;
+		const max = Math.ceil(snapped(high / interval)) * interval;
 		if (Math.round((max - min) / interval) <= MAXIMUM_LABEL_GAPS) {
 			return { min: tidy(min), max: tidy(max), interval: tidy(interval) };
 		}
 	}
+}
+
+// The date axis counts whole calendar days from the first tested day, and
+// labels are written from that count by calendar arithmetic rather than by
+// adding 24 hours, so a clock change cannot shift one onto the wrong day.
+// The app plots its date axis the same way. See Krakoer/crimpy#164.
+function startOfDay(at: number): Date {
+	const date = new Date(at);
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+// Whole calendar days from the day `first` falls on to the day `at` falls on.
+export function dayOffset(first: number, at: number): number {
+	return Math.round((startOfDay(at).getTime() - startOfDay(first).getTime()) / 86_400_000);
+}
+
+// The calendar day `offset` days after the day `first` falls on.
+export function dayAt(first: number, offset: number): Date {
+	const day = startOfDay(first);
+	return new Date(day.getFullYear(), day.getMonth(), day.getDate() + Math.round(offset));
+}
+
+// The gap in days between the date axis's labels, so the first and the last
+// tested day are both labelled: the widest of a quarter, a third or a half of
+// the span that divides it evenly, or the whole span, which labels only the
+// two ends.
+export function dateLabelInterval(spanDays: number): number {
+	for (const parts of [4, 3, 2]) {
+		if (spanDays >= parts && spanDays % parts === 0) return spanDays / parts;
+	}
+	return Math.max(1, spanDays);
 }
 
 // The calendar days the timestamps fall on. A chart is drawn from the second:

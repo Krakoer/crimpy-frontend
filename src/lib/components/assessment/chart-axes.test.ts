@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CRITICAL_FORCE_ID, seriesTokens, testedDays, valueAxisRange } from './chart-axes';
+import {
+	CRITICAL_FORCE_ID,
+	dateLabelInterval,
+	dayAt,
+	dayOffset,
+	seriesTokens,
+	testedDays,
+	valueAxisRange
+} from './chart-axes';
 
 describe('valueAxisRange', () => {
 	// The chart of Krakoer/crimpy#164: 20.8 and 20.9 kg on a 0.2 kg axis.
@@ -62,6 +70,21 @@ describe('valueAxisRange', () => {
 		});
 	});
 
+	// 1.2 / 0.1 is 11.999999999999998 in doubles: a ratio sitting on a tenth
+	// has to stay the floor rather than widen the axis a whole step.
+	it('keeps a ratio sitting on a tenth as the floor', () => {
+		expect(valueAxisRange([1.2, 1.25], 'kilograms', true)).toEqual({
+			min: 1.2,
+			max: 1.3,
+			interval: 0.02
+		});
+		expect(valueAxisRange([1.4, 1.45], 'kilograms', true)).toEqual({
+			min: 1.4,
+			max: 1.5,
+			interval: 0.02
+		});
+	});
+
 	it('never starts under zero', () => {
 		expect(valueAxisRange([0, 2], 'kilograms', false)).toEqual({ min: 0, max: 5, interval: 1 });
 	});
@@ -94,5 +117,64 @@ describe('seriesTokens', () => {
 
 	it('draws a coach assessment in ink', () => {
 		expect(seriesTokens('a coach assessment')).toEqual({ line: '--tx', text: '--tx' });
+	});
+});
+
+describe('the date axis', () => {
+	const at = (year: number, month: number, day: number, hour = 12) =>
+		new Date(year, month - 1, day, hour).getTime();
+	const labels = (first: number, last: number) => {
+		const span = dayOffset(first, last);
+		const interval = dateLabelInterval(span);
+		const out: string[] = [];
+		for (let offset = 0; offset <= span; offset += interval) {
+			const day = dayAt(first, offset);
+			out.push(`${day.getMonth() + 1}/${day.getDate()}`);
+		}
+		return out;
+	};
+
+	it('divides a span evenly so its last day is labelled', () => {
+		expect(dateLabelInterval(8)).toBe(2);
+		expect(dateLabelInterval(9)).toBe(3);
+		expect(dateLabelInterval(2)).toBe(1);
+	});
+
+	it('labels only the two ends of a span nothing divides', () => {
+		expect(dateLabelInterval(7)).toBe(7);
+		expect(dateLabelInterval(1)).toBe(1);
+	});
+
+	// The ranges review found mislabelled on the app's former date axis: a
+	// 44 day span from the 15th, and spans over the autumn and spring clock
+	// changes. Counted and written by calendar day, so they hold in any zone.
+	it('labels both ends of a 44 day span from the 15th', () => {
+		expect(labels(at(2026, 5, 15), at(2026, 6, 28))).toEqual([
+			'5/15',
+			'5/26',
+			'6/6',
+			'6/17',
+			'6/28'
+		]);
+	});
+
+	it('labels both ends across the autumn clock change', () => {
+		expect(labels(at(2026, 10, 12, 9), at(2026, 11, 1, 20))).toEqual([
+			'10/12',
+			'10/17',
+			'10/22',
+			'10/27',
+			'11/1'
+		]);
+	});
+
+	it('labels both ends across the spring clock change', () => {
+		expect(labels(at(2026, 3, 16, 1), at(2026, 4, 5, 23))).toEqual([
+			'3/16',
+			'3/21',
+			'3/26',
+			'3/31',
+			'4/5'
+		]);
 	});
 });
