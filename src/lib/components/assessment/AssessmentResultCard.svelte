@@ -3,9 +3,13 @@
 	import { gripLabel } from '$lib/sessions';
 	import {
 		formatRecordValue,
+		handEnds,
+		latestOnHand,
 		measuredAt,
+		originNote,
 		singleValue,
 		unitLabel,
+		type LatestHand,
 		type RecordedAssessment
 	} from './assessment-records';
 	import {
@@ -75,10 +79,19 @@
 		return record ? readRecordRatio(record, value) : null;
 	}
 
-	let latestLeft = $derived(reading(latest, latest?.left_value));
-	let latestRight = $derived(reading(latest, latest?.right_value));
-	let latestSingle = $derived(reading(latest, singleValue(latest)));
+	// Per hand rather than off the newest row: a pull kept from a training
+	// carries one hand, and the other still stands at its own last measurement.
+	let lastLeft = $derived(latestOnHand(history, (r) => r.left_value));
+	let lastRight = $derived(latestOnHand(history, (r) => r.right_value));
+	let lastSingle = $derived(latestOnHand(history, singleValue));
+	let latestLeft = $derived(reading(lastLeft?.record, lastLeft?.value));
+	let latestRight = $derived(reading(lastRight?.record, lastRight?.value));
+	let latestSingle = $derived(reading(lastSingle?.record, lastSingle?.value));
 	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+
+	function noteOf(last: LatestHand | undefined): string {
+		return last ? originNote(last.record) : '';
+	}
 
 	// The progress across the whole history, on the hand that carries the result
 	// for a single value assessment and on the right hand otherwise, which is
@@ -87,14 +100,16 @@
 	// A bodyweight relative assessment is compared as the ratios the card leads
 	// with, and only when both ends have one: a change in kilograms sitting under
 	// two ratios would be read as a change in them.
+	//
+	// The ends are the first and last measurements of that hand, not the first
+	// and last rows: a pull kept on the other hand is not a measurement of it.
 	let ends = $derived.by(() => {
-		if (history.length < 2) return null;
-		const firstRecord = history[0];
-		const lastRecord = history[history.length - 1];
-		const pick = (record: (typeof history)[number]) =>
-			assessment.perHand ? record.right_value : singleValue(record);
-		const first = reading(firstRecord, pick(firstRecord));
-		const last = reading(lastRecord, pick(lastRecord));
+		const measured = handEnds(history, (record) =>
+			assessment.perHand ? record.right_value : singleValue(record)
+		);
+		if (!measured) return null;
+		const first = reading(measured.first.record, measured.first.value);
+		const last = reading(measured.last.record, measured.last.value);
 		return first && last ? { first, last } : null;
 	});
 
@@ -160,6 +175,7 @@
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={26}
+				note={noteOf(lastLeft)}
 			/>
 			<LatestValue
 				label="RIGHT"
@@ -167,6 +183,7 @@
 				reading={latestRight}
 				unit={assessment.unit}
 				size={26}
+				note={noteOf(lastRight)}
 			/>
 		{:else}
 			<LatestValue
@@ -175,6 +192,7 @@
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={26}
+				note={noteOf(lastSingle)}
 			/>
 		{/if}
 	</div>

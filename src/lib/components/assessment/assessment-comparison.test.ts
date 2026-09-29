@@ -45,7 +45,7 @@ function snapshot(
 	return { date, results, bodyweight_kg: bodyweightKg ?? null };
 }
 
-function record(sessionDate: string): AssessmentResponse {
+function record(sessionDate: string, origin: 'test' | 'training' = 'test'): AssessmentResponse {
 	return {
 		id: sessionDate,
 		user_id: 'u1',
@@ -57,7 +57,7 @@ function record(sessionDate: string): AssessmentResponse {
 		right_value: 25,
 		left_value: null,
 		session_id: 's1',
-		origin: 'test',
+		origin,
 		updated_at: sessionDate,
 		session_date: sessionDate
 	};
@@ -397,5 +397,33 @@ describe('formatPercent', () => {
 		expect(formatPercent(30.77)).toBe('+30.8 %');
 		expect(formatPercent(-4.2)).toBe('-4.2 %');
 		expect(formatPercent(0.01)).toBe('stable');
+	});
+});
+
+describe('results kept from a training', () => {
+	it('are not a test day, so they neither unlock nor side a comparison', () => {
+		expect(
+			testedDays([
+				record('2026-03-02T10:00:00Z'),
+				record('2026-03-09T10:00:00Z', 'training'),
+				record('2026-04-02T10:00:00Z')
+			])
+		).toEqual(['2026-04-02', '2026-03-02']);
+	});
+
+	it('are marked on the side of the comparison they stand on', () => {
+		const rows = compareSnapshots(
+			snapshot('2026-03-02', [result({ right_value: 40, right_origin: 'test' })]),
+			snapshot('2026-04-02', [
+				result({
+					right_value: 42,
+					right_measured_at: '2026-03-09T10:00:00Z',
+					right_origin: 'training'
+				})
+			])
+		);
+		const hand = rows[0].hands[0];
+		expect(hand.before?.keptFromTraining).toBeUndefined();
+		expect(hand.after?.keptFromTraining).toBe(true);
 	});
 });

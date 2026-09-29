@@ -128,6 +128,8 @@ export interface TestAssessmentSnapshotResult {
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
 	left_bodyweight_measured_at?: string | null;
+	right_origin?: 'test' | 'training' | null;
+	left_origin?: 'test' | 'training' | null;
 }
 
 export function testSnapshotResult(

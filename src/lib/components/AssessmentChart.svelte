@@ -53,6 +53,11 @@
 	interface ChartPoint {
 		value: [number, number];
 		basis?: string;
+		// A pull kept from a training, drawn hollow and named in the tooltip so it
+		// does not read as a test.
+		kept?: boolean;
+		symbol?: string;
+		symbolSize?: number;
 	}
 
 	let chart = $state<import('echarts').ECharts | null>(null);
@@ -132,16 +137,20 @@
 		// and a day is a number the coach has to take on trust. It rides on the
 		// point rather than in a lookup by position: two hands of one session, and
 		// two sessions on one day, share a position and not a load.
+		const origin = (a: AssessmentResponse): Partial<ChartPoint> =>
+			a.origin === 'training' ? { kept: true, symbol: 'emptyCircle', symbolSize: 8 } : {};
 		const points = (pick: (a: AssessmentResponse) => number | null | undefined): ChartPoint[] =>
 			data.flatMap((a) => {
 				const at = dayOffset(first, measuredAt(a));
 				if (!asRatios) {
 					const value = pick(a);
-					return value === null || value === undefined ? [] : [{ value: [at, value] }];
+					return value === null || value === undefined
+						? []
+						: [{ value: [at, value], ...origin(a) }];
 				}
 				const reading = readRecordRatio(a, pick(a));
 				if (reading?.ratio === undefined) return [];
-				return [{ value: [at, reading.ratio], basis: formatRatioBasis(reading) }];
+				return [{ value: [at, reading.ratio], basis: formatRatioBasis(reading), ...origin(a) }];
 			});
 
 		// The left hand solid and the right dashed, both in the metric's hue. A
@@ -226,7 +235,10 @@
 						const reading = asRatios
 							? `${formatRatio(p.value[1])} <span style="color:${theme.textFaint};">${p.data.basis ?? ''}</span>`
 							: `${formatValue(p.value[1])} ${unit}`;
-						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${reading}`;
+						const kept = p.data.kept
+							? ` <span style="color:${theme.text};">from a training</span>`
+							: '';
+						return `<span style="color:${color};font-weight:700;">${p.seriesName}</span> ${reading}${kept}`;
 					});
 					return `<div style="font-family:${theme.font};font-size:11px;">${date}<br/>${lines.join('<br/>')}</div>`;
 				},

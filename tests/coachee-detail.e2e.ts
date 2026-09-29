@@ -1825,6 +1825,50 @@ test.describe('assessment comparison', () => {
 		await expect(comparison.getByText('+30.8 %')).toBeVisible();
 	});
 
+	// A pull kept from a training between two tests is carried to the later
+	// date by the snapshot, and has to read as kept rather than as the retest.
+	// Its own day is not a test day, so it is not offered as a side.
+	test('marks a value kept from a training and offers only test days', async ({ page }) => {
+		const kept = '2026-04-10';
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { per_hand: false, right_value: 13, left_value: null }),
+				recordOn(kept, {
+					per_hand: false,
+					right_value: 16,
+					left_value: null,
+					origin: 'training'
+				}),
+				recordOn(june, { per_hand: false, right_value: 11, left_value: null })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(march, [
+				testSnapshotResult({
+					right_value: 13,
+					right_measured_at: `${march}T10:00:00Z`,
+					right_origin: 'test'
+				})
+			]),
+			[june]: testAssessmentSnapshot(june, [
+				testSnapshotResult({
+					right_value: 16,
+					right_measured_at: `${kept}T10:00:00Z`,
+					right_origin: 'training'
+				})
+			])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(page.getByLabel('To')).toHaveValue(june);
+		await expect(page.getByLabel('From').locator('option')).toHaveCount(1);
+		await expect(comparison.getByText('from a training')).toHaveCount(1);
+	});
+
 	// The whole point of the flag: kilograms alone are not comparable across a
 	// season, the ratio to the weight they were pulled at is.
 	test('reads a bodyweight relative result as a ratio, raw kilograms beside it', async ({
@@ -3122,8 +3166,57 @@ test.describe('a result kept from a training', () => {
 		await page.getByRole('button', { name: 'Assessments' }).first().click();
 
 		await expect(page.getByText('Assessment history')).toBeVisible();
+		const history = page.getByTestId('assessment-history');
 		// Once, on the kept row: a test is what a result is unless it says otherwise.
-		await expect(page.getByText('From a training')).toHaveCount(1);
+		await expect(history.getByText('From a training')).toHaveCount(1);
+	});
+
+	// The kept row carries only the hand that pulled it. The other hand's max is
+	// still the tested one, and the card says so rather than a dash.
+	test('leaves the other hand at its tested max on the result card', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({
+					id: 'tested',
+					right_value: 40.1,
+					left_value: 38.4,
+					updated_at: isoDaysAgo(9)
+				}),
+				testAssessmentRecord({
+					id: 'kept',
+					origin: 'training',
+					right_value: 42.6,
+					left_value: null,
+					updated_at: isoDaysAgo(2)
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		const card = page.getByRole('listitem').filter({ hasText: 'Max Force' }).first();
+		await expect(card.getByText('38.4', { exact: true })).toBeVisible();
+		await expect(card.getByText('42.6', { exact: true })).toBeVisible();
+		await expect(card.getByText('From a training')).toHaveCount(1);
+		// The right hand moved from 40.1 to 42.6 across its own measurements.
+		await expect(card.getByText(/\+2\.5 kg overall/)).toBeVisible();
+	});
+
+	test('counts only tests in the assessments stat', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({ id: 'tested', updated_at: isoDaysAgo(9) }),
+				testAssessmentRecord({ id: 'kept', origin: 'training', updated_at: isoDaysAgo(2) })
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		const stat = page.getByText('Assessments', { exact: true }).first().locator('..');
+		await expect(stat.locator('div').nth(1)).toHaveText('1');
 	});
 
 	test('is named as such on the session it was kept from', async ({ page }) => {

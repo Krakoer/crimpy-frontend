@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { gripLabel } from '$lib/sessions';
-	import { singleValue, unitLabel, type RecordedAssessment } from './assessment-records';
+	import {
+		latestOnHand,
+		originNote,
+		singleValue,
+		unitLabel,
+		type LatestHand,
+		type RecordedAssessment
+	} from './assessment-records';
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
@@ -27,14 +34,24 @@
 	// Read by the one rule the whole tab reads a bodyweight relative result by,
 	// so the summary beside the sessions and the card on the assessments tab
 	// cannot print two different numbers for the same measurement.
-	function reading(value: number | null | undefined) {
-		return latest ? readRecordRatio(latest, value) : null;
+	//
+	// Per hand rather than off the newest row: a pull kept from a training
+	// carries one hand, and the other still stands at its own last measurement.
+	function reading(last: LatestHand | undefined) {
+		return last ? readRecordRatio(last.record, last.value) : null;
+	}
+
+	function noteOf(last: LatestHand | undefined): string {
+		return last ? originNote(last.record) : '';
 	}
 
 	let bodyweightRelative = $derived(assessment.bodyweightRelative);
-	let latestLeft = $derived(reading(latest?.left_value));
-	let latestRight = $derived(reading(latest?.right_value));
-	let latestSingle = $derived(reading(singleValue(latest)));
+	let lastLeft = $derived(latestOnHand(history, (r) => r.left_value));
+	let lastRight = $derived(latestOnHand(history, (r) => r.right_value));
+	let lastSingle = $derived(latestOnHand(history, singleValue));
+	let latestLeft = $derived(reading(lastLeft));
+	let latestRight = $derived(reading(lastRight));
+	let latestSingle = $derived(reading(lastSingle));
 	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
 	// Ink for every metric: this card sits beside the sessions, where a hue
 	// means a session activity, and it draws no chart its labels would have to
@@ -69,6 +86,7 @@
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={22}
+				note={noteOf(lastLeft)}
 			/>
 			<LatestValue
 				label="RIGHT"
@@ -76,6 +94,7 @@
 				reading={latestRight}
 				unit={assessment.unit}
 				size={22}
+				note={noteOf(lastRight)}
 			/>
 		{:else}
 			<LatestValue
@@ -84,6 +103,7 @@
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={22}
+				note={noteOf(lastSingle)}
 			/>
 		{/if}
 	</div>

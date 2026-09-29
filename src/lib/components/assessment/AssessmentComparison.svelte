@@ -312,6 +312,11 @@
 					measured {carriedFrom(value, day)}
 				</div>
 			{/if}
+			{#if value.keptFromTraining}
+				<!-- A pull kept from a training is not a retest, and the delta beside
+				     it reads as progress the athlete never tested. -->
+				<div style="font-size: 11px; color: var(--tx2);">from a training</div>
+			{/if}
 		{/if}
 	</div>
 {/snippet}

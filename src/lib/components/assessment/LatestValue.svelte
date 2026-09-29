@@ -19,9 +19,12 @@
 		// it differs between the results tab and the summary beside the sessions,
 		// and two copies of this markup would drift the moment one is fixed.
 		size: number;
+		// Said under the number when it is not a plain test result, such as a
+		// pull the athlete kept from a training.
+		note?: string;
 	}
 
-	let { label, labelColor, reading, unit, size }: Props = $props();
+	let { label, labelColor, reading, unit, size, note = '' }: Props = $props();
 
 	// The unit decides how the number prints, so it is not also asked for as a
 	// formatter: two props saying one thing are two props that can disagree.
@@ -52,5 +55,8 @@
 	</div>
 	{#if load}
 		<div style="font-size: 11px; color: var(--tx3-sm); margin-top: 4px;">{load}</div>
+	{/if}
+	{#if note}
+		<div style="font-size: 11px; color: var(--tx2); margin-top: 4px;">{note}</div>
 	{/if}
 </div>

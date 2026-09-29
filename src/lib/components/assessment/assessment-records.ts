@@ -76,6 +76,47 @@ export function singleValue(record: AssessmentResponse | undefined): number | nu
 	return record?.right_value ?? record?.left_value;
 }
 
+// The last value measured on each hand, and the row it was read from. A pull
+// kept from a training carries only the hand that pulled it, so the newest row
+// is not the latest of both hands: the other one still stands where its last
+// measurement left it, which is what the app resolves that hand's loads against.
+// A single value assessment stores its number on the right, so it reads as the
+// right hand here.
+export interface LatestHand {
+	record: AssessmentResponse;
+	value: number;
+}
+
+export function latestOnHand(
+	history: AssessmentResponse[],
+	pick: (record: AssessmentResponse) => number | null | undefined
+): LatestHand | undefined {
+	for (let i = history.length - 1; i >= 0; i--) {
+		const value = pick(history[i]);
+		if (value !== null && value !== undefined) return { record: history[i], value };
+	}
+	return undefined;
+}
+
+// The first and the last value measured on one hand, for the progress a card
+// reports across the history. Undefined until the hand has two measurements.
+export function handEnds(
+	history: AssessmentResponse[],
+	pick: (record: AssessmentResponse) => number | null | undefined
+): { first: LatestHand; last: LatestHand } | undefined {
+	const measured = history.filter((record) => {
+		const value = pick(record);
+		return value !== null && value !== undefined;
+	});
+	if (measured.length < 2) return undefined;
+	const first = measured[0];
+	const last = measured[measured.length - 1];
+	return {
+		first: { record: first, value: pick(first)! },
+		last: { record: last, value: pick(last)! }
+	};
+}
+
 // Says where a result came from when it was not a test, so a coach can tell a
 // Max Force the athlete kept off a training from one they tested. Empty for a
 // test, which is what a result is unless it says otherwise.

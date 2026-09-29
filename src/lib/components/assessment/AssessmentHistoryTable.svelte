@@ -44,6 +44,7 @@
 </script>
 
 <div
+	data-testid="assessment-history"
 	style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
 >
 	<div
