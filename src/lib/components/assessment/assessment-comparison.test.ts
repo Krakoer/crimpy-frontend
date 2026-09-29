@@ -57,6 +57,7 @@ function record(sessionDate: string): AssessmentResponse {
 		right_value: 25,
 		left_value: null,
 		session_id: 's1',
+		origin: 'test',
 		updated_at: sessionDate,
 		session_date: sessionDate
 	};

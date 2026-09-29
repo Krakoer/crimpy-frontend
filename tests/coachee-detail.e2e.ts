@@ -3098,3 +3098,54 @@ test.describe('a session detail read that partly failed', () => {
 		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeVisible();
 	});
 });
+
+// A Max Force the athlete kept off a training reads beside the ones they
+// tested, and says so, so the coach can tell a pull measured mid session from
+// a test.
+test.describe('a result kept from a training', () => {
+	test('is named as such in the assessment history', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({ id: 'tested', updated_at: isoDaysAgo(9) }),
+				testAssessmentRecord({
+					id: 'kept',
+					origin: 'training',
+					right_value: 45,
+					left_value: null,
+					updated_at: isoDaysAgo(2)
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		await expect(page.getByText('Assessment history')).toBeVisible();
+		// Once, on the kept row: a test is what a result is unless it says otherwise.
+		await expect(page.getByText('From a training')).toHaveCount(1);
+	});
+
+	test('is named as such on the session it was kept from', async ({ page }) => {
+		const training = testSession({ id: 'session-kept', name: 'Repeaters 20mm' });
+		const { session_date: _onTheSession, ...kept } = testAssessmentRecord({
+			id: 'kept',
+			session_id: 'session-kept',
+			origin: 'training',
+			right_value: 45,
+			left_value: null
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [training] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(training, [], [kept])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Assessment results')).toBeVisible();
+		await expect(dialog.getByText('From a training')).toBeVisible();
+	});
+});

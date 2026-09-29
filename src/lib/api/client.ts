@@ -303,6 +303,8 @@ export interface UserEnrollment {
 	enrolled_at: string;
 }
 
+export type AssessmentOrigin = 'test' | 'training';
+
 export interface SessionAssessment {
 	id: string;
 	user_id: string;
@@ -333,6 +335,10 @@ export interface SessionAssessment {
 	left_value: number | null;
 	session_id: string;
 	grip_position?: number | null;
+	// What produced the result: a test of the assessment, or a pull measured
+	// during a training that the athlete kept because it beat the result on
+	// file. Every result recorded before the distinction reads as a test.
+	origin: AssessmentOrigin;
 	updated_at: string;
 }
 

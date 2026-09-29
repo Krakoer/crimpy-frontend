@@ -75,3 +75,10 @@ export { unitLabel, formatUnitValue as formatRecordValue } from '$lib/assessment
 export function singleValue(record: AssessmentResponse | undefined): number | null | undefined {
 	return record?.right_value ?? record?.left_value;
 }
+
+// Says where a result came from when it was not a test, so a coach can tell a
+// Max Force the athlete kept off a training from one they tested. Empty for a
+// test, which is what a result is unless it says otherwise.
+export function originNote(record: Pick<AssessmentResponse, 'origin'>): string {
+	return record.origin === 'training' ? 'From a training' : '';
+}

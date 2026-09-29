@@ -12,6 +12,7 @@
 	import { unitLabel } from '$lib/assessments';
 	import Icon from '$lib/components/Icon.svelte';
 	import LatestValue from '$lib/components/assessment/LatestValue.svelte';
+	import { originNote } from '$lib/components/assessment/assessment-records';
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
@@ -358,6 +359,11 @@
 												? readsAs
 												: `${gripLabel(assessment.grip_position ?? 0)}, ${readsAs}`}
 										</div>
+										{#if originNote(assessment)}
+											<div style="font-size: 11.5px; color: var(--tx2);">
+												{originNote(assessment)}
+											</div>
+										{/if}
 									</div>
 									<div class="flex gap-6" style="flex-shrink: 0; text-align: right;">
 										{#if assessment.per_hand}
