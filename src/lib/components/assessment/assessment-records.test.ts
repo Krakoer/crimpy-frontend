@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssessmentResponse } from '$lib/api/client';
-import { handEnds, latestOnHand, originNote } from './assessment-records';
+import { denominatorSources, handEnds, latestOnHand, originNote } from './assessment-records';
 
 function record(
 	id: string,
@@ -65,5 +65,24 @@ describe('originNote', () => {
 	it('names a kept pull and says nothing of a test', () => {
 		expect(originNote(kept)).toBe('From a training');
 		expect(originNote(tested)).toBe('');
+	});
+});
+
+describe('denominatorSources', () => {
+	it('names each hand when the hands come from different rows', () => {
+		const left = latestOnHand([tested, kept], (r) => r.left_value);
+		const right = latestOnHand([tested, kept], (r) => r.right_value);
+		expect(denominatorSources(true, left, right, undefined)).toEqual([
+			{ label: 'Left', record: tested },
+			{ label: 'Right', record: kept }
+		]);
+	});
+
+	it('names the weigh-in once when one row answers for both hands', () => {
+		const left = latestOnHand([tested], (r) => r.left_value);
+		const right = latestOnHand([tested], (r) => r.right_value);
+		expect(denominatorSources(true, left, right, undefined)).toEqual([
+			{ label: '', record: tested }
+		]);
 	});
 });

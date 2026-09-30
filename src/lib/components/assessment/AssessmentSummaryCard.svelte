@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { gripLabel } from '$lib/sessions';
 	import {
+		denominatorSources,
 		latestOnHand,
 		originNote,
 		singleValue,
@@ -29,7 +30,6 @@
 			? assessment.records.filter((r) => (r.grip_position ?? 0) === selectedGrip)
 			: assessment.records
 	);
-	let latest = $derived(history.at(-1));
 
 	// Read by the one rule the whole tab reads a bodyweight relative result by,
 	// so the summary beside the sessions and the card on the assessments tab
@@ -52,7 +52,16 @@
 	let latestLeft = $derived(reading(lastLeft));
 	let latestRight = $derived(reading(lastRight));
 	let latestSingle = $derived(reading(lastSingle));
-	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+	// The weigh-in of the row each headline number came from, not of the newest
+	// row: see denominatorSources.
+	let denominators = $derived(
+		denominatorSources(assessment.perHand, lastLeft, lastRight, lastSingle).flatMap(
+			({ label, record }) => {
+				const reading = readRecordDenominator(record);
+				return reading ? [{ label, reading }] : [];
+			}
+		)
+	);
 	// Ink for every metric: this card sits beside the sessions, where a hue
 	// means a session activity, and it draws no chart its labels would have to
 	// be the legend of. The hands are no longer two colours. See
@@ -61,6 +70,7 @@
 </script>
 
 <div
+	data-testid="assessment-summary-card"
 	style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); padding: 16px; box-shadow: var(--sh);"
 >
 	<div
@@ -108,15 +118,15 @@
 		{/if}
 	</div>
 
-	{#if denominator}
+	{#each denominators as { label, reading } (label)}
 		<!-- Named once, because one session is one weigh-in: saying it under each
 		     hand repeats it and wraps mid date in a column half a card wide. The
 		     load itself stays per hand, above. -->
 		<div
-			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(denominator)};"
+			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(reading)};"
 			data-testid="denominator-note"
 		>
-			{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+			{label ? `${label}: ` : ''}{formatDenominatorNote(reading, unitLabel(assessment.unit))}
 		</div>
-	{/if}
+	{/each}
 </div>

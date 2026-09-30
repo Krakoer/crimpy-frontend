@@ -4,6 +4,7 @@
 	import {
 		formatRecordValue,
 		handEnds,
+		denominatorSources,
 		latestOnHand,
 		measuredAt,
 		originNote,
@@ -51,8 +52,6 @@
 			: assessment.records
 	);
 
-	let latest = $derived(history.at(-1));
-
 	// A single tested day is a value, which the numbers above already show; the
 	// chart is offered from the second. See Krakoer/crimpy#164.
 	// Counted over the points the chart will draw: in ratio mode a record with
@@ -87,7 +86,16 @@
 	let latestLeft = $derived(reading(lastLeft?.record, lastLeft?.value));
 	let latestRight = $derived(reading(lastRight?.record, lastRight?.value));
 	let latestSingle = $derived(reading(lastSingle?.record, lastSingle?.value));
-	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+	// The weigh-in of the row each headline number came from, not of the newest
+	// row: see denominatorSources.
+	let denominators = $derived(
+		denominatorSources(assessment.perHand, lastLeft, lastRight, lastSingle).flatMap(
+			({ label, record }) => {
+				const reading = readRecordDenominator(record);
+				return reading ? [{ label, reading }] : [];
+			}
+		)
+	);
 
 	function noteOf(last: LatestHand | undefined): string {
 		return last ? originNote(last.record) : '';
@@ -197,17 +205,17 @@
 		{/if}
 	</div>
 
-	{#if denominator}
+	{#each denominators as { label, reading } (label)}
 		<!-- Named once, because one session is one weigh-in: saying it under each
 		     hand repeats it and wraps mid date in a column half a card wide. The
 		     load itself stays per hand, above. -->
 		<div
-			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(denominator)};"
+			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(reading)};"
 			data-testid="denominator-note"
 		>
-			{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+			{label ? `${label}: ` : ''}{formatDenominatorNote(reading, unitLabel(assessment.unit))}
 		</div>
-	{/if}
+	{/each}
 
 	{#if history.length >= 2}
 		{#if chartable}

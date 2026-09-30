@@ -1833,29 +1833,34 @@ test.describe('assessment comparison', () => {
 		await stubCoacheeDetail(page);
 		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
 			body: [
-				recordOn(march, { per_hand: false, right_value: 13, left_value: null }),
-				recordOn(kept, {
-					per_hand: false,
-					right_value: 16,
-					left_value: null,
-					origin: 'training'
-				}),
-				recordOn(june, { per_hand: false, right_value: 11, left_value: null })
+				recordOn(march, { right_value: 13, left_value: 12 }),
+				recordOn(kept, { right_value: 16, left_value: null, origin: 'training' }),
+				// A left-hand-only test: the right hand the snapshot carries into
+				// June is the April pull, which is what the backend returns.
+				recordOn(june, { right_value: null, left_value: 11 })
 			]
 		});
 		await stubSnapshotsByDay(page, {
 			[march]: testAssessmentSnapshot(march, [
 				testSnapshotResult({
+					per_hand: true,
 					right_value: 13,
 					right_measured_at: `${march}T10:00:00Z`,
-					right_origin: 'test'
+					right_origin: 'test',
+					left_value: 12,
+					left_measured_at: `${march}T10:00:00Z`,
+					left_origin: 'test'
 				})
 			]),
 			[june]: testAssessmentSnapshot(june, [
 				testSnapshotResult({
+					per_hand: true,
 					right_value: 16,
 					right_measured_at: `${kept}T10:00:00Z`,
-					right_origin: 'training'
+					right_origin: 'training',
+					left_value: 11,
+					left_measured_at: `${june}T10:00:00Z`,
+					left_origin: 'test'
 				})
 			])
 		});
@@ -3189,17 +3194,33 @@ test.describe('a result kept from a training', () => {
 					right_value: 42.6,
 					left_value: null,
 					updated_at: isoDaysAgo(2)
+				}),
+				// Newest, and on the other hand: the footer reads the right hand's
+				// own first and last measurements, not the first and last rows.
+				testAssessmentRecord({
+					id: 'kept-left',
+					origin: 'training',
+					right_value: null,
+					left_value: 39.9,
+					updated_at: isoDaysAgo(1)
 				})
 			]
 		});
 
 		await page.goto('/coachees/coachee-1');
+
+		// The summary beside the sessions reads each hand the same way.
+		const summary = page.getByTestId('assessment-summary-card').first();
+		await expect(summary.getByText('39.9', { exact: true })).toBeVisible();
+		await expect(summary.getByText('42.6', { exact: true })).toBeVisible();
+		await expect(summary.getByText('From a training')).toHaveCount(2);
+
 		await page.getByRole('button', { name: 'Assessments' }).first().click();
 
 		const card = page.getByRole('listitem').filter({ hasText: 'Max Force' }).first();
-		await expect(card.getByText('38.4', { exact: true })).toBeVisible();
+		await expect(card.getByText('39.9', { exact: true })).toBeVisible();
 		await expect(card.getByText('42.6', { exact: true })).toBeVisible();
-		await expect(card.getByText('From a training')).toHaveCount(1);
+		await expect(card.getByText('From a training')).toHaveCount(2);
 		// The right hand moved from 40.1 to 42.6 across its own measurements.
 		await expect(card.getByText(/\+2\.5 kg overall/)).toBeVisible();
 	});

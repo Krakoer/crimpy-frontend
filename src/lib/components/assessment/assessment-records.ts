@@ -98,6 +98,29 @@ export function latestOnHand(
 	return undefined;
 }
 
+// The rows the headline numbers were read from, each with the hand it answers
+// for. One session is one weigh-in, so a card names it once, but the two hands
+// can come from different sessions once a pull kept on one hand is newer than
+// the test: each is then named with its hand, since each ratio is divided by
+// the weigh-in of its own session. The label is empty when one row answers
+// for every number shown.
+export function denominatorSources(
+	perHand: boolean,
+	left: LatestHand | undefined,
+	right: LatestHand | undefined,
+	single: LatestHand | undefined
+): { label: string; record: AssessmentResponse }[] {
+	if (!perHand) return single ? [{ label: '', record: single.record }] : [];
+	const shown = [
+		left && { label: 'Left', record: left.record },
+		right && { label: 'Right', record: right.record }
+	].filter((source): source is { label: string; record: AssessmentResponse } => !!source);
+	if (shown.length === 2 && shown[0].record.id === shown[1].record.id) {
+		return [{ label: '', record: shown[0].record }];
+	}
+	return shown.length === 1 ? [{ label: '', record: shown[0].record }] : shown;
+}
+
 // The first and the last value measured on one hand, for the progress a card
 // reports across the history. Undefined until the hand has two measurements.
 export function handEnds(
