@@ -76,6 +76,7 @@ export interface TestAssessmentRecord {
 	left_value: number | null;
 	session_id: string;
 	grip_position?: number | null;
+	origin: 'test' | 'training';
 	updated_at: string;
 	session_date: string;
 	// The weigh-in the row divides by, as the listing endpoint now sends it, and
@@ -100,6 +101,7 @@ export function testAssessmentRecord(
 		left_value: 40,
 		session_id: 'session-1',
 		grip_position: 0,
+		origin: 'test',
 		updated_at: updated,
 		session_date: updated,
 		...overrides
@@ -126,6 +128,8 @@ export interface TestAssessmentSnapshotResult {
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
 	left_bodyweight_measured_at?: string | null;
+	right_origin?: 'test' | 'training' | null;
+	left_origin?: 'test' | 'training' | null;
 }
 
 export function testSnapshotResult(

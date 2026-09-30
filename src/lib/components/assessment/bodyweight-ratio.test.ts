@@ -34,6 +34,7 @@ function record(overrides: Partial<AssessmentResponse> = {}): AssessmentResponse
 		right_value: 25,
 		left_value: null,
 		session_id: 's1',
+		origin: 'test',
 		updated_at: MEASURED,
 		session_date: MEASURED,
 		bodyweight_kg: 71,

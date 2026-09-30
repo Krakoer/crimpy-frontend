@@ -334,6 +334,11 @@
 	);
 
 	const totalAssessmentCount = $derived(assessments.length);
+	// The headline stat counts tests: a pull kept from a training is a result on
+	// file, listed below, but not an assessment the athlete took.
+	const testedAssessmentCount = $derived(
+		assessments.filter((assessment) => assessment.origin !== 'training').length
+	);
 
 	// The weight a ratio is read against, which is the latest one measured.
 	const bodyweightInEffect = $derived(bodyweightTrend(bodyweights)?.latest ?? null);
@@ -426,7 +431,7 @@
 				</div>
 
 				<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd-tx)' }] as stat (stat.k)}
+					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(testedAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd-tx)' }] as stat (stat.k)}
 						<div
 							style="
 						padding: 10px 14px; border: 1px solid var(--bd);

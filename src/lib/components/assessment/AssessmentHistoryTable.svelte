@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AssessmentResponse } from '$lib/api/client';
 	import { gripLabel } from '$lib/sessions';
-	import { formatRecordValue, singleValue, unitLabel } from './assessment-records';
+	import { formatRecordValue, originNote, singleValue, unitLabel } from './assessment-records';
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
@@ -44,6 +44,7 @@
 </script>
 
 <div
+	data-testid="assessment-history"
 	style="background: var(--panel); border-radius: var(--rl); border: 1px solid var(--bd); box-shadow: var(--sh); overflow: hidden;"
 >
 	<div
@@ -80,6 +81,9 @@
 				<div style="color: var(--tx2); font-size: 12px;">{formatDate(record.session_date)}</div>
 				<div style="min-width: 0;">
 					<div style="font-weight: 600; color: var(--tx);">{record.label}</div>
+					{#if originNote(record)}
+						<div style="font-size: 11px; color: var(--tx2);">{originNote(record)}</div>
+					{/if}
 					{#if basis}
 						<!-- The weigh-in the row divides by, with the day it was taken, so a
 						     coach can tell a denominator measured the same morning from one

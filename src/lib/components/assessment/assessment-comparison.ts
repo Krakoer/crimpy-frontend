@@ -7,12 +7,19 @@ import { formatUnitValue } from '$lib/assessments';
 import { formatRatio, readBodyweightRatio, type MissingRatio } from './bodyweight-ratio';
 
 // The days an athlete actually tested on, newest first, as the API spells a day:
+// a pull kept from a training is not a test day, so it neither unlocks the
+// comparison nor is offered as a side of it. The value it left still shows on a
+// later test day, marked as kept, since the snapshot carries it forward.
 // the UTC date of the session. Taken from the UTC instant rather than from a
 // local calendar day, because the server reads a day as ending at midnight UTC,
 // and a session recorded just after midnight there would otherwise be asked for
 // on a day that does not yet include it.
 export function testedDays(records: AssessmentResponse[]): string[] {
-	const days = new Set(records.map((record) => record.session_date.slice(0, 10)));
+	const days = new Set(
+		records
+			.filter((record) => record.origin !== 'training')
+			.map((record) => record.session_date.slice(0, 10))
+	);
 	return [...days].sort().reverse();
 }
 
@@ -48,6 +55,9 @@ export interface ComparedValue {
 	weighedAt?: string;
 	// Why there is no ratio, on an assessment that reads as one.
 	missingRatio?: MissingRatio;
+	// Set when the value is a pull the athlete kept from a training rather than
+	// a test, which the table says beside it.
+	keptFromTraining?: boolean;
 }
 
 export type ComparisonHand = 'single' | 'right' | 'left';
@@ -85,10 +95,12 @@ function comparedValue(
 	measuredAt: string | null | undefined,
 	bodyweightRelative: boolean,
 	bodyweightKg: number | null | undefined,
-	weighedAt: string | null | undefined
+	weighedAt: string | null | undefined,
+	origin: string | null | undefined
 ): ComparedValue | undefined {
 	if (raw === null || raw === undefined || !measuredAt) return undefined;
-	if (!bodyweightRelative) return { raw, measuredAt, score: raw };
+	const kept = origin === 'training' ? { keptFromTraining: true } : {};
+	if (!bodyweightRelative) return { raw, measuredAt, score: raw, ...kept };
 	const reading = readBodyweightRatio(raw, measuredAt, true, bodyweightKg, weighedAt);
 	return {
 		raw,
@@ -96,7 +108,8 @@ function comparedValue(
 		score: reading.ratio,
 		bodyweightKg: reading.bodyweightKg,
 		weighedAt: reading.weighedAt,
-		missingRatio: reading.missing
+		missingRatio: reading.missing,
+		...kept
 	};
 }
 
@@ -169,7 +182,8 @@ export function compareSnapshots(
 			side === 'right' ? result?.right_measured_at : result?.left_measured_at,
 			bodyweightRelative,
 			side === 'right' ? result?.right_bodyweight_kg : result?.left_bodyweight_kg,
-			side === 'right' ? result?.right_bodyweight_measured_at : result?.left_bodyweight_measured_at
+			side === 'right' ? result?.right_bodyweight_measured_at : result?.left_bodyweight_measured_at,
+			side === 'right' ? result?.right_origin : result?.left_origin
 		);
 	}
 
