@@ -1,0 +1,139 @@
+import { describe, expect, it } from 'vitest';
+import type { AssessmentResponse, AssessmentSnapshot } from '$lib/api/client';
+import {
+	CRITICAL_FORCE_ID,
+	MAX_FORCE_ID,
+	criticalForceDetails,
+	criticalForceNote,
+	criticalForceRecordNote,
+	maxForceAt,
+	shareOfMax
+} from './critical-force';
+import { compareSnapshots } from './assessment-comparison';
+
+function record(overrides: Partial<AssessmentResponse>): AssessmentResponse {
+	return {
+		id: 'r',
+		user_id: 'u',
+		assessment_id: MAX_FORCE_ID,
+		label: 'Max Force',
+		unit: 'kilograms',
+		per_hand: true,
+		bodyweight_relative: false,
+		right_value: null,
+		left_value: null,
+		session_id: 's',
+		grip_position: 0,
+		origin: 'test',
+		updated_at: '2026-03-01T10:00:00Z',
+		session_date: '2026-03-01T10:00:00Z',
+		...overrides
+	};
+}
+
+describe('criticalForceDetails', () => {
+	it('reads the W and end force the app stored', () => {
+		expect(criticalForceDetails({ w_prime_kg_s: 512.5, end_force_kg: 16.8, pulls: [] })).toEqual({
+			wPrimeKgS: 512.5,
+			endForceKg: 16.8
+		});
+	});
+
+	it('has nothing to read on a result without details, or with details it cannot read', () => {
+		expect(criticalForceDetails(undefined)).toBeNull();
+		expect(criticalForceDetails(null)).toBeNull();
+		expect(criticalForceDetails({ pulls: [] })).toBeNull();
+		expect(criticalForceDetails([1, 2])).toBeNull();
+	});
+});
+
+describe('maxForceAt', () => {
+	const history = [
+		record({ right_value: 40, session_date: '2026-03-01T10:00:00Z' }),
+		record({ right_value: 44, session_date: '2026-04-01T10:00:00Z' }),
+		record({ left_value: 38, session_date: '2026-03-15T10:00:00Z' }),
+		record({ right_value: 60, grip_position: 1, session_date: '2026-03-02T10:00:00Z' })
+	];
+
+	it('takes the latest Max Force at or before the date, for the hand and grip', () => {
+		expect(maxForceAt(history, 'right', 0, '2026-03-20T10:00:00Z')).toBe(40);
+		expect(maxForceAt(history, 'right', 0, '2026-04-02T10:00:00Z')).toBe(44);
+		expect(maxForceAt(history, 'left', 0, '2026-04-02T10:00:00Z')).toBe(38);
+		expect(maxForceAt(history, 'right', 1, '2026-04-02T10:00:00Z')).toBe(60);
+	});
+
+	it('has none before the first Max Force on the hand', () => {
+		expect(maxForceAt(history, 'right', 0, '2026-02-01T10:00:00Z')).toBeNull();
+		expect(maxForceAt(history, 'left', 1, '2026-04-02T10:00:00Z')).toBeNull();
+	});
+});
+
+describe('the Critical Force note', () => {
+	it('says the share of max and the W', () => {
+		expect(criticalForceNote(shareOfMax(17, 40), { wPrimeKgS: 512.4 })).toBe(
+			"43 % of max, W' 512 kg.s"
+		);
+	});
+
+	it('says what it knows and nothing else', () => {
+		expect(criticalForceNote(shareOfMax(17, null), { wPrimeKgS: 512 })).toBe("W' 512 kg.s");
+		expect(criticalForceNote(42, null)).toBe('42 % of max');
+		expect(criticalForceNote(null, null)).toBe('');
+	});
+
+	it('reads a record against the Max Force on file at its date', () => {
+		const cf = record({
+			assessment_id: CRITICAL_FORCE_ID,
+			right_value: 18,
+			session_date: '2026-03-20T10:00:00Z',
+			details: { w_prime_kg_s: 400 }
+		});
+		const history = [
+			record({ right_value: 40 }),
+			record({ right_value: 50, session_date: '2026-05-01T10:00:00Z' }),
+			cf
+		];
+		expect(criticalForceRecordNote(cf, 'right', history)).toBe("45 % of max, W' 400 kg.s");
+		expect(criticalForceRecordNote(cf, 'left', history)).toBe('');
+		expect(criticalForceRecordNote(history[0], 'right', history)).toBe('');
+	});
+});
+
+describe('a Critical Force in the two date comparison', () => {
+	function snapshot(date: string, cf: number, max: number, wPrime?: number): AssessmentSnapshot {
+		const base = {
+			unit: 'kilograms',
+			per_hand: true,
+			bodyweight_relative: false,
+			grip_position: 0,
+			right_measured_at: date,
+			right_origin: 'test' as const
+		};
+		return {
+			date,
+			results: [
+				{
+					...base,
+					assessment_id: CRITICAL_FORCE_ID,
+					label: 'Critical Force',
+					right_value: cf,
+					...(wPrime === undefined ? {} : { right_details: { w_prime_kg_s: wPrime } })
+				},
+				{ ...base, assessment_id: MAX_FORCE_ID, label: 'Max Force', right_value: max }
+			]
+		};
+	}
+
+	it('reads each date against the Max Force standing on it', () => {
+		const rows = compareSnapshots(
+			snapshot('2026-03-01T10:00:00Z', 16, 40, 500),
+			snapshot('2026-05-01T10:00:00Z', 20, 44)
+		);
+		const cf = rows.find((row) => row.assessmentId === CRITICAL_FORCE_ID)!;
+		const right = cf.hands.find((hand) => hand.hand === 'right')!;
+		expect(right.before?.detail).toBe("40 % of max, W' 500 kg.s");
+		expect(right.after?.detail).toBe('45 % of max');
+		const max = rows.find((row) => row.assessmentId === MAX_FORCE_ID)!;
+		expect(max.hands.every((hand) => !hand.before?.detail && !hand.after?.detail)).toBe(true);
+	});
+});

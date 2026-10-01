@@ -5,6 +5,13 @@ import type {
 } from '$lib/api/client';
 import { formatUnitValue } from '$lib/assessments';
 import { formatRatio, readBodyweightRatio, type MissingRatio } from './bodyweight-ratio';
+import {
+	CRITICAL_FORCE_ID,
+	MAX_FORCE_ID,
+	criticalForceDetails,
+	criticalForceNote,
+	shareOfMax
+} from './critical-force';
 
 // The days an athlete actually tested on, newest first, as the API spells a day:
 // a pull kept from a training is not a test day, so it neither unlocks the
@@ -58,6 +65,9 @@ export interface ComparedValue {
 	// Set when the value is a pull the athlete kept from a training rather than
 	// a test, which the table says beside it.
 	keptFromTraining?: boolean;
+	// A secondary reading of the value: for a Critical Force, its share of the
+	// Max Force standing on the same date, hand and grip, and its W'.
+	detail?: string;
 }
 
 export type ComparisonHand = 'single' | 'right' | 'left';
@@ -222,11 +232,44 @@ export function compareSnapshots(
 		}
 	}
 
+	for (const row of rows.values()) {
+		if (row.assessmentId !== CRITICAL_FORCE_ID) continue;
+		const maxKey = rowKey(MAX_FORCE_ID, row.gripPosition);
+		for (const hand of row.hands) {
+			if (hand.hand === 'single') continue;
+			describeCriticalForce(
+				hand.before,
+				hand.hand,
+				beforeByKey.get(row.key),
+				beforeByKey.get(maxKey)
+			);
+			describeCriticalForce(hand.after, hand.hand, afterByKey.get(row.key), afterByKey.get(maxKey));
+		}
+	}
+
 	return [...rows.values()].sort((a, b) => {
 		if (a.hasGrips !== b.hasGrips) return a.hasGrips ? -1 : 1;
 		const byLabel = a.label.localeCompare(b.label);
 		return byLabel !== 0 ? byLabel : a.gripPosition - b.gripPosition;
 	});
+}
+
+// A Critical Force standing on a date, read against the Max Force standing on
+// the same date for the same hand and grip, which is the one a coach reads it
+// beside, and its W' from the result it came from.
+function describeCriticalForce(
+	value: ComparedValue | undefined,
+	side: 'left' | 'right',
+	criticalForce: AssessmentSnapshotResult | undefined,
+	maxForce: AssessmentSnapshotResult | undefined
+): void {
+	if (!value) return;
+	const max = side === 'right' ? maxForce?.right_value : maxForce?.left_value;
+	const details = criticalForceDetails(
+		side === 'right' ? criticalForce?.right_details : criticalForce?.left_details
+	);
+	const note = criticalForceNote(shareOfMax(value.raw, max ?? null), details);
+	if (note) value.detail = note;
 }
 
 // A score as the table prints it: two decimals for a ratio, since that is where a

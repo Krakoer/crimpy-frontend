@@ -83,6 +83,7 @@ export interface TestAssessmentRecord {
 	// the day it was taken. Absent together when no weigh-in qualifies.
 	bodyweight_kg?: number | null;
 	bodyweight_measured_at?: string | null;
+	details?: Record<string, unknown> | null;
 }
 
 export function testAssessmentRecord(
@@ -130,6 +131,8 @@ export interface TestAssessmentSnapshotResult {
 	left_bodyweight_measured_at?: string | null;
 	right_origin?: 'test' | 'training' | null;
 	left_origin?: 'test' | 'training' | null;
+	right_details?: Record<string, unknown> | null;
+	left_details?: Record<string, unknown> | null;
 }
 
 export function testSnapshotResult(

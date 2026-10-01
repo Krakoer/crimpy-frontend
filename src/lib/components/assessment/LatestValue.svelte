@@ -22,9 +22,12 @@
 		// Said under the number when it is not a plain test result, such as a
 		// pull the athlete kept from a training.
 		note?: string;
+		// A secondary reading of the same number, such as a Critical Force's
+		// share of max and its W'.
+		detail?: string;
 	}
 
-	let { label, labelColor, reading, unit, size, note = '' }: Props = $props();
+	let { label, labelColor, reading, unit, size, note = '', detail = '' }: Props = $props();
 
 	// The unit decides how the number prints, so it is not also asked for as a
 	// formatter: two props saying one thing are two props that can disagree.
@@ -58,5 +61,10 @@
 	{/if}
 	{#if note}
 		<div style="font-size: 11px; color: var(--tx2); margin-top: 4px;">{note}</div>
+	{/if}
+	{#if detail}
+		<div style="font-size: 11px; color: var(--tx3-sm); margin-top: 4px;" data-testid="value-detail">
+			{detail}
+		</div>
 	{/if}
 </div>
