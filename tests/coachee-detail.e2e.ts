@@ -385,6 +385,65 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();
 	});
 
+	// A load on a hang reads against the max of the hang's own grip, frozen per
+	// grip beside the latest on any grip (Krakoer/crimpy#182).
+	test('reads a load against the max of its own grip', async ({ page }) => {
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-1',
+						type: 'hangboard_rep',
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						hand: 'right',
+						edge_sizes_mm: [20],
+						hand_positions: [['HC']],
+						loads: [
+							{
+								value: 80,
+								unit: 'percent_assessment',
+								assessment_id: BUILTIN_MAX_FORCE,
+								fallback: 30
+							}
+						]
+					}
+				],
+				resolved_against: {
+					assessments: [
+						{
+							assessment_id: BUILTIN_MAX_FORCE,
+							right_value: 30,
+							left_value: 44,
+							by_grip: [
+								{ grip_position: 0, right_value: 45, left_value: 44 },
+								{ grip_position: 3, right_value: 30 }
+							]
+						}
+					],
+					definitions: [
+						{ id: BUILTIN_MAX_FORCE, label: 'Max Force', unit: 'kilograms', per_hand: true }
+					]
+				}
+			})
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('80% Max Force (load, Half Crimp)')).toBeVisible();
+		// 80% of the half crimp max, not of the newer open hand result.
+		await expect(dialog.getByText('36.0 kg')).toBeVisible();
+		await expect(dialog.getByText('24.0 kg')).toBeHidden();
+	});
+
 	test('shows what the athlete managed on the items that were left open', async ({ page }) => {
 		// An AMRAP and an emom the athlete dropped out of: neither count exists
 		// until the run happens, and neither passes through the sensor, so the

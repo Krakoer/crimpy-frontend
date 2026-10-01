@@ -205,7 +205,9 @@ export interface AssessmentRelativeValue {
 
 // A grip as a training stores it, in either vocabulary the app reads: the app's
 // enum names or the portal's short codes. Mirrors gripFromStored in the app, so
-// both read a hang against the same grip.
+// both read a hang against the same grip. Keep it in step with GRIP_ALIASES in
+// components/training/hangboard-config.ts, which the editor reads grips with:
+// a grip known there and not here would resolve against any grip.
 export function gripPositionFromStored(name: string | undefined): number | undefined {
 	switch (name) {
 		case 'halfCrimp':
