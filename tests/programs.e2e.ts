@@ -1831,6 +1831,47 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	);
 });
 
+// A run begun at 00:30 on the Wednesday is the Tuesday evening's training, which
+// the athlete's app filed under Tuesday. The week reads the day it was filed
+// under, not the date of the instant.
+test('places a run begun after midnight under the day it was filed under', async ({ page }) => {
+	const tuesday = new Date(`${mondayDaysAgo(7)}T00:00:00`);
+	tuesday.setDate(tuesday.getDate() + WEEK_ONE_TUESDAY);
+	const trainingDay = `${tuesday.getFullYear()}-${String(tuesday.getMonth() + 1).padStart(2, '0')}-${String(tuesday.getDate()).padStart(2, '0')}`;
+	await stubPlayedWeek(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+		body: [
+			testSession({
+				id: 'played-1',
+				name: 'Power endurance block',
+				date: inFirstWeek(WEEK_ONE_WEDNESDAY, 0),
+				training_day: trainingDay,
+				origin: 'played',
+				program_session_id: 'ws-1'
+			})
+		]
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_TUESDAY}`)).toContainText(
+		'Power endurance block'
+	);
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_WEDNESDAY}`)).not.toContainText(
+		'Power endurance block'
+	);
+	const tuesdayLabel = tuesday.toLocaleDateString('en-GB', {
+		weekday: 'short',
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric'
+	});
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: /^Played / })
+	).toHaveAttribute('title', new RegExp(`^Played ${tuesdayLabel}\\.`));
+});
+
 test('says so when what the athlete played could not be read', async ({ page }) => {
 	await stubPlayedWeek(page);
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', {

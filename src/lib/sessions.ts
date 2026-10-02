@@ -163,17 +163,18 @@ export function currentTrainingDay(now: Date = new Date()): Date {
 export function formatTrainingDayShort(
 	session: Pick<SessionResponse, 'date' | 'training_day'>
 ): string {
-	return trainingDayOf(session).toLocaleDateString('en-GB', {
-		weekday: 'short',
-		day: 'numeric',
-		month: 'short',
-		year: 'numeric'
-	});
+	return formatDayShort(trainingDayOf(session));
 }
 
 // The compact form the narrow stat cells of the detail view can hold.
 export function formatSessionDateShort(iso: string): string {
-	return new Date(iso).toLocaleDateString('en-GB', {
+	return formatDayShort(new Date(iso));
+}
+
+// One compact day format for both of the above, so the stat cells and the
+// "Played" tooltip cannot drift apart.
+function formatDayShort(day: Date): string {
+	return day.toLocaleDateString('en-GB', {
 		weekday: 'short',
 		day: 'numeric',
 		month: 'short',
