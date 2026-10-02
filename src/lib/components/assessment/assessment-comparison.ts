@@ -7,9 +7,9 @@ import { formatUnitValue } from '$lib/assessments';
 import { formatRatio, readBodyweightRatio, type MissingRatio } from './bodyweight-ratio';
 import {
 	CRITICAL_FORCE_ID,
-	MAX_FORCE_ID,
 	criticalForceDetails,
 	criticalForceNote,
+	maxForceAt,
 	shareOfMax
 } from './critical-force';
 
@@ -150,7 +150,8 @@ function rowKey(assessmentId: string, gripPosition: number): string {
 // the other empty, which the table says rather than drawing as a fall to zero.
 export function compareSnapshots(
 	before: AssessmentSnapshot,
-	after: AssessmentSnapshot
+	after: AssessmentSnapshot,
+	history: AssessmentResponse[] = []
 ): ComparisonRow[] {
 	const rows = new Map<string, ComparisonRow>();
 
@@ -234,16 +235,10 @@ export function compareSnapshots(
 
 	for (const row of rows.values()) {
 		if (row.assessmentId !== CRITICAL_FORCE_ID) continue;
-		const maxKey = rowKey(MAX_FORCE_ID, row.gripPosition);
 		for (const hand of row.hands) {
 			if (hand.hand === 'single') continue;
-			describeCriticalForce(
-				hand.before,
-				hand.hand,
-				beforeByKey.get(row.key),
-				beforeByKey.get(maxKey)
-			);
-			describeCriticalForce(hand.after, hand.hand, afterByKey.get(row.key), afterByKey.get(maxKey));
+			describeCriticalForce(hand.before, hand.hand, row, beforeByKey.get(row.key), history);
+			describeCriticalForce(hand.after, hand.hand, row, afterByKey.get(row.key), history);
 		}
 	}
 
@@ -254,21 +249,23 @@ export function compareSnapshots(
 	});
 }
 
-// A Critical Force standing on a date, read against the Max Force standing on
-// the same date for the same hand and grip, which is the one a coach reads it
-// beside, and its W' from the result it came from.
+// A Critical Force standing on a date, read against the Max Force on file when
+// it was measured, not the one standing on the date asked for: a result carried
+// forward unchanged reads the same on both sides, and the same as on its card.
+// Its W' comes from the result it came from.
 function describeCriticalForce(
 	value: ComparedValue | undefined,
 	side: 'left' | 'right',
+	row: ComparisonRow,
 	criticalForce: AssessmentSnapshotResult | undefined,
-	maxForce: AssessmentSnapshotResult | undefined
+	history: AssessmentResponse[]
 ): void {
 	if (!value) return;
-	const max = side === 'right' ? maxForce?.right_value : maxForce?.left_value;
+	const max = maxForceAt(history, side, row.gripPosition, value.measuredAt);
 	const details = criticalForceDetails(
 		side === 'right' ? criticalForce?.right_details : criticalForce?.left_details
 	);
-	const note = criticalForceNote(shareOfMax(value.raw, max ?? null), details);
+	const note = criticalForceNote(shareOfMax(value.raw, max), details);
 	if (note) value.detail = note;
 }
 

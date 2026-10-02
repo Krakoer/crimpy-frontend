@@ -83,7 +83,7 @@
 		])
 			.then(([before, after]: AssessmentSnapshot[]) => {
 				if (request !== latestRequest) return;
-				rows = compareSnapshots(before, after);
+				rows = compareSnapshots(before, after, records);
 				failed = false;
 			})
 			.catch(() => {

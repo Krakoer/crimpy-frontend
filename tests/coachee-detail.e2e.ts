@@ -1877,7 +1877,7 @@ test.describe('assessment comparison', () => {
 
 	// A Critical Force reads as a share of the max beside it, and with its W'
 	// (Krakoer/crimpy#145): on the card against the Max Force on file at its
-	// date, in the comparison against the one standing on each date.
+	// date, and in the comparison against the one on file when it was measured.
 	test('reads a Critical Force as a share of max, with its W', async ({ page }) => {
 		const criticalForce = (day: string, value: number, wPrime?: number) =>
 			recordOn(`${day}-cf`, {

@@ -55,11 +55,16 @@ describe('maxForceAt', () => {
 		record({ right_value: 60, grip_position: 1, session_date: '2026-03-02T10:00:00Z' })
 	];
 
-	it('takes the latest Max Force at or before the date, for the hand and grip', () => {
+	it('takes the latest Max Force before the date, for the hand and grip', () => {
 		expect(maxForceAt(history, 'right', 0, '2026-03-20T10:00:00Z')).toBe(40);
 		expect(maxForceAt(history, 'right', 0, '2026-04-02T10:00:00Z')).toBe(44);
 		expect(maxForceAt(history, 'left', 0, '2026-04-02T10:00:00Z')).toBe(38);
 		expect(maxForceAt(history, 'right', 1, '2026-04-02T10:00:00Z')).toBe(60);
+	});
+
+	it("leaves out a max kept from the test's own pull, stored at its date", () => {
+		const kept = record({ right_value: 46, session_date: '2026-03-20T10:00:00Z' });
+		expect(maxForceAt([...history, kept], 'right', 0, '2026-03-20T10:00:00Z')).toBe(40);
 	});
 
 	it('has none before the first Max Force on the hand', () => {
@@ -100,13 +105,16 @@ describe('the Critical Force note', () => {
 });
 
 describe('a Critical Force in the two date comparison', () => {
-	function snapshot(date: string, cf: number, max: number, wPrime?: number): AssessmentSnapshot {
+	function snapshot(
+		date: string,
+		cf: { value: number; at: string; wPrime?: number },
+		max: { value: number; at: string }
+	): AssessmentSnapshot {
 		const base = {
 			unit: 'kilograms',
 			per_hand: true,
 			bodyweight_relative: false,
 			grip_position: 0,
-			right_measured_at: date,
 			right_origin: 'test' as const
 		};
 		return {
@@ -116,24 +124,79 @@ describe('a Critical Force in the two date comparison', () => {
 					...base,
 					assessment_id: CRITICAL_FORCE_ID,
 					label: 'Critical Force',
-					right_value: cf,
-					...(wPrime === undefined ? {} : { right_details: { w_prime_kg_s: wPrime } })
+					right_value: cf.value,
+					right_measured_at: cf.at,
+					...(cf.wPrime === undefined ? {} : { right_details: { w_prime_kg_s: cf.wPrime } })
 				},
-				{ ...base, assessment_id: MAX_FORCE_ID, label: 'Max Force', right_value: max }
+				{
+					...base,
+					assessment_id: MAX_FORCE_ID,
+					label: 'Max Force',
+					right_value: max.value,
+					right_measured_at: max.at
+				}
 			]
 		};
 	}
 
-	it('reads each date against the Max Force standing on it', () => {
-		const rows = compareSnapshots(
-			snapshot('2026-03-01T10:00:00Z', 16, 40, 500),
-			snapshot('2026-05-01T10:00:00Z', 20, 44)
-		);
+	function rightHand(rows: ReturnType<typeof compareSnapshots>) {
 		const cf = rows.find((row) => row.assessmentId === CRITICAL_FORCE_ID)!;
-		const right = cf.hands.find((hand) => hand.hand === 'right')!;
-		expect(right.before?.detail).toBe("40 % of max, W' 500 kg.s");
-		expect(right.after?.detail).toBe('45 % of max');
+		return cf.hands.find((hand) => hand.hand === 'right')!;
+	}
+
+	it('reads each side against the Max Force on file when it was measured', () => {
+		const history = [
+			record({ right_value: 40, session_date: '2026-02-01T10:00:00Z' }),
+			record({ right_value: 44, session_date: '2026-04-01T10:00:00Z' })
+		];
+		const rows = compareSnapshots(
+			snapshot(
+				'2026-03-01T10:00:00Z',
+				{ value: 16, at: '2026-03-01T10:00:00Z', wPrime: 500 },
+				{ value: 40, at: '2026-02-01T10:00:00Z' }
+			),
+			snapshot(
+				'2026-05-01T10:00:00Z',
+				{ value: 20, at: '2026-05-01T10:00:00Z' },
+				{ value: 44, at: '2026-04-01T10:00:00Z' }
+			),
+			history
+		);
+		expect(rightHand(rows).before?.detail).toBe("40 % of max, W' 500 kg.s");
+		expect(rightHand(rows).after?.detail).toBe('45 % of max');
 		const max = rows.find((row) => row.assessmentId === MAX_FORCE_ID)!;
 		expect(max.hands.every((hand) => !hand.before?.detail && !hand.after?.detail)).toBe(true);
+	});
+
+	it('reads a result carried forward the same on both sides, and as on its card', () => {
+		// Max 40 kg, then a Critical Force of 18 kg, then a newer max of 50 kg.
+		const cf = record({
+			assessment_id: CRITICAL_FORCE_ID,
+			right_value: 18,
+			session_date: '2026-03-20T10:00:00Z'
+		});
+		const history = [
+			record({ right_value: 40, session_date: '2026-03-01T10:00:00Z' }),
+			record({ right_value: 50, session_date: '2026-05-01T10:00:00Z' }),
+			// The test's own hardest pull, kept as a max on its session.
+			record({ right_value: 46, session_date: '2026-03-20T10:00:00Z', origin: 'training' }),
+			cf
+		];
+		const rows = compareSnapshots(
+			snapshot(
+				'2026-03-20T10:00:00Z',
+				{ value: 18, at: '2026-03-20T10:00:00Z' },
+				{ value: 46, at: '2026-03-20T10:00:00Z' }
+			),
+			snapshot(
+				'2026-05-01T10:00:00Z',
+				{ value: 18, at: '2026-03-20T10:00:00Z' },
+				{ value: 50, at: '2026-05-01T10:00:00Z' }
+			),
+			history
+		);
+		expect(rightHand(rows).before?.detail).toBe('45 % of max');
+		expect(rightHand(rows).after?.detail).toBe('45 % of max');
+		expect(criticalForceRecordNote(cf, 'right', history)).toBe('45 % of max');
 	});
 });

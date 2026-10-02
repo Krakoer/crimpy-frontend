@@ -30,9 +30,15 @@ export function criticalForceDetails(raw: unknown): CriticalForceDetails | null 
 
 export type ForceHand = 'left' | 'right';
 
-// The Max Force a Critical Force is a share of: the latest one on file at or
-// before it, for the same hand and grip. Not the latest one today, or an old
-// test would read against a max the athlete had not reached yet.
+// The Max Force a Critical Force is a share of: the latest one on file before
+// it, for the same hand and grip, which is the one the app read it against
+// when the test ended. Not the latest one today, or an old test would read
+// against a max the athlete had not reached yet. Strictly before: a max kept
+// from the test's own hardest pull is stored on the test's session, at its
+// date, and reading the test against its own peak would deflate the share.
+//
+// The one place that decides it, for the card, the session and the
+// comparison alike, so a result cannot read as two shares in two panels.
 export function maxForceAt(
 	records: AssessmentResponse[],
 	hand: ForceHand,
@@ -47,7 +53,7 @@ export function maxForceAt(
 		const value = hand === 'right' ? record.right_value : record.left_value;
 		if (value === null || value === undefined || value <= 0) continue;
 		const measured = new Date(record.session_date).getTime();
-		if (measured > cutoff) continue;
+		if (measured >= cutoff) continue;
 		if (!best || measured >= best.at) best = { at: measured, value };
 	}
 	return best?.value ?? null;

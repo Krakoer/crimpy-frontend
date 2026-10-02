@@ -361,6 +361,7 @@
 						{#each records as assessment (assessment.id)}
 							{@const denominator = readRecordDenominator(assessment)}
 							{@const readsAs = readingLabel(assessment.bodyweight_relative, assessment.unit)}
+							{@const cfNote = criticalForceSessionNote(assessment)}
 							<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
 								<div class="flex items-center justify-between">
 									<div style="min-width: 0;">
@@ -382,9 +383,9 @@
 												{originNote(assessment)}
 											</div>
 										{/if}
-										{#if criticalForceSessionNote(assessment)}
+										{#if cfNote}
 											<div style="font-size: 11.5px; color: var(--tx3-sm);">
-												{criticalForceSessionNote(assessment)}
+												{cfNote}
 											</div>
 										{/if}
 									</div>
