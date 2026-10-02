@@ -197,6 +197,35 @@ export interface AssessmentRelativeValue {
 	percent: number;
 	fallback: number;
 	hands: PrescribedHand[];
+	// The grip a load is hung with, as a grip position, which its percentage is
+	// read against (Krakoer/crimpy#182). Absent for anything not hung on a named
+	// grip, which reads against the latest result on any grip.
+	grip?: number;
+}
+
+// A grip as a training stores it, in either vocabulary the app reads: the app's
+// enum names or the portal's short codes. Mirrors gripFromStored in the app, so
+// both read a hang against the same grip. Keep it in step with GRIP_ALIASES in
+// components/training/hangboard-config.ts, which the editor reads grips with:
+// a grip known there and not here would resolve against any grip.
+export function gripPositionFromStored(name: string | undefined): number | undefined {
+	switch (name) {
+		case 'halfCrimp':
+		case 'HC':
+			return 0;
+		case 'threeFinger':
+		case '3FD':
+			return 1;
+		case 'fullCrimp':
+		case 'FC':
+			return 2;
+		case 'openHand':
+		case 'OC':
+		case 'OH':
+			return 3;
+		default:
+			return undefined;
+	}
 }
 
 // The load array a hang actually reads, and the hand its percentages resolve
@@ -204,31 +233,39 @@ export interface AssessmentRelativeValue {
 // it: left_loads is the left hand's array alone, the left hand falls back to
 // loads when an item prescribes no left array, and a hang on two hands at once
 // takes the mean of the two results rather than one number per hand.
-function loadSources(item: TrainingItem): { loads: Load[]; hand: PrescribedHand }[] {
+function loadSources(
+	item: TrainingItem
+): { loads: Load[]; hand: PrescribedHand; grips: string[] }[] {
 	const loads = item.loads ?? [];
 	const leftLoads = item.left_loads?.length ? item.left_loads : loads;
 
 	// An exercise or a free item is not hung on a named hand, and the app labels
 	// its load without one, which lands on the mean.
 	if (item.type !== 'repeater' && item.type !== 'hangboard_rep') {
-		return [{ loads, hand: 'mean' }];
+		return [{ loads, hand: 'mean', grips: [] }];
 	}
+	// The grip of each row, as HangboardLayout.grip reads it: with one array per
+	// hand the left hand's comes first, and any hand not named left reads the
+	// other one.
+	const positions = item.hand_positions ?? [];
+	const gripsFor = (leftHand: boolean): string[] =>
+		(positions.length > 1 ? positions[leftHand ? 0 : 1] : positions[0]) ?? [];
 	switch (item.hand ?? 'both') {
 		case 'right':
-			return [{ loads, hand: 'right' }];
+			return [{ loads, hand: 'right', grips: gripsFor(false) }];
 		case 'left':
-			return [{ loads: leftLoads, hand: 'left' }];
+			return [{ loads: leftLoads, hand: 'left', grips: gripsFor(true) }];
 		case 'alternate':
 		case 'split':
 			// A hangboard rep is a single hang, and the layout reads the right
 			// hand's array for any hand not named left.
-			if (item.type === 'hangboard_rep') return [{ loads, hand: 'mean' }];
+			if (item.type === 'hangboard_rep') return [{ loads, hand: 'mean', grips: gripsFor(false) }];
 			return [
-				{ loads, hand: 'right' },
-				{ loads: leftLoads, hand: 'left' }
+				{ loads, hand: 'right', grips: gripsFor(false) },
+				{ loads: leftLoads, hand: 'left', grips: gripsFor(true) }
 			];
 		default:
-			return [{ loads, hand: 'mean' }];
+			return [{ loads, hand: 'mean', grips: gripsFor(false) }];
 	}
 }
 
@@ -240,9 +277,10 @@ export function collectAssessmentRelativeValues(items: TrainingItem[]): Assessme
 		assessmentId: string,
 		percent: number,
 		fallback: number,
-		hand: PrescribedHand
+		hand: PrescribedHand,
+		grip?: number
 	) {
-		const key = `${field}:${assessmentId}:${percent}:${fallback}`;
+		const key = `${field}:${assessmentId}:${percent}:${fallback}:${grip ?? ''}`;
 		const existing = byKey.get(key);
 		if (!existing) {
 			byKey.set(key, {
@@ -250,7 +288,8 @@ export function collectAssessmentRelativeValues(items: TrainingItem[]): Assessme
 				assessment_id: assessmentId,
 				percent,
 				fallback,
-				hands: [hand]
+				hands: [hand],
+				...(grip === undefined ? {} : { grip })
 			});
 		} else if (!existing.hands.includes(hand)) {
 			existing.hands.push(hand);
@@ -259,11 +298,18 @@ export function collectAssessmentRelativeValues(items: TrainingItem[]): Assessme
 
 	function visit(item: TrainingItem) {
 		for (const source of loadSources(item)) {
-			for (const load of source.loads) {
+			source.loads.forEach((load, row) => {
 				if (load.unit === 'percent_assessment' && load.assessment_id !== undefined) {
-					add('load', load.assessment_id, load.value, load.fallback ?? 0, source.hand);
+					add(
+						'load',
+						load.assessment_id,
+						load.value,
+						load.fallback ?? 0,
+						source.hand,
+						gripPositionFromStored(source.grips[row])
+					);
 				}
-			}
+			});
 		}
 		// The app resolves a duration or a rep count without naming a hand, so it
 		// is one number for the whole item whichever hands the item hangs.
@@ -302,13 +348,23 @@ export function resolveAgainstFrozenResults(
 	// number in the wrong unit in front of the coach.
 	const unitMatches = catalog[relative.assessment_id]?.unit === FIELD_UNITS[relative.field];
 
+	// A load hung on a grip reads the last value on that grip, hand by hand, and
+	// the last one on any grip for a hand that grip was never measured on, the
+	// way the app resolves it.
+	const onGrip =
+		relative.grip === undefined
+			? undefined
+			: measured?.by_grip?.find((entry) => entry.grip_position === relative.grip);
+	const right = onGrip?.right_value ?? measured?.right_value;
+	const left = onGrip?.left_value ?? measured?.left_value;
+
 	function measuredFor(hand: PrescribedHand): number | null {
 		if (!measured || !unitMatches) return null;
-		if (hand === 'right') return measured.right_value ?? null;
-		if (hand === 'left') return measured.left_value ?? null;
+		if (hand === 'right') return right ?? null;
+		if (hand === 'left') return left ?? null;
 		// The mean of the hands that were measured, which is the single hand
 		// itself when the athlete only ever did the assessment on one side.
-		const values = [measured.right_value, measured.left_value].filter(
+		const values = [right, left].filter(
 			(value): value is number => value !== null && value !== undefined
 		);
 		if (values.length === 0) return null;

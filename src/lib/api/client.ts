@@ -223,6 +223,17 @@ export interface AssessmentResultSnapshot {
 	assessment_id: string;
 	right_value?: number | null;
 	left_value?: number | null;
+	// The same last value per hand, kept apart per grip the results were pulled
+	// on. A percentage load on a hang reads its grip's entry, hand by hand, and
+	// falls back to the values above for a grip or a hand never measured. Absent
+	// on a session played before it was recorded.
+	by_grip?: AssessmentGripResultSnapshot[];
+}
+
+export interface AssessmentGripResultSnapshot {
+	grip_position: number;
+	right_value?: number | null;
+	left_value?: number | null;
 }
 
 // An assessment as a prescription froze it: enough to name the reference and
