@@ -67,6 +67,12 @@ describe('maxForceAt', () => {
 		expect(maxForceAt([...history, kept], 'right', 0, '2026-03-20T10:00:00Z')).toBe(40);
 	});
 
+	it('lets a recorded zero stand, so no share is read rather than an older one', () => {
+		const zero = record({ right_value: 0, session_date: '2026-03-10T10:00:00Z' });
+		expect(maxForceAt([...history, zero], 'right', 0, '2026-03-20T10:00:00Z')).toBe(0);
+		expect(shareOfMax(18, 0)).toBeNull();
+	});
+
 	it('has none before the first Max Force on the hand', () => {
 		expect(maxForceAt(history, 'right', 0, '2026-02-01T10:00:00Z')).toBeNull();
 		expect(maxForceAt(history, 'left', 1, '2026-04-02T10:00:00Z')).toBeNull();

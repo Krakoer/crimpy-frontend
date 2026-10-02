@@ -66,7 +66,7 @@ export interface ComparedValue {
 	// a test, which the table says beside it.
 	keptFromTraining?: boolean;
 	// A secondary reading of the value: for a Critical Force, its share of the
-	// Max Force standing on the same date, hand and grip, and its W'.
+	// Max Force on file before it was measured, for its hand and grip, and its W'.
 	detail?: string;
 }
 

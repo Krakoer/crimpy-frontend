@@ -51,7 +51,9 @@ export function maxForceAt(
 		if (record.assessment_id !== MAX_FORCE_ID) continue;
 		if ((record.grip_position ?? 0) !== grip) continue;
 		const value = hand === 'right' ? record.right_value : record.left_value;
-		if (value === null || value === undefined || value <= 0) continue;
+		// A recorded zero still stands as the latest max, as it does in the app,
+		// and reads as no share rather than falling back to an older max.
+		if (value === null || value === undefined) continue;
 		const measured = new Date(record.session_date).getTime();
 		if (measured >= cutoff) continue;
 		if (!best || measured >= best.at) best = { at: measured, value };
