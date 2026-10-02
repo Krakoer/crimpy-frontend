@@ -209,6 +209,35 @@ test.describe('coachee detail', () => {
 		await expect(page.getByText('2 sessions').first()).toBeVisible();
 	});
 
+	test.describe('in the athlete training day', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		test('files a session begun after midnight under the evening it belongs to', async ({
+			page
+		}) => {
+			// Wednesday 30 September, midday in Paris.
+			await page.clock.setFixedTime(new Date('2026-09-30T10:00:00Z'));
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+				body: [
+					// 00:30 on Tuesday in Paris, which the athlete's app filed under
+					// Monday. Read off the instant it would sit under Yesterday.
+					testSession({
+						name: 'Late hang',
+						date: '2026-09-28T22:30:00Z',
+						training_day: '2026-09-28'
+					})
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+
+			await expect(page.getByText('Late hang')).toBeVisible();
+			await expect(page.getByText('Monday 28 September')).toBeVisible();
+			await expect(page.getByText('Yesterday')).toHaveCount(0);
+		});
+	});
+
 	test('shows the empty state when no session has been recorded', async ({ page }) => {
 		await stubCoacheeDetail(page);
 

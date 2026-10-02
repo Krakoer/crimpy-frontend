@@ -8,7 +8,8 @@
 		awaitsCoachReply,
 		formatDuration,
 		formatSessionTime,
-		sessionActivityInfo
+		sessionActivityInfo,
+		trainingDayOf
 	} from '$lib/sessions';
 
 	interface Props {
@@ -29,13 +30,13 @@
 	let { weekNumber, sessions, programSessionIDs, failed, startsInTheFuture, onOpen }: Props =
 		$props();
 
-	// Under the day it was played, in the column the prescription for that day
-	// sits in. Monday first, like the grid above, where the Date constructor
-	// counts from Sunday.
+	// Under the training day it counts for, in the column the prescription for
+	// that day sits in. Monday first, like the grid above, where the Date
+	// constructor counts from Sunday.
 	const sessionsByDay = $derived.by(() => {
 		const days: SessionResponse[][] = Array.from({ length: 7 }, () => []);
 		for (const session of sessions) {
-			days[(new Date(session.date).getDay() + 6) % 7].push(session);
+			days[(trainingDayOf(session).getDay() + 6) % 7].push(session);
 		}
 		return days;
 	});

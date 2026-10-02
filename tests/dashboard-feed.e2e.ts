@@ -139,6 +139,38 @@ test('lists what the coach still owes, and counts it', async ({ page }) => {
 	await expect(page.getByText('This week').locator('..')).toContainText('6');
 });
 
+test.describe('in Paris', () => {
+	test.use({ timezoneId: 'Europe/Paris' });
+
+	// 00:30 on Tuesday in Paris, which the athlete's app filed under Monday: the
+	// row names Monday, the day the coachee page files it under too.
+	test('names the training day of a session waiting on an answer', async ({ page }) => {
+		await stub(page, 'GET', '/api/coach/feed', { body: [] });
+		await stub(page, 'GET', '/api/coach/todo', {
+			body: testCoachTodo({
+				pending_feedback: [
+					{
+						session_id: 'session-9',
+						user_id: 'user-42',
+						user_firstname: 'Robin',
+						user_lastname: 'Slab',
+						session_name: 'Late hang',
+						session_date: '2026-09-28T22:30:00Z',
+						session_training_day: '2026-09-28',
+						activity: 0,
+						notes: 'the last set was brutal'
+					}
+				],
+				pending_feedback_total: 1
+			})
+		});
+
+		await page.goto('/dashboard');
+
+		await expect(page.getByText(/Late hang - 28 Sept/)).toBeVisible();
+	});
+});
+
 test('groups a current week nobody programmed apart from the one still to come', async ({
 	page
 }) => {

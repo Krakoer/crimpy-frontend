@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { type CoachTodo, type EmptyProgramWeek } from '$lib/api/client';
-	import { formatDayMonth } from '$lib/date';
+	import { formatDayMonth, toDateOnly } from '$lib/date';
 	import { DAY_LABELS_LONG } from '$lib/program-draft';
-	import { sessionActivityInfo } from '$lib/sessions';
+	import { sessionActivityInfo, trainingDayOf } from '$lib/sessions';
 	import Icon from '$lib/components/Icon.svelte';
 
 	// The list is loaded by the page rather than here, since the same response
@@ -45,6 +45,12 @@
 	});
 
 	const formatDate = formatDayMonth;
+
+	// The day a session waiting on an answer counts for, the one the coachee
+	// page files it under, rather than the date of its instant on this clock.
+	function formatSessionDay(date: string, trainingDay: string | undefined): string {
+		return formatDate(`${toDateOnly(trainingDayOf({ date, training_day: trainingDay }))}T00:00:00`);
+	}
 </script>
 
 {#snippet emptyWeekRow(week: EmptyProgramWeek, detail: string, text: string, tint: string)}
@@ -145,7 +151,10 @@
 						<div
 							style="font-size: 11.5px; color: var(--tx3-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 						>
-							{item.session_name || 'Session'} - {formatDate(item.session_date)}
+							{item.session_name || 'Session'} - {formatSessionDay(
+								item.session_date,
+								item.session_training_day
+							)}
 						</div>
 						<div
 							style="margin-top: 4px; font-size: 12px; color: var(--tx2); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"

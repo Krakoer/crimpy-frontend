@@ -65,6 +65,13 @@ describe('sessionsOfWeek', () => {
 		const shuffled = [sessions[2], sessions[1]];
 		expect(sessionsOfWeek(shuffled, MONDAY, 1).map((s) => s.id)).toEqual(['monday', 'sunday-late']);
 	});
+	it('keeps a session begun after midnight on the Monday in the week its training day closes', () => {
+		const afterMidnight = session('after-midnight', '2026-03-09T00:30:00', {
+			training_day: '2026-03-08'
+		});
+		expect(sessionsOfWeek([afterMidnight], MONDAY, 1).map((s) => s.id)).toEqual(['after-midnight']);
+		expect(sessionsOfWeek([afterMidnight], MONDAY, 2)).toEqual([]);
+	});
 });
 
 describe('sessionsByProgramSession', () => {

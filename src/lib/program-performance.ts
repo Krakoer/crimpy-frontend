@@ -1,5 +1,6 @@
 import type { SessionResponse } from '$lib/api/client';
 import { mondayOf, toDateOnly } from '$lib/date';
+import { trainingDayOf } from '$lib/sessions';
 
 // What the athlete actually did, read against the program that asked for it. A
 // coach editing next week needs last week's runs next to the prescription: the
@@ -34,9 +35,10 @@ export function programWeekRange(
 	};
 }
 
-// The sessions played in one program week, oldest first. Driven by the date the
-// session was played rather than by the row it points at, so a run the athlete
-// did off program still shows up in the week a coach is looking at.
+// The sessions played in one program week, oldest first. Driven by the training
+// day the session counts for rather than by the row it points at, so a run the
+// athlete did off program still shows up in the week a coach is looking at, and
+// one begun after midnight on the Monday stays in the week it closed.
 export function sessionsOfWeek(
 	sessions: SessionResponse[],
 	programStartDate: string,
@@ -46,8 +48,8 @@ export function sessionsOfWeek(
 	const end = weekStart(programStartDate, weekNumber + 1).getTime();
 	return sessions
 		.filter((session) => {
-			const played = new Date(session.date).getTime();
-			return played >= start && played < end;
+			const day = trainingDayOf(session).getTime();
+			return day >= start && day < end;
 		})
 		.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }

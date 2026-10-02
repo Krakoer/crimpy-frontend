@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { SessionResponse } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
-	import { awaitsCoachReply, formatSessionDateShort } from '$lib/sessions';
+	import { awaitsCoachReply, formatTrainingDayShort } from '$lib/sessions';
 
 	interface Props {
 		// Every run played from the prescribed row this marker sits on, oldest
@@ -18,7 +18,7 @@
 
 	const title = $derived(
 		[
-			`Played ${played.map((session) => formatSessionDateShort(session.date)).join(', ')}.`,
+			`Played ${played.map(formatTrainingDayShort).join(', ')}.`,
 			needsReply ? 'The athlete is waiting for an answer.' : null,
 			'Open the last run.'
 		]
