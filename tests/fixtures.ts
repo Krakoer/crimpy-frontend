@@ -1027,6 +1027,7 @@ export interface TestCoachTodo {
 		user_lastname: string;
 		session_name: string;
 		session_date: string;
+		session_training_day?: string;
 		activity: number;
 		notes: string;
 	}[];

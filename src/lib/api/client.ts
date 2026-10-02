@@ -854,6 +854,9 @@ export interface PendingFeedback {
 	user_lastname: string;
 	session_name: string;
 	session_date: string;
+	// The day the session counts for in the athlete's own calendar, YYYY-MM-DD,
+	// absent only from an API older than the field.
+	session_training_day?: string;
 	activity: number;
 	notes: string;
 }
