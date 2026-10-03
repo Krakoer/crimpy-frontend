@@ -18,7 +18,8 @@
 	import { copyTitle, trainingCopyRequest } from '$lib/duplicate-training';
 
 	let trainings = $state<TrainingSummary[]>([]);
-	let itemsById = $state.raw<Record<string, TrainingItem[]>>({});
+	// Null until the item trees have been asked for and answered, or refused.
+	let itemsById = $state.raw<Record<string, TrainingItem[]> | null>(null);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
 	let duplicatingId = $state<string | null>(null);
@@ -74,7 +75,9 @@
 
 	// The item trees only feed the duration on each row, so they are read beside
 	// the list rather than as it: the listing that carries them stops at 200
-	// rows, and a row it left out, or a failed read, just shows no duration.
+	// rows. A row it left out, or every row when the read failed, says its
+	// duration is unknown rather than showing none, which would read as a
+	// training with nothing timed in it.
 	async function loadItemTrees() {
 		try {
 			const withItems = await apiClient.getTrainingsWithItems();
@@ -82,6 +85,13 @@
 		} catch {
 			itemsById = {};
 		}
+	}
+
+	// The items a row's duration is counted from: none while they are being read,
+	// null once the read is over and had nothing for this row.
+	function rowItems(id: string): TrainingItem[] | null {
+		if (itemsById === null) return [];
+		return itemsById[id] ?? null;
 	}
 
 	async function handleDelete(id: string) {
@@ -459,7 +469,7 @@
 									<Icon name="clock" size={12} color="var(--tx3)" />
 									Created {formatDate(training.created_at)}
 								</span>
-								<TrainingDuration items={itemsById[training.id] ?? []} />
+								<TrainingDuration items={rowItems(training.id)} />
 							</div>
 						</div>
 					</div>
@@ -565,7 +575,7 @@
 							</span>
 						</div>
 						<div>
-							<TrainingDuration items={itemsById[training.id] ?? []} size="md" />
+							<TrainingDuration items={rowItems(training.id)} size="md" />
 						</div>
 						<div style="font-size: 12.5px; color: var(--tx2);">
 							Created {formatDate(training.created_at)}

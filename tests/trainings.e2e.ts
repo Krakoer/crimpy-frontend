@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { TrainingRequest } from '../src/lib/api/client';
 import {
+	API_URL,
 	BUILTIN_CRITICAL_FORCE,
 	BUILTIN_ENDURANCE_60,
 	builtinAssessmentDefinitions,
@@ -374,6 +375,23 @@ test.describe('training duration', () => {
 
 		await expect(page.getByTestId('training-duration')).toHaveCount(1);
 		await expect(page.getByTestId('training-duration')).toHaveText('9 min');
+	});
+
+	test('says a duration is unknown when the item trees could not be read', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', {
+			body: [testTraining({ items: [repeaterBlock] })]
+		});
+		// The plain list answers; the listing that carries the item trees, which
+		// differs only by its query, is refused. Registered last so it is the
+		// route consulted first.
+		await page.route(`${API_URL}/api/trainings?include=items`, (route) =>
+			route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"boom"}' })
+		);
+
+		await page.goto('/trainings');
+
+		await expect(page.getByText('Power endurance block')).toBeVisible();
+		await expect(page.getByTestId('training-duration')).toHaveText('--');
 	});
 
 	test('shows the duration of a training opened read only', async ({ page }) => {
