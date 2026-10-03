@@ -581,6 +581,9 @@ export interface TestSession {
 	user_id: string;
 	name: string;
 	date: string;
+	// The day the athlete's app filed the session under, YYYY-MM-DD. Left out,
+	// the portal applies the 04:00 rule to date on the browser's clock.
+	training_day?: string;
 	duration: number;
 	notes: string;
 	activity: number;
@@ -1027,6 +1030,7 @@ export interface TestCoachTodo {
 		user_lastname: string;
 		session_name: string;
 		session_date: string;
+		session_training_day?: string;
 		activity: number;
 		notes: string;
 	}[];

@@ -210,6 +210,35 @@ test.describe('coachee detail', () => {
 		await expect(page.getByText('2 sessions').first()).toBeVisible();
 	});
 
+	test.describe('in the athlete training day', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		test('files a session begun after midnight under the evening it belongs to', async ({
+			page
+		}) => {
+			// Wednesday 30 September, midday in Paris.
+			await page.clock.setFixedTime(new Date('2026-09-30T10:00:00Z'));
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+				body: [
+					// 00:30 on Tuesday in Paris, which the athlete's app filed under
+					// Monday. Read off the instant it would sit under Yesterday.
+					testSession({
+						name: 'Late hang',
+						date: '2026-09-28T22:30:00Z',
+						training_day: '2026-09-28'
+					})
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+
+			await expect(page.getByText('Late hang')).toBeVisible();
+			await expect(page.getByText('Monday 28 September')).toBeVisible();
+			await expect(page.getByText('Yesterday')).toHaveCount(0);
+		});
+	});
+
 	test('shows the empty state when no session has been recorded', async ({ page }) => {
 		await stubCoacheeDetail(page);
 
@@ -384,6 +413,65 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
 		// The measurements stay on their own card rather than being paired rep by rep.
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();
+	});
+
+	// A load on a hang reads against the max of the hang's own grip, frozen per
+	// grip beside the latest on any grip (Krakoer/crimpy#182).
+	test('reads a load against the max of its own grip', async ({ page }) => {
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-1',
+						type: 'hangboard_rep',
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						hand: 'right',
+						edge_sizes_mm: [20],
+						hand_positions: [['HC']],
+						loads: [
+							{
+								value: 80,
+								unit: 'percent_assessment',
+								assessment_id: BUILTIN_MAX_FORCE,
+								fallback: 30
+							}
+						]
+					}
+				],
+				resolved_against: {
+					assessments: [
+						{
+							assessment_id: BUILTIN_MAX_FORCE,
+							right_value: 30,
+							left_value: 44,
+							by_grip: [
+								{ grip_position: 0, right_value: 45, left_value: 44 },
+								{ grip_position: 3, right_value: 30 }
+							]
+						}
+					],
+					definitions: [
+						{ id: BUILTIN_MAX_FORCE, label: 'Max Force', unit: 'kilograms', per_hand: true }
+					]
+				}
+			})
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('80% Max Force (load, Half Crimp)')).toBeVisible();
+		// 80% of the half crimp max, not of the newer open hand result.
+		await expect(dialog.getByText('36.0 kg')).toBeVisible();
+		await expect(dialog.getByText('24.0 kg')).toBeHidden();
 	});
 
 	test('shows what the athlete managed on the items that were left open', async ({ page }) => {

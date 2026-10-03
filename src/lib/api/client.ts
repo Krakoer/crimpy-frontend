@@ -81,7 +81,13 @@ export interface SessionResponse {
 	id: string;
 	user_id: string;
 	name: string;
+	// When the session started, a UTC instant.
 	date: string;
+	// The day the session counts for in the athlete's own calendar, YYYY-MM-DD:
+	// the date it started on, or the one before when it started before 04:00.
+	// Absent only from an API older than the field. Read it through
+	// trainingDayOf in $lib/sessions, never by cutting date in the coach's zone.
+	training_day?: string;
 	duration: number;
 	notes: string;
 	// What was done, as a label. See SESSION_ACTIVITIES in $lib/sessions.
@@ -221,6 +227,17 @@ export interface PrescriptionInputs {
 // never measured is absent rather than zero.
 export interface AssessmentResultSnapshot {
 	assessment_id: string;
+	right_value?: number | null;
+	left_value?: number | null;
+	// The same last value per hand, kept apart per grip the results were pulled
+	// on. A percentage load on a hang reads its grip's entry, hand by hand, and
+	// falls back to the values above for a grip or a hand never measured. Absent
+	// on a session played before it was recorded.
+	by_grip?: AssessmentGripResultSnapshot[];
+}
+
+export interface AssessmentGripResultSnapshot {
+	grip_position: number;
 	right_value?: number | null;
 	left_value?: number | null;
 }
@@ -845,6 +862,9 @@ export interface PendingFeedback {
 	user_lastname: string;
 	session_name: string;
 	session_date: string;
+	// The day the session counts for in the athlete's own calendar, YYYY-MM-DD,
+	// absent only from an API older than the field.
+	session_training_day?: string;
 	activity: number;
 	notes: string;
 }

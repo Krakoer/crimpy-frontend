@@ -23,9 +23,11 @@
 	} from '$lib/components/assessment/assessment-records';
 	import {
 		awaitsCoachReply,
+		currentTrainingDay,
 		formatDuration,
 		formatSessionTime,
 		sessionActivityInfo,
+		trainingDayOf,
 		withCoachReply
 	} from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
@@ -116,15 +118,19 @@
 	let weekOffset = $state(0);
 	let selectedDay = $state<Date | null>(null);
 
+	// Every day below is a training day, the rule the athlete's app files their
+	// sessions by: a session counts for the day its device filed it under, and
+	// until 04:00 today is still yesterday, so a hang begun just after midnight
+	// lands on the evening it belongs to on both sides.
 	const weekStripDays = $derived.by(() => {
-		const today = new Date();
+		const today = currentTrainingDay();
 		const baseStart = getWeekStart(today);
 		const weekStart = new Date(baseStart);
 		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
 		return Array.from({ length: 7 }, (_, i) => {
 			const date = new Date(weekStart);
 			date.setDate(weekStart.getDate() + i);
-			const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), date));
+			const daySessions = sessions.filter((s) => isSameDay(trainingDayOf(s), date));
 			return {
 				date,
 				dayLabel: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
@@ -137,7 +143,7 @@
 	});
 
 	const weekStripLabel = $derived.by(() => {
-		const today = new Date();
+		const today = currentTrainingDay();
 		const baseStart = getWeekStart(today);
 		const weekStart = new Date(baseStart);
 		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
@@ -156,7 +162,7 @@
 	}
 
 	const displayedSessions = $derived(
-		selectedDay ? sessions.filter((s) => isSameDay(new Date(s.date), selectedDay!)) : sessions
+		selectedDay ? sessions.filter((s) => isSameDay(trainingDayOf(s), selectedDay!)) : sessions
 	);
 
 	type ProgramStatus = { state: 'upcoming' | 'active' | 'completed'; week: number };
@@ -178,7 +184,7 @@
 	function groupSessionsByDate(
 		items: SessionResponse[]
 	): { label: string; items: SessionResponse[] }[] {
-		const today = new Date();
+		const today = currentTrainingDay();
 		const yesterday = new Date(today);
 		yesterday.setDate(today.getDate() - 1);
 
@@ -188,7 +194,7 @@
 
 		const groups = new Map<string, SessionResponse[]>();
 		for (const session of sorted) {
-			const d = new Date(session.date);
+			const d = trainingDayOf(session);
 			let key: string;
 			if (isSameDay(d, today)) key = 'Today';
 			else if (isSameDay(d, yesterday)) key = 'Yesterday';
