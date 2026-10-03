@@ -1323,6 +1323,13 @@ class ApiClient {
 		return this.requestList<TrainingSummary>(`/api/trainings${query}`);
 	}
 
+	// The library with every training's item tree on its row, read in one
+	// request. The server cuts this listing at its first 200 rows, so it is no
+	// substitute for getTrainings when the whole library has to be listed.
+	async getTrainingsWithItems(): Promise<Training[]> {
+		return this.requestList<Training>('/api/trainings?include=items');
+	}
+
 	async getAssessmentDefinitions(): Promise<AssessmentDefinition[]> {
 		return this.requestList<AssessmentDefinition>('/api/assessment-definitions');
 	}

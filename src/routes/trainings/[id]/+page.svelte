@@ -24,6 +24,7 @@
 	} from '$lib/components/training/assessment-draft';
 	import ItemList from '$lib/components/training/ItemList.svelte';
 	import TrainingPreview from '$lib/components/training/TrainingPreview.svelte';
+	import TrainingDuration from '$lib/components/training/TrainingDuration.svelte';
 	import CreateExerciseModal from '$lib/components/training/CreateExerciseModal.svelte';
 	import SidePanelDraggable from '$lib/components/training/SidePanelDraggable.svelte';
 	import TagFilterSelect from '$lib/components/TagFilterSelect.svelte';
@@ -534,9 +535,14 @@
 				padding: 20px 24px; box-shadow: var(--sh); margin-bottom: 16px;
 			"
 			>
-				<h2 style="font-size: 18px; font-weight: 700; color: var(--tx); margin-bottom: 4px;">
-					{draft.title}
-				</h2>
+				<div
+					style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 4px;"
+				>
+					<h2 style="font-size: 18px; font-weight: 700; color: var(--tx);">
+						{draft.title}
+					</h2>
+					<TrainingDuration items={logOnly ? [] : draft.items} size="md" />
+				</div>
 				{#if draft.description}
 					<p style="font-size: 13px; color: var(--tx2); margin-bottom: 8px;">{draft.description}</p>
 				{/if}
@@ -673,6 +679,7 @@
 								placeholder="Training goal..."
 								style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx2);"
 							/>
+							<TrainingDuration items={draft.items} size="md" />
 						</div>
 					</div>
 
