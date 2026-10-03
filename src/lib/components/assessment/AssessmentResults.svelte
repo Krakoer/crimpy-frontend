@@ -85,6 +85,7 @@
 				showChart={showChart[assessment.id] ?? false}
 				onToggleChart={() => (showChart[assessment.id] = !(showChart[assessment.id] ?? false))}
 				tokens={metricHues ? seriesTokens(assessment.id) : INK_SERIES}
+				allRecords={records}
 			/>
 		{/each}
 	</div>

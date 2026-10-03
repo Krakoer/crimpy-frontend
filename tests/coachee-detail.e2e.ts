@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	BUILTIN_CRITICAL_FORCE,
 	BUILTIN_MAX_FORCE,
 	capture,
 	isoDaysAgo,
@@ -1960,6 +1961,66 @@ test.describe('assessment comparison', () => {
 		await expect(page.getByLabel('To')).toHaveValue(june);
 		await expect(page.getByLabel('From').locator('option')).toHaveCount(1);
 		await expect(comparison.getByText('from a training')).toHaveCount(1);
+	});
+
+	// A Critical Force reads as a share of the max beside it, and with its W'
+	// (Krakoer/crimpy#145): on the card against the Max Force on file at its
+	// date, and in the comparison against the one on file when it was measured.
+	test('reads a Critical Force as a share of max, with its W', async ({ page }) => {
+		const criticalForce = (day: string, value: number, wPrime?: number) =>
+			recordOn(`${day}-cf`, {
+				assessment_id: BUILTIN_CRITICAL_FORCE,
+				label: 'Critical Force',
+				right_value: value,
+				left_value: null,
+				session_date: `${day}T11:00:00Z`,
+				updated_at: `${day}T11:00:00Z`,
+				...(wPrime === undefined ? {} : { details: { w_prime_kg_s: wPrime, pulls: [] } })
+			});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { right_value: 40, left_value: null }),
+				criticalForce(march, 16),
+				recordOn(june, { right_value: 44, left_value: null }),
+				criticalForce(june, 19.8, 512.4)
+			]
+		});
+		const standing = (day: string, cf: number, max: number, wPrime?: number) =>
+			testAssessmentSnapshot(day, [
+				testSnapshotResult({
+					per_hand: true,
+					right_value: max,
+					right_measured_at: `${day}T10:00:00Z`,
+					right_origin: 'test'
+				}),
+				testSnapshotResult({
+					assessment_id: BUILTIN_CRITICAL_FORCE,
+					label: 'Critical Force',
+					per_hand: true,
+					right_value: cf,
+					right_measured_at: `${day}T11:00:00Z`,
+					right_origin: 'test',
+					...(wPrime === undefined ? {} : { right_details: { w_prime_kg_s: wPrime } })
+				})
+			]);
+		await stubSnapshotsByDay(page, {
+			[march]: standing(march, 16, 40),
+			[june]: standing(june, 19.8, 44, 512.4)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const card = page.getByRole('listitem').filter({ hasText: 'Critical Force' });
+		await expect(card.getByTestId('value-detail')).toHaveText("45 % of max, W' 512 kg.s");
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(page.getByLabel('To')).toHaveValue(june);
+		await expect(comparison.getByTestId('comparison-detail')).toHaveText([
+			'40 % of max',
+			"45 % of max, W' 512 kg.s"
+		]);
 	});
 
 	// The whole point of the flag: kilograms alone are not comparable across a

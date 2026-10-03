@@ -23,6 +23,8 @@
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
+	import { criticalForceRecordNote, type ForceHand } from './critical-force';
+	import type { AssessmentResponse } from '$lib/api/client';
 	import { testedDays, type SeriesTokens } from './chart-axes';
 
 	interface Props {
@@ -35,10 +37,20 @@
 		onToggleChart: () => void;
 		// The hue the chart and the hand labels are drawn in.
 		tokens: SeriesTokens;
+		// Every result the athlete has, which a Critical Force reads its share of
+		// max from.
+		allRecords?: AssessmentResponse[];
 	}
 
-	let { assessment, selectedGrip, onSelectGrip, showChart, onToggleChart, tokens }: Props =
-		$props();
+	let {
+		assessment,
+		selectedGrip,
+		onSelectGrip,
+		showChart,
+		onToggleChart,
+		tokens,
+		allRecords = []
+	}: Props = $props();
 
 	let grips = $derived(
 		assessment.hasGrips
@@ -99,6 +111,10 @@
 
 	function noteOf(last: LatestHand | undefined): string {
 		return last ? originNote(last.record) : '';
+	}
+
+	function detailOf(last: LatestHand | undefined, hand: ForceHand): string {
+		return last ? criticalForceRecordNote(last.record, hand, allRecords) : '';
 	}
 
 	// The progress across the whole history, on the hand that carries the result
@@ -184,6 +200,7 @@
 				unit={assessment.unit}
 				size={26}
 				note={noteOf(lastLeft)}
+				detail={detailOf(lastLeft, 'left')}
 			/>
 			<LatestValue
 				label="RIGHT"
@@ -192,6 +209,7 @@
 				unit={assessment.unit}
 				size={26}
 				note={noteOf(lastRight)}
+				detail={detailOf(lastRight, 'right')}
 			/>
 		{:else}
 			<LatestValue

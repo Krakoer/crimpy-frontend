@@ -356,6 +356,10 @@ export interface SessionAssessment {
 	// during a training that the athlete kept because it beat the result on
 	// file. Every result recorded before the distinction reads as a test.
 	origin: AssessmentOrigin;
+	// What the test measured beyond the value, as the app stored it: for a
+	// Critical Force its W', the end force of its last three pulls and one entry
+	// per pull. Absent on every other result and on every one recorded before.
+	details?: Record<string, unknown> | null;
 	updated_at: string;
 }
 
@@ -423,11 +427,15 @@ export interface AssessmentSnapshotResult {
 	// comparison says so when the value standing on a date is a pull kept from a
 	// training rather than a test.
 	right_origin?: AssessmentOrigin | null;
+	// What the test behind this hand's value measured beyond it, from that same
+	// result. Absent when it has none.
+	right_details?: Record<string, unknown> | null;
 	left_value?: number | null;
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
 	left_bodyweight_measured_at?: string | null;
 	left_origin?: AssessmentOrigin | null;
+	left_details?: Record<string, unknown> | null;
 }
 
 // What an athlete had measured as of a date. The bodyweight is what the athlete

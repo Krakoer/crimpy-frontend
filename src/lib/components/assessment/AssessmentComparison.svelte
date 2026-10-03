@@ -83,7 +83,7 @@
 		])
 			.then(([before, after]: AssessmentSnapshot[]) => {
 				if (request !== latestRequest) return;
-				rows = compareSnapshots(before, after);
+				rows = compareSnapshots(before, after, records);
 				failed = false;
 			})
 			.catch(() => {
@@ -310,6 +310,11 @@
 			{#if carriedFrom(value, day)}
 				<div style="font-size: 11px; color: var(--tx3-sm);">
 					measured {carriedFrom(value, day)}
+				</div>
+			{/if}
+			{#if value.detail}
+				<div style="font-size: 11px; color: var(--tx3-sm);" data-testid="comparison-detail">
+					{value.detail}
 				</div>
 			{/if}
 			{#if value.keptFromTraining}

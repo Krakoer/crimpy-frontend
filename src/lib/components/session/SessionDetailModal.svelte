@@ -14,6 +14,11 @@
 	import LatestValue from '$lib/components/assessment/LatestValue.svelte';
 	import { originNote } from '$lib/components/assessment/assessment-records';
 	import {
+		CRITICAL_FORCE_ID,
+		criticalForceDetails,
+		criticalForceNote
+	} from '$lib/components/assessment/critical-force';
+	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
 		readingLabel,
@@ -70,6 +75,19 @@
 	// say so rather than the session looking like a hand-written log.
 	const hasRepData = $derived(repsUnavailable || reps.length > 0 || detail.origin === 'played');
 	const assessments = $derived<SessionAssessment[]>(loaded?.assessments ?? []);
+
+	// A Critical Force's W' and the end force of its last pulls, from what the
+	// test stored beside the value. Its share of max is on the results tab,
+	// which holds the Max Force history this session does not.
+	function criticalForceSessionNote(assessment: SessionAssessment): string {
+		if (assessment.assessment_id !== CRITICAL_FORCE_ID) return '';
+		const details = criticalForceDetails(assessment.details);
+		if (!details) return '';
+		const note = criticalForceNote(null, details);
+		return details.endForceKg === undefined
+			? note
+			: `${note}, end force ${details.endForceKg.toFixed(1)} kg`;
+	}
 	// The results of this session, each carrying the day it was measured on, which
 	// is the session's own. The session read names that day once rather than on
 	// every row, and restating it here is what lets these go through the rule the
@@ -343,6 +361,7 @@
 						{#each records as assessment (assessment.id)}
 							{@const denominator = readRecordDenominator(assessment)}
 							{@const readsAs = readingLabel(assessment.bodyweight_relative, assessment.unit)}
+							{@const cfNote = criticalForceSessionNote(assessment)}
 							<div style="padding: 12px 18px; border-bottom: 1px solid var(--bd2);">
 								<div class="flex items-center justify-between">
 									<div style="min-width: 0;">
@@ -362,6 +381,11 @@
 										{#if originNote(assessment)}
 											<div style="font-size: 11.5px; color: var(--tx2);">
 												{originNote(assessment)}
+											</div>
+										{/if}
+										{#if cfNote}
+											<div style="font-size: 11.5px; color: var(--tx3-sm);">
+												{cfNote}
 											</div>
 										{/if}
 									</div>
