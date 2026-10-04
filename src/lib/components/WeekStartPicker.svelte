@@ -2,6 +2,7 @@
 	import { tick } from 'svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { startOfWeek, toDateOnly, WEEKDAY_SHORT_NAMES } from '$lib/date';
+	import { currentTrainingDay } from '$lib/sessions';
 
 	// Picks the week a program starts on, laid out Monday first whatever the
 	// browser's locale. A native date input cannot do that: its calendar opens on
@@ -22,9 +23,13 @@
 	let trigger: HTMLButtonElement;
 	let grid = $state<HTMLTableElement | undefined>(undefined);
 
-	const selectedMonday = $derived(value ? parseDay(value) : null);
-	let shownMonth = $state(monthOf(new Date()));
-	let focusedDay = $state(new Date());
+	// Snapped, so a legacy start stored off a Monday reads as the week it runs in.
+	const selectedMonday = $derived(value ? startOfWeek(parseDay(value)) : null);
+	// Today as a training day: until 04:00 it is still yesterday, so on a Monday
+	// night the week being finished is the one ringed and opened on.
+	let today = $state(currentTrainingDay());
+	let shownMonth = $state(monthOf(currentTrainingDay()));
+	let focusedDay = $state(currentTrainingDay());
 
 	function parseDay(day: string): Date {
 		return new Date(`${day.slice(0, 10)}T00:00:00`);
@@ -87,7 +92,8 @@
 
 	async function openPicker() {
 		open = true;
-		const start = selectedMonday ?? new Date();
+		today = currentTrainingDay();
+		const start = selectedMonday ?? today;
 		shownMonth = monthOf(start);
 		await focusDay(start);
 	}
@@ -102,8 +108,16 @@
 		close();
 	}
 
+	// Moves the focusable day along with the month, the same day of the month
+	// where it exists, so Tab still reaches the grid after a month step.
 	function showMonth(step: number) {
 		shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + step, 1);
+		const lastDay = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 0).getDate();
+		focusedDay = new Date(
+			shownMonth.getFullYear(),
+			shownMonth.getMonth(),
+			Math.min(focusedDay.getDate(), lastDay)
+		);
 	}
 
 	const arrowSteps: Record<string, number> = {
@@ -146,7 +160,7 @@
 		style="
 			padding: {dense ? '8px 10px' : '10px 14px'}; border: 1px solid {open
 			? 'var(--pr)'
-			: 'var(--bd)'}; border-radius: var(--rs); background: #fff; cursor: pointer;
+			: 'var(--bd)'}; border-radius: var(--rs); background: var(--panel); cursor: pointer;
 			font-family: var(--font); font-size: 13px; text-align: left;
 			color: {selectedMonday ? 'var(--tx)' : 'var(--tx3-sm)'};
 		"
@@ -214,7 +228,7 @@
 						<tr class="week-row" class:selected={isSelectedWeek}>
 							{#each week as day (toDateOnly(day))}
 								{@const inMonth = day.getMonth() === shownMonth.getMonth()}
-								{@const isToday = isSameDay(day, new Date())}
+								{@const isToday = isSameDay(day, today)}
 								<td style="padding: 0; text-align: center;">
 									<button
 										type="button"
@@ -255,7 +269,7 @@
 		height: 28px;
 		border-radius: var(--rs);
 		border: 1px solid var(--bd);
-		background: #fff;
+		background: var(--panel);
 		cursor: pointer;
 	}
 

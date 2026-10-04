@@ -8,6 +8,7 @@ import {
 	type ScheduledRow
 } from '$lib/program-overrides';
 import { arrayMove } from '$lib/sortable';
+import { WEEKDAY_SHORT_NAMES } from '$lib/date';
 
 // _id is a local key for drag and drop only. id is the server row the session
 // came from, and sending it back is what stops the save from recreating the
@@ -369,7 +370,7 @@ export const WEEK_NAME_MAX_LENGTH = 60;
 
 // The days a week grid lays out, Monday first, which is the order day_of_week
 // counts in.
-export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const DAY_LABELS: readonly string[] = WEEKDAY_SHORT_NAMES;
 
 // The same days spelled out, for the places a column header is not the frame.
 // Indexed by the same 0-6 day_of_week, so the Monday first convention lives in

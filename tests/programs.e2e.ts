@@ -4645,6 +4645,17 @@ test.describe('weeks start on Monday in an en-US browser', () => {
 		expect(updates[0].body).toMatchObject({ start_date: '2026-01-12' });
 	});
 
+	test('shows a legacy start stored off a Monday as the week it runs in', async ({ page }) => {
+		// 2026-09-30 is a Wednesday.
+		await stubProgram(page, testProgram({ start_date: '2026-09-30', duration_weeks: 4 }));
+
+		await page.goto(PROGRAM_URL);
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Edit details' }).click();
+
+		await expect(page.getByLabel('Start date')).toHaveText(/Week of Mon 28 Sept 2026/);
+	});
+
 	test('still reads the week being finished at 01:30 on a Monday', async ({ page }) => {
 		// Monday 9 March 2026, 01:30 in New York: the training day is Sunday, the
 		// last day of week 1.

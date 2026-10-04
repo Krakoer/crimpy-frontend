@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dayOfWeekIndex } from '$lib/date';
 	import type { SessionResponse } from '$lib/api/client';
 	import Icon from '$lib/components/Icon.svelte';
 	import SessionRpeBadge from '$lib/components/session/SessionRpeBadge.svelte';
@@ -31,12 +32,11 @@
 		$props();
 
 	// Under the training day it counts for, in the column the prescription for
-	// that day sits in. Monday first, like the grid above, where the Date
-	// constructor counts from Sunday.
+	// that day sits in, Monday first like the grid above.
 	const sessionsByDay = $derived.by(() => {
 		const days: SessionResponse[][] = Array.from({ length: 7 }, () => []);
 		for (const session of sessions) {
-			days[(trainingDayOf(session).getDay() + 6) % 7].push(session);
+			days[dayOfWeekIndex(trainingDayOf(session))].push(session);
 		}
 		return days;
 	});

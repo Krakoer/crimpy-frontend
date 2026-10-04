@@ -362,6 +362,12 @@ test.describe('weeks start on Monday in an en-US browser', () => {
 		await page.keyboard.press('ArrowRight');
 		await page.keyboard.press('Enter');
 		await expect(trigger).toHaveText(/Week of Mon 5 Oct 2026/);
+
+		// A month stepped with the buttons keeps a day of it within Tab's reach.
+		await trigger.click();
+		await picker.getByRole('button', { name: 'Next month' }).click();
+		await page.keyboard.press('Tab');
+		await expect(picker.getByRole('button', { name: 'Thursday 5 November 2026' })).toBeFocused();
 	});
 });
 
