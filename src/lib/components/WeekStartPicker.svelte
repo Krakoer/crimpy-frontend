@@ -154,6 +154,7 @@
 		{id}
 		type="button"
 		aria-haspopup="dialog"
+		aria-describedby="{id}-value"
 		aria-expanded={open}
 		onclick={() => (open ? close() : openPicker())}
 		class="flex w-full items-center justify-between gap-2"
@@ -165,7 +166,7 @@
 			color: {selectedMonday ? 'var(--tx)' : 'var(--tx3-sm)'};
 		"
 	>
-		<span>{triggerText}</span>
+		<span id="{id}-value">{triggerText}</span>
 		<Icon name="calendar" size={15} color="var(--tx2)" />
 	</button>
 
