@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { TrainingRequest } from '../src/lib/api/client';
 import {
+	API_URL,
 	BUILTIN_CRITICAL_FORCE,
 	BUILTIN_ENDURANCE_60,
 	builtinAssessmentDefinitions,
@@ -340,6 +341,106 @@ test.describe('training list', () => {
 		await page.getByText('Power endurance block').click();
 
 		await expect(page).toHaveURL('/trainings/training-1');
+	});
+});
+
+// Three sets of six seven second hangs, three seconds apart and three minutes
+// between sets: 531 seconds, which the app reads as 9 min.
+const repeaterBlock = {
+	id: 'item-9',
+	type: 'repeater',
+	position: 0,
+	hand: 'both',
+	cycles: 3,
+	reps: 6,
+	worktime_seconds: 7,
+	rest_seconds: 3,
+	cycle_rest_seconds: 180
+};
+
+test.describe('training duration', () => {
+	test("shows each training's duration in the grid and the list", async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', {
+			body: [testTraining({ items: [repeaterBlock] }), morningMobility]
+		});
+
+		await page.goto('/trainings');
+
+		// Mobility has nothing timed in it, so it shows no duration at all
+		// rather than a duration of nothing.
+		await expect(page.getByTestId('training-duration')).toHaveCount(1);
+		await expect(page.getByTestId('training-duration')).toHaveText('9 min');
+
+		await page.getByRole('button', { name: 'List view' }).click();
+
+		await expect(page.getByTestId('training-duration')).toHaveCount(1);
+		await expect(page.getByTestId('training-duration')).toHaveText('9 min');
+	});
+
+	test('says a duration is unknown when the item trees could not be read', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings', {
+			body: [testTraining({ items: [repeaterBlock] })]
+		});
+		// The plain list answers; the listing that carries the item trees, which
+		// differs only by its query, is refused. Registered last so it is the
+		// route consulted first.
+		await page.route(`${API_URL}/api/trainings?include=items`, (route) =>
+			route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"boom"}' })
+		);
+
+		await page.goto('/trainings');
+
+		await expect(page.getByText('Power endurance block')).toBeVisible();
+		await expect(page.getByTestId('training-duration')).toHaveText('--');
+	});
+
+	test('shows the duration of a training opened read only', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ items: [repeaterBlock] })
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByTestId('training-duration')).toHaveText('9 min');
+	});
+
+	test('keeps the duration up to date while the training is edited', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({
+				items: [
+					{
+						id: 'item-1',
+						type: 'hangboard_rep',
+						position: 0,
+						worktime_seconds: 10,
+						rest_seconds: 5
+					}
+				]
+			})
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await expect(page.getByTestId('training-duration')).toHaveText('15s');
+
+		// A new hang rep hangs seven seconds and rests three.
+		await page.getByTestId('block-palette').getByRole('button', { name: 'Hang rep' }).click();
+
+		await expect(page.getByTestId('training-duration')).toHaveText('25s');
+	});
+
+	test('shows no duration for a log only training', async ({ page }) => {
+		await stub(page, 'GET', '/api/trainings/*', {
+			body: testTraining({ training_type: 'other', items: [], comment: 'Ten kilometres' })
+		});
+		await stubEditorPalette(page);
+
+		await page.goto('/trainings/training-1');
+
+		await expect(page.getByText('Ten kilometres')).toBeVisible();
+		await expect(page.getByTestId('training-duration')).toHaveCount(0);
 	});
 });
 
