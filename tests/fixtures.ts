@@ -1071,3 +1071,18 @@ export function testCoachTodo(overrides: Partial<TestCoachTodo> = {}): TestCoach
 		...overrides
 	};
 }
+
+/** Picks a day in the Monday-first week picker labelled [label], stepping its
+ *  month until [day] (YYYY-MM-DD) is on show. The picker keeps the Monday of
+ *  that day's week. */
+export async function pickStartWeek(page: Page, label: string, day: string): Promise<void> {
+	await page.getByLabel(label).click();
+	const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+	const target = picker.locator(`[data-day="${day}"]`);
+	for (let step = 0; step < 48 && (await target.count()) === 0; step++) {
+		const firstShown = await picker.locator('[data-day]').first().getAttribute('data-day');
+		const direction = firstShown !== null && day < firstShown ? 'Previous month' : 'Next month';
+		await picker.getByRole('button', { name: direction }).click();
+	}
+	await target.first().click();
+}

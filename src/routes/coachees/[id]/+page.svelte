@@ -2,7 +2,9 @@
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
-	import { formatDayMonth, mondayOf } from '$lib/date';
+	import { formatDayMonth, mondayOf, startOfWeek, WEEKDAY_SHORT_NAMES } from '$lib/date';
+	import { programStatus } from '$lib/program-performance';
+	import WeekStartPicker from '$lib/components/WeekStartPicker.svelte';
 	import { goto } from '$app/navigation';
 	import type {
 		SessionResponse,
@@ -106,15 +108,6 @@
 		);
 	}
 
-	function getWeekStart(date: Date): Date {
-		const d = new Date(date);
-		const day = d.getDay();
-		const diff = day === 0 ? -6 : 1 - day;
-		d.setDate(d.getDate() + diff);
-		d.setHours(0, 0, 0, 0);
-		return d;
-	}
-
 	let weekOffset = $state(0);
 	let selectedDay = $state<Date | null>(null);
 
@@ -124,16 +117,16 @@
 	// lands on the evening it belongs to on both sides.
 	const weekStripDays = $derived.by(() => {
 		const today = currentTrainingDay();
-		const baseStart = getWeekStart(today);
-		const weekStart = new Date(baseStart);
-		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
+		const baseStart = startOfWeek(today);
+		const shownMonday = new Date(baseStart);
+		shownMonday.setDate(baseStart.getDate() + weekOffset * 7);
 		return Array.from({ length: 7 }, (_, i) => {
-			const date = new Date(weekStart);
-			date.setDate(weekStart.getDate() + i);
+			const date = new Date(shownMonday);
+			date.setDate(shownMonday.getDate() + i);
 			const daySessions = sessions.filter((s) => isSameDay(trainingDayOf(s), date));
 			return {
 				date,
-				dayLabel: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+				dayLabel: WEEKDAY_SHORT_NAMES[i],
 				day: date.getDate(),
 				isToday: isSameDay(date, today),
 				isSelected: selectedDay !== null && isSameDay(date, selectedDay),
@@ -144,13 +137,13 @@
 
 	const weekStripLabel = $derived.by(() => {
 		const today = currentTrainingDay();
-		const baseStart = getWeekStart(today);
-		const weekStart = new Date(baseStart);
-		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
-		const weekEnd = new Date(weekStart);
-		weekEnd.setDate(weekStart.getDate() + 6);
+		const baseStart = startOfWeek(today);
+		const shownMonday = new Date(baseStart);
+		shownMonday.setDate(baseStart.getDate() + weekOffset * 7);
+		const weekEnd = new Date(shownMonday);
+		weekEnd.setDate(shownMonday.getDate() + 6);
 		const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-		return `${fmt(weekStart)} - ${fmt(weekEnd)}`;
+		return `${fmt(shownMonday)} - ${fmt(weekEnd)}`;
 	});
 
 	function toggleDayFilter(date: Date) {
@@ -164,16 +157,6 @@
 	const displayedSessions = $derived(
 		selectedDay ? sessions.filter((s) => isSameDay(trainingDayOf(s), selectedDay!)) : sessions
 	);
-
-	type ProgramStatus = { state: 'upcoming' | 'active' | 'completed'; week: number };
-
-	function programStatus(startDate: string, durationWeeks?: number): ProgramStatus {
-		const diffMs = Date.now() - new Date(startDate).getTime();
-		if (diffMs < 0) return { state: 'upcoming', week: 0 };
-		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
-		if (durationWeeks && week > durationWeeks) return { state: 'completed', week: durationWeeks };
-		return { state: 'active', week };
-	}
 
 	const activeProgram = $derived(
 		programs.find((p) => programStatus(p.start_date, p.duration_weeks).state === 'active') ??
@@ -917,15 +900,13 @@
 												style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;"
 												>Start date *</label
 											>
-											<input
-												type="date"
+											<WeekStartPicker
 												id="new-program-start-date"
 												bind:value={newProgramStartDate}
-												style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 											/>
 											<span
 												style="font-size: 11px; color: var(--tx3-sm); display: block; margin-top: 4px;"
-												>Snapped to the Monday of the chosen week.</span
+												>Programs start on the Monday of the chosen week.</span
 											>
 										</div>
 										<div>

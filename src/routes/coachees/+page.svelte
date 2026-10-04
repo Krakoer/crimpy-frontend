@@ -10,6 +10,7 @@
 		Program
 	} from '$lib/api/client';
 	import { trainingDayOf } from '$lib/sessions';
+	import { programStatus } from '$lib/program-performance';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -18,17 +19,6 @@
 		lastActivity: Date | null;
 		activeProgram: string | null;
 	};
-
-	function programStatus(
-		startDate: string,
-		durationWeeks?: number
-	): 'upcoming' | 'active' | 'completed' {
-		const diffMs = Date.now() - new Date(startDate).getTime();
-		if (diffMs < 0) return 'upcoming';
-		const week = Math.ceil(diffMs / (7 * 86400000));
-		if (durationWeeks && week > durationWeeks) return 'completed';
-		return 'active';
-	}
 
 	let coachees = $state<EnrolledUser[]>([]);
 	let extras = $state<Record<string, CoacheeExtra>>({});
@@ -80,8 +70,12 @@
 					// coachee page files it one click further.
 					const lastActivity = sorted[0] ? trainingDayOf(sorted[0]) : null;
 					const active =
-						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active') ??
-						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');
+						programs.find(
+							(p) => programStatus(p.start_date, p.duration_weeks).state === 'active'
+						) ??
+						programs.find(
+							(p) => programStatus(p.start_date, p.duration_weeks).state === 'upcoming'
+						);
 					extras[c.user_id] = { lastActivity, activeProgram: active?.name ?? null };
 				})
 			);

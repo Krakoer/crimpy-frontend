@@ -5,6 +5,7 @@ import {
 	capture,
 	isoDaysAgo,
 	mockApi,
+	pickStartWeek,
 	signIn,
 	stub,
 	testAssessmentRecord,
@@ -271,6 +272,135 @@ test.describe('coachee detail', () => {
 
 		await page.getByRole('button', { name: /^Sessions/ }).click();
 		await expect(page.getByText('No sessions recorded yet.')).toBeVisible();
+	});
+});
+
+// Weeks open on Monday everywhere in the portal, whatever the browser's locale.
+// en-US counts weeks from Sunday, which is what a native date input and any
+// locale-driven calendar would follow.
+test.describe('weeks start on Monday in an en-US browser', () => {
+	test.use({ locale: 'en-US', timezoneId: 'America/New_York' });
+
+	test('lays the week strip out Monday to Sunday', async ({ page }) => {
+		// Sunday 4 October, midday in New York.
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('28 Sept - 4 Oct')).toBeVisible();
+	});
+
+	test('keeps the week being finished until Monday 04:00', async ({ page }) => {
+		// Monday 5 October, 01:30 in New York: still Sunday's training day.
+		await page.clock.setFixedTime(new Date('2026-10-05T05:30:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('28 Sept - 4 Oct')).toBeVisible();
+	});
+
+	test('opens the start date picker on Monday and posts the Monday picked', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+		await stub(page, 'POST', '/api/coach/clients/*/programs', { body: testProgram() });
+		await stub(page, 'GET', '/api/coach/clients/*/programs/*', { body: testProgram() });
+		await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', { body: [] });
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		const posted = capture(page, 'POST', '/api/coach/clients/*/programs');
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		await page.getByLabel('Program name *').fill('Autumn block');
+		await page.getByLabel('Start date *').click();
+
+		const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+		await expect(picker.getByRole('columnheader')).toHaveText([
+			'Mon',
+			'Tue',
+			'Wed',
+			'Thu',
+			'Fri',
+			'Sat',
+			'Sun'
+		]);
+		// October 2026 opens on a Thursday, so its first row is the week of
+		// Monday 28 September.
+		await expect(picker.locator('[data-day]').first()).toHaveAttribute('data-day', '2026-09-28');
+
+		// Sunday 4 October closes that week rather than opening the next.
+		await picker.getByRole('button', { name: 'Sunday 4 October 2026' }).click();
+		await expect(picker).toHaveCount(0);
+		await expect(page.getByLabel('Start date *')).toHaveText(/Week of Mon 28 Sept 2026/);
+		await page.getByRole('button', { name: 'Create program' }).click();
+
+		await expect.poll(() => posted.length).toBe(1);
+		expect((posted[0].body as { start_date: string }).start_date).toContain('2026-09-28');
+	});
+
+	test('opens the picker on the training day, still Sunday at 01:30 on a Monday', async ({
+		page
+	}) => {
+		// Monday 5 October, 01:30 in New York.
+		await page.clock.setFixedTime(new Date('2026-10-05T05:30:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		await page.getByLabel('Start date *').click();
+		const sunday = page
+			.getByRole('dialog', { name: 'Choose the start week' })
+			.getByRole('button', { name: 'Sunday 4 October 2026' });
+
+		await expect(sunday).toBeFocused();
+		await expect(sunday).toHaveAttribute('aria-current', 'date');
+	});
+
+	test('describes the start date button with the week picked', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		await pickStartWeek(page, 'Start date *', '2026-10-07');
+
+		await expect(page.getByLabel('Start date *')).toHaveAccessibleDescription(
+			'Week of Mon 5 Oct 2026'
+		);
+	});
+
+	test('moves through the picker by keyboard and closes on Escape', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		const trigger = page.getByLabel('Start date *');
+		await trigger.click();
+		const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+
+		await expect(picker.getByRole('button', { name: 'Sunday 4 October 2026' })).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(picker.getByRole('button', { name: 'Sunday 11 October 2026' })).toBeFocused();
+		await page.keyboard.press('Escape');
+		await expect(picker).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+
+		await trigger.click();
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('Enter');
+		await expect(trigger).toHaveText(/Week of Mon 5 Oct 2026/);
+
+		// A month stepped with the buttons keeps a day of it within Tab's reach.
+		await trigger.click();
+		await picker.getByRole('button', { name: 'Next month' }).click();
+		await page.keyboard.press('Tab');
+		await expect(picker.getByRole('button', { name: 'Thursday 5 November 2026' })).toBeFocused();
 	});
 });
 
@@ -1809,7 +1939,7 @@ test.describe('programs tab', () => {
 		await page.getByRole('button', { name: 'Create first program' }).click();
 		await page.getByLabel('Program name *').fill('Spring strength block');
 		await page.getByLabel('Objective').fill('Raise max finger strength');
-		await page.getByLabel('Start date *').fill('2026-09-02');
+		await pickStartWeek(page, 'Start date *', '2026-09-02');
 		await page.getByRole('button', { name: 'Create program' }).click();
 
 		await expect(page).toHaveURL('/coachees/coachee-1/programs/program-1');
@@ -1833,7 +1963,7 @@ test.describe('programs tab', () => {
 		await page.getByRole('button', { name: 'Create first program' }).click();
 		await page.getByLabel('Program name *').fill('Autumn block');
 		// 2026-09-04 is a Friday.
-		await page.getByLabel('Start date *').fill('2026-09-04');
+		await pickStartWeek(page, 'Start date *', '2026-09-04');
 		await page.getByRole('button', { name: 'Create program' }).click();
 
 		await expect.poll(() => posted.length).toBe(1);
@@ -1851,7 +1981,7 @@ test.describe('programs tab', () => {
 		await page.getByRole('button', { name: /^Programs/ }).click();
 		await page.getByRole('button', { name: 'Create first program' }).click();
 		await page.getByLabel('Program name *').fill('Autumn block');
-		await page.getByLabel('Start date *').fill('2026-09-02');
+		await pickStartWeek(page, 'Start date *', '2026-09-02');
 		await page.getByRole('button', { name: 'Create program' }).click();
 
 		await expect(page.getByText('Program storage is full')).toBeVisible();
