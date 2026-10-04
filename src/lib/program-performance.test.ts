@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionResponse } from '$lib/api/client';
 import {
+	currentProgramWeek,
+	programStatus,
+	programWeekOn,
 	programWeekRange,
 	sessionsByProgramSession,
 	sessionsOfWeek,
@@ -151,6 +154,55 @@ describe('programWeekRange', () => {
 		expect(programWeekRange('2026-01-05T00:00:00Z', 2)).toEqual({
 			from: '2026-01-05',
 			to: '2026-01-12'
+		});
+	});
+});
+
+describe('weekStart of a legacy program stored off a Monday', () => {
+	it('opens every week on the Monday before the stored start', () => {
+		// 2026-03-04 is a Wednesday.
+		expect(weekStart('2026-03-04', 1)).toEqual(new Date('2026-03-02T00:00:00'));
+		expect(weekStart('2026-03-04', 2)).toEqual(new Date('2026-03-09T00:00:00'));
+	});
+});
+
+describe('programWeekOn', () => {
+	it('counts the week a day falls in, Monday to Sunday', () => {
+		expect(programWeekOn(MONDAY, new Date(2026, 2, 2))).toBe(1);
+		expect(programWeekOn(MONDAY, new Date(2026, 2, 8))).toBe(1);
+		expect(programWeekOn(MONDAY, new Date(2026, 2, 9))).toBe(2);
+	});
+
+	it('goes below 1 before the program and past it after', () => {
+		expect(programWeekOn(MONDAY, new Date(2026, 2, 1))).toBe(0);
+		expect(programWeekOn(MONDAY, new Date(2026, 3, 6))).toBe(6);
+	});
+});
+
+describe('currentProgramWeek', () => {
+	it('turns the week over on Monday at 04:00, like a training day', () => {
+		expect(currentProgramWeek(MONDAY, new Date(2026, 2, 9, 1, 30))).toBe(1);
+		expect(currentProgramWeek(MONDAY, new Date(2026, 2, 9, 4, 0))).toBe(2);
+	});
+});
+
+describe('programStatus', () => {
+	it('is upcoming until the first Monday 04:00, active through the last week, then completed', () => {
+		expect(programStatus(MONDAY, 2, new Date(2026, 2, 2, 3, 0))).toEqual({
+			state: 'upcoming',
+			week: 0
+		});
+		expect(programStatus(MONDAY, 2, new Date(2026, 2, 2, 9, 0))).toEqual({
+			state: 'active',
+			week: 1
+		});
+		expect(programStatus(MONDAY, 2, new Date(2026, 2, 15, 20, 0))).toEqual({
+			state: 'active',
+			week: 2
+		});
+		expect(programStatus(MONDAY, 2, new Date(2026, 2, 16, 9, 0))).toEqual({
+			state: 'completed',
+			week: 2
 		});
 	});
 });

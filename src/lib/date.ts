@@ -8,15 +8,33 @@ export function toDateOnly(date: Date): string {
 	return `${year}-${month}-${day}`;
 }
 
+/** The day every week opens on, everywhere in Crimpy and whatever the browser's
+ *  locale says: weeks run Monday to Sunday. Indexed the way Date.getDay counts,
+ *  0 being Sunday. */
+export const FIRST_DAY_OF_WEEK = 1;
+
+/** The weekday names in the order a week is laid out, Monday first. */
+export const WEEKDAY_SHORT_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+/** Where a day sits in its week, 0 for Monday to 6 for Sunday. */
+export function dayOfWeekIndex(date: Date): number {
+	return (date.getDay() - FIRST_DAY_OF_WEEK + 7) % 7;
+}
+
+/** The Monday of the week holding a local date, at local midnight. Stepped with
+ *  setDate rather than by subtracting milliseconds, so a week with a daylight
+ *  saving change in it still lands on midnight. */
+export function startOfWeek(date: Date): Date {
+	const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+	monday.setDate(monday.getDate() - dayOfWeekIndex(monday));
+	return monday;
+}
+
 /** Returns the Monday (YYYY-MM-DD) of the week containing the given date.
  *  Program weeks run Monday to Sunday, so program start dates are snapped to a
  *  Monday before being sent to the API. */
 export function mondayOf(dateStr: string): string {
-	const d = new Date(`${dateStr}T00:00:00`);
-	const day = d.getDay(); // 0 = Sunday ... 6 = Saturday
-	const diff = day === 0 ? -6 : 1 - day;
-	d.setDate(d.getDate() + diff);
-	return toDateOnly(d);
+	return toDateOnly(startOfWeek(new Date(`${dateStr.slice(0, 10)}T00:00:00`)));
 }
 
 const MINUTE_MS = 60 * 1000;

@@ -4618,3 +4618,52 @@ test('keeps the grid of a week whose first load is the one the training prescrib
 		loads: [kg(20), kg(21), kg(22), kg(23)]
 	});
 });
+
+// Weeks open on Monday whatever the browser's locale; en-US counts from Sunday.
+test.describe('weeks start on Monday in an en-US browser', () => {
+	test.use({ locale: 'en-US', timezoneId: 'America/New_York' });
+
+	test('moves the start date to the Monday of the week picked', async ({ page }) => {
+		const program = testProgram({ start_date: '2026-01-05', duration_weeks: 4 });
+		await stubProgram(page, program);
+		await stub(page, 'PUT', '/api/coach/clients/*/programs/*', {
+			body: { ...program, start_date: '2026-01-12' }
+		});
+		const updates = capture(page, 'PUT', '/api/coach/clients/*/programs/*');
+
+		await page.goto(PROGRAM_URL);
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Edit details' }).click();
+		await expect(page.getByLabel('Start date')).toHaveText(/Week of Mon 5 Jan 2026/);
+		await page.getByLabel('Start date').click();
+		const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+		await expect(picker.getByRole('columnheader').first()).toHaveText('Mon');
+		await picker.getByRole('button', { name: 'Wednesday 14 January 2026' }).click();
+		await page.getByRole('button', { name: 'Done' }).click();
+
+		await expect.poll(() => updates.length).toBe(1);
+		expect(updates[0].body).toMatchObject({ start_date: '2026-01-12' });
+	});
+
+	test('still reads the week being finished at 01:30 on a Monday', async ({ page }) => {
+		// Monday 9 March 2026, 01:30 in New York: the training day is Sunday, the
+		// last day of week 1.
+		await page.clock.setFixedTime(new Date('2026-03-09T06:30:00Z'));
+		await stubProgram(page, testProgram({ start_date: '2026-03-02', duration_weeks: 2 }));
+
+		await page.goto(PROGRAM_URL);
+
+		await expect(page.getByText('Week 1 of 2')).toBeVisible();
+	});
+
+	test('reads the last week as running, not completed', async ({ page }) => {
+		// Thursday 12 March 2026, the second and last week of the program.
+		await page.clock.setFixedTime(new Date('2026-03-12T16:00:00Z'));
+		await stubProgram(page, testProgram({ start_date: '2026-03-02', duration_weeks: 2 }));
+
+		await page.goto(PROGRAM_URL);
+
+		await expect(page.getByText('Week 2 of 2')).toBeVisible();
+		await expect(page.getByText(/Completed/)).toHaveCount(0);
+	});
+});
