@@ -1,4 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+// A pure module with no imports of its own, so it loads outside the build.
+import { CRITICAL_FORCE_ID } from '../src/lib/components/assessment/chart-axes';
 
 /**
  * The app resolves its API base url at runtime from GET /config.json, which
@@ -15,7 +17,7 @@ export const API_URL = 'http://api.test';
  * The assessments Crimpy ships, seeded by the backend migration. They are rows
  * like a coach's own, so a test names one by its id.
  */
-export const BUILTIN_CRITICAL_FORCE = '55970ac0-4544-4945-80cd-4841f7c58fe5';
+export const BUILTIN_CRITICAL_FORCE = CRITICAL_FORCE_ID;
 export const BUILTIN_MAX_FORCE = 'f7954158-63ba-4f0b-a125-6ef195fa6442';
 export const BUILTIN_ENDURANCE_60 = '493acbdd-6fe7-4f25-987c-575ccf433293';
 
@@ -74,12 +76,14 @@ export interface TestAssessmentRecord {
 	left_value: number | null;
 	session_id: string;
 	grip_position?: number | null;
+	origin: 'test' | 'training';
 	updated_at: string;
 	session_date: string;
 	// The weigh-in the row divides by, as the listing endpoint now sends it, and
 	// the day it was taken. Absent together when no weigh-in qualifies.
 	bodyweight_kg?: number | null;
 	bodyweight_measured_at?: string | null;
+	details?: Record<string, unknown> | null;
 }
 
 export function testAssessmentRecord(
@@ -98,6 +102,7 @@ export function testAssessmentRecord(
 		left_value: 40,
 		session_id: 'session-1',
 		grip_position: 0,
+		origin: 'test',
 		updated_at: updated,
 		session_date: updated,
 		...overrides
@@ -124,6 +129,10 @@ export interface TestAssessmentSnapshotResult {
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
 	left_bodyweight_measured_at?: string | null;
+	right_origin?: 'test' | 'training' | null;
+	left_origin?: 'test' | 'training' | null;
+	right_details?: Record<string, unknown> | null;
+	left_details?: Record<string, unknown> | null;
 }
 
 export function testSnapshotResult(
@@ -572,6 +581,9 @@ export interface TestSession {
 	user_id: string;
 	name: string;
 	date: string;
+	// The day the athlete's app filed the session under, YYYY-MM-DD. Left out,
+	// the portal applies the 04:00 rule to date on the browser's clock.
+	training_day?: string;
 	duration: number;
 	notes: string;
 	activity: number;
@@ -1018,6 +1030,7 @@ export interface TestCoachTodo {
 		user_lastname: string;
 		session_name: string;
 		session_date: string;
+		session_training_day?: string;
 		activity: number;
 		notes: string;
 	}[];
@@ -1057,4 +1070,19 @@ export function testCoachTodo(overrides: Partial<TestCoachTodo> = {}): TestCoach
 		sessions_this_week: 0,
 		...overrides
 	};
+}
+
+/** Picks a day in the Monday-first week picker labelled [label], stepping its
+ *  month until [day] (YYYY-MM-DD) is on show. The picker keeps the Monday of
+ *  that day's week. */
+export async function pickStartWeek(page: Page, label: string, day: string): Promise<void> {
+	await page.getByLabel(label).click();
+	const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+	const target = picker.locator(`[data-day="${day}"]`);
+	for (let step = 0; step < 48 && (await target.count()) === 0; step++) {
+		const firstShown = await picker.locator('[data-day]').first().getAttribute('data-day');
+		const direction = firstShown !== null && day < firstShown ? 'Previous month' : 'Next month';
+		await picker.getByRole('button', { name: direction }).click();
+	}
+	await target.first().click();
 }

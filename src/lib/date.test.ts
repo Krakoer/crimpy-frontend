@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayMonth, mondayOf, timeAgo, toDateOnly } from './date';
+import {
+	dayOfWeekIndex,
+	formatDayMonth,
+	mondayOf,
+	startOfWeek,
+	timeAgo,
+	toDateOnly,
+	WEEKDAY_SHORT_NAMES
+} from './date';
 
 describe('toDateOnly', () => {
 	it('keeps the calendar day a local Date is on', () => {
@@ -44,6 +52,32 @@ describe('mondayOf', () => {
 		// The Date constructor counts from Sunday, so this is the case that
 		// needs the special branch.
 		expect(mondayOf('2026-01-11')).toBe('2026-01-05');
+	});
+});
+
+describe('weeks open on Monday', () => {
+	it('lays the weekday names out Monday first', () => {
+		expect(WEEKDAY_SHORT_NAMES[0]).toBe('Mon');
+		expect(WEEKDAY_SHORT_NAMES[6]).toBe('Sun');
+	});
+
+	it('places a Monday first and a Sunday last in its week', () => {
+		expect(dayOfWeekIndex(new Date(2026, 9, 5))).toBe(0);
+		expect(dayOfWeekIndex(new Date(2026, 9, 11))).toBe(6);
+	});
+
+	it('starts the week of a Sunday on the Monday before it, at local midnight', () => {
+		expect(startOfWeek(new Date(2026, 9, 11, 22, 30))).toEqual(new Date(2026, 9, 5));
+	});
+
+	it('does not follow a locale whose weeks start on Sunday', () => {
+		// en-US counts weeks from Sunday; Crimpy's weeks never do, wherever the
+		// coach's browser is set.
+		const usFirstDay = (
+			new Intl.Locale('en-US') as Intl.Locale & { getWeekInfo?: () => { firstDay: number } }
+		).getWeekInfo?.().firstDay;
+		if (usFirstDay !== undefined) expect(usFirstDay).toBe(7);
+		expect(startOfWeek(new Date(2026, 9, 4))).toEqual(new Date(2026, 8, 28));
 	});
 });
 

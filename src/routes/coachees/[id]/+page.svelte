@@ -2,7 +2,9 @@
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
-	import { formatDayMonth, mondayOf } from '$lib/date';
+	import { formatDayMonth, mondayOf, startOfWeek, WEEKDAY_SHORT_NAMES } from '$lib/date';
+	import { programStatus } from '$lib/program-performance';
+	import WeekStartPicker from '$lib/components/WeekStartPicker.svelte';
 	import { goto } from '$app/navigation';
 	import type {
 		SessionResponse,
@@ -23,9 +25,11 @@
 	} from '$lib/components/assessment/assessment-records';
 	import {
 		awaitsCoachReply,
+		currentTrainingDay,
 		formatDuration,
 		formatSessionTime,
 		sessionActivityInfo,
+		trainingDayOf,
 		withCoachReply
 	} from '$lib/sessions';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
@@ -104,30 +108,25 @@
 		);
 	}
 
-	function getWeekStart(date: Date): Date {
-		const d = new Date(date);
-		const day = d.getDay();
-		const diff = day === 0 ? -6 : 1 - day;
-		d.setDate(d.getDate() + diff);
-		d.setHours(0, 0, 0, 0);
-		return d;
-	}
-
 	let weekOffset = $state(0);
 	let selectedDay = $state<Date | null>(null);
 
+	// Every day below is a training day, the rule the athlete's app files their
+	// sessions by: a session counts for the day its device filed it under, and
+	// until 04:00 today is still yesterday, so a hang begun just after midnight
+	// lands on the evening it belongs to on both sides.
 	const weekStripDays = $derived.by(() => {
-		const today = new Date();
-		const baseStart = getWeekStart(today);
-		const weekStart = new Date(baseStart);
-		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
+		const today = currentTrainingDay();
+		const baseStart = startOfWeek(today);
+		const shownMonday = new Date(baseStart);
+		shownMonday.setDate(baseStart.getDate() + weekOffset * 7);
 		return Array.from({ length: 7 }, (_, i) => {
-			const date = new Date(weekStart);
-			date.setDate(weekStart.getDate() + i);
-			const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), date));
+			const date = new Date(shownMonday);
+			date.setDate(shownMonday.getDate() + i);
+			const daySessions = sessions.filter((s) => isSameDay(trainingDayOf(s), date));
 			return {
 				date,
-				dayLabel: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+				dayLabel: WEEKDAY_SHORT_NAMES[i],
 				day: date.getDate(),
 				isToday: isSameDay(date, today),
 				isSelected: selectedDay !== null && isSameDay(date, selectedDay),
@@ -137,14 +136,14 @@
 	});
 
 	const weekStripLabel = $derived.by(() => {
-		const today = new Date();
-		const baseStart = getWeekStart(today);
-		const weekStart = new Date(baseStart);
-		weekStart.setDate(baseStart.getDate() + weekOffset * 7);
-		const weekEnd = new Date(weekStart);
-		weekEnd.setDate(weekStart.getDate() + 6);
+		const today = currentTrainingDay();
+		const baseStart = startOfWeek(today);
+		const shownMonday = new Date(baseStart);
+		shownMonday.setDate(baseStart.getDate() + weekOffset * 7);
+		const weekEnd = new Date(shownMonday);
+		weekEnd.setDate(shownMonday.getDate() + 6);
 		const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-		return `${fmt(weekStart)} - ${fmt(weekEnd)}`;
+		return `${fmt(shownMonday)} - ${fmt(weekEnd)}`;
 	});
 
 	function toggleDayFilter(date: Date) {
@@ -156,18 +155,8 @@
 	}
 
 	const displayedSessions = $derived(
-		selectedDay ? sessions.filter((s) => isSameDay(new Date(s.date), selectedDay!)) : sessions
+		selectedDay ? sessions.filter((s) => isSameDay(trainingDayOf(s), selectedDay!)) : sessions
 	);
-
-	type ProgramStatus = { state: 'upcoming' | 'active' | 'completed'; week: number };
-
-	function programStatus(startDate: string, durationWeeks?: number): ProgramStatus {
-		const diffMs = Date.now() - new Date(startDate).getTime();
-		if (diffMs < 0) return { state: 'upcoming', week: 0 };
-		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
-		if (durationWeeks && week > durationWeeks) return { state: 'completed', week: durationWeeks };
-		return { state: 'active', week };
-	}
 
 	const activeProgram = $derived(
 		programs.find((p) => programStatus(p.start_date, p.duration_weeks).state === 'active') ??
@@ -178,7 +167,7 @@
 	function groupSessionsByDate(
 		items: SessionResponse[]
 	): { label: string; items: SessionResponse[] }[] {
-		const today = new Date();
+		const today = currentTrainingDay();
 		const yesterday = new Date(today);
 		yesterday.setDate(today.getDate() - 1);
 
@@ -188,7 +177,7 @@
 
 		const groups = new Map<string, SessionResponse[]>();
 		for (const session of sorted) {
-			const d = new Date(session.date);
+			const d = trainingDayOf(session);
 			let key: string;
 			if (isSameDay(d, today)) key = 'Today';
 			else if (isSameDay(d, yesterday)) key = 'Yesterday';
@@ -334,6 +323,11 @@
 	);
 
 	const totalAssessmentCount = $derived(assessments.length);
+	// The headline stat counts tests: a pull kept from a training is a result on
+	// file, listed below, but not an assessment the athlete took.
+	const testedAssessmentCount = $derived(
+		assessments.filter((assessment) => assessment.origin !== 'training').length
+	);
 
 	// The weight a ratio is read against, which is the latest one measured.
 	const bodyweightInEffect = $derived(bodyweightTrend(bodyweights)?.latest ?? null);
@@ -426,7 +420,7 @@
 				</div>
 
 				<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(totalAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd-tx)' }] as stat (stat.k)}
+					{#each [{ k: 'Sessions', v: String(sessions.length), c: 'var(--pr)' }, { k: 'Assessments', v: String(testedAssessmentCount), c: 'var(--gn)' }, { k: 'Programs', v: String(programs.length), c: 'var(--gd-tx)' }] as stat (stat.k)}
 						<div
 							style="
 						padding: 10px 14px; border: 1px solid var(--bd);
@@ -906,15 +900,13 @@
 												style="font-size: 11.5px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 5px;"
 												>Start date *</label
 											>
-											<input
-												type="date"
+											<WeekStartPicker
 												id="new-program-start-date"
 												bind:value={newProgramStartDate}
-												style="width: 100%; padding: 10px 14px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
 											/>
 											<span
 												style="font-size: 11px; color: var(--tx3-sm); display: block; margin-top: 4px;"
-												>Snapped to the Monday of the chosen week.</span
+												>Programs start on the Monday of the chosen week.</span
 											>
 										</div>
 										<div>

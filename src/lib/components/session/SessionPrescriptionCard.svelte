@@ -11,6 +11,7 @@
 		resolveAgainstFrozenResults
 	} from '$lib/assessments';
 	import ItemListView from '$lib/components/training/ItemListView.svelte';
+	import { gripLabel } from '$lib/sessions';
 
 	interface Props {
 		prescription: PrescriptionSnapshot;
@@ -115,7 +116,7 @@
 				Asked for, in the athlete's numbers of the day
 			</div>
 			<div class="space-y-1" style="margin-top: 6px;">
-				{#each relativeValues as relative (`${relative.field}:${relative.assessment_id}:${relative.percent}:${relative.fallback}`)}
+				{#each relativeValues as relative (`${relative.field}:${relative.assessment_id}:${relative.percent}:${relative.fallback}:${relative.grip ?? ''}`)}
 					{@const resolved = resolveAgainstFrozenResults(
 						relative,
 						prescription.resolved_against.assessments,
@@ -125,7 +126,8 @@
 						<span style="color: var(--tx2); min-width: 0;">
 							{relative.percent}% {assessmentLabel(relative.assessment_id, catalog)}
 							<span style="color: var(--tx3-sm);"
-								>({fieldLabels[relative.field] ?? relative.field})</span
+								>({fieldLabels[relative.field] ?? relative.field}{#if relative.grip !== undefined},
+									{gripLabel(relative.grip)}{/if})</span
 							>
 						</span>
 						<span style="font-weight: 700; color: var(--tx); flex-shrink: 0; text-align: right;">

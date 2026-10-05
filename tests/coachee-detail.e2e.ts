@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	BUILTIN_CRITICAL_FORCE,
 	BUILTIN_MAX_FORCE,
 	capture,
 	isoDaysAgo,
 	mockApi,
+	pickStartWeek,
 	signIn,
 	stub,
 	testAssessmentRecord,
@@ -209,6 +211,35 @@ test.describe('coachee detail', () => {
 		await expect(page.getByText('2 sessions').first()).toBeVisible();
 	});
 
+	test.describe('in the athlete training day', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		test('files a session begun after midnight under the evening it belongs to', async ({
+			page
+		}) => {
+			// Wednesday 30 September, midday in Paris.
+			await page.clock.setFixedTime(new Date('2026-09-30T10:00:00Z'));
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+				body: [
+					// 00:30 on Tuesday in Paris, which the athlete's app filed under
+					// Monday. Read off the instant it would sit under Yesterday.
+					testSession({
+						name: 'Late hang',
+						date: '2026-09-28T22:30:00Z',
+						training_day: '2026-09-28'
+					})
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+
+			await expect(page.getByText('Late hang')).toBeVisible();
+			await expect(page.getByText('Monday 28 September')).toBeVisible();
+			await expect(page.getByText('Yesterday')).toHaveCount(0);
+		});
+	});
+
 	test('shows the empty state when no session has been recorded', async ({ page }) => {
 		await stubCoacheeDetail(page);
 
@@ -241,6 +272,135 @@ test.describe('coachee detail', () => {
 
 		await page.getByRole('button', { name: /^Sessions/ }).click();
 		await expect(page.getByText('No sessions recorded yet.')).toBeVisible();
+	});
+});
+
+// Weeks open on Monday everywhere in the portal, whatever the browser's locale.
+// en-US counts weeks from Sunday, which is what a native date input and any
+// locale-driven calendar would follow.
+test.describe('weeks start on Monday in an en-US browser', () => {
+	test.use({ locale: 'en-US', timezoneId: 'America/New_York' });
+
+	test('lays the week strip out Monday to Sunday', async ({ page }) => {
+		// Sunday 4 October, midday in New York.
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('28 Sept - 4 Oct')).toBeVisible();
+	});
+
+	test('keeps the week being finished until Monday 04:00', async ({ page }) => {
+		// Monday 5 October, 01:30 in New York: still Sunday's training day.
+		await page.clock.setFixedTime(new Date('2026-10-05T05:30:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+
+		await expect(page.getByText('28 Sept - 4 Oct')).toBeVisible();
+	});
+
+	test('opens the start date picker on Monday and posts the Monday picked', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+		await stub(page, 'POST', '/api/coach/clients/*/programs', { body: testProgram() });
+		await stub(page, 'GET', '/api/coach/clients/*/programs/*', { body: testProgram() });
+		await stub(page, 'GET', '/api/coach/clients/*/programs/*/weeks', { body: [] });
+		await stub(page, 'GET', '/api/trainings', { body: [] });
+		const posted = capture(page, 'POST', '/api/coach/clients/*/programs');
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		await page.getByLabel('Program name *').fill('Autumn block');
+		await page.getByLabel('Start date *').click();
+
+		const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+		await expect(picker.getByRole('columnheader')).toHaveText([
+			'Mon',
+			'Tue',
+			'Wed',
+			'Thu',
+			'Fri',
+			'Sat',
+			'Sun'
+		]);
+		// October 2026 opens on a Thursday, so its first row is the week of
+		// Monday 28 September.
+		await expect(picker.locator('[data-day]').first()).toHaveAttribute('data-day', '2026-09-28');
+
+		// Sunday 4 October closes that week rather than opening the next.
+		await picker.getByRole('button', { name: 'Sunday 4 October 2026' }).click();
+		await expect(picker).toHaveCount(0);
+		await expect(page.getByLabel('Start date *')).toHaveText(/Week of Mon 28 Sept 2026/);
+		await page.getByRole('button', { name: 'Create program' }).click();
+
+		await expect.poll(() => posted.length).toBe(1);
+		expect((posted[0].body as { start_date: string }).start_date).toContain('2026-09-28');
+	});
+
+	test('opens the picker on the training day, still Sunday at 01:30 on a Monday', async ({
+		page
+	}) => {
+		// Monday 5 October, 01:30 in New York.
+		await page.clock.setFixedTime(new Date('2026-10-05T05:30:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		await page.getByLabel('Start date *').click();
+		const sunday = page
+			.getByRole('dialog', { name: 'Choose the start week' })
+			.getByRole('button', { name: 'Sunday 4 October 2026' });
+
+		await expect(sunday).toBeFocused();
+		await expect(sunday).toHaveAttribute('aria-current', 'date');
+	});
+
+	test('describes the start date button with the week picked', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		await pickStartWeek(page, 'Start date *', '2026-10-07');
+
+		await expect(page.getByLabel('Start date *')).toHaveAccessibleDescription(
+			'Week of Mon 5 Oct 2026'
+		);
+	});
+
+	test('moves through the picker by keyboard and closes on Escape', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-10-04T16:00:00Z'));
+		await stubCoacheeDetail(page);
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Programs/ }).click();
+		await page.getByRole('button', { name: 'Create first program' }).click();
+		const trigger = page.getByLabel('Start date *');
+		await trigger.click();
+		const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+
+		await expect(picker.getByRole('button', { name: 'Sunday 4 October 2026' })).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(picker.getByRole('button', { name: 'Sunday 11 October 2026' })).toBeFocused();
+		await page.keyboard.press('Escape');
+		await expect(picker).toHaveCount(0);
+		await expect(trigger).toBeFocused();
+
+		await trigger.click();
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('Enter');
+		await expect(trigger).toHaveText(/Week of Mon 5 Oct 2026/);
+
+		// A month stepped with the buttons keeps a day of it within Tab's reach.
+		await trigger.click();
+		await picker.getByRole('button', { name: 'Next month' }).click();
+		await page.keyboard.press('Tab');
+		await expect(picker.getByRole('button', { name: 'Thursday 5 November 2026' })).toBeFocused();
 	});
 });
 
@@ -383,6 +543,65 @@ test.describe('session details', () => {
 		await expect(dialog.getByText('L 32.3 kg')).toBeHidden();
 		// The measurements stay on their own card rather than being paired rep by rep.
 		await expect(dialog.getByText('3/4 on target')).toBeVisible();
+	});
+
+	// A load on a hang reads against the max of the hang's own grip, frozen per
+	// grip beside the latest on any grip (Krakoer/crimpy#182).
+	test('reads a load against the max of its own grip', async ({ page }) => {
+		const prescribed = testSession({
+			...crimpySession,
+			prescription: testPrescription({
+				items: [
+					{
+						id: 'item-1',
+						type: 'hangboard_rep',
+						worktime_seconds: 7,
+						rest_seconds: 3,
+						hand: 'right',
+						edge_sizes_mm: [20],
+						hand_positions: [['HC']],
+						loads: [
+							{
+								value: 80,
+								unit: 'percent_assessment',
+								assessment_id: BUILTIN_MAX_FORCE,
+								fallback: 30
+							}
+						]
+					}
+				],
+				resolved_against: {
+					assessments: [
+						{
+							assessment_id: BUILTIN_MAX_FORCE,
+							right_value: 30,
+							left_value: 44,
+							by_grip: [
+								{ grip_position: 0, right_value: 45, left_value: 44 },
+								{ grip_position: 3, right_value: 30 }
+							]
+						}
+					],
+					definitions: [
+						{ id: BUILTIN_MAX_FORCE, label: 'Max Force', unit: 'kilograms', per_hand: true }
+					]
+				}
+			})
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [crimpySession] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(prescribed, crimpyReps)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('80% Max Force (load, Half Crimp)')).toBeVisible();
+		// 80% of the half crimp max, not of the newer open hand result.
+		await expect(dialog.getByText('36.0 kg')).toBeVisible();
+		await expect(dialog.getByText('24.0 kg')).toBeHidden();
 	});
 
 	test('shows what the athlete managed on the items that were left open', async ({ page }) => {
@@ -1720,7 +1939,7 @@ test.describe('programs tab', () => {
 		await page.getByRole('button', { name: 'Create first program' }).click();
 		await page.getByLabel('Program name *').fill('Spring strength block');
 		await page.getByLabel('Objective').fill('Raise max finger strength');
-		await page.getByLabel('Start date *').fill('2026-09-02');
+		await pickStartWeek(page, 'Start date *', '2026-09-02');
 		await page.getByRole('button', { name: 'Create program' }).click();
 
 		await expect(page).toHaveURL('/coachees/coachee-1/programs/program-1');
@@ -1744,7 +1963,7 @@ test.describe('programs tab', () => {
 		await page.getByRole('button', { name: 'Create first program' }).click();
 		await page.getByLabel('Program name *').fill('Autumn block');
 		// 2026-09-04 is a Friday.
-		await page.getByLabel('Start date *').fill('2026-09-04');
+		await pickStartWeek(page, 'Start date *', '2026-09-04');
 		await page.getByRole('button', { name: 'Create program' }).click();
 
 		await expect.poll(() => posted.length).toBe(1);
@@ -1762,7 +1981,7 @@ test.describe('programs tab', () => {
 		await page.getByRole('button', { name: /^Programs/ }).click();
 		await page.getByRole('button', { name: 'Create first program' }).click();
 		await page.getByLabel('Program name *').fill('Autumn block');
-		await page.getByLabel('Start date *').fill('2026-09-02');
+		await pickStartWeek(page, 'Start date *', '2026-09-02');
 		await page.getByRole('button', { name: 'Create program' }).click();
 
 		await expect(page.getByText('Program storage is full')).toBeVisible();
@@ -1823,6 +2042,115 @@ test.describe('assessment comparison', () => {
 		await expect(comparison.getByText('13.0', { exact: true })).toBeVisible();
 		await expect(comparison.getByText('17.0', { exact: true })).toBeVisible();
 		await expect(comparison.getByText('+30.8 %')).toBeVisible();
+	});
+
+	// A pull kept from a training between two tests is carried to the later
+	// date by the snapshot, and has to read as kept rather than as the retest.
+	// Its own day is not a test day, so it is not offered as a side.
+	test('marks a value kept from a training and offers only test days', async ({ page }) => {
+		const kept = '2026-04-10';
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { right_value: 13, left_value: 12 }),
+				recordOn(kept, { right_value: 16, left_value: null, origin: 'training' }),
+				// A left-hand-only test: the right hand the snapshot carries into
+				// June is the April pull, which is what the backend returns.
+				recordOn(june, { right_value: null, left_value: 11 })
+			]
+		});
+		await stubSnapshotsByDay(page, {
+			[march]: testAssessmentSnapshot(march, [
+				testSnapshotResult({
+					per_hand: true,
+					right_value: 13,
+					right_measured_at: `${march}T10:00:00Z`,
+					right_origin: 'test',
+					left_value: 12,
+					left_measured_at: `${march}T10:00:00Z`,
+					left_origin: 'test'
+				})
+			]),
+			[june]: testAssessmentSnapshot(june, [
+				testSnapshotResult({
+					per_hand: true,
+					right_value: 16,
+					right_measured_at: `${kept}T10:00:00Z`,
+					right_origin: 'training',
+					left_value: 11,
+					left_measured_at: `${june}T10:00:00Z`,
+					left_origin: 'test'
+				})
+			])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(page.getByLabel('To')).toHaveValue(june);
+		await expect(page.getByLabel('From').locator('option')).toHaveCount(1);
+		await expect(comparison.getByText('from a training')).toHaveCount(1);
+	});
+
+	// A Critical Force reads as a share of the max beside it, and with its W'
+	// (Krakoer/crimpy#145): on the card against the Max Force on file at its
+	// date, and in the comparison against the one on file when it was measured.
+	test('reads a Critical Force as a share of max, with its W', async ({ page }) => {
+		const criticalForce = (day: string, value: number, wPrime?: number) =>
+			recordOn(`${day}-cf`, {
+				assessment_id: BUILTIN_CRITICAL_FORCE,
+				label: 'Critical Force',
+				right_value: value,
+				left_value: null,
+				session_date: `${day}T11:00:00Z`,
+				updated_at: `${day}T11:00:00Z`,
+				...(wPrime === undefined ? {} : { details: { w_prime_kg_s: wPrime, pulls: [] } })
+			});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				recordOn(march, { right_value: 40, left_value: null }),
+				criticalForce(march, 16),
+				recordOn(june, { right_value: 44, left_value: null }),
+				criticalForce(june, 19.8, 512.4)
+			]
+		});
+		const standing = (day: string, cf: number, max: number, wPrime?: number) =>
+			testAssessmentSnapshot(day, [
+				testSnapshotResult({
+					per_hand: true,
+					right_value: max,
+					right_measured_at: `${day}T10:00:00Z`,
+					right_origin: 'test'
+				}),
+				testSnapshotResult({
+					assessment_id: BUILTIN_CRITICAL_FORCE,
+					label: 'Critical Force',
+					per_hand: true,
+					right_value: cf,
+					right_measured_at: `${day}T11:00:00Z`,
+					right_origin: 'test',
+					...(wPrime === undefined ? {} : { right_details: { w_prime_kg_s: wPrime } })
+				})
+			]);
+		await stubSnapshotsByDay(page, {
+			[march]: standing(march, 16, 40),
+			[june]: standing(june, 19.8, 44, 512.4)
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: /^Assessments/ }).click();
+
+		const card = page.getByRole('listitem').filter({ hasText: 'Critical Force' });
+		await expect(card.getByTestId('value-detail')).toHaveText("45 % of max, W' 512 kg.s");
+
+		const comparison = page.getByRole('region', { name: 'Assessment comparison' });
+		await expect(page.getByLabel('To')).toHaveValue(june);
+		await expect(comparison.getByTestId('comparison-detail')).toHaveText([
+			'40 % of max',
+			"45 % of max, W' 512 kg.s"
+		]);
 	});
 
 	// The whole point of the flag: kilograms alone are not comparable across a
@@ -2449,6 +2777,91 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		await expect(tooltip).toContainText('1.31');
 	});
 
+	// Which calendar day a result falls on depends on the zone it is read in,
+	// so these pin it. See Krakoer/crimpy#164.
+	test.describe('on the day count axis', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		const hang = (id: string, at: string, load: number, weighed: boolean) =>
+			testAssessmentRecord({
+				id,
+				session_id: `session-${id}`,
+				session_date: at,
+				updated_at: at,
+				assessment_id: 'assessment-hang',
+				label: 'Weighted hang 20mm',
+				unit: 'kilograms',
+				per_hand: false,
+				bodyweight_relative: true,
+				training_id: 'training-hang',
+				grip_position: null,
+				right_value: load,
+				left_value: null,
+				bodyweight_kg: weighed ? 70 : null,
+				bodyweight_measured_at: weighed ? at : null
+			});
+
+		// Two sessions on one day share the day's place on the axis and not a
+		// load, so each ratio has to name its own.
+		test('gives each of two sessions on one day its own load in the tooltip', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [
+					hang('morning', '2026-03-02T08:00:00Z', 14, true),
+					hang('evening', '2026-03-02T16:00:00Z', 17, true),
+					hang('later', '2026-03-12T10:00:00Z', 18, true)
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+			await page.getByRole('button', { name: 'Show chart' }).click();
+
+			const results = page.getByRole('list', { name: 'Assessment results' });
+			const chart = results.locator('svg').first();
+			await expect(chart).toBeVisible();
+			const box = await chart.boundingBox();
+			if (!box) throw new Error('the chart has no box to hover');
+			// The first day sits on the left edge of the plot, past its 48px gutter.
+			await page.mouse.move(box.x + 50, box.y + box.height * 0.4);
+
+			const tooltip = page
+				.locator('div')
+				.filter({ hasText: /14\.0 kg at 70\.0 kg/ })
+				.last();
+			await expect(tooltip).toContainText('17.0 kg at 70.0 kg');
+			await expect(tooltip).toContainText('1.20');
+			await expect(tooltip).toContainText('1.24');
+			const text = (await tooltip.textContent()) ?? '';
+			expect(text.match(/14\.0 kg at/g)).toHaveLength(1);
+			expect(text.match(/17\.0 kg at/g)).toHaveLength(1);
+		});
+
+		// The axis spans the days that carry a point: a result with no weigh-in
+		// is a gap on a ratio chart, and labelling back to it pads the axis with
+		// empty days. Both ends are labelled.
+		test('labels the first and the last plotted day and no unplotted one', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [
+					hang('unweighed', '2026-02-10T10:00:00Z', 12, false),
+					hang('first', '2026-03-02T10:00:00Z', 14, true),
+					hang('last', '2026-03-12T10:00:00Z', 17, true)
+				]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+			await page.getByRole('button', { name: 'Show chart' }).click();
+
+			const labels = page.getByRole('list', { name: 'Assessment results' }).locator('svg text');
+			await expect(labels.filter({ hasText: /^2 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /^7 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /^12 Mar$/ })).toHaveCount(1);
+			await expect(labels.filter({ hasText: /Feb/ })).toHaveCount(0);
+		});
+	});
+
 	// A per hand card is half a card wide per column, so a weigh-in date said
 	// under each hand wraps in the middle of itself, which is the one fact the
 	// issue comment asked the screen to carry. The session owns the weigh-in, so
@@ -2577,8 +2990,9 @@ test.describe('bodyweight relative results outside the comparison', () => {
 	// line, and its unit, under a card showing the second grip's number.
 	test('redraws the chart when the coach switches grip', async ({ page }) => {
 		await stubCoacheeDetail(page);
-		const onGrip = (grip: number, id: string, value: number, weighed: boolean) =>
-			recordOn(grip === 0 ? '2026-03-02' : '2026-03-09', {
+		// Each grip tested on two days, since one day is a value and not a chart.
+		const onGrip = (grip: number, id: string, value: number, weighed: boolean, day: string) =>
+			recordOn(day, {
 				id,
 				session_id: `session-${id}`,
 				assessment_id: BUILTIN_MAX_FORCE,
@@ -2596,10 +3010,10 @@ test.describe('bodyweight relative results outside the comparison', () => {
 		// has none and reads as kilograms, so the axis has to change with the grip.
 		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
 			body: [
-				onGrip(0, 'g0a', 25, true),
-				onGrip(0, 'g0b', 27, true),
-				onGrip(1, 'g1a', 18, false),
-				onGrip(1, 'g1b', 19, false)
+				onGrip(0, 'g0a', 25, true, '2026-03-02'),
+				onGrip(0, 'g0b', 27, true, '2026-03-04'),
+				onGrip(1, 'g1a', 18, false, '2026-03-09'),
+				onGrip(1, 'g1b', 19, false, '2026-03-11')
 			]
 		});
 
@@ -2614,6 +3028,40 @@ test.describe('bodyweight relative results outside the comparison', () => {
 
 		await expect(results.locator('svg text').filter({ hasText: /^kg$/ })).toBeVisible();
 		await expect(results.locator('svg text').filter({ hasText: /^ratio$/ })).toHaveCount(0);
+	});
+
+	// Which calendar day a result falls on depends on the zone it is read in, so
+	// the zone is pinned: at UTC+11 13:00Z is already the next day.
+	test.describe('in a pinned zone', () => {
+		test.use({ timezoneId: 'Europe/Paris' });
+
+		// Two tests on one day are still a single value on the day axis: a line
+		// through one day is not a trend, so the chart waits for a second day.
+		// See Krakoer/crimpy#164.
+		test('offers no chart while every result sits on one day', async ({ page }) => {
+			await stubCoacheeDetail(page);
+			const sameDay = (id: string, value: number, hour: string) =>
+				testAssessmentRecord({
+					id,
+					session_id: `session-${id}`,
+					session_date: `2026-03-02T${hour}:00:00Z`,
+					updated_at: `2026-03-02T${hour}:00:00Z`,
+					assessment_id: BUILTIN_MAX_FORCE,
+					grip_position: 0,
+					right_value: value,
+					left_value: value - 1
+				});
+			await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+				body: [sameDay('late-morning', 40, '11'), sameDay('early-afternoon', 41, '13')]
+			});
+
+			await page.goto('/coachees/coachee-1');
+			await page.getByRole('button', { name: /^Assessments/ }).click();
+
+			const results = page.getByRole('list', { name: 'Assessment results' });
+			await expect(results.getByText('2 records')).toBeVisible();
+			await expect(results.getByRole('button', { name: 'Show chart' })).toHaveCount(0);
+		});
 	});
 
 	// The summary beside the sessions draws the same component as the card on the
@@ -2976,5 +3424,121 @@ test.describe('a session detail read that partly failed', () => {
 		const dialog = page.getByRole('dialog');
 		await expect(dialog.getByTestId('session-collection-unavailable')).toHaveCount(0);
 		await expect(dialog.getByText('No rep data was recorded for this session.')).toBeVisible();
+	});
+});
+
+// A Max Force the athlete kept off a training reads beside the ones they
+// tested, and says so, so the coach can tell a pull measured mid session from
+// a test.
+test.describe('a result kept from a training', () => {
+	test('is named as such in the assessment history', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({ id: 'tested', updated_at: isoDaysAgo(9) }),
+				testAssessmentRecord({
+					id: 'kept',
+					origin: 'training',
+					right_value: 45,
+					left_value: null,
+					updated_at: isoDaysAgo(2)
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		await expect(page.getByText('Assessment history')).toBeVisible();
+		const history = page.getByTestId('assessment-history');
+		// Once, on the kept row: a test is what a result is unless it says otherwise.
+		await expect(history.getByText('From a training')).toHaveCount(1);
+	});
+
+	// The kept row carries only the hand that pulled it. The other hand's max is
+	// still the tested one, and the card says so rather than a dash.
+	test('leaves the other hand at its tested max on the result card', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({
+					id: 'tested',
+					right_value: 40.1,
+					left_value: 38.4,
+					updated_at: isoDaysAgo(9)
+				}),
+				testAssessmentRecord({
+					id: 'kept',
+					origin: 'training',
+					right_value: 42.6,
+					left_value: null,
+					updated_at: isoDaysAgo(2)
+				}),
+				// Newest, and on the other hand: the footer reads the right hand's
+				// own first and last measurements, not the first and last rows.
+				testAssessmentRecord({
+					id: 'kept-left',
+					origin: 'training',
+					right_value: null,
+					left_value: 39.9,
+					updated_at: isoDaysAgo(1)
+				})
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		// The summary beside the sessions reads each hand the same way.
+		const summary = page.getByTestId('assessment-summary-card').first();
+		await expect(summary.getByText('39.9', { exact: true })).toBeVisible();
+		await expect(summary.getByText('42.6', { exact: true })).toBeVisible();
+		await expect(summary.getByText('From a training')).toHaveCount(2);
+
+		await page.getByRole('button', { name: 'Assessments' }).first().click();
+
+		const card = page.getByRole('listitem').filter({ hasText: 'Max Force' }).first();
+		await expect(card.getByText('39.9', { exact: true })).toBeVisible();
+		await expect(card.getByText('42.6', { exact: true })).toBeVisible();
+		await expect(card.getByText('From a training')).toHaveCount(2);
+		// The right hand moved from 40.1 to 42.6 across its own measurements.
+		await expect(card.getByText(/\+2\.5 kg overall/)).toBeVisible();
+	});
+
+	test('counts only tests in the assessments stat', async ({ page }) => {
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/assessments', {
+			body: [
+				testAssessmentRecord({ id: 'tested', updated_at: isoDaysAgo(9) }),
+				testAssessmentRecord({ id: 'kept', origin: 'training', updated_at: isoDaysAgo(2) })
+			]
+		});
+
+		await page.goto('/coachees/coachee-1');
+
+		const stat = page.getByText('Assessments', { exact: true }).first().locator('..');
+		await expect(stat.locator('div').nth(1)).toHaveText('1');
+	});
+
+	test('is named as such on the session it was kept from', async ({ page }) => {
+		const training = testSession({ id: 'session-kept', name: 'Repeaters 20mm' });
+		const { session_date: _onTheSession, ...kept } = testAssessmentRecord({
+			id: 'kept',
+			session_id: 'session-kept',
+			origin: 'training',
+			right_value: 45,
+			left_value: null
+		});
+		await stubCoacheeDetail(page);
+		await stub(page, 'GET', '/api/coach/clients/*/sessions', { body: [training] });
+		await stub(page, 'GET', '/api/coach/clients/*/sessions/*', {
+			body: testSessionDetail(training, [], [kept])
+		});
+
+		await page.goto('/coachees/coachee-1');
+		await page.getByRole('button', { name: 'Open Repeaters 20mm' }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Assessment results')).toBeVisible();
+		await expect(dialog.getByText('From a training')).toBeVisible();
 	});
 });

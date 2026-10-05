@@ -75,3 +75,74 @@ export { unitLabel, formatUnitValue as formatRecordValue } from '$lib/assessment
 export function singleValue(record: AssessmentResponse | undefined): number | null | undefined {
 	return record?.right_value ?? record?.left_value;
 }
+
+// The last value measured on each hand, and the row it was read from. A pull
+// kept from a training carries only the hand that pulled it, so the newest row
+// is not the latest of both hands: the other one still stands where its last
+// measurement left it, which is what the app resolves that hand's loads against.
+// A single value assessment stores its number on the right, so it reads as the
+// right hand here.
+export interface LatestHand {
+	record: AssessmentResponse;
+	value: number;
+}
+
+export function latestOnHand(
+	history: AssessmentResponse[],
+	pick: (record: AssessmentResponse) => number | null | undefined
+): LatestHand | undefined {
+	for (let i = history.length - 1; i >= 0; i--) {
+		const value = pick(history[i]);
+		if (value !== null && value !== undefined) return { record: history[i], value };
+	}
+	return undefined;
+}
+
+// The rows the headline numbers were read from, each with the hand it answers
+// for. One session is one weigh-in, so a card names it once, but the two hands
+// can come from different sessions once a pull kept on one hand is newer than
+// the test: each is then named with its hand, since each ratio is divided by
+// the weigh-in of its own session. The label is empty when one row answers
+// for every number shown.
+export function denominatorSources(
+	perHand: boolean,
+	left: LatestHand | undefined,
+	right: LatestHand | undefined,
+	single: LatestHand | undefined
+): { label: string; record: AssessmentResponse }[] {
+	if (!perHand) return single ? [{ label: '', record: single.record }] : [];
+	const shown = [
+		left && { label: 'Left', record: left.record },
+		right && { label: 'Right', record: right.record }
+	].filter((source): source is { label: string; record: AssessmentResponse } => !!source);
+	if (shown.length === 2 && shown[0].record.id === shown[1].record.id) {
+		return [{ label: '', record: shown[0].record }];
+	}
+	return shown.length === 1 ? [{ label: '', record: shown[0].record }] : shown;
+}
+
+// The first and the last value measured on one hand, for the progress a card
+// reports across the history. Undefined until the hand has two measurements.
+export function handEnds(
+	history: AssessmentResponse[],
+	pick: (record: AssessmentResponse) => number | null | undefined
+): { first: LatestHand; last: LatestHand } | undefined {
+	const measured = history.filter((record) => {
+		const value = pick(record);
+		return value !== null && value !== undefined;
+	});
+	if (measured.length < 2) return undefined;
+	const first = measured[0];
+	const last = measured[measured.length - 1];
+	return {
+		first: { record: first, value: pick(first)! },
+		last: { record: last, value: pick(last)! }
+	};
+}
+
+// Says where a result came from when it was not a test, so a coach can tell a
+// Max Force the athlete kept off a training from one they tested. Empty for a
+// test, which is what a result is unless it says otherwise.
+export function originNote(record: Pick<AssessmentResponse, 'origin'>): string {
+	return record.origin === 'training' ? 'From a training' : '';
+}

@@ -9,24 +9,16 @@
 		SessionResponse,
 		Program
 	} from '$lib/api/client';
+	import { trainingDayOf } from '$lib/sessions';
+	import { programStatus } from '$lib/program-performance';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
 	type CoacheeExtra = {
-		lastActivity: string | null;
+		// The training day of the athlete's latest session, at local midnight.
+		lastActivity: Date | null;
 		activeProgram: string | null;
 	};
-
-	function programStatus(
-		startDate: string,
-		durationWeeks?: number
-	): 'upcoming' | 'active' | 'completed' {
-		const diffMs = Date.now() - new Date(startDate).getTime();
-		if (diffMs < 0) return 'upcoming';
-		const week = Math.ceil(diffMs / (7 * 86400000));
-		if (durationWeeks && week > durationWeeks) return 'completed';
-		return 'active';
-	}
 
 	let coachees = $state<EnrolledUser[]>([]);
 	let extras = $state<Record<string, CoacheeExtra>>({});
@@ -50,8 +42,8 @@
 			: coachees
 	);
 
-	function formatDateShort(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+	function formatDateShort(day: Date): string {
+		return day.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 	}
 
 	onMount(async () => {
@@ -74,10 +66,16 @@
 					const sorted = sessions.sort(
 						(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 					);
-					const lastActivity = sorted[0]?.date ?? null;
+					// The latest by instant, named by the day it counts for, the way the
+					// coachee page files it one click further.
+					const lastActivity = sorted[0] ? trainingDayOf(sorted[0]) : null;
 					const active =
-						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'active') ??
-						programs.find((p) => programStatus(p.start_date, p.duration_weeks) === 'upcoming');
+						programs.find(
+							(p) => programStatus(p.start_date, p.duration_weeks).state === 'active'
+						) ??
+						programs.find(
+							(p) => programStatus(p.start_date, p.duration_weeks).state === 'upcoming'
+						);
 					extras[c.user_id] = { lastActivity, activeProgram: active?.name ?? null };
 				})
 			);

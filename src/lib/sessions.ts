@@ -134,9 +134,47 @@ export function formatSessionDate(iso: string): string {
 	});
 }
 
+// The hour a training day turns over, the rule the app files sessions by: a
+// session begun before it belongs to the evening before, so a hang started at
+// 00:30 on a Tuesday is Monday's training.
+export const TRAINING_DAY_START_HOUR = 4;
+
+// The day a session counts for, at local midnight, so it compares with the
+// days of a calendar the way any other local date does. Read from the day the
+// athlete's device filed it under rather than from the instant, which in the
+// coach's zone can fall on another date. An API older than the field sends
+// none, and then the same rule is applied to the instant on this clock.
+export function trainingDayOf(session: Pick<SessionResponse, 'date' | 'training_day'>): Date {
+	if (session.training_day) return new Date(`${session.training_day.slice(0, 10)}T00:00:00`);
+	return currentTrainingDay(new Date(session.date));
+}
+
+// The training day it is at an instant on this clock, at local midnight. Until
+// 04:00 it is still the day before, which is what "today" means wherever the
+// portal compares a day with the sessions filed under it.
+export function currentTrainingDay(now: Date = new Date()): Date {
+	const day = new Date(now);
+	if (day.getHours() < TRAINING_DAY_START_HOUR) day.setDate(day.getDate() - 1);
+	day.setHours(0, 0, 0, 0);
+	return day;
+}
+
+// The training day of a session in the compact form the stat cells use.
+export function formatTrainingDayShort(
+	session: Pick<SessionResponse, 'date' | 'training_day'>
+): string {
+	return formatDayShort(trainingDayOf(session));
+}
+
 // The compact form the narrow stat cells of the detail view can hold.
 export function formatSessionDateShort(iso: string): string {
-	return new Date(iso).toLocaleDateString('en-GB', {
+	return formatDayShort(new Date(iso));
+}
+
+// One compact day format for both of the above, so the stat cells and the
+// "Played" tooltip cannot drift apart.
+function formatDayShort(day: Date): string {
+	return day.toLocaleDateString('en-GB', {
 		weekday: 'short',
 		day: 'numeric',
 		month: 'short',

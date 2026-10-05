@@ -29,6 +29,7 @@
 	import { dndSensors } from '$lib/dnd-sensors';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import TrainingDuration from '$lib/components/training/TrainingDuration.svelte';
 	import UnsavedChangesGuard from '$lib/components/UnsavedChangesGuard.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO } from '$lib/trainingTypes';
 	import { createTrainingDragHandlers } from '$lib/training-drag-handlers.svelte';
@@ -388,6 +389,7 @@
 								placeholder="Training goal..."
 								style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12.5px; color: var(--tx2);"
 							/>
+							<TrainingDuration items={draft.items} size="md" />
 						</div>
 					</div>
 

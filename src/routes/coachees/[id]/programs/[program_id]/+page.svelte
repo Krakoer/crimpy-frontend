@@ -61,13 +61,15 @@
 	} from '$lib/program-draft';
 	import { rereadWeek, staleOverrides } from '$lib/program-overrides';
 	import {
+		currentProgramWeek,
 		programWeekRange,
 		sessionsByProgramSession,
 		sessionsOfWeek,
 		weekStart
 	} from '$lib/program-performance';
 	import { toDateOnly } from '$lib/date';
-	import { withCoachReply } from '$lib/sessions';
+	import { currentTrainingDay, withCoachReply } from '$lib/sessions';
+	import WeekStartPicker from '$lib/components/WeekStartPicker.svelte';
 	import { assessmentLabel, missingAssessments } from '$lib/assessments';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import { TRAINING_TYPES, TRAINING_TYPE_INFO, trainingTypeInfo } from '$lib/trainingTypes';
@@ -852,26 +854,21 @@
 		}
 	}
 
-	// The day the program opens on, read the way the weeks below it are read. A
-	// bare YYYY-MM-DD handed to the Date constructor is parsed as UTC, which puts
-	// the header of a week and the sessions listed inside it a day apart for a
-	// coach west of Greenwich.
-	const programStart = $derived(program ? weekStart(program.start_date, 1).getTime() : 0);
+	// The week being trained now, which turns over on Monday at 04:00 like a
+	// training day does, so a coach looking just after midnight on a Monday sees
+	// the week the athlete is still finishing, as the athlete's app does.
+	const trainedWeek = $derived(program ? currentProgramWeek(program.start_date) : 1);
 
 	const computedCurrentWeek = $derived.by(() => {
 		if (!program) return 1;
-		const diffMs = Date.now() - programStart;
-		if (diffMs < 0) return 1;
-		const week = Math.max(1, Math.ceil(diffMs / (7 * 86400000)));
+		const week = Math.max(1, trainedWeek);
 		return program.duration_weeks ? Math.min(week, program.duration_weeks) : week;
 	});
 
-	const isProgramUpcoming = $derived(program ? Date.now() < programStart : false);
+	const isProgramUpcoming = $derived(program ? trainedWeek < 1 : false);
 
 	const isProgramCompleted = $derived(
-		program?.duration_weeks
-			? computedCurrentWeek >= program.duration_weeks && Date.now() > programStart
-			: false
+		program?.duration_weeks ? trainedWeek > program.duration_weeks : false
 	);
 
 	const totalSessions = $derived(
@@ -1131,12 +1128,7 @@
 								style="font-size: 11px; color: var(--tx2); font-weight: 600; display: block; margin-bottom: 4px;"
 								>Start date</label
 							>
-							<input
-								type="date"
-								id="edit-program-start-date"
-								bind:value={editStartDate}
-								style="width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--rs); font-family: var(--font); font-size: 13px; color: var(--tx); outline: none; background: #fff;"
-							/>
+							<WeekStartPicker id="edit-program-start-date" bind:value={editStartDate} dense />
 						</div>
 						<div>
 							<label
@@ -1852,7 +1844,7 @@
 											sessions={sessionsOfWeek(playedSessions, program.start_date, wn)}
 											{programSessionIDs}
 											failed={playedSessionsFailed}
-											startsInTheFuture={Date.now() < weekStart(program.start_date, wn).getTime()}
+											startsInTheFuture={currentTrainingDay() < weekStart(program.start_date, wn)}
 											onOpen={(session) => (openedSession = session)}
 										/>
 
@@ -1863,7 +1855,7 @@
 											that is over would otherwise carry "has not said" forever.
 											Past weeks keep the row only when the athlete declared them,
 											which includes a week they declared clear. -->
-										{#if declared || Date.now() < weekStart(program.start_date, wn + 1).getTime()}
+										{#if declared || currentTrainingDay() < weekStart(program.start_date, wn + 1)}
 											<WeekCoacheeAvailability
 												weekNumber={wn}
 												availability={declared}

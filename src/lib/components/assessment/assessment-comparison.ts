@@ -5,14 +5,28 @@ import type {
 } from '$lib/api/client';
 import { formatUnitValue } from '$lib/assessments';
 import { formatRatio, readBodyweightRatio, type MissingRatio } from './bodyweight-ratio';
+import {
+	CRITICAL_FORCE_ID,
+	criticalForceDetails,
+	criticalForceNote,
+	maxForceAt,
+	shareOfMax
+} from './critical-force';
 
 // The days an athlete actually tested on, newest first, as the API spells a day:
+// a pull kept from a training is not a test day, so it neither unlocks the
+// comparison nor is offered as a side of it. The value it left still shows on a
+// later test day, marked as kept, since the snapshot carries it forward.
 // the UTC date of the session. Taken from the UTC instant rather than from a
 // local calendar day, because the server reads a day as ending at midnight UTC,
 // and a session recorded just after midnight there would otherwise be asked for
 // on a day that does not yet include it.
 export function testedDays(records: AssessmentResponse[]): string[] {
-	const days = new Set(records.map((record) => record.session_date.slice(0, 10)));
+	const days = new Set(
+		records
+			.filter((record) => record.origin !== 'training')
+			.map((record) => record.session_date.slice(0, 10))
+	);
 	return [...days].sort().reverse();
 }
 
@@ -48,6 +62,12 @@ export interface ComparedValue {
 	weighedAt?: string;
 	// Why there is no ratio, on an assessment that reads as one.
 	missingRatio?: MissingRatio;
+	// Set when the value is a pull the athlete kept from a training rather than
+	// a test, which the table says beside it.
+	keptFromTraining?: boolean;
+	// A secondary reading of the value: for a Critical Force, its share of the
+	// Max Force on file before it was measured, for its hand and grip, and its W'.
+	detail?: string;
 }
 
 export type ComparisonHand = 'single' | 'right' | 'left';
@@ -85,10 +105,12 @@ function comparedValue(
 	measuredAt: string | null | undefined,
 	bodyweightRelative: boolean,
 	bodyweightKg: number | null | undefined,
-	weighedAt: string | null | undefined
+	weighedAt: string | null | undefined,
+	origin: string | null | undefined
 ): ComparedValue | undefined {
 	if (raw === null || raw === undefined || !measuredAt) return undefined;
-	if (!bodyweightRelative) return { raw, measuredAt, score: raw };
+	const kept = origin === 'training' ? { keptFromTraining: true } : {};
+	if (!bodyweightRelative) return { raw, measuredAt, score: raw, ...kept };
 	const reading = readBodyweightRatio(raw, measuredAt, true, bodyweightKg, weighedAt);
 	return {
 		raw,
@@ -96,7 +118,8 @@ function comparedValue(
 		score: reading.ratio,
 		bodyweightKg: reading.bodyweightKg,
 		weighedAt: reading.weighedAt,
-		missingRatio: reading.missing
+		missingRatio: reading.missing,
+		...kept
 	};
 }
 
@@ -127,7 +150,8 @@ function rowKey(assessmentId: string, gripPosition: number): string {
 // the other empty, which the table says rather than drawing as a fall to zero.
 export function compareSnapshots(
 	before: AssessmentSnapshot,
-	after: AssessmentSnapshot
+	after: AssessmentSnapshot,
+	history: AssessmentResponse[] = []
 ): ComparisonRow[] {
 	const rows = new Map<string, ComparisonRow>();
 
@@ -169,7 +193,8 @@ export function compareSnapshots(
 			side === 'right' ? result?.right_measured_at : result?.left_measured_at,
 			bodyweightRelative,
 			side === 'right' ? result?.right_bodyweight_kg : result?.left_bodyweight_kg,
-			side === 'right' ? result?.right_bodyweight_measured_at : result?.left_bodyweight_measured_at
+			side === 'right' ? result?.right_bodyweight_measured_at : result?.left_bodyweight_measured_at,
+			side === 'right' ? result?.right_origin : result?.left_origin
 		);
 	}
 
@@ -208,11 +233,40 @@ export function compareSnapshots(
 		}
 	}
 
+	for (const row of rows.values()) {
+		if (row.assessmentId !== CRITICAL_FORCE_ID) continue;
+		for (const hand of row.hands) {
+			if (hand.hand === 'single') continue;
+			describeCriticalForce(hand.before, hand.hand, row, beforeByKey.get(row.key), history);
+			describeCriticalForce(hand.after, hand.hand, row, afterByKey.get(row.key), history);
+		}
+	}
+
 	return [...rows.values()].sort((a, b) => {
 		if (a.hasGrips !== b.hasGrips) return a.hasGrips ? -1 : 1;
 		const byLabel = a.label.localeCompare(b.label);
 		return byLabel !== 0 ? byLabel : a.gripPosition - b.gripPosition;
 	});
+}
+
+// A Critical Force standing on a date, read against the Max Force on file when
+// it was measured, not the one standing on the date asked for: a result carried
+// forward unchanged reads the same on both sides, and the same as on its card.
+// Its W' comes from the result it came from.
+function describeCriticalForce(
+	value: ComparedValue | undefined,
+	side: 'left' | 'right',
+	row: ComparisonRow,
+	criticalForce: AssessmentSnapshotResult | undefined,
+	history: AssessmentResponse[]
+): void {
+	if (!value) return;
+	const max = maxForceAt(history, side, row.gripPosition, value.measuredAt);
+	const details = criticalForceDetails(
+		side === 'right' ? criticalForce?.right_details : criticalForce?.left_details
+	);
+	const note = criticalForceNote(shareOfMax(value.raw, max), details);
+	if (note) value.detail = note;
 }
 
 // A score as the table prints it: two decimals for a ratio, since that is where a

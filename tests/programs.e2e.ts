@@ -1831,6 +1831,47 @@ test('lists what the athlete played in the week being edited', async ({ page }) 
 	);
 });
 
+// A run begun at 00:30 on the Wednesday is the Tuesday evening's training, which
+// the athlete's app filed under Tuesday. The week reads the day it was filed
+// under, not the date of the instant.
+test('places a run begun after midnight under the day it was filed under', async ({ page }) => {
+	const tuesday = new Date(`${mondayDaysAgo(7)}T00:00:00`);
+	tuesday.setDate(tuesday.getDate() + WEEK_ONE_TUESDAY);
+	const trainingDay = `${tuesday.getFullYear()}-${String(tuesday.getMonth() + 1).padStart(2, '0')}-${String(tuesday.getDate()).padStart(2, '0')}`;
+	await stubPlayedWeek(page);
+	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
+		body: [
+			testSession({
+				id: 'played-1',
+				name: 'Power endurance block',
+				date: inFirstWeek(WEEK_ONE_WEDNESDAY, 0),
+				training_day: trainingDay,
+				origin: 'played',
+				program_session_id: 'ws-1'
+			})
+		]
+	});
+
+	await page.goto(PROGRAM_URL);
+	await page.getByRole('button', { name: /Wk 1/ }).click();
+
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_TUESDAY}`)).toContainText(
+		'Power endurance block'
+	);
+	await expect(page.getByTestId(`performed:1:${WEEK_ONE_WEDNESDAY}`)).not.toContainText(
+		'Power endurance block'
+	);
+	const tuesdayLabel = tuesday.toLocaleDateString('en-GB', {
+		weekday: 'short',
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric'
+	});
+	await expect(
+		page.getByTestId('cell:1:1').getByRole('button', { name: /^Played / })
+	).toHaveAttribute('title', new RegExp(`^Played ${tuesdayLabel}\\.`));
+});
+
 test('says so when what the athlete played could not be read', async ({ page }) => {
 	await stubPlayedWeek(page);
 	await stub(page, 'GET', '/api/coach/clients/*/sessions', {
@@ -4575,5 +4616,65 @@ test('keeps the grid of a week whose first load is the one the training prescrib
 	expect(savedOverrides(saved, 'item-grid', 2)).toEqual({
 		rest_seconds: 9,
 		loads: [kg(20), kg(21), kg(22), kg(23)]
+	});
+});
+
+// Weeks open on Monday whatever the browser's locale; en-US counts from Sunday.
+test.describe('weeks start on Monday in an en-US browser', () => {
+	test.use({ locale: 'en-US', timezoneId: 'America/New_York' });
+
+	test('moves the start date to the Monday of the week picked', async ({ page }) => {
+		const program = testProgram({ start_date: '2026-01-05', duration_weeks: 4 });
+		await stubProgram(page, program);
+		await stub(page, 'PUT', '/api/coach/clients/*/programs/*', {
+			body: { ...program, start_date: '2026-01-12' }
+		});
+		const updates = capture(page, 'PUT', '/api/coach/clients/*/programs/*');
+
+		await page.goto(PROGRAM_URL);
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Edit details' }).click();
+		await expect(page.getByLabel('Start date')).toHaveText(/Week of Mon 5 Jan 2026/);
+		await page.getByLabel('Start date').click();
+		const picker = page.getByRole('dialog', { name: 'Choose the start week' });
+		await expect(picker.getByRole('columnheader').first()).toHaveText('Mon');
+		await picker.getByRole('button', { name: 'Wednesday 14 January 2026' }).click();
+		await page.getByRole('button', { name: 'Done' }).click();
+
+		await expect.poll(() => updates.length).toBe(1);
+		expect(updates[0].body).toMatchObject({ start_date: '2026-01-12' });
+	});
+
+	test('shows a legacy start stored off a Monday as the week it runs in', async ({ page }) => {
+		// 2026-09-30 is a Wednesday.
+		await stubProgram(page, testProgram({ start_date: '2026-09-30', duration_weeks: 4 }));
+
+		await page.goto(PROGRAM_URL);
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await page.getByRole('button', { name: 'Edit details' }).click();
+
+		await expect(page.getByLabel('Start date')).toHaveText(/Week of Mon 28 Sept 2026/);
+	});
+
+	test('still reads the week being finished at 01:30 on a Monday', async ({ page }) => {
+		// Monday 9 March 2026, 01:30 in New York: the training day is Sunday, the
+		// last day of week 1.
+		await page.clock.setFixedTime(new Date('2026-03-09T06:30:00Z'));
+		await stubProgram(page, testProgram({ start_date: '2026-03-02', duration_weeks: 2 }));
+
+		await page.goto(PROGRAM_URL);
+
+		await expect(page.getByText('Week 1 of 2')).toBeVisible();
+	});
+
+	test('reads the last week as running, not completed', async ({ page }) => {
+		// Thursday 12 March 2026, the second and last week of the program.
+		await page.clock.setFixedTime(new Date('2026-03-12T16:00:00Z'));
+		await stubProgram(page, testProgram({ start_date: '2026-03-02', duration_weeks: 2 }));
+
+		await page.goto(PROGRAM_URL);
+
+		await expect(page.getByText('Week 2 of 2')).toBeVisible();
+		await expect(page.getByText(/Completed/)).toHaveCount(0);
 	});
 });

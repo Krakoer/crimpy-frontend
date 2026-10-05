@@ -110,6 +110,8 @@
 		<path d="M4 5.5h16v11H9l-5 4v-4H4v-11Z" />
 	{:else if name === 'clock'}
 		<circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" />
+	{:else if name === 'stopwatch'}
+		<circle cx="12" cy="13.5" r="7" /><path d="M12 13.5V10M10 3.5h4M12 3.5v3M18 7l1.5-1.5" />
 	{:else if name === 'star'}
 		<path
 			d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"

@@ -3,11 +3,12 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { apiClient } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import type { Training, TrainingSummary, TrainingType } from '$lib/api/client';
+	import type { Training, TrainingItem, TrainingSummary, TrainingType } from '$lib/api/client';
 	import { snackbar } from '$lib/stores/snackbar.svelte';
 	import { assessmentCatalog } from '$lib/stores/assessmentCatalog.svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import TrainingDuration from '$lib/components/training/TrainingDuration.svelte';
 	import {
 		TRAINING_TYPES,
 		TRAINING_TYPE_INFO,
@@ -17,6 +18,8 @@
 	import { copyTitle, trainingCopyRequest } from '$lib/duplicate-training';
 
 	let trainings = $state<TrainingSummary[]>([]);
+	// Null until the item trees have been asked for and answered, or refused.
+	let itemsById = $state.raw<Record<string, TrainingItem[]> | null>(null);
 	let loading = $state(false);
 	let confirmDeleteId = $state<string | null>(null);
 	let duplicatingId = $state<string | null>(null);
@@ -62,11 +65,33 @@
 
 	async function loadTrainings() {
 		loading = true;
+		loadItemTrees();
 		try {
 			trainings = await apiClient.getTrainings();
 		} finally {
 			loading = false;
 		}
+	}
+
+	// The item trees only feed the duration on each row, so they are read beside
+	// the list rather than as it: the listing that carries them stops at 200
+	// rows. A row it left out, or every row when the read failed, says its
+	// duration is unknown rather than showing none, which would read as a
+	// training with nothing timed in it.
+	async function loadItemTrees() {
+		try {
+			const withItems = await apiClient.getTrainingsWithItems();
+			itemsById = Object.fromEntries(withItems.map((t) => [t.id, t.items ?? []]));
+		} catch {
+			itemsById = {};
+		}
+	}
+
+	// The items a row's duration is counted from: none while they are being read,
+	// null once the read is over and had nothing for this row.
+	function rowItems(id: string): TrainingItem[] | null {
+		if (itemsById === null) return [];
+		return itemsById[id] ?? null;
 	}
 
 	async function handleDelete(id: string) {
@@ -250,6 +275,8 @@
 			>
 				<button
 					onclick={() => (view = 'grid')}
+					aria-label="Grid view"
+					aria-pressed={view === 'grid'}
 					style="
 						width: 32px; height: 28px; border-radius: 6px;
 						border: none; cursor: pointer;
@@ -261,6 +288,8 @@
 				</button>
 				<button
 					onclick={() => (view = 'list')}
+					aria-label="List view"
+					aria-pressed={view === 'list'}
 					style="
 						width: 32px; height: 28px; border-radius: 6px;
 						border: none; cursor: pointer;
@@ -440,6 +469,7 @@
 									<Icon name="clock" size={12} color="var(--tx3)" />
 									Created {formatDate(training.created_at)}
 								</span>
+								<TrainingDuration items={rowItems(training.id)} />
 							</div>
 						</div>
 					</div>
@@ -495,7 +525,7 @@
 							if (e.key === 'Enter') goto(`/trainings/${training.id}`);
 						}}
 						style="
-							display: grid; grid-template-columns: 48px 1.6fr 1fr 1fr 1fr 40px;
+							display: grid; grid-template-columns: 48px 1.6fr 1fr 0.7fr 1fr 1fr 40px;
 							align-items: center; gap: 14px; padding: 14px 20px; cursor: pointer;
 							border-bottom: {i < filtered.length - 1 ? '1px solid var(--bd2)' : 'none'};
 						"
@@ -543,6 +573,9 @@
 							>
 								{tc.label}
 							</span>
+						</div>
+						<div>
+							<TrainingDuration items={rowItems(training.id)} size="md" />
 						</div>
 						<div style="font-size: 12.5px; color: var(--tx2);">
 							Created {formatDate(training.created_at)}

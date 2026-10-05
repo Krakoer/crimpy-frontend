@@ -3,19 +3,29 @@
 	import { gripLabel } from '$lib/sessions';
 	import {
 		formatRecordValue,
+		handEnds,
+		denominatorSources,
+		latestOnHand,
+		measuredAt,
+		originNote,
 		singleValue,
 		unitLabel,
+		type LatestHand,
 		type RecordedAssessment
 	} from './assessment-records';
 	import {
 		denominatorNoteColor,
 		formatDenominatorNote,
 		formatRatio,
+		plottedRecords,
 		readingLabel,
 		readRecordDenominator,
 		readRecordRatio
 	} from './bodyweight-ratio';
 	import LatestValue from './LatestValue.svelte';
+	import { criticalForceRecordNote, type ForceHand } from './critical-force';
+	import type { AssessmentResponse } from '$lib/api/client';
+	import { testedDays, type SeriesTokens } from './chart-axes';
 
 	interface Props {
 		assessment: RecordedAssessment;
@@ -25,9 +35,22 @@
 		onSelectGrip: (grip: number) => void;
 		showChart: boolean;
 		onToggleChart: () => void;
+		// The hue the chart and the hand labels are drawn in.
+		tokens: SeriesTokens;
+		// Every result the athlete has, which a Critical Force reads its share of
+		// max from.
+		allRecords?: AssessmentResponse[];
 	}
 
-	let { assessment, selectedGrip, onSelectGrip, showChart, onToggleChart }: Props = $props();
+	let {
+		assessment,
+		selectedGrip,
+		onSelectGrip,
+		showChart,
+		onToggleChart,
+		tokens,
+		allRecords = []
+	}: Props = $props();
 
 	let grips = $derived(
 		assessment.hasGrips
@@ -41,7 +64,17 @@
 			: assessment.records
 	);
 
-	let latest = $derived(history.at(-1));
+	// A single tested day is a value, which the numbers above already show; the
+	// chart is offered from the second. See Krakoer/crimpy#164.
+	// Counted over the points the chart will draw: in ratio mode a record with
+	// no ratio leaves a gap, and two days of which one is a gap are one point.
+	let chartable = $derived(
+		testedDays(plottedRecords(history, assessment.bodyweightRelative).map(measuredAt)) >= 2
+	);
+
+	// The metric's text hue names the hands, the way it names the lines in the
+	// chart's tooltip: one hue per metric, the hands told apart by line style.
+	let labelColor = $derived(`var(${tokens.text})`);
 
 	function format(value: number | null | undefined): string {
 		return formatRecordValue(value, assessment.unit);
@@ -57,10 +90,32 @@
 		return record ? readRecordRatio(record, value) : null;
 	}
 
-	let latestLeft = $derived(reading(latest, latest?.left_value));
-	let latestRight = $derived(reading(latest, latest?.right_value));
-	let latestSingle = $derived(reading(latest, singleValue(latest)));
-	let denominator = $derived(latest ? readRecordDenominator(latest) : null);
+	// Per hand rather than off the newest row: a pull kept from a training
+	// carries one hand, and the other still stands at its own last measurement.
+	let lastLeft = $derived(latestOnHand(history, (r) => r.left_value));
+	let lastRight = $derived(latestOnHand(history, (r) => r.right_value));
+	let lastSingle = $derived(latestOnHand(history, singleValue));
+	let latestLeft = $derived(reading(lastLeft?.record, lastLeft?.value));
+	let latestRight = $derived(reading(lastRight?.record, lastRight?.value));
+	let latestSingle = $derived(reading(lastSingle?.record, lastSingle?.value));
+	// The weigh-in of the row each headline number came from, not of the newest
+	// row: see denominatorSources.
+	let denominators = $derived(
+		denominatorSources(assessment.perHand, lastLeft, lastRight, lastSingle).flatMap(
+			({ label, record }) => {
+				const reading = readRecordDenominator(record);
+				return reading ? [{ label, reading }] : [];
+			}
+		)
+	);
+
+	function noteOf(last: LatestHand | undefined): string {
+		return last ? originNote(last.record) : '';
+	}
+
+	function detailOf(last: LatestHand | undefined, hand: ForceHand): string {
+		return last ? criticalForceRecordNote(last.record, hand, allRecords) : '';
+	}
 
 	// The progress across the whole history, on the hand that carries the result
 	// for a single value assessment and on the right hand otherwise, which is
@@ -69,14 +124,16 @@
 	// A bodyweight relative assessment is compared as the ratios the card leads
 	// with, and only when both ends have one: a change in kilograms sitting under
 	// two ratios would be read as a change in them.
+	//
+	// The ends are the first and last measurements of that hand, not the first
+	// and last rows: a pull kept on the other hand is not a measurement of it.
 	let ends = $derived.by(() => {
-		if (history.length < 2) return null;
-		const firstRecord = history[0];
-		const lastRecord = history[history.length - 1];
-		const pick = (record: (typeof history)[number]) =>
-			assessment.perHand ? record.right_value : singleValue(record);
-		const first = reading(firstRecord, pick(firstRecord));
-		const last = reading(lastRecord, pick(lastRecord));
+		const measured = handEnds(history, (record) =>
+			assessment.perHand ? record.right_value : singleValue(record)
+		);
+		if (!measured) return null;
+		const first = reading(measured.first.record, measured.first.value);
+		const last = reading(measured.last.record, measured.last.value);
 		return first && last ? { first, last } : null;
 	});
 
@@ -138,61 +195,70 @@
 		{#if assessment.perHand}
 			<LatestValue
 				label="LEFT"
-				labelColor="var(--gn-tx)"
+				{labelColor}
 				reading={latestLeft}
 				unit={assessment.unit}
 				size={26}
+				note={noteOf(lastLeft)}
+				detail={detailOf(lastLeft, 'left')}
 			/>
 			<LatestValue
 				label="RIGHT"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestRight}
 				unit={assessment.unit}
 				size={26}
+				note={noteOf(lastRight)}
+				detail={detailOf(lastRight, 'right')}
 			/>
 		{:else}
 			<LatestValue
 				label="LATEST"
-				labelColor="var(--pr-tx)"
+				{labelColor}
 				reading={latestSingle}
 				unit={assessment.unit}
 				size={26}
+				note={noteOf(lastSingle)}
 			/>
 		{/if}
 	</div>
 
-	{#if denominator}
+	{#each denominators as { label, reading } (label)}
 		<!-- Named once, because one session is one weigh-in: saying it under each
 		     hand repeats it and wraps mid date in a column half a card wide. The
 		     load itself stays per hand, above. -->
 		<div
-			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(denominator)};"
+			style="font-size: 11px; margin-top: 6px; color: {denominatorNoteColor(reading)};"
 			data-testid="denominator-note"
 		>
-			{formatDenominatorNote(denominator, unitLabel(assessment.unit))}
+			{label ? `${label}: ` : ''}{formatDenominatorNote(reading, unitLabel(assessment.unit))}
 		</div>
-	{/if}
+	{/each}
 
 	{#if history.length >= 2}
-		<button
-			onclick={onToggleChart}
-			style="
+		{#if chartable}
+			<button
+				onclick={onToggleChart}
+				style="
 				font-size: 11.5px; color: {showChart ? 'var(--pr-tx)' : 'var(--tx3-sm)'};
 				background: none; border: none; cursor: pointer; padding: 0;
 				font-family: var(--font); font-weight: 600; margin-bottom: 8px;
 			">{showChart ? 'Hide chart' : 'Show chart'}</button
-		>
+			>
 
-		{#if showChart}
-			<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
-				<AssessmentChart
-					{history}
-					unit={unitLabel(assessment.unit)}
-					formatValue={(v) => formatRecordValue(v, assessment.unit)}
-					perHand={assessment.perHand}
-					{bodyweightRelative}
-				/>
-			</div>
+			{#if showChart}
+				<div style="border-top: 1px solid var(--bd2); padding-top: 8px;">
+					<AssessmentChart
+						{tokens}
+						{history}
+						unit={unitLabel(assessment.unit)}
+						rawUnit={assessment.unit}
+						formatValue={(v) => formatRecordValue(v, assessment.unit)}
+						perHand={assessment.perHand}
+						{bodyweightRelative}
+					/>
+				</div>
+			{/if}
 		{/if}
 
 		<div

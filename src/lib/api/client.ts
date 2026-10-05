@@ -81,7 +81,13 @@ export interface SessionResponse {
 	id: string;
 	user_id: string;
 	name: string;
+	// When the session started, a UTC instant.
 	date: string;
+	// The day the session counts for in the athlete's own calendar, YYYY-MM-DD:
+	// the date it started on, or the one before when it started before 04:00.
+	// Absent only from an API older than the field. Read it through
+	// trainingDayOf in $lib/sessions, never by cutting date in the coach's zone.
+	training_day?: string;
 	duration: number;
 	notes: string;
 	// What was done, as a label. See SESSION_ACTIVITIES in $lib/sessions.
@@ -223,6 +229,17 @@ export interface AssessmentResultSnapshot {
 	assessment_id: string;
 	right_value?: number | null;
 	left_value?: number | null;
+	// The same last value per hand, kept apart per grip the results were pulled
+	// on. A percentage load on a hang reads its grip's entry, hand by hand, and
+	// falls back to the values above for a grip or a hand never measured. Absent
+	// on a session played before it was recorded.
+	by_grip?: AssessmentGripResultSnapshot[];
+}
+
+export interface AssessmentGripResultSnapshot {
+	grip_position: number;
+	right_value?: number | null;
+	left_value?: number | null;
 }
 
 // An assessment as a prescription froze it: enough to name the reference and
@@ -303,6 +320,8 @@ export interface UserEnrollment {
 	enrolled_at: string;
 }
 
+export type AssessmentOrigin = 'test' | 'training';
+
 export interface SessionAssessment {
 	id: string;
 	user_id: string;
@@ -333,6 +352,14 @@ export interface SessionAssessment {
 	left_value: number | null;
 	session_id: string;
 	grip_position?: number | null;
+	// What produced the result: a test of the assessment, or a pull measured
+	// during a training that the athlete kept because it beat the result on
+	// file. Every result recorded before the distinction reads as a test.
+	origin: AssessmentOrigin;
+	// What the test measured beyond the value, as the app stored it: for a
+	// Critical Force its W', the end force of its last three pulls and one entry
+	// per pull. Absent on every other result and on every one recorded before.
+	details?: Record<string, unknown> | null;
 	updated_at: string;
 }
 
@@ -396,10 +423,19 @@ export interface AssessmentSnapshotResult {
 	// the result it divides, and the last one at or before a result can be the
 	// same morning or months earlier. Absent exactly when the weight is.
 	right_bodyweight_measured_at?: string | null;
+	// What produced this hand's value, absent exactly when the value is: a
+	// comparison says so when the value standing on a date is a pull kept from a
+	// training rather than a test.
+	right_origin?: AssessmentOrigin | null;
+	// What the test behind this hand's value measured beyond it, from that same
+	// result. Absent when it has none.
+	right_details?: Record<string, unknown> | null;
 	left_value?: number | null;
 	left_measured_at?: string | null;
 	left_bodyweight_kg?: number | null;
 	left_bodyweight_measured_at?: string | null;
+	left_origin?: AssessmentOrigin | null;
+	left_details?: Record<string, unknown> | null;
 }
 
 // What an athlete had measured as of a date. The bodyweight is what the athlete
@@ -826,6 +862,9 @@ export interface PendingFeedback {
 	user_lastname: string;
 	session_name: string;
 	session_date: string;
+	// The day the session counts for in the athlete's own calendar, YYYY-MM-DD,
+	// absent only from an API older than the field.
+	session_training_day?: string;
 	activity: number;
 	notes: string;
 }
@@ -1282,6 +1321,13 @@ class ApiClient {
 	async getTrainings(isAssessment?: boolean): Promise<TrainingSummary[]> {
 		const query = isAssessment === undefined ? '' : `?is_assessment=${isAssessment}`;
 		return this.requestList<TrainingSummary>(`/api/trainings${query}`);
+	}
+
+	// The library with every training's item tree on its row, read in one
+	// request. The server cuts this listing at its first 200 rows, so it is no
+	// substitute for getTrainings when the whole library has to be listed.
+	async getTrainingsWithItems(): Promise<Training[]> {
+		return this.requestList<Training>('/api/trainings?include=items');
 	}
 
 	async getAssessmentDefinitions(): Promise<AssessmentDefinition[]> {
